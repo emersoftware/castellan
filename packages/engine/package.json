@@ -1,0 +1,15 @@
+{
+  "name": "@aoa/engine",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@aoa/shared": "workspace:*",
+    "@aoa/sandbox": "workspace:*"
+  },
+  "devDependencies": {
+    "@aoa/sim": "workspace:*"
+  }
+}

@@ -1,0 +1,12 @@
+node_modules
+dist
+replays
+*.log
+.DS_Store
+videos
+# design notes and art not used by the build
+docs/
+files.zip
+/*.png
+assets/raw/v1/
+assets/raw/v2/

@@ -1,0 +1,10 @@
+services:
+  aoa:
+    build: .
+    ports:
+      - "4400:4400"
+    volumes:
+      - replays:/data/replays
+    restart: unless-stopped
+volumes:
+  replays:

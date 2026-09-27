@@ -1,0 +1,246 @@
+/* Age of Agents: black like the unexplored map of Age of Empires, plain
+   Arial for the interface and Aktura (Fontshare, self-hosted) for titles, and the whole
+   interface run through the same ordered dither as the game (see DitherDefs). */
+@font-face {
+  font-family: Aktura;
+  src: url("/fonts/aktura.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  /* Text colours come from the EGA palette (0, 55, aa, ff per channel), the
+     dither's 4 levels; the filter mixes each one with the level below. */
+  --black: #000000;
+  --panel: #0b0b0b;
+  --line: #2a2a2a;
+  --dark-grey: #555555;
+  --grey: #aaaaaa;
+  --light-grey: #aaaaaa;
+  --white: #ffffff;
+  --yellow: #ffff55;
+  --cyan: #55ffff;
+  --a: #0055aa;
+  --a-light: #55aaff;
+  --b: #aa0000;
+  --b-light: #ffaa55;
+  --green: #55aa55;
+  --sans: Arial, Helvetica, sans-serif;
+  --title: Aktura, "Times New Roman", serif;
+  --serif: "Times New Roman", Times, serif;
+  font-family: var(--sans);
+  font-size: 16px;
+  color: var(--light-grey);
+  background: var(--black);
+}
+
+* { box-sizing: border-box; }
+b, strong, th { font-weight: 400; }
+html, body, #root { margin: 0; height: 100%; background: var(--black); }
+a { color: var(--white); text-decoration: none; }
+a:hover { color: var(--yellow); }
+code, pre { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+h1, h2, h3, h4, .brand { font-family: var(--serif); font-weight: 400; }
+.btn, button { font-family: var(--sans); letter-spacing: 0.06em; }
+.muted { color: var(--grey); }
+.team-a { color: var(--a-light); }
+.team-b { color: var(--b-light); }
+
+button, .btn {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--light-grey);
+  background: transparent;
+  border: 1px solid var(--dark-grey);
+  padding: 7px 14px;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+button:hover, .btn:hover { color: var(--white); border-color: var(--light-grey); }
+button.on { color: var(--black); background: var(--light-grey); border-color: var(--light-grey); }
+.btn.primary { color: var(--black); background: var(--white); border-color: var(--white); }
+.btn.primary:hover { background: var(--yellow); border-color: var(--yellow); color: var(--black); }
+
+/* ─────────── landing ─────────── */
+.landing { background: var(--black); }
+.hero { position: relative; height: 100vh; min-height: 560px; overflow: hidden; }
+.hero-bg { position: absolute; inset: 0; opacity: 0.55; }
+.hero-bg .canvas-host { cursor: default; }
+.hero-shade {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.85) 70%), linear-gradient(to bottom, transparent 60%, #000 100%);
+}
+.hero-content {
+  position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 0 24px; pointer-events: none;
+}
+.hero-content > * { pointer-events: auto; }
+.hero h1 {
+  font-size: clamp(44px, 8vw, 104px); font-weight: 400; color: var(--white); margin: 12px 0 4px; letter-spacing: 0.14em;
+  text-transform: uppercase; text-shadow: 0 2px 0 #000, 0 0 24px #000;
+}
+.tagline { font-family: var(--sans); color: var(--light-grey); font-size: 18px; letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 16px; }
+.lede { max-width: 620px; font-size: 20px; line-height: 1.5; color: var(--light-grey); margin: 0 0 28px; }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.portrait { image-rendering: pixelated; display: block; }
+
+.pillars, .units, .recent, .host {
+  max-width: 1080px; margin: 0 auto; padding: 72px 24px; border-top: 1px solid var(--line);
+}
+.pillars { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 40px; }
+.pillars h3, .units h2, .recent h2, .host h2 { color: var(--white); font-weight: 400; text-transform: uppercase; }
+.units h2, .recent h2, .host h2 { font-size: 26px; margin: 0 0 32px; text-align: center; }
+.pillars h3 { font-size: 16px; margin: 0 0 12px; }
+.pillars p { margin: 0; line-height: 1.55; }
+.unit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 32px 24px; }
+.unit { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.unit .portrait { height: 110px; width: auto; object-fit: contain; margin-bottom: 12px; }
+.unit h4 { color: var(--white); margin: 0 0 6px; font-weight: 400; text-transform: uppercase; font-size: 14px; }
+.unit p { margin: 0 0 6px; font-size: 16px; line-height: 1.4; }
+.unit .stat { font-family: var(--sans); font-size: 12px; color: var(--yellow); }
+.host { text-align: center; }
+.host pre { text-align: left; display: inline-block; background: var(--panel); border: 1px solid var(--line); padding: 18px 22px; color: var(--cyan); max-width: 100%; overflow-x: auto; }
+.host p { max-width: 640px; margin: 0 auto 20px; line-height: 1.5; }
+footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); font-family: var(--sans); font-size: 12px; letter-spacing: 0.12em; border-top: 1px solid var(--line); }
+.recent { text-align: center; }
+
+/* ─────────── battles ─────────── */
+.page { min-height: 100%; padding: 40px 24px 80px; max-width: 980px; margin: 0 auto; }
+.page-head { text-align: center; margin-bottom: 32px; }
+.page-head .brand { color: var(--grey); font-size: 13px; text-transform: uppercase; }
+.page-head h1 { color: var(--white); font-weight: 400; font-size: 40px; margin: 10px 0 8px; text-transform: uppercase; }
+.drop {
+  display: block; border: 1px dashed var(--dark-grey); padding: 22px; text-align: center; margin-bottom: 32px; cursor: pointer; color: var(--grey);
+}
+.drop.over, .drop:hover { border-color: var(--light-grey); color: var(--light-grey); }
+.drop .error { color: var(--b-light); margin-top: 8px; }
+.battle-list { display: grid; gap: 12px; text-align: left; margin-bottom: 28px; }
+.battle { display: block; border: 1px solid var(--line); padding: 16px 20px; background: var(--panel); color: var(--light-grey); }
+.battle:hover { border-color: var(--grey); color: var(--light-grey); }
+.battle .title { font-family: var(--sans); color: var(--white); font-size: 16px; margin-bottom: 6px; }
+.battle .versus span { color: var(--dark-grey); font-style: italic; margin: 0 4px; }
+.battle .meta { font-size: 15px; color: var(--grey); margin-top: 4px; }
+.tag { font-family: var(--sans); font-size: 11px; border: 1px solid var(--dark-grey); padding: 1px 6px; margin-left: 6px; color: var(--grey); }
+
+/* ─────────── game ─────────── */
+.game { position: fixed; inset: 0; overflow: hidden; background: var(--black); }
+.canvas-host { position: absolute; inset: 0; cursor: grab; }
+.canvas-host:active { cursor: grabbing; }
+.zoom { position: absolute; right: 14px; bottom: 70px; display: flex; flex-direction: column; gap: 4px; z-index: 3; }
+.zoom button { width: 32px; padding: 4px 0; background: rgba(0,0,0,0.8); }
+
+.topbar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: flex; justify-content: center; align-items: stretch;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.95), rgba(0,0,0,0.75)); border-bottom: 1px solid var(--line); pointer-events: none;
+}
+.player { flex: 0 1 360px; padding: 8px 18px; }
+.player .name { font-family: var(--sans); color: var(--white); font-size: 15px; letter-spacing: 0.06em; }
+.player.team-a { border-left: 3px solid var(--a); }
+.player.team-b { border-right: 3px solid var(--b); text-align: right; }
+.player.dead .name { text-decoration: line-through; color: var(--grey); }
+.player .stats, .player .timing { display: flex; gap: 14px; font-family: var(--sans); font-size: 12px; color: var(--light-grey); }
+.player .timing { font-size: 11px; color: var(--grey); margin-top: 2px; }
+.player.team-b .stats, .player.team-b .timing { justify-content: flex-end; }
+.player i { font-style: normal; color: var(--grey); }
+.clock { padding: 8px 22px; text-align: center; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+.clock .time { font-family: var(--sans); font-size: 22px; color: var(--white); }
+.clock .sub { font-size: 12px; color: var(--grey); }
+
+.feed { position: absolute; right: 14px; top: 88px; width: 300px; z-index: 3; font-size: 15px; pointer-events: none; }
+.feed .line { background: rgba(0,0,0,0.72); margin-bottom: 2px; padding: 3px 10px; border-left: 1px solid var(--dark-grey); }
+.feed .t { font-family: var(--sans); font-size: 11px; color: var(--grey); }
+.feed q { font-style: italic; color: var(--white); }
+
+.tooltip {
+  position: absolute; left: 14px; bottom: 70px; z-index: 3; background: rgba(0,0,0,0.85); border: 1px solid var(--line);
+  padding: 6px 12px; font-size: 15px; max-width: 60%;
+}
+.tooltip b { color: var(--white); font-weight: 400; font-family: var(--sans); font-size: 13px; }
+.corner { position: absolute; left: 14px; top: 76px; z-index: 3; font-family: var(--sans); font-size: 13px; letter-spacing: 0.06em; }
+.corner .live { color: var(--b-light); margin: 0 10px; }
+.corner.right { left: auto; right: 14px; top: auto; bottom: 70px; }
+.corner.brandmark { top: auto; bottom: 18px; color: var(--grey); text-transform: uppercase; letter-spacing: 0.2em; }
+
+.banner {
+  position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 4; text-align: center;
+  background: rgba(0,0,0,0.9); border-top: 1px solid var(--grey); border-bottom: 1px solid var(--grey); padding: 22px 60px;
+}
+.banner .big { font-family: var(--sans); font-size: 34px; color: var(--white); letter-spacing: 0.1em; text-transform: uppercase; }
+.banner .sub { color: var(--light-grey); font-style: italic; margin-top: 4px; }
+.banner.small .big { font-size: 22px; }
+
+.controls {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; background: rgba(0,0,0,0.92); border-top: 1px solid var(--line);
+}
+.controls input[type="range"] {
+  flex: 1; appearance: none; height: 4px;
+  background: linear-gradient(90deg, var(--dark-grey) var(--loaded, 0%), #151515 var(--loaded, 0%));
+}
+.controls input[type="range"]::-webkit-slider-thumb { appearance: none; width: 10px; height: 18px; background: var(--white); }
+.controls .time { font-family: var(--sans); font-size: 12px; min-width: 104px; text-align: center; }
+.controls .speeds { display: flex; gap: 2px; }
+.controls .speeds button { padding: 6px 8px; }
+.controls .check { font-family: var(--sans); font-size: 11px; color: var(--grey); min-width: 130px; text-align: right; }
+.controls .check.ok { color: var(--green); }
+.controls .check.bad { color: var(--b-light); }
+.sound { white-space: nowrap; }
+
+/* ─────────── phones ─────────── */
+@media (max-width: 720px) {
+  :root { font-size: 16px; }
+  .player { padding: 6px 8px; }
+  .player .name { font-size: 11px; }
+  .player .stats { gap: 6px; font-size: 10px; flex-wrap: wrap; }
+  .player .timing { display: none; }
+  .clock { padding: 6px 8px; }
+  .clock .time { font-size: 15px; }
+  .clock .sub { display: none; }
+  .feed { top: auto; bottom: 120px; right: 4px; width: 62%; font-size: 12px; }
+  .feed .line:nth-child(n + 4) { display: none; }
+  .tooltip { display: none; }
+  .corner { top: 64px; font-size: 11px; }
+  .zoom { bottom: 120px; left: 6px; right: auto; }
+  .controls { flex-wrap: wrap; gap: 4px; padding: 6px; }
+  .controls input[type="range"] { order: -1; flex-basis: 100%; }
+  .controls .time { min-width: 0; }
+  .controls .check { min-width: 0; flex-basis: 100%; text-align: left; }
+  .banner { padding: 12px 18px; width: 92%; }
+  .banner .big { font-size: 20px; }
+}
+
+/* ─────────── dither + titles ─────────── */
+/* Every piece of interface goes through the dither filter; the game canvas never does. */
+.hero-content, .pillars, .unit h4, .unit p, .unit .stat, .units h2, .recent, .host, footer, .page,
+.topbar, .feed, .tooltip, .corner, .banner, .controls, .zoom { filter: url(#aoa-dither); }
+
+/* Aktura is blackletter: only large titles, never all caps; small titles stay in Times. */
+.hero h1, .banner .big, .page-head h1, .units h2, .recent h2, .host h2 {
+  font-family: var(--title); text-transform: none; letter-spacing: 0.02em;
+}
+.corner.brandmark, .clock .time, .pillars h3, .battle .title, .tagline { font-family: var(--serif); }
+.hero h1 {
+  font-weight: 400;
+  background: linear-gradient(to bottom, #ffffff 0%, #d8d8d8 45%, #6c6c6c 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none;
+}
+.tagline { text-transform: none; letter-spacing: 0.02em; font-size: 22px; font-style: italic; }
+.banner .big {
+  background: linear-gradient(to bottom, #ffffff, #8c8c8c); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.banner { background: linear-gradient(to bottom, rgba(26,26,26,0.95), rgba(0,0,0,0.85)); }
+.clock .time { font-size: 24px; }
+.player .name { font-family: var(--sans); font-weight: 400; letter-spacing: 0.02em; }
+
+button, .btn { background: linear-gradient(to bottom, #2a2a2a, #050505); text-transform: none; font-size: 13px; }
+button:hover, .btn:hover { background: linear-gradient(to bottom, #444444, #0b0b0b); }
+button.on { background: linear-gradient(to bottom, #ffffff, #8c8c8c); }
+.btn.primary { background: linear-gradient(to bottom, #ffffff, #9c9c9c); }
+.btn.primary:hover { background: linear-gradient(to bottom, #fff6c8, #b88a12); }
+
+.battle { background: linear-gradient(to bottom, #1c1c1c, #050505); }
+.topbar { background: linear-gradient(to bottom, rgba(24,24,24,0.96), rgba(0,0,0,0.55)); }
+.controls { background: linear-gradient(to top, rgba(24,24,24,0.96), rgba(0,0,0,0.6)); }
+.feed .line { background: linear-gradient(to right, rgba(20,20,20,0.9), rgba(0,0,0,0.25)); }
+.tooltip { background: linear-gradient(to bottom, rgba(24,24,24,0.92), rgba(0,0,0,0.7)); }
+.pillars > div, .host pre { background: linear-gradient(to bottom, #151515, #000000); padding: 18px; border: 1px solid var(--line); }

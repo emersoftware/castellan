@@ -1,0 +1,11 @@
+# Add to ~/.codex/config.toml (play.sh passes the same settings with -c, so this is optional).
+# AOA_SERVER and AOA_TOKEN are forwarded from the environment Codex runs in, so one config serves any player.
+[mcp_servers.aoa]
+command = "node"
+args = ["/absolute/path/to/aoa/connectors/mcp/bin/aoa-mcp.mjs"]
+env_vars = ["AOA_SERVER", "AOA_TOKEN"]
+startup_timeout_sec = 20
+# The wait tool blocks up to 30 s; leave headroom.
+tool_timeout_sec = 60
+# `codex exec` can't answer approval prompts.
+default_tools_approval_mode = "approve"

@@ -1,0 +1,268 @@
+/**
+ * The HTTP API: the only contract between the game and its players. Connectors
+ * (MCP, CLI, anything else) are thin clients of these routes.
+ */
+import { existsSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { gunzipSync, gzipSync } from "node:zlib";
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
+import cors from "@fastify/cors";
+import websocket from "@fastify/websocket";
+import fastifyStatic from "@fastify/static";
+import { transform } from "esbuild";
+import { validateScript } from "@aoa/sandbox";
+import { MAPS, playerGuide, v0, viewToText, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { BOTS } from "@aoa/sim";
+import { Room } from "./room";
+
+export interface ServerOptions {
+  replayDir: string;
+  /** Built web client to serve at `/` (optional). */
+  webDir?: string;
+  ruleset?: Ruleset;
+  tickRate?: number;
+  prepMs?: number;
+  logger?: boolean;
+}
+
+export async function buildServer(opts: ServerOptions): Promise<FastifyInstance> {
+  const ruleset = opts.ruleset ?? v0;
+  const rooms = new Map<string, Room>();
+  const tokens = new Map<string, { room: Room; player: string }>();
+  await mkdir(opts.replayDir, { recursive: true });
+
+  const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 64 * 1024 });
+  await app.register(cors, { origin: true });
+  await app.register(websocket);
+
+  const auth = (req: FastifyRequest, reply: FastifyReply) => {
+    const h = req.headers.authorization ?? "";
+    const token = h.startsWith("Bearer ") ? h.slice(7) : ((req.query as Record<string, string>)?.token ?? "");
+    const who = tokens.get(token);
+    if (!who) {
+      reply.code(401).send({ error: "missing or invalid token (Authorization: Bearer <token>)" });
+      return null;
+    }
+    who.room.touch(who.player);
+    who.room.beginCall(who.player);
+    (req as FastifyRequest & { aoa?: typeof who }).aoa = who;
+    return who;
+  };
+  // Every answered call closes the player's timing window (see Room.beginCall).
+  app.addHook("onResponse", async (req) => {
+    const who = (req as FastifyRequest & { aoa?: { room: Room; player: string }; waitedMs?: number }).aoa;
+    if (who) who.room.endCall(who.player, (req as FastifyRequest & { waitedMs?: number }).waitedMs ?? 0);
+  });
+  const int = (v: unknown, fallback: number) => (v === undefined || v === "" || !Number.isFinite(Number(v)) ? fallback : Math.trunc(Number(v)));
+  const wantsText = (req: FastifyRequest) => (req.query as Record<string, string>)?.format === "text";
+
+  // ───────────────────────── lobby ─────────────────────────
+
+  app.get("/health", async () => ({ ok: true }));
+
+  app.post("/rooms", async (req, reply) => {
+    const body = (req.body ?? {}) as {
+      players?: { name?: string; bot?: string }[]; seed?: number; prepMs?: number; tickRate?: number; botLatencyMs?: number;
+      map?: string; sides?: "random" | "fixed"; chat?: boolean;
+    };
+    const map = MAPS[body.map ?? "open"];
+    if (!map) return reply.code(400).send({ error: `unknown map ${body.map}; available: ${Object.keys(MAPS).join(", ")}` });
+    const players = (body.players ?? [{}, {}]).slice(0, 2).map((p, i) => ({ name: String(p.name ?? p.bot ?? `player${i + 1}`).slice(0, 32), bot: p.bot }));
+    while (players.length < 2) players.push({ name: `player${players.length + 1}`, bot: undefined });
+    for (const p of players) if (p.bot && !BOTS[p.bot]) return reply.code(400).send({ error: `unknown bot ${p.bot}; available: ${Object.keys(BOTS).join(", ")}` });
+    const room = await Room.create({
+      ruleset: { ...ruleset, map },
+      players,
+      sides: body.sides === "fixed" ? "fixed" : "random",
+      chat: body.chat === true,
+      seed: int(body.seed, Math.floor(Math.random() * 2 ** 31)),
+      tickRate: int(body.tickRate, opts.tickRate ?? 10),
+      prepMs: int(body.prepMs, opts.prepMs ?? ruleset.prepMs),
+      botLatencyMs: int(body.botLatencyMs, 3000),
+      onFinish: (replay) => void saveReplay(opts.replayDir, replay),
+    });
+    rooms.set(room.id, room);
+    for (const p of room.players) tokens.set(p.token, { room, player: p.id });
+    return {
+      ...room.summary(),
+      players: room.players.map((p) => ({ id: p.id, name: p.name, bot: p.bot?.name, side: p.side, token: p.bot ? undefined : p.token })),
+      watch: `/watch/${room.id}`,
+    };
+  });
+
+  app.get("/maps", async () => Object.values(MAPS).map(({ name, description, width, height, walls }) => ({ name, description, width, height, walls })));
+
+  app.get("/rooms", async () => [...rooms.values()].map((r) => r.summary()).reverse());
+
+  app.get("/rooms/:id", async (req, reply) => {
+    const room = rooms.get((req.params as { id: string }).id);
+    return room ? room.summary() : reply.code(404).send({ error: "no such room" });
+  });
+
+  app.get("/replays", async () => readIndex(opts.replayDir));
+
+  app.get("/replays/:id", async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    if (!/^[\w-]+$/.test(id)) return reply.code(400).send({ error: "bad id" });
+    const file = join(opts.replayDir, `${id}.json.gz`);
+    if (!existsSync(file)) return reply.code(404).send({ error: "no such replay" });
+    reply.header("content-type", "application/json");
+    return gunzipSync(await readFile(file)).toString("utf8");
+  });
+
+  app.get("/spectate/:id", { websocket: true }, (socket, req) => {
+    const room = rooms.get((req.params as { id: string }).id);
+    if (!room) return socket.close(4404, "no such room");
+    const off = room.addSpectator({ send: (m) => socket.readyState === 1 && socket.send(JSON.stringify(m)) });
+    socket.on("close", off);
+  });
+
+  // ───────────────────────── players ─────────────────────────
+
+  // With a token: the rules of that player's room (its map). Without: the defaults.
+  app.get("/rules", async (req) => {
+    const h = req.headers.authorization ?? "";
+    const room = tokens.get(h.startsWith("Bearer ") ? h.slice(7) : "")?.room;
+    const r = room?.ruleset ?? ruleset;
+    const guide = playerGuide(r, { chat: room?.chat ?? false });
+    if (wantsText(req)) return guide;
+    return { ruleset: r, guide };
+  });
+
+  app.get("/state", async (req, reply) => {
+    const who = auth(req, reply);
+    if (!who) return;
+    const q = req.query as Record<string, string>;
+    const v = who.room.view(who.player, q.since === undefined ? undefined : int(q.since, 0));
+    return wantsText(req) ? viewToText(v) : v;
+  });
+
+  app.post("/act", async (req, reply) => {
+    const who = auth(req, reply);
+    if (!who) return;
+    const body = req.body as { orders?: unknown; since?: number } | undefined;
+    const orders = Array.isArray(body?.orders) ? (body!.orders as Order[]).slice(0, 50) : null;
+    if (!orders) return reply.code(400).send({ error: 'body must be {"orders":[...]} (max 50)' });
+    const scripts = await Promise.all(orders.map((o) => (o?.type === "script" ? prepareScript(o.code, "js", ruleset) : null)));
+    const prepared = orders.map((o, i) => (scripts[i]?.ok ? { ...o, code: scripts[i]!.code } : o)) as Order[];
+    const { results, tick } = await who.room.act(who.player, prepared);
+    const view = who.room.view(who.player, body?.since);
+    return wantsText(req) ? `${results.map((r, i) => `order ${i}: ${r.ok ? "ok" + ("id" in r && r.id ? " " + r.id : "") : "FAILED " + r.reason}`).join("\n")}\n\n${viewToText(view)}` : { results, view };
+  });
+
+  app.get("/chat", async (req, reply) => {
+    const who = auth(req, reply);
+    if (!who) return;
+    const log = who.room.conversation();
+    if (!wantsText(req)) return { chat: who.room.chat, messages: log };
+    if (!who.room.chat) return "chat is off in this room";
+    return log.length ? log.map((m) => `[${m.tick}] ${m.from} ${m.name}${m.from === who.player ? " (you)" : ""}: ${m.text}`).join("\n") : "no messages yet";
+  });
+
+  app.post("/chat", async (req, reply) => {
+    const who = auth(req, reply);
+    if (!who) return;
+    const text = (req.body as { text?: unknown } | undefined)?.text;
+    if (typeof text !== "string") return reply.code(400).send({ error: 'body must be {"text":"..."} (max 200 chars)' });
+    const { results } = await who.room.act(who.player, [{ type: "chat", text }]);
+    const r = results[0];
+    return answer(req, reply, who, r.ok ? "message sent" : `FAILED ${r.reason}`, { ok: r.ok, error: r.ok ? undefined : r.reason }, r.ok ? 200 : 400);
+  });
+
+  app.get("/scripts/:kind", async (req, reply) => {
+    const who = auth(req, reply);
+    if (!who) return;
+    const s = who.room.script(who.player, (req.params as { kind: string }).kind);
+    return s ?? reply.code(404).send({ error: "that kind is not scriptable" });
+  });
+
+  app.put("/scripts/:kind", async (req, reply) => {
+    const who = auth(req, reply);
+    if (!who) return;
+    const kind = (req.params as { kind: string }).kind;
+    const body = (req.body ?? {}) as { code?: unknown; lang?: string };
+    if (body.code !== null && typeof body.code !== "string") return reply.code(400).send({ error: 'body must be {"code":"...","lang":"js"|"ts"} (code null = default)' });
+    const prepared = body.code === null ? { ok: true as const, code: null } : await prepareScript(body.code, body.lang === "ts" ? "ts" : "js", ruleset);
+    if (!prepared.ok) return reply.code(400).send({ ok: false, error: prepared.error });
+    const { results, tick } = await who.room.act(who.player, [{ type: "script", kind, code: prepared.code }]);
+    const r = results[0];
+    const line = r.ok ? `${kind} script ${prepared.code === null ? "reset to default" : "uploaded"}, applied at tick ${tick}` : `FAILED ${r.reason}`;
+    return answer(req, reply, who, line, { ok: r.ok, error: r.ok ? undefined : r.reason, appliedAt: r.ok ? tick : undefined }, r.ok ? 200 : who.room.state === "running" ? 400 : 409);
+  });
+
+  app.get("/wait", async (req, reply) => {
+    const who = auth(req, reply);
+    if (!who) return;
+    const q = req.query as Record<string, string>;
+    const since = int(q.since, who.room.cursor(who.player));
+    const maxMs = Math.min(30, Math.max(0, int(q.max, 20))) * 1000;
+    const started = Date.now();
+    await who.room.wait(who.player, since, maxMs, q.until ? q.until.split(",") : null);
+    (req as FastifyRequest & { waitedMs?: number }).waitedMs = Date.now() - started;
+    const v = who.room.view(who.player, since);
+    return wantsText(req) ? viewToText(v) : v;
+  });
+
+  /** Every action answers with its result and the player's view, so an agent never needs a separate state call. */
+  function answer(req: FastifyRequest, reply: FastifyReply, who: { room: Room; player: string }, line: string, body: object, code: number) {
+    const view = who.room.view(who.player);
+    reply.code(code);
+    return wantsText(req) ? `${line}\n\n${viewToText(view)}` : { ...body, view };
+  }
+
+  // ───────────────────────── web client ─────────────────────────
+
+  if (opts.webDir && existsSync(opts.webDir)) {
+    await app.register(fastifyStatic, { root: opts.webDir, wildcard: true });
+    app.setNotFoundHandler((req, reply) => (req.method === "GET" && !req.url.startsWith("/api") ? reply.sendFile("index.html") : reply.code(404).send({ error: "not found" })));
+  }
+
+  app.addHook("onClose", async () => {
+    for (const r of rooms.values()) r.close();
+  });
+  return app;
+}
+
+/** Strips TypeScript types (never type-checks) and compile-checks the result. */
+async function prepareScript(code: string | null, lang: "js" | "ts", ruleset: Ruleset): Promise<{ ok: true; code: string | null } | { ok: false; error: string }> {
+  if (code === null) return { ok: true, code: null };
+  let js = code;
+  if (lang === "ts") {
+    try {
+      const out = await transform(`(function (self: any) {\n${code}\n});`, { loader: "ts", format: "esm" });
+      const m = /^\(function\s*\(self\)\s*\{\n?([\s\S]*)\n?\}\);?\s*$/.exec(out.code.trim());
+      if (!m) return { ok: false, error: "could not strip TypeScript types" };
+      js = m[1];
+    } catch (e) {
+      return { ok: false, error: String((e as Error).message).slice(0, 300) };
+    }
+  }
+  const check = validateScript(js, ruleset.script);
+  return check.ok ? { ok: true, code: js } : { ok: false, error: check.error };
+}
+
+interface ReplayIndexEntry {
+  id: string;
+  createdAt: string;
+  players: ReplayFile["players"];
+  outcome: ReplayFile["outcome"];
+  finalTick: number;
+  tickRate: number;
+}
+
+export async function saveReplay(dir: string, replay: ReplayFile): Promise<void> {
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, `${replay.id}.json.gz`), gzipSync(JSON.stringify(replay)));
+  const index = await readIndex(dir);
+  index.unshift({ id: replay.id, createdAt: replay.createdAt, players: replay.players, outcome: replay.outcome, finalTick: replay.finalTick, tickRate: replay.tickRate });
+  await writeFile(join(dir, "index.json"), JSON.stringify(index, null, 1));
+}
+
+async function readIndex(dir: string): Promise<ReplayIndexEntry[]> {
+  try {
+    return JSON.parse(await readFile(join(dir, "index.json"), "utf8"));
+  } catch {
+    return [];
+  }
+}

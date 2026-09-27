@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "noEmit": true },
+  "include": ["packages/*/src", "packages/*/test", "connectors/*/src", "connectors/*/test"],
+  "exclude": ["packages/web"]
+}

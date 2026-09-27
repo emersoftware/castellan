@@ -1,0 +1,7 @@
+{
+  "autoMemoryEnabled": false,
+  "env": { "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP": "0" },
+  "hooks": {
+    "Stop": [{ "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/stop-hook.sh", "timeout": 15 }] }]
+  }
+}

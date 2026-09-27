@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "aoa": {
+      "command": "node",
+      "args": ["../../mcp/bin/aoa-mcp.mjs"],
+      "env": {
+        "AOA_SERVER": "${AOA_SERVER:-http://localhost:4400}",
+        "AOA_TOKEN": "${AOA_TOKEN}"
+      }
+    }
+  }
+}

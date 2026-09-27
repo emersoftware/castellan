@@ -1,0 +1,24 @@
+{
+  "name": "age-of-agents",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "server": "pnpm --filter @aoa/server start",
+    "web": "pnpm --filter @aoa/web dev",
+    "sim": "pnpm --filter @aoa/sim sim",
+    "aoa": "aoa",
+    "seed-replays": "pnpm --filter @aoa/server seed-replays",
+    "build": "pnpm --filter @aoa/web build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0",
+    "@aoa/cli": "workspace:*",
+    "@aoa/mcp": "workspace:*"
+  },
+  "packageManager": "pnpm@10.20.0"
+}

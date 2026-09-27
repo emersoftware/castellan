@@ -1,0 +1,26 @@
+import { useEffect, useRef } from "react";
+import { RAMPS, TEAM_RAMPS } from "../render/palette";
+import { ditherRamp } from "../render/cpuDither";
+
+/** Units show their front-right facing (sheet view 1). */
+const FILES: Record<string, string> = { turret: "tower", deposit: "gold", agent: "agent_1", worker: "worker_1", knight: "knight_1", ranger: "ranger_1" };
+
+/** A unit's sprite, ramp-dithered like in the game. */
+export function Portrait({ kind, team = 0, height = 120 }: { kind: string; team?: number; height?: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      const w = Math.round((height * img.width) / img.height);
+      const ramp = kind === "deposit" ? RAMPS.gold : kind === "rock" ? RAMPS.neutral : TEAM_RAMPS[team];
+      const out = ditherRamp(img, w, height, ramp, 1.1);
+      const cv = ref.current;
+      if (!cv) return;
+      cv.width = w;
+      cv.height = height;
+      cv.getContext("2d")!.drawImage(out, 0, 0);
+    };
+    img.src = `/sprites/${FILES[kind] ?? kind}.png`;
+  }, [kind, team, height]);
+  return <canvas ref={ref} className="portrait" />;
+}
