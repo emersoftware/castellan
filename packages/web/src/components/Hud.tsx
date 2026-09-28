@@ -50,6 +50,12 @@ function PlayerRows({ p, name, color, timing, matchMs }: { p: PlayerStats; name:
           <td colSpan={5}><TimingLine t={timing} matchMs={matchMs} /></td>
         </tr>
       )}
+      {p.upgrades && (Object.keys(p.upgrades).length > 0 || p.research) && (
+        <tr className="timing"><td colSpan={5}>
+          {Object.entries(p.upgrades).map(([id, level]) => `${id.replaceAll("_", " ")} L${level}`).join(" · ")}
+          {p.research && <div>Researching {p.research.upgrade.replaceAll("_", " ")} L{p.research.level} · {Math.max(0, (p.research.completesAtMs - matchMs) / 1000).toFixed(1)}s</div>}
+        </td></tr>
+      )}
     </>
   );
 }
@@ -76,7 +82,7 @@ export function EventFeed({ events, names, colors }: { events: GameEvent[]; name
   // An eliminated player's entities all die at once: show the elimination, not each death.
   const out = new Set(events.filter((e) => e.type === "eliminated").map((e) => `${e.tick}:${e.owner}`));
   const lines = events
-    .filter((e) => (e.type === "death" && !out.has(`${e.tick}:${e.owner}`)) || e.type === "eliminated" || (e.type === "spawn" && e.kind !== "worker") || e.type === "match_end" || e.type === "chat")
+    .filter((e) => (e.type === "death" && !out.has(`${e.tick}:${e.owner}`)) || e.type === "eliminated" || (e.type === "spawn" && e.kind !== "worker") || e.type === "match_end" || e.type === "chat" || e.type === "research_started" || e.type === "upgrade_completed")
     .slice(-8)
     .reverse();
   return (
@@ -105,6 +111,9 @@ export function EventFeed({ events, names, colors }: { events: GameEvent[]; name
             </>
           )}
           {e.type === "match_end" && <b>The battle is over</b>}
+          {(e.type === "research_started" || e.type === "upgrade_completed") && <>
+            <b className={team(e.owner)}>{names[e.owner] ?? e.owner}</b> {e.type === "research_started" ? "researching" : "completed"} {e.upgrade.replaceAll("_", " ")} L{e.level}
+          </>}
         </div>
       ))}
     </div>
@@ -121,6 +130,7 @@ export function Tooltip({ hover }: { hover: HoverInfo | null }) {
       {e && (
         <>
           <b>{e.kind}</b> {e.id} · {e.owner} · {e.hp}/{e.maxHp} hp{e.order ? ` · ${e.order}` : ""}
+          {e.stats && ` · atk ${e.stats.atk} · def ${e.stats.def} · range ${e.stats.range} · attack ${e.stats.attackMs}ms · move ${e.stats.moveMs}ms`}
           {e.doing ? ` · ${e.doing}` : e.heading ? ` · ${e.heading}` : ""}
         </>
       )}

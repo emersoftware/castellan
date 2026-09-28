@@ -22,6 +22,8 @@ export interface Ruleset {
    */
   buildExclusion: number;
   kinds: Record<string, KindSpec>;
+  /** Optional in old replays. Research belongs to a player and affects one kind. */
+  upgrades?: Record<string, UpgradeSpec>;
   map: MapSpec;
   script: ScriptLimits;
   score: { unit: number; building: number; capital: number; kill: number; buildingKill: number };
@@ -29,6 +31,13 @@ export interface Ruleset {
   defaultScripts: Record<string, string>;
   /** ASCII legend shown to players. */
   legend: Record<string, string>;
+}
+
+export interface UpgradeSpec {
+  kind: string;
+  stat: "atk" | "attackMs" | "moveMs";
+  /** Absolute resulting stat values, bought in order. One research at a time per player. */
+  levels: { cost: number; researchMs: number; value: number }[];
 }
 
 /**

@@ -5,16 +5,18 @@ import type { SeriesProgress } from "./protocol";
  * How to play, written for an LLM player. Served by `GET /rules` and by every
  * reference connector, so there is exactly one copy of the rules in prose.
  */
-export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean; series?: SeriesProgress } = {}): string {
+export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean; series?: SeriesProgress; tickRate?: number } = {}): string {
   const k = r.kinds;
+  const tickRate = room.tickRate ?? 10;
+  const effectiveMs = (ms: number) => Math.round(Math.max(1, Math.round(ms * tickRate / 1000)) * 1000 / tickRate);
   const four = r.map.seats === 4;
   const teams = room.teams ?? four;
   const unitRows = Object.entries(k)
     .map(([name, s]) => {
       const bits = [
         `hp ${s.hp}`, `def ${s.def}`,
-        s.atk ? `atk ${s.atk} range ${s.range} every ${s.attackMs}ms` : "no attack",
-        s.moveMs ? `${s.moveMs}ms/tile` : "static",
+        s.atk ? `atk ${s.atk} range ${s.range} every ${effectiveMs(s.attackMs ?? 1000)}ms` : "no attack",
+        s.moveMs ? `${effectiveMs(s.moveMs)}ms/tile` : "static",
         `vision ${s.vision}`,
         s.cost ? `cost ${s.cost}` : "not producible",
         s.vital ? "VITAL" : "",
@@ -40,7 +42,7 @@ How you use this history is your choice. Your state also reports series progress
 
 ${teams ? `You control one army in a 2v2 real-time strategy match: you and an allied AI
 against two other AIs, one base in each corner.` : four ? `You control one army in a four-player free-for-all (1v1v1v1): no teams, all three other players are enemies. Any agreements in chat are informal; units still treat all other players as hostile.` : `You control one army in a real-time strategy match against another AI.`} The
-game runs on its own (10 ticks per second); it does not wait for you. Slow
+game runs on its own (${tickRate} ticks per second); it does not wait for you. Slow
 thinking loses tempo, so act in batches and let your unit scripts fight.
 
 ## Win
@@ -61,10 +63,24 @@ One resource: capital. You start with ${r.startCapital}. Workers gather it from
 deposits ($) automatically and carry it back to the Nexus (${r.gather.carry} per trip).
 Training is instant. Building is instant once the worker reaches a free adjacent tile;
 the worker must travel there first. Both cost capital. Max ${r.popCap} units.
+Workers can melee with an attack order (atk ${k.worker.atk}, range ${k.worker.range}); attacking replaces gathering.
 ${r.buildExclusion > 0 ? `You cannot build within ${r.buildExclusion} tiles of an enemy building.` : "You may build next to enemy buildings, including offensive turrets (tower rushes)."}
 
 ## Entities
 ${unitRows}
+
+${r.upgrades ? `## Research
+Use {"type":"upgrade","upgrade":"<id>"} in act to buy the next level.
+One research at a time per player; other orders and training remain available.
+Capital is charged immediately, with spent and remaining in the response. No cancellation or refund.
+After the research time, the effect applies to every existing and future unit of that kind owned by you.
+Each entry below gives the absolute resulting stat, not an additive bonus. Levels must be bought in order.
+Existing movement/attack cooldowns finish normally; later cooldowns use the new stat.
+Your state shows completed levels, current research and remaining time; each entity shows effective stats.
+Research and completed levels are public. wait until=upgrade_completed can wait for completion.
+Upgrades reset for each new game. Workers remain manually controlled; their damage upgrade does not make them scriptable.
+${Object.entries(r.upgrades).map(([id, u]) => `- ${id}: ${u.kind} ${u.stat}; ${u.levels.map((l, i) => `L${i + 1}: ${u.stat === "atk" ? l.value : effectiveMs(l.value)}${u.stat === "atk" ? " damage" : "ms"}, cost ${l.cost}, research ${effectiveMs(l.researchMs) / 1000}s`).join("; ")}`).join("\n")}
+` : ""}
 
 Damage per hit = max(1, atk - target def). Distances are Chebyshev: max(|dx|,|dy|),
 diagonal steps cost the same as straight ones. Map "${r.map.name}" is ${r.map.width}x${r.map.height}, x→ right, y↓ down:
@@ -72,7 +88,7 @@ ${r.map.description}${r.map.walls.length ? " Rock (^) is impassable and can't be
 ${four ? "Every corner is the same layout rotated 90°." : "Each side mirrors the other (rotated 180°)."} Your corner is random: read the map to see where you are.
 
 ## Orders (POST /act with {"orders":[...]}, many per call)
-- {"type":"train","building":"<nexus id>","kind":"worker"|"knight"}
+- {"type":"train","building":"<nexus id>","kind":"worker"|"knight"|"ranger"}
 - {"type":"build","unit":"<worker id>","kind":"turret"|"wall","x":X,"y":Y}
 - {"type":"move","unit":"<id>","x":X,"y":Y}
 - {"type":"attack","unit":"<id>","target":"<enemy id>"}   (chases until it dies)
@@ -90,7 +106,7 @@ no order. One script per kind, shared by all units of that kind. Upload with
 PUT /scripts/<kind> {"code":"…","lang":"js"|"ts"} (max ${r.script.maxBytes} bytes).
 The code is a function body with \`self\` in scope; call exactly one action.
 
-self: id type x y hp maxHp atk def range vision tick memory(object kept per unit, ≤${r.script.memoryBytes} bytes JSON)
+self: id type x y hp maxHp atk def range vision attackMs moveMs tick memory(object kept per unit, ≤${r.script.memoryBytes} bytes JSON)
 perception: nearbyEnemies() nearbyAllies() nearestEnemy() nearestAlly()
   enemiesInRange() distanceTo(u) distanceToPos(x,y) enemyBase() myBase()
   (each seen unit: {id,type,owner,mine,${teams ? "ally," : ""}x,y,hp,maxHp,isBuilding}; only within vision${teams ? "; allies = yours and your ally's" : ""})

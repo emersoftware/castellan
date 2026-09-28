@@ -90,6 +90,8 @@ interface Player {
   /** Current source per scriptable kind, and whether the player wrote it. */
   scripts: Map<string, { code: string; custom: boolean; errors: string[] }>;
   logsThisTick: number;
+  upgrades: Record<string, number>;
+  research: { upgrade: string; level: number; completesAtTick: number } | null;
 }
 
 /** Events kept for `view(player, since)`. */
@@ -136,7 +138,7 @@ export class Match {
     this.players = cfg.players.map((p, i) => ({
       id: p.id, side: p.side ?? i % 2, team: p.team ?? i, name: p.name, capital: cfg.ruleset.startCapital, kills: 0, buildingKills: 0, alive: true,
       host: createScriptHost(cfg.ruleset.script, (cfg.seed * 31 + i * 7919) >>> 0),
-      scripts: new Map(), logsThisTick: 0,
+      scripts: new Map(), logsThisTick: 0, upgrades: {}, research: null,
     }));
     for (const p of this.players) {
       for (const [kind, spec] of Object.entries(this.ruleset.kinds)) {
@@ -168,6 +170,16 @@ export class Match {
     const emit = (e: GameEvent) => events.push(e);
     const prio = this.priority();
     for (const p of this.players) p.logsThisTick = 0;
+    // Finish research before this tick's orders/spawns; existing cooldowns are not reset.
+    for (const p of this.players) {
+      if (!p.alive || !p.research || T < p.research.completesAtTick) continue;
+      const { upgrade, level } = p.research;
+      p.upgrades[upgrade] = level;
+      p.research = null;
+      const kind = this.ruleset.upgrades![upgrade].kind;
+      for (const e of this.ents.values()) if (e.owner === p.id && e.kind === kind) e.spec = this.effectiveSpec(p, kind);
+      emit({ tick: T, type: "upgrade_completed", owner: p.id, upgrade, level });
+    }
 
     // 1. Orders, alternating between players so nobody always goes first.
     const queues = prio.map((p) => input.map((o, i) => [o, i] as const).filter(([o]) => o.player === p.id));
@@ -177,7 +189,7 @@ export class Match {
         const p = this.player(po.player);
         const before = p.capital;
         const result = this.apply(po, emit);
-        if (po.order?.type === "train" || po.order?.type === "build") {
+        if (po.order?.type === "train" || po.order?.type === "build" || po.order?.type === "upgrade") {
           result.capital = { spent: before - p.capital, remaining: p.capital,
             ...(result.ok && po.order.type === "build" ? { pending: this.ruleset.kinds[po.order.kind].cost } : {}) };
         }
@@ -360,6 +372,14 @@ export class Match {
       mix(e.x); mix(e.y); mix(e.hp); mix(e.carrying);
     }
     for (const d of this.deps.values()) mix(d.amount);
+    // Keep the legacy hash untouched for rulesets without research.
+    if (this.ruleset.upgrades) for (const p of this.players) {
+      for (const id of Object.keys(this.ruleset.upgrades).sort()) {
+        mix(p.upgrades[id] ?? 0);
+        mix(p.research?.upgrade === id ? p.research.level : 0);
+        mix(p.research?.upgrade === id ? p.research.completesAtTick : 0);
+      }
+    }
     return (h >>> 0).toString(16).padStart(8, "0");
   }
 
@@ -395,7 +415,7 @@ export class Match {
   }
 
   private spawn(kind: string, owner: PlayerId, x: number, y: number): Entity {
-    const spec = this.ruleset.kinds[kind];
+    const spec = this.effectiveSpec(this.player(owner), kind);
     const e: Entity = {
       id: `e${this.nextId++}`, kind, spec, owner, x, y, hp: spec.hp,
       order: spec.gathers ? { type: "gather" } : null,
@@ -440,6 +460,7 @@ export class Match {
       return { ok: true };
     }
     if (o.type === "train") return this.train(p, o.building, o.kind, emit);
+    if (o.type === "upgrade") return this.research(p, o.upgrade, emit);
 
     const e = this.ents.get(o.unit);
     if (!e) return { ok: false, reason: `no entity ${o.unit}` };
@@ -493,6 +514,32 @@ export class Match {
       return { ok: false, reason: r.error };
     }
     p.scripts.set(kind, { code: source, custom: code !== null, errors: [] });
+    return { ok: true };
+  }
+
+  private effectiveSpec(p: Player, kind: string): KindSpec {
+    const base = this.ruleset.kinds[kind];
+    if (!this.ruleset.upgrades) return base;
+    const spec = { ...base };
+    for (const [id, level] of Object.entries(p.upgrades)) {
+      const upgrade = this.ruleset.upgrades[id];
+      if (upgrade.kind === kind) spec[upgrade.stat] = upgrade.levels[level - 1].value;
+    }
+    return spec;
+  }
+
+  private research(p: Player, id: string, emit: (e: GameEvent) => void): OrderResult {
+    const upgrade = this.ruleset.upgrades?.[id];
+    if (!upgrade || !Object.hasOwn(this.ruleset.upgrades!, id)) return { ok: false, reason: `unknown upgrade ${id}` };
+    if (p.research) return { ok: false, reason: `already researching ${p.research.upgrade}` };
+    const level = (p.upgrades[id] ?? 0) + 1;
+    const next = upgrade.levels[level - 1];
+    if (!next) return { ok: false, reason: `${id} is already at maximum level` };
+    if (p.capital < next.cost) return { ok: false, reason: `needs ${next.cost} capital, you have ${p.capital}` };
+    p.capital -= next.cost;
+    p.research = { upgrade: id, level, completesAtTick: this._tick + this.ticks(next.researchMs) };
+    emit({ tick: this._tick, type: "research_started", owner: p.id, upgrade: id, level,
+      completesAtMs: this.ms(p.research.completesAtTick), capital: { spent: next.cost, remaining: p.capital } });
     return { ok: true };
   }
 
@@ -626,6 +673,10 @@ export class Match {
       u[e.id] = {
         id: e.id, type: e.kind, x: e.x, y: e.y, hp: e.hp, maxHp: e.spec.hp, atk: e.spec.atk ?? 0,
         def: e.spec.def, range: e.spec.range ?? 0, vision: e.spec.vision,
+        ...(this.ruleset.upgrades ? {
+          attackMs: e.spec.attackMs ? this.ms(this.ticks(e.spec.attackMs)) : 0,
+          moveMs: e.spec.moveMs ? this.ms(this.ticks(e.spec.moveMs)) : 0,
+        } : {}),
       };
     }
     return {
@@ -904,6 +955,9 @@ export class Match {
     return this.players.map((p) => ({
       id: p.id, name: p.name, capital: p.capital, pop: this.pop(p.id), popCap: this.ruleset.popCap,
       score: this.score(p), kills: p.kills + p.buildingKills, team: p.team, alive: p.alive,
+      ...(this.ruleset.upgrades ? { upgrades: { ...p.upgrades }, ...(p.alive && p.research ? { research: {
+        upgrade: p.research.upgrade, level: p.research.level, completesAtMs: this.ms(p.research.completesAtTick),
+      } } : {}) } : {}),
     }));
   }
 
@@ -921,6 +975,11 @@ export class Match {
   /** `viewer` null = spectator (sees everything). Intent is private; heading is public. */
   private entityView(e: Entity, viewer: PlayerId | null = null): EntityView {
     const v: EntityView = { id: e.id, kind: e.kind, owner: e.owner, x: e.x, y: e.y, hp: e.hp, maxHp: e.spec.hp };
+    if (this.ruleset.upgrades) v.stats = {
+      atk: e.spec.atk ?? 0, def: e.spec.def, range: e.spec.range ?? 0,
+      attackMs: e.spec.attackMs ? this.ms(this.ticks(e.spec.attackMs)) : 0,
+      moveMs: e.spec.moveMs ? this.ms(this.ticks(e.spec.moveMs)) : 0,
+    };
     if (e.lastStep && this._tick - e.lastStep.tick <= this.ticks(1000)) v.heading = arrow(e.lastStep.dx, e.lastStep.dy);
     const own = viewer === null || viewer === e.owner;
     if (own && e.doing) v.doing = e.doing;

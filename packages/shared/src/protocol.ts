@@ -20,6 +20,8 @@ export type Order =
   | { type: "gather"; unit: string; deposit?: string }
   | { type: "build"; unit: string; kind: string; x: number; y: number }
   | { type: "train"; building: string; kind: string }
+  /** Research the next level of a ruleset upgrade. Capital is charged on acceptance. */
+  | { type: "upgrade"; upgrade: string }
   /** Drop the unit's order; it goes back to its script or stays idle. */
   | { type: "stop"; unit: string }
   /** JavaScript body run every tick by each unit of `kind`. `null` restores the built-in script. */
@@ -76,6 +78,8 @@ export interface EntityView {
   y: number;
   hp: number;
   maxHp: number;
+  /** Effective stats (including upgrades), with timings quantized to the match tick. */
+  stats?: { atk: number; def: number; range: number; attackMs: number; moveMs: number };
   /** Current order in words, e.g. "move 10,5", "gather d3". Absent = script/idle. */
   order?: string;
   /** What the unit did last tick, e.g. "→ 20,20", "attack e17", "gather d9", "hold". Only for your own units. */
@@ -103,9 +107,14 @@ export interface PlayerStats {
   /** Players with the same team are allies. In 1v1 each player is its own team. */
   team: number;
   alive: boolean;
+  /** Present only in rulesets with research; public to both players and spectators. */
+  upgrades?: Record<string, number>;
+  research?: { upgrade: string; level: number; completesAtMs: number };
 }
 
 export type GameEvent =
+  | { tick: number; type: "research_started"; owner: PlayerId; upgrade: string; level: number; completesAtMs: number; capital: CapitalChange }
+  | { tick: number; type: "upgrade_completed"; owner: PlayerId; upgrade: string; level: number }
   | { tick: number; type: "attack"; from: string; to: string; dmg: number }
   | { tick: number; type: "death"; id: string; kind: string; owner: PlayerId; x: number; y: number; by?: PlayerId }
   | { tick: number; type: "spawn"; id: string; kind: string; owner: PlayerId; x: number; y: number; builder?: string; capital?: CapitalChange }

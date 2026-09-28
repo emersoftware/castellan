@@ -17,10 +17,11 @@ const reply = async (f: () => Promise<string>): Promise<Result> => {
 };
 
 const order = z.object({
-  type: z.enum(["move", "attack", "gather", "build", "train", "stop"]),
-  unit: z.string().optional().describe("id of the unit (all but train)"),
+  type: z.enum(["move", "attack", "gather", "build", "train", "upgrade", "stop"]),
+  unit: z.string().optional().describe("id of the unit (except train and upgrade)"),
   building: z.string().optional().describe("train: id of your nexus"),
-  kind: z.string().optional().describe("train: worker|knight; build: turret|wall"),
+  kind: z.string().optional().describe("train: worker|knight|ranger; build: turret|wall"),
+  upgrade: z.string().optional().describe("upgrade: research id from rules, e.g. knight_damage; buys its next level"),
   target: z.string().optional().describe("attack: enemy id"),
   deposit: z.string().optional().describe("gather: deposit id (optional, nearest if omitted)"),
   x: z.number().int().optional(),
@@ -60,8 +61,9 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
     {
       description:
         "Send a batch of orders (max 50), applied next tick; only while running. Shapes: " +
-        "{type:'train',building,kind:'worker'|'knight'} {type:'build',unit,kind:'turret'|'wall',x,y} {type:'move',unit,x,y} " +
-        "{type:'attack',unit,target} {type:'gather',unit,deposit?} {type:'stop',unit}. Returns ok/FAILED per order plus the new view.",
+        "{type:'train',building,kind:'worker'|'knight'|'ranger'} {type:'build',unit,kind:'turret'|'wall',x,y} {type:'move',unit,x,y} " +
+        "{type:'attack',unit,target} {type:'gather',unit,deposit?} {type:'stop',unit} {type:'upgrade',upgrade:'<id from rules>'}. " +
+        "Returns ok/FAILED per order, capital spent and remaining for purchases, plus the new view. Research affects your existing and future units of one kind after its timer completes.",
       inputSchema: { orders: z.array(order).min(1).max(50) },
     },
     ({ orders }) => reply(() => aoa.act(c, orders)),
@@ -71,10 +73,10 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
     "script",
     {
       description:
-        "Read (omit code) or replace the script every unit of `kind` (knight, turret, nexus) runs each tick when it has no order. " +
+        "Read (omit code) or replace the script every unit of `kind` (knight, ranger, turret, nexus) runs each tick when it has no order. " +
         "code = JS function body with `self` in scope (see rules), max 4 KB. Only once the match is running (not during prep). Uploading returns the result plus your view.",
       inputSchema: {
-        kind: z.string().describe("knight | turret | nexus"),
+        kind: z.string().describe("knight | ranger | turret | nexus"),
         code: z.string().optional(),
         lang: z.enum(["js", "ts"]).optional().describe("default js; ts types are stripped"),
       },

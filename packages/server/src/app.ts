@@ -12,7 +12,7 @@ import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { transform } from "esbuild";
 import { validateScript } from "@aoa/sandbox";
-import { MAPS, playerGuide, v0, viewToText, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { MAPS, playerGuide, v1, viewToText, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
 import { BOTS } from "@aoa/sim";
 import { Room } from "./room";
 import { SeriesStore, type HistorySection } from "./series";
@@ -28,7 +28,7 @@ export interface ServerOptions {
 }
 
 export async function buildServer(opts: ServerOptions): Promise<FastifyInstance> {
-  const ruleset = opts.ruleset ?? v0;
+  const ruleset = opts.ruleset ?? v1;
   const rooms = new Map<string, Room>();
   const tokens = new Map<string, { room: Room; player: string }>();
   await mkdir(opts.replayDir, { recursive: true });
@@ -156,7 +156,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const h = req.headers.authorization ?? "";
     const room = tokens.get(h.startsWith("Bearer ") ? h.slice(7) : "")?.room;
     const r = room?.ruleset ?? ruleset;
-    const guide = playerGuide(r, { chat: room?.chat ?? false, teams: room?.teams, series: room?.seriesProgress?.() });
+    const guide = playerGuide(r, { chat: room?.chat ?? false, teams: room?.teams, series: room?.seriesProgress?.(), tickRate: room?.tickRate ?? opts.tickRate ?? 10 });
     if (wantsText(req)) return guide;
     return { ruleset: r, guide };
   });

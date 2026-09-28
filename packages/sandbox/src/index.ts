@@ -46,6 +46,8 @@ export interface ScriptUnit {
   def: number;
   range: number;
   vision: number;
+  attackMs?: number;
+  moveMs?: number;
 }
 
 /** The single action a unit chose. Validated by the engine, never trusted. */

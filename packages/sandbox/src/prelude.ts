@@ -80,6 +80,7 @@ export const PRELUDE = String.raw`
     const self = {
       id: u.id, type: u.type, x: u.x, y: u.y, hp: u.hp, maxHp: u.maxHp,
       atk: u.atk, def: u.def, range: u.range, vision: u.vision, tick: world.tick,
+      ...(u.attackMs !== undefined ? { attackMs: u.attackMs, moveMs: u.moveMs } : {}),
       memory: memory[id],
       nearbyEnemies: function () { return visible(hostile); },
       nearbyAllies: function () { return visible(friendly); },

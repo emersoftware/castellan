@@ -13,6 +13,8 @@ export function viewToText(v: PlayerView): string {
   for (const p of v.players) {
     const tag = p.id === v.you ? "YOU  " : p.team === myTeam ? "ALLY " : "ENEMY";
     lines.push(`${tag} ${p.id} ${p.name}: capital ${p.capital} · pop ${p.pop}/${p.popCap} · score ${p.score} · kills ${p.kills}${p.alive ? "" : " · OUT"}`);
+    if (p.upgrades) lines.push(`  upgrades: ${Object.entries(p.upgrades).map(([id, level]) => `${id} L${level}`).join(", ") || "none"}`);
+    if (p.research) lines.push(`  researching ${p.research.upgrade} L${p.research.level}: ${secs(Math.max(0, p.research.completesAtMs - v.timeMs))}s remaining`);
   }
   if (v.outcome) {
     const winners = v.outcome.winners ?? (v.outcome.winner ? [v.outcome.winner] : []);
@@ -50,6 +52,7 @@ export function viewToText(v: PlayerView): string {
 
 function entityLine(e: EntityView): string {
   const extra = [
+    e.stats ? `atk ${e.stats.atk} def ${e.stats.def} range ${e.stats.range} attack ${e.stats.attackMs}ms move ${e.stats.moveMs}ms` : "",
     e.order ? `order ${e.order}` : "",
     e.doing ? `doing ${e.doing}` : "",
     !e.doing && e.heading ? `heading ${e.heading}` : "",
