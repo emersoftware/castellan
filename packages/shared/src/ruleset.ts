@@ -18,8 +18,7 @@ export interface Ruleset {
   gather: { carry: number; ms: number };
   /**
    * No building may be placed within this Chebyshev distance of an enemy
-   * building. Building is instant, so without it a single worker could plant
-   * turrets next to the enemy Nexus (a tower rush with no counterplay).
+   * building. Zero allows building next to enemies, including tower rushes.
    */
   buildExclusion: number;
   kinds: Record<string, KindSpec>;
@@ -72,9 +71,14 @@ export interface MapSpec {
   description: string;
   width: number;
   height: number;
-  /** Impassable terrain (rock walls). Full list; keep it symmetric under 180° rotation. */
+  /**
+   * Starting corners: 2 (default; the layout and its 180° rotation) or 4 (a
+   * square map; also rotated 90° and 270°, one corner per player).
+   */
+  seats?: 2 | 4;
+  /** Impassable terrain (rock walls). Full list; keep it symmetric under every seat's rotation. */
   walls: { x: number; y: number }[];
-  /** Player 1's side. Player 2 gets the same layout rotated 180°. */
+  /** The first seat's corner. Every other seat gets the same layout, rotated. */
   start: { kind: string; x: number; y: number }[];
   deposits: { x: number; y: number; amount: number }[];
   /** Deposits placed once (they should be symmetric by themselves). */

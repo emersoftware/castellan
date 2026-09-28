@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api, fmtTime, readReplayFile, setDroppedReplay } from "../api";
+import { Versus, wonText } from "../components/Versus";
 
 export function Battles() {
   const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays });
@@ -51,11 +52,9 @@ export function Battles() {
             <div className="title">
               {r.title ?? "A battle from your server"} {r.source === "local" && <span className="tag">local</span>}
             </div>
-            <div className="versus">
-              <b className="team-a">{r.players[0]?.name}</b> <span>versus</span> <b className="team-b">{r.players[1]?.name}</b>
-            </div>
+            <Versus players={r.players} />
             <div className="meta">
-              {r.outcome.winner ? `${r.players.find((p) => p.id === r.outcome.winner)?.name} won` : "draw"}
+              {wonText(r.players, r.outcome)}
               {" · "}
               {r.outcome.reason === "vital_lost" ? "by conquest" : r.outcome.reason === "timeout" ? "on score" : r.outcome.reason}
               {" · "}

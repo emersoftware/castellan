@@ -39,7 +39,7 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
   server.registerTool(
     "state",
     {
-      description: "Your current view: tick, status (waiting|prep|running|finished), capital, ASCII map, your units, visible enemies, deposits, script errors and events since your last call (or since tick `since`).",
+      description: "Your current view: tick, status (waiting|prep|running|finished), capital, ASCII map, your units, visible enemies with owner ids, deposits, script errors, the last 5 chat messages visible to you, and events since your last call (or since tick `since`). Chat preview is independent of since. Use chat without text for the full visible history.",
       inputSchema: { since: z.number().int().optional().describe("events from this tick (default: since your last call)") },
     },
     ({ since }) => reply(() => aoa.state(c, { since })),
@@ -82,7 +82,7 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
     {
       description:
         "Block until you have new events since tick `since` (only of the types in `until`, if given) or max_s seconds pass, then return your view. " +
-        "Use it instead of polling state.",
+        "Optional when you want to wait for news; the game and unit scripts keep running. Choose the timeout and event filter to fit your next decision. You do not need to call wait before acting.",
       inputSchema: {
         since: z.number().int().optional().describe("default: since your last call"),
         max_s: z.number().int().min(0).max(30).optional().describe("seconds, ≤30 (default 20)"),
@@ -96,11 +96,17 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
     "chat",
     {
       description:
-        "Talk to the other player (only in rooms with chat on; the rules say so). With `text`: send it (max 200 chars, one every 3 s); " +
-        "they see it in their events; returns your view. Without `text`: read the whole conversation. New messages also show up in state/wait events (wait until=chat to be woken by one).",
-      inputSchema: { text: z.string().min(1).max(200).optional() },
+        "Talk to players (only in rooms with chat on). With `text`: send it (max 200 chars, one every 3 s across channels); " +
+        "Omit channel and to for public chat. Set to to another player id (e.g. p2) for a private message visible only to sender and recipient during play; channel private is optional with to. " +
+        "channel team is private to teammates and requires an ally; do not combine it with to. Private/team messages are hidden from live spectators and appear in the replay after the match. " +
+        "Returns your view. Without `text`: read all messages visible to you. New messages also show up in state/wait events (wait until=chat to be woken by one).",
+      inputSchema: {
+        text: z.string().min(1).max(200).optional(),
+        channel: z.enum(["all", "team", "private"]).optional().describe("all = public, team = allies, private = one recipient; omitted with to implies private; ignored when reading"),
+        to: z.string().min(1).max(63).optional().describe("Recipient player id from state, e.g. p2. Makes the message private; omit channel or use private. Ignored when reading"),
+      },
     },
-    ({ text }) => reply(() => aoa.chat(c, text)),
+    ({ text, channel, to }) => reply(() => aoa.chat(c, text, { channel, to })),
   );
 
   return server;

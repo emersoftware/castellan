@@ -1,6 +1,16 @@
 /** Everything that crosses the wire between the server and its clients. */
 
 export type PlayerId = string;
+export type ChatChannel = "all" | "team" | "private";
+
+export interface ChatMessage {
+  tick: number;
+  from: PlayerId;
+  name: string;
+  text: string;
+  channel?: ChatChannel;
+  to?: PlayerId;
+}
 
 /** A player's instruction. Unit orders override the unit's script until they end. */
 export type Order =
@@ -14,16 +24,19 @@ export type Order =
   | { type: "stop"; unit: string }
   /** JavaScript body run every tick by each unit of `kind`. `null` restores the built-in script. */
   | { type: "script"; kind: string; code: string | null }
-  /** A chat message to the other players (only in rooms created with chat on). */
-  | { type: "chat"; text: string };
+  /** Chat on required. `to` implies private; otherwise omitted channel means public. */
+  | { type: "chat"; text: string; channel?: ChatChannel; to?: PlayerId };
 
-export type OrderResult = { ok: true; id?: string } | { ok: false; reason: string };
+export interface CapitalChange { spent: number; remaining: number; pending?: number }
+export type OrderResult = ({ ok: true; id?: string } | { ok: false; reason: string }) & { capital?: CapitalChange };
 
 export type MatchStatus = "waiting" | "prep" | "running" | "finished";
 
 export interface Outcome {
-  /** null = draw. */
+  /** The sole winner; null for a draw or when a team won (see `winners`). */
   winner: PlayerId | null;
+  /** Every player on the winning side (empty = draw). Absent in replays older than teams. */
+  winners?: PlayerId[];
   reason: "vital_lost" | "timeout" | "forfeit";
   scores: Record<PlayerId, number>;
 }
@@ -60,19 +73,23 @@ export interface PlayerStats {
   popCap: number;
   score: number;
   kills: number;
+  /** Players with the same team are allies. In 1v1 each player is its own team. */
+  team: number;
   alive: boolean;
 }
 
 export type GameEvent =
   | { tick: number; type: "attack"; from: string; to: string; dmg: number }
   | { tick: number; type: "death"; id: string; kind: string; owner: PlayerId; x: number; y: number; by?: PlayerId }
-  | { tick: number; type: "spawn"; id: string; kind: string; owner: PlayerId; x: number; y: number }
+  | { tick: number; type: "spawn"; id: string; kind: string; owner: PlayerId; x: number; y: number; builder?: string; capital?: CapitalChange }
   | { tick: number; type: "unload"; id: string; owner: PlayerId; amount: number }
   | { tick: number; type: "depleted"; id: string }
   | { tick: number; type: "order_end"; id: string; owner: PlayerId; reason: string }
   | { tick: number; type: "script_error"; owner: PlayerId; kind: string; unit?: string; message: string }
   | { tick: number; type: "log"; owner: PlayerId; unit: string; message: string }
-  | { tick: number; type: "chat"; owner: PlayerId; text: string }
+  | { tick: number; type: "chat"; owner: PlayerId; text: string; channel?: ChatChannel; to?: PlayerId }
+  /** A player lost its vital entity while its team plays on: all it had is gone. */
+  | { tick: number; type: "eliminated"; owner: PlayerId }
   | { tick: number; type: "match_end"; outcome: Outcome };
 
 /** What one player sees. `tick` is the next tick to be simulated; use it as `since`. */
@@ -86,10 +103,14 @@ export interface PlayerView {
   /** ASCII map, one string per row (y), one char per column (x). */
   grid: string[];
   mine: EntityView[];
+  /** Your teammates' entities (team matches only). */
+  allies: EntityView[];
   enemy: EntityView[];
   deposits: DepositView[];
   scripts: Record<string, { custom: boolean; errors: string[] }>;
   events: GameEvent[];
+  /** Added by the room: last 5 visible messages, independent of the events cursor. Full history via /chat. */
+  chat?: { enabled: boolean; messages: ChatMessage[] };
   outcome?: Outcome;
 }
 
@@ -115,8 +136,8 @@ export interface ReplayFile {
   ruleset: import("./ruleset").Ruleset;
   seed: number;
   tickRate: number;
-  /** In engine order; `side` says which half of the map each one started on. */
-  players: { id: PlayerId; name: string; side?: number }[];
+  /** In engine order; `side` is the seat (map corner) each one started on. */
+  players: { id: PlayerId; name: string; side?: number; team?: number }[];
   /** Orders in the tick they were applied, in application order per player. */
   orders: { tick: number; player: PlayerId; order: Order }[];
   /** State hash every 100 ticks, to detect desyncs. */

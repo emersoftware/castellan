@@ -1,7 +1,7 @@
 /**
- * Maps are data: layout only, no rules. Each is symmetric under a 180°
- * rotation so neither side has an advantage; `symmetric` adds the mirror of
- * every wall tile so a map only lists one half.
+ * Maps are data: layout only, no rules. Each is symmetric under its seats'
+ * rotations (180° for 2 seats, every 90° for 4) so no corner has an advantage;
+ * `symmetric` adds the mirror of every wall tile so a map only lists one half.
  */
 import type { MapSpec } from "./ruleset";
 
@@ -38,6 +38,16 @@ const base = {
   ],
 };
 
+/** 4-seat maps: twice the side of the 1v1 maps, one base per corner. */
+const W4 = 64;
+/** A tile and its 90°, 180° and 270° rotations on the W4 map. */
+const quarters = (t: { x: number; y: number; amount: number }) => [
+  t,
+  { ...t, x: W4 - 1 - t.y, y: t.x },
+  { ...t, x: W4 - 1 - t.x, y: W4 - 1 - t.y },
+  { ...t, x: t.y, y: W4 - 1 - t.x },
+];
+
 export const MAPS: Record<string, MapSpec> = {
   open: {
     ...base,
@@ -59,5 +69,19 @@ export const MAPS: Record<string, MapSpec> = {
     description: "Two long walls make three lanes: a central highway between the bases and two flanks.",
     walls: symmetric(line(4, 18, (x) => ({ x, y: x + 9 }), [11, 12])),
     sharedDeposits: [{ x: 15, y: 16, amount: 800 }, { x: 16, y: 15, amount: 800 }],
+  },
+  quad: {
+    ...base,
+    name: "quad",
+    description: "Four corners on open ground, twice the size of the 1v1 maps. A deposit between each pair of neighbouring corners and four rich ones in the center.",
+    width: W4,
+    height: W4,
+    seats: 4,
+    walls: [],
+    deposits: [...base.deposits, { x: 18, y: 17, amount: 600 }, { x: 17, y: 18, amount: 600 }],
+    sharedDeposits: [
+      ...quarters({ x: 31, y: 31, amount: 800 }),
+      ...quarters({ x: 31, y: 5, amount: 600 }),
+    ],
   },
 };

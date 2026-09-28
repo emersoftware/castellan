@@ -59,6 +59,9 @@ describe("server", () => {
     const nexus = s1.mine.find((e) => e.kind === "nexus")!;
     const act = await call("/act", t1, { method: "POST", body: JSON.stringify({ orders: [{ type: "train", building: nexus.id, kind: "knight" }, { type: "move", unit: "zzz", x: 1, y: 1 }] }) });
     expect(act.body.results[0]).toMatchObject({ ok: true });
+    expect(act.body.capital.spent).toBe(v0.kinds.knight.cost);
+    expect(act.body.capital.remaining).toBe(act.body.view.players.find((p: any) => p.id === "p1").capital);
+    expect(act.body.results[0].capital.spent).toBe(v0.kinds.knight.cost);
     expect(act.body.results[1]).toMatchObject({ ok: false });
     expect(act.body.view.mine.some((e: any) => e.kind === "knight")).toBe(true);
 

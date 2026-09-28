@@ -31,6 +31,7 @@ export const PRELUDE = String.raw`
   const memory = {};
   let world = null;
   let others = [];
+  let tie = {};
 
   function cheb(a, b) {
     return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
@@ -38,8 +39,10 @@ export const PRELUDE = String.raw`
 
   function load(json) {
     world = parse(json);
+    tie = {};
     others = world.all.map(function (r) {
-      return freeze({ id: r[0], type: r[1], owner: r[2], mine: r[3] === 1, x: r[4], y: r[5], hp: r[6], maxHp: r[7], isBuilding: r[8] === 1 });
+      tie[r[0]] = r[9];
+      return freeze({ id: r[0], type: r[1], owner: r[2], mine: r[3] === 1, ally: r[3] === 2, x: r[4], y: r[5], hp: r[6], maxHp: r[7], isBuilding: r[8] === 1 });
     });
     const alive = {};
     for (const o of others) alive[o.id] = true;
@@ -47,9 +50,16 @@ export const PRELUDE = String.raw`
     return true;
   }
 
-  // Ties break in the player's own reading order, so mirrored play stays mirrored.
+  // Ties break in the player's own reading order (computed by the engine for
+  // its seat), so mirrored play stays mirrored.
   function tieKey(o) {
-    return world.side === 1 ? -(o.y * 4096 + o.x) : o.y * 4096 + o.x;
+    return tie[o.id];
+  }
+  function hostile(o) {
+    return !o.mine && !o.ally;
+  }
+  function friendly(o) {
+    return o.mine || o.ally;
   }
   function byDistance(u, list) {
     return list.sort(function (a, b) {
@@ -71,11 +81,11 @@ export const PRELUDE = String.raw`
       id: u.id, type: u.type, x: u.x, y: u.y, hp: u.hp, maxHp: u.maxHp,
       atk: u.atk, def: u.def, range: u.range, vision: u.vision, tick: world.tick,
       memory: memory[id],
-      nearbyEnemies: function () { return visible(function (o) { return !o.mine; }); },
-      nearbyAllies: function () { return visible(function (o) { return o.mine; }); },
-      nearestEnemy: function () { return visible(function (o) { return !o.mine; })[0] || null; },
-      nearestAlly: function () { return visible(function (o) { return o.mine; })[0] || null; },
-      enemiesInRange: function () { return byDistance(u, others.filter(function (o) { return !o.mine && cheb(u, o) <= u.range; })); },
+      nearbyEnemies: function () { return visible(hostile); },
+      nearbyAllies: function () { return visible(friendly); },
+      nearestEnemy: function () { return visible(hostile)[0] || null; },
+      nearestAlly: function () { return visible(friendly)[0] || null; },
+      enemiesInRange: function () { return byDistance(u, others.filter(function (o) { return hostile(o) && cheb(u, o) <= u.range; })); },
       distanceTo: function (o) { return cheb(u, o); },
       distanceToPos: function (x, y) { return cheb(u, { x: x, y: y }); },
       enemyBase: function () { return world.enemyBase; },

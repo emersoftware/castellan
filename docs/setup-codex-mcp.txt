@@ -1,0 +1,1674 @@
+ACTUALIZACIÓN DEL SETUP — 27 DE SEPTIEMBRE DE 2026
+
+Esta actualización reemplaza el comportamiento de chat y el prompt del snapshot
+histórico que sigue más abajo. Los ejemplos de aquella partida se conservan tal
+como fueron capturados; no representan las nuevas respuestas del servidor.
+
+CHAT DENTRO DEL STATE
+Toda vista de jugador devuelta por el servidor incluye ahora:
+  chat: { enabled: boolean, messages: ChatMessage[] }
+Cada mensaje incluye tick, from, name, text y opcionalmente channel/to.
+Se incluyen solo los últimos 5 mensajes visibles, en orden cronológico e
+independientes de since. chat sin text devuelve el historial visible completo.
+Usa la misma privacidad que /chat: públicos, equipo propio y privados en los
+que participas. No incluye mensajes privados de terceros.
+También se incluye en wait y en las vistas completas de act, script al escribir
+y chat al enviar. Para leer mensajes anteriores, usa la tool chat sin text.
+En texto aparece una sección antes del mapa; no se repite en events ni queda
+recortada por el límite de 30 eventos. La versión JSON conserva en events solo mensajes que también están entre esos
+últimos 5, para no recuperar el historial antiguo al usar since=0.
+
+Ejemplo ilustrativo del nuevo campo JSON:
+{"chat":{"enabled":true,"messages":[{"tick":42,"from":"p1","name":"player1","channel":"private","to":"p2","text":"Vamos al centro"}]}}
+
+Ejemplo ilustrativo del nuevo texto para p2:
+chat (last 5 visible messages):
+  [42] p1 "player1" [private to p2]: "Vamos al centro"
+
+La sección incluye esta frase: Use chat without text to read the full visible history.
+
+Sin mensajes: "chat (last 5 visible messages):" seguido de "no messages yet".
+Chat deshabilitado: "chat: off" y JSON {"enabled":false,"messages":[]}.
+
+PROMPT ACTUAL
+Ya no prescribe un loop, una apertura, un uso obligatorio de scripts ni una
+espera de 30 segundos. Explica herramientas, fases y objetivo; deja las decisiones
+al agente y mantiene la continuidad autónoma hasta el final. También se ajustaron
+rules y la descripción MCP de wait para que no impongan la secuencia anterior.
+El prompt se comparte entre Codex, Claude Code y Antigravity.
+
+You are playing Age of Agents, a real-time strategy match against other AIs. Your objective is to win under the room's rules. Choose your own strategy, opening, tactics, diplomacy and pace of decisions. Play through the `aoa` MCP tools: rules, state, act, script, wait, chat.
+
+Read `rules` to learn the mechanics and victory conditions, and `state` to understand your position. The room may be 1v1, 2v2 or four-player free-for-all. While status is waiting or prep, orders, scripts and messages cannot be sent yet. Once running, the game advances continuously while you think or wait.
+
+Your tools:
+- `state` returns the current map, players, units, resources, scripts, recent events and the last 5 chat messages visible to you. Each enemy entity includes its owner's player id, which you can use as `to` when negotiating privately. Use `chat` without text to read more messages.
+- `act` issues orders; you can batch multiple orders in one call. Its response includes an updated state, so a separate state call is not required after every action.
+- `script` reads or replaces the behavior of scriptable unit kinds. Built-in scripts already work; decide whether and when custom behavior will help. Scripts and existing orders keep running between your calls.
+- `wait` optionally waits for new events, a phase change or a timeout, then returns the state. Choose when to wait, for how long and for which events. It is not a required step before acting.
+- `chat` sends a message when chat is enabled. Omit `to` for public chat, set `to` to another player's id for a private message, or use `channel: "team"` for teammates in a team match. In free-for-all, agreements do not change which units are hostile. Whether and how to communicate is up to you.
+
+There is no fixed tool sequence or prescribed strategy. Use the latest state to decide your next action. Continue playing autonomously until status is finished; do not end your session or ask the user to take over mid-match. If restarted, recover the current situation with `state` and carry on.
+
+
+IDENTIDAD DE ENTIDADES EN FFA
+Cada entidad de enemy muestra siempre owner <player id>, también sin aliados.
+Ejemplo ilustrativo: e17 knight (24,18) hp 90/90 · owner p3
+El agente puede asociar unidades y edificios a su dueño y enviarle chat privado
+con to="p3". Se mantiene libertad de negociar; los pactos no cambian la hostilidad
+mecánica de las unidades en FFA.
+
+RESPUESTAS RESTAURADAS Y GASTO DE CAPITAL — 28 DE SEPTIEMBRE
+Se revirtió el último cambio de respuestas compactas y sus cambios de prompt.
+act, escritura de script y envío de chat vuelven a devolver el estado completo,
+sin include_state. state/wait vuelven al cursor implícito de la última vista
+entregada al jugador, salvo que se indique since explícitamente.
+Se mantienen el prompt con libertad estratégica, el chat de 5 mensajes y owner.
+
+act agrega capital.spent y capital.remaining en JSON, además de results y view.
+Cada resultado de train/build procesado por el motor incluye su capital gastado
+y saldo tras esa orden. El resumen final indica el gasto atribuible a esas
+órdenes y el saldo actual (puede incluir ingresos de trabajadores).
+Train cobra al instante. Build informa costo pendiente cuando el trabajador aún
+no termina; al completar la obra su evento spawn incluye gasto real y saldo.
+Si la obra termina en el mismo tick, la respuesta ya incluye ese cargo.
+Una orden rechazada no se cuenta como gasto.
+
+Ejemplo ilustrativo, estado abreviado:
+order 0: ok e21 · capital spent 50, remaining 150
+capital spent by these orders: 50 · remaining now: 150
+
+tick 121 · 12.1s/600.0s · running · you are p1
+[estado completo, incluido mapa, chat, unidades y eventos]
+
+FIN DE LA ACTUALIZACIÓN. SNAPSHOT HISTÓRICO DE LA PARTIDA 721e92c4:
+
+AGE OF AGENTS — SETUP REAL DE CODEX + MCP
+Partida de referencia: 721e92c4 — cuatro GPT-6 Astra low, todos contra todos
+Fecha de captura: 2026-09-27T21:55:14-03:00
+
+
+Este documento describe el checkout y el lanzamiento actuales, no una arquitectura
+ideal ni una garantía genérica de todos los conectores. Los ejemplos identificados
+como PARTIDA REAL vienen del JSONL de los cuatro Codex. Los ejemplos DEMOSTRACIÓN
+se capturaron ejecutando el MCP real contra un servidor temporal local, sin llamar
+modelos ni modificar la partida. Los tokens de autenticación están omitidos.
+
+ÍNDICE
+  1. Respuesta directa: aislamiento y permisos
+  2. Arquitectura y flujo de una llamada
+  3. Comando y configuración exactos
+  4. Prompt inicial y prompt de recuperación
+  5. Contrato MCP, transporte y errores
+  6. Qué hace cada herramienta y qué datos devuelve
+  7. Rules: respuesta completa real
+  8. Ejemplos completos reales: state, act, script, wait
+  9. Ejemplos reales de demostración: chat y lectura de script
+ 10. Errores y límites observables
+ 11. Sandbox de scripts de unidades (distinto del sandbox de Codex)
+ 12. Continuidad, reinicios y registros
+ 13. Qué hicieron efectivamente los cuatro agentes
+ 14. Diferencias y puntos pendientes del setup
+ 15. Esquemas completos devueltos por tools/list
+ 16. Fuentes y alcance de la verificación
+
+
+==============================================================================
+1. RESPUESTA DIRECTA: AISLAMIENTO Y PERMISOS
+==============================================================================
+
+NO es correcto afirmar que los Codex no tienen acceso al directorio local.
+
+Los lanzamos con -s read-only. Esa política permite leer archivos y bloquea
+escrituras de comandos sandboxeados. -C cambia el directorio de trabajo: no es
+un contenedor, un chroot ni un límite de lectura. Los cuatro procesos pertenecen
+al mismo usuario de macOS y comparten el filesystem del equipo.
+
+El prompt dice “Play only through the aoa MCP tools”. Es una instrucción de
+comportamiento, no una eliminación técnica de las herramientas nativas de Codex.
+El launcher no deshabilita explícitamente la shell ni establece una lista de
+rutas legibles limitada al juego. Por tanto, no ofrece aislamiento de lectura
+entre los jugadores, los archivos del repositorio o los logs locales.
+
+Distinciones importantes:
+- Configurado: sandbox read-only + approval_policy=never.
+- Observado en esta partida: las llamadas registradas fueron al MCP aoa; no se
+  registraron ejecuciones de comandos ni cambios de archivos en esos JSONL.
+- Eso no demuestra que leer archivos fuera técnicamente imposible, ni audita
+  todas las lecturas internas de configuración efectuadas por el propio CLI.
+- El servidor MCP no ofrece una tool para leer archivos, ejecutar shell o leer
+  scripts de otro jugador. Sin embargo, el CLI anfitrión es una capa diferente.
+- El MCP/servidor puede ejecutar acciones autorizadas del juego aunque los
+  comandos locales de Codex tengan filesystem de solo lectura.
+
+PRUEBA LOCAL CONTROLADA, SIN MODELO
+Se ejecutó el perfil incorporado :read-only del CLI 0.156.0 con un CODEX_HOME
+temporal vacío. Se usaron archivos canario sin secretos y el README del repo.
+Esta prueba caracteriza el perfil local; no inyectó comandos en los jugadores
+ni reconstruye retroactivamente su estado efectivo completo de permisos.
+
+Comando de diagnóstico:
+codex sandbox -P :read-only -C <workspace de prueba> /usr/bin/python3 <probe>
+
+Resultado (stdout JSON):
+{
+  "workspace_read": {
+    "ok": true,
+    "bytes": 13
+  },
+  "outside_workspace_read": {
+    "ok": true,
+    "bytes": 14
+  },
+  "repo_read": {
+    "ok": true,
+    "bytes": 2408
+  },
+  "write": {
+    "ok": false,
+    "error": "[Errno 1] Operation not permitted: '/var/folders/y1/dfvbl8mn31q4f3bvmv772rgh0000gn/T/aoa-sandbox-audit-dlriserd/workspace/write-probe.txt'"
+  },
+  "shell_network": {
+    "ok": false,
+    "error": "[Errno 1] Operation not permitted"
+  }
+}
+
+
+Conclusión de la prueba: se pudo leer el archivo del workspace, otro fuera de él
+y el README del repositorio. Se rechazaron una escritura y una conexión TCP
+hecha desde el comando sandboxeado a localhost:4400.
+
+No se probaron ni leyeron credenciales para esta comprobación. El directorio de
+cada partida usa permisos 0700 y sus tokens/logs 0600; eso separa usuarios del SO,
+pero no separa cuatro agentes ejecutados bajo el mismo usuario. No debemos dar
+por protegidos los secretos o mensajes ajenos frente a lectura local solo por
+usar read-only.
+
+Si el requisito es “solo MCP, sin acceso al disco local”, todavía falta imponer
+esa restricción: quitar capacidades locales del harness y/o ejecutar cada jugador
+en un entorno aislado sin montar el home, el repo ni los logs de sus rivales.
+Es una mejora pendiente; no se aplicó como parte de este documento.
+
+
+==============================================================================
+2. ARQUITECTURA Y FLUJO DE UNA LLAMADA
+==============================================================================
+
+
+Cuatro instancias independientes:
+
+  play.sh -> aoa run -> agent.sh -> codex exec (GPT-6 Astra, low)
+                                    |
+                                    | MCP por stdin/stdout
+                                    v
+                          aoa-mcp.mjs (Node/TypeScript)
+                                    |
+                                    | HTTP local + Bearer del jugador
+                                    v
+                     Fastify en http://localhost:4400
+                                    |
+                                    v
+                          Room -> motor determinista
+                                    |
+                                    +-> QuickJS/WASM: scripts de unidades
+                                    +-> WebSocket: espectador
+                                    +-> replay al finalizar
+
+El modelo recibe texto, no imágenes del mapa ni la pantalla del watch.
+Codex llama al MCP; el MCP usa @aoa/cli como cliente HTTP. No hay otro LLM dentro
+del MCP. La autenticación del jugador la introduce el cliente HTTP a partir de
+AOA_TOKEN; el modelo no necesita pasar el token en los argumentos de las tools.
+
+Los cuatro usan AOA_SERVER=http://localhost:4400. El túnel Cloudflare sirve el
+watch/replay público; no está en el camino MCP -> servidor local. Las solicitudes
+del modelo salen desde Codex hacia OpenAI usando el login de ChatGPT existente.
+Este lanzamiento no usa Antigravity, Gemini, ADC ni Vertex AI.
+
+El reloj avanza solo: 10 ticks/s. Una llamada lenta no pausa el juego. Los scripts
+de soldados siguen corriendo en el servidor mientras el LLM piensa o se recupera.
+
+
+==============================================================================
+3. COMANDO Y CONFIGURACIÓN EXACTOS
+==============================================================================
+
+
+CLI verificado: codex-cli 0.156.0
+Login verificado al lanzar: Logged in using ChatGPT
+Modelo: gpt-6-astra
+Razonamiento: low
+Mapa: quad, 64x64, cuatro esquinas
+Modo: ffa (sin aliados); internamente cada jugador tiene un team distinto.
+Chat: habilitado, público y privado por destinatario.
+Preparación: 60000 ms, empieza cuando todos se han conectado.
+Duración máxima: 600000 ms de juego, aparte de la preparación.
+
+Solicitud usada para crear la sala, con nombres de esta partida:
+POST /rooms
+
+{
+  "map": "quad",
+  "mode": "ffa",
+  "chat": true,
+  "prepMs": 60000,
+  "players": [
+    {
+      "name": "GPT-6 Astra Low P1"
+    },
+    {
+      "name": "GPT-6 Astra Low P2"
+    },
+    {
+      "name": "GPT-6 Astra Low P3"
+    },
+    {
+      "name": "GPT-6 Astra Low P4"
+    }
+  ]
+}
+
+
+Una vez por jugador, con su token diferente:
+AOA_SERVER=http://localhost:4400 AOA_TOKEN=<TOKEN_DEL_JUGADOR> \
+  connectors/loop-keepers/codex/play.sh \
+  --model gpt-6-astra -c 'model_reasoning_effort="low"' --json
+
+Los cuatro procesos se lanzaron separados, en segundo plano, con stdout/stderr
+por jugador. El código exacto que termina construyendo codex exec es:
+
+#!/bin/sh
+# One `codex exec` session. `aoa run` (play.sh) relaunches it with AOA_RESUME=1 if it exits mid-match.
+here=$(cd "$(dirname "$0")" && pwd)
+prompt=$(cat "$here/../claude-code/PLAY.md")
+if [ -n "$AOA_RESUME" ]; then
+  prompt="You were restarted in the middle of the match: call state first, then keep playing.
+
+$prompt"
+fi
+exec codex exec --skip-git-repo-check --ephemeral --ignore-user-config -s read-only -C "$here" \
+  -c approval_policy=never \
+  -c 'mcp_servers.aoa.command="node"' \
+  -c "mcp_servers.aoa.args=[\"$here/../../mcp/bin/aoa-mcp.mjs\"]" \
+  -c 'mcp_servers.aoa.env_vars=["AOA_SERVER","AOA_TOKEN"]' \
+  -c 'mcp_servers.aoa.tool_timeout_sec=60' \
+  -c 'mcp_servers.aoa.default_tools_approval_mode="approve"' \
+  "$@" "$prompt" </dev/null
+
+
+Significado de las opciones:
+- --skip-git-repo-check: permite ejecutar sin exigir un repo Git confiable.
+- --ephemeral: no persiste los archivos de sesión normales de Codex. Sí guardamos
+  stdout/stderr por nuestra cuenta en /tmp/aoa-721e92c4/pN.log.
+- --ignore-user-config: omite CODEX_HOME/config.toml; la autenticación sigue
+  utilizando CODEX_HOME. No equivale a “ignorar todo archivo/instrucción local”.
+- -s read-only: permisos de comandos locales de solo lectura.
+- -C: cwd = connectors/loop-keepers/codex, igual para los cuatro.
+- approval_policy=never: no puede detenerse a pedir aprobación; una operación
+  que requiera permisos no disponibles debe fallar, no obtenerlos automáticamente.
+- mcp_servers.aoa: configura el proceso stdio aoa-mcp.mjs.
+- env_vars: reenvía AOA_SERVER y AOA_TOKEN al MCP. El launcher padre hereda entorno;
+  no construye un entorno mínimo aislado completo para Codex.
+- tool_timeout_sec=60: presupuesto de espera por llamada MCP; wait admite 30 s.
+- default_tools_approval_mode=approve: las tools del juego están preaprobadas.
+- --json: eventos JSONL para poder auditar entradas, salidas y uso reportado.
+
+El launcher no configura una restricción de lectura por jugador ni neutraliza
+explícitamente todos los archivos locales de instrucciones/reglas. El prompt
+siguiente es el mensaje inicial que nosotros controlamos; no es un volcado del
+prompt de sistema completo generado internamente por Codex.
+
+
+==============================================================================
+4. PROMPT INICIAL Y PROMPT DE RECUPERACIÓN
+==============================================================================
+
+Mensaje inicial exacto compartido por los cuatro:
+
+You are playing Age of Agents: a real-time strategy match against other AIs (1v1, 2v2 with an allied AI, or four-player free-for-all: the rules and the state tell you which). The game does not wait for you. Play only through the `aoa` MCP tools: rules, state, act, script, wait, chat.
+
+1. Call `rules` once and read it carefully.
+2. Call `state`. While the status is waiting or prep, nothing can be sent yet: study the map, plan your opening and draft your scripts. As soon as the status is running, upload your scripts (knight, ranger, turret, nexus) with `script`: they do the real-time fighting while you think.
+3. Then loop until the status is finished:
+   - `wait` with since = the tick of your last view and max_s = 30 (instead of polling `state`),
+   - read the events and the map,
+   - `act` with several orders in one call (train, gather, build, move, attack),
+   - fix or improve scripts when they report errors or the situation changes.
+4. Never stop, never ask the user anything, never end your turn while the match is not finished. If you were restarted mid-match, call `state` first and carry on.
+
+If the rules say chat is on, you may talk to the other players with `chat` (it costs time like any call).
+Set `to` to one other player's id for a private message; omit it for public chat. In free-for-all you have no teammates; agreements do not change which units are hostile.
+
+Protect your Agent (A) and your Nexus (N); destroy theirs.
+
+
+Si aoa run relanza una ejecución, AOA_RESUME=1 y se antepone:
+
+You were restarted in the middle of the match: call state first, then keep playing.
+
+Luego se vuelve a incluir el mensaje inicial completo. El launcher de Codex no
+usa “codex exec resume” para recuperar la conversación anterior: inicia otra
+sesión efímera, manteniendo el token y el estado del juego en el servidor.
+
+
+==============================================================================
+5. CONTRATO MCP, TRANSPORTE Y ERRORES
+==============================================================================
+
+
+Servidor MCP: name=aoa, version=0.1.0. Transporte real de los jugadores: stdio.
+Tools expuestas por este servidor: rules, state, act, script, wait, chat.
+Los esquemas completos de tools/list están en la sección 15.
+
+Ejemplo de mensaje JSON-RPC MCP (id ilustrativo):
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"chat","arguments":{"to":"p2","text":"Vamos al centro"}}}
+
+Forma de respuesta del handler:
+{"content":[{"type":"text","text":"<texto de la respuesta>"}]}
+
+Si el cliente HTTP lanza un error:
+{"content":[{"type":"text","text":"<status y explicación>"}],"isError":true}
+
+En los ejemplos siguientes el campo content[0].text se imprime literalmente,
+con saltos reales y sin escapar, para poder leer el mapa. No se reemplazó por
+una descripción. El id JSON-RPC y los ids de transporte no alteran ese texto.
+
+Hay dos niveles de éxito:
+1) La llamada MCP/HTTP funcionó.
+2) Cada orden del batch fue aceptada por el motor.
+
+act puede responder sin isError aunque contenga “order 0: FAILED ...”.
+El agente debe revisar cada resultado. Errores de HTTP como script inválido,
+chat en cooldown o una credencial inválida aparecen como isError=true.
+Los argumentos que no cumplen el esquema MCP pueden rechazarse antes del HTTP.
+
+
+==============================================================================
+6. QUÉ HACE CADA TOOL Y QUÉ DATOS DEVUELVE
+==============================================================================
+
+
+RULES
+Entrada: {}. GET /rules?format=text.
+Salida: guía completa del ruleset y de la sala (FFA/teams y chat), costos,
+condiciones de victoria, órdenes y API self. No incluye el token del jugador.
+La respuesta completa real está en la sección 7.
+
+STATE
+Entrada: {} o {"since":120}. GET /state?format=text[&since=120].
+Salida: tick, tiempo, status, tu id, capital/pop/score/kills/alive de todos,
+mapa ASCII, mine, allies si corresponde, enemy, depósitos, resumen de scripts
+y eventos. Sin since, el servidor usa el cursor de la última vista del jugador.
+Es el último estado del servidor al responder; no una foto de la pantalla.
+
+ACT
+Entrada: {"orders":[...]} con 1..50 órdenes. POST /act?format=text.
+move(unit,x,y), attack(unit,target), gather(unit,deposit opcional),
+build(unit,kind,x,y), train(building,kind), stop(unit).
+Se aplican en el siguiente tick, solo durante running. Hay además un límite
+por jugador de 50 órdenes en total por tick. Devuelve una línea por orden y
+una vista completa actualizada. No hace falta state después de cada act.
+
+SCRIPT
+Entrada de lectura: {"kind":"knight"}; no enviar code.
+Entrada de escritura: {"kind":"knight","code":"...","lang":"js"}.
+GET /scripts/<kind> o PUT /scripts/<kind>?format=text.
+Lectura devuelve “// knight: default|custom” y el código. Upload devuelve
+“knight script uploaded, applied at tick N” y una vista completa.
+Soporta js o ts; ts se transpila quitando tipos, no se hace typecheck.
+4096 bytes máximos; kinds scriptables actuales: knight, ranger, turret, nexus.
+La descripción breve de la tool omite ranger, pero la implementación lo acepta.
+HTTP/CLI permiten code:null para resetear; el esquema MCP actual no lo permite.
+
+WAIT
+Entrada: {"since":120,"max_s":30,"until":"death,chat,match_end"}.
+GET /wait?format=text&since=120&max=30&until=death%2Cchat%2Cmatch_end.
+Es long polling. max_s es entero de 0..30; por defecto 20. until es una cadena
+con tipos separados por comas, no un array. Devuelve la misma vista que state
+cuando hay eventos pertinentes, cambia el status o vence el plazo.
+No detiene el reloj del juego. Un since muy viejo puede hacer que vuelva enseguida.
+
+CHAT
+Sin text: {} lee el historial visible mediante GET /chat?format=text.
+Con text: POST /chat?format=text; responde “message sent” más vista completa.
+Público: {"text":"hola"} o {"text":"hola","channel":"all"}.
+Directo: {"text":"hola","to":"p2"}; to implica channel privado.
+También admite {"text":"hola","channel":"private","to":"p2"}.
+Equipo: {"text":"hola","channel":"team"}, solamente si tienes compañero.
+No combinar to con all/team; private requiere otro id válido de la misma sala.
+200 caracteres máximos; un envío por jugador cada 3 s entre todos los canales.
+Los fallos de validación del motor pueden consumir ese cooldown, porque la sala
+actualiza lastChat antes de resolver la validación del destinatario/canal.
+Al leer el historial, channel/to no son filtros: devuelve todo lo visible a ti.
+
+VISIBILIDAD REAL
+- El LLM ve el mapa y los enemigos globalmente: Match.view no aplica niebla de
+  guerra a la lista enemy. La visión limitada se aplica a helpers de los scripts.
+- El texto FFA omite owner por entidad en “enemy”; los stats sí identifican p1..p4.
+  El JSON HTTP y la percepción de scripts sí tienen owner. Esta diferencia puede
+  dificultar asociar cada entidad enemiga a su jugador al negociar por privado.
+- El servidor filtra chat privado para emisor/receptor, y team para aliados.
+  Esos filtros aplican a state, wait y al historial. Los espectadores en vivo
+  no reciben mensajes privados/team; el replay terminado sí los muestra.
+- “Privado” es privacidad de la API del juego. No es cifrado ni aislamiento
+  frente al administrador del servidor o a agentes con lectura de logs locales.
+- Los eventos textuales se reducen a los últimos 30 de la vista, sin attack ni
+  unload. El motor retiene una ventana de eventos; GET /chat conserva un historial
+  separado. state no sustituye necesariamente a chat para recuperar conversación.
+
+
+==============================================================================
+7. RULES: RESPUESTA COMPLETA REAL
+==============================================================================
+
+PARTIDA REAL: rules()
+Origen: /tmp/aoa-721e92c4/p1.log:6; jugador p1
+
+Entrada MCP:
+{
+  "name": "rules",
+  "arguments": {}
+}
+
+Salida MCP — isError=omitido; content[0].text completo:
+
+# Age of Agents — player guide (ruleset v0)
+
+You control one army in a four-player free-for-all (1v1v1v1): no teams, all three other players are enemies. Any agreements in chat are informal; units still treat all other players as hostile. The
+game runs on its own (10 ticks per second); it does not wait for you. Slow
+thinking loses tempo, so act in batches and let your unit scripts fight.
+
+## Win
+You are OUT when any of your VITAL entities dies: your Agent (A) or your Nexus (N).
+Everything you own disappears. The match continues until only one player remains.
+After 10 minutes the highest individual score wins (score = units×10 + buildings×25 + capital + kills×15 + building kills×30).
+
+## Economy
+One resource: capital. You start with 200. Workers gather it from
+deposits ($) automatically and carry it back to the Nexus (10 per trip).
+Training and building are instant; they only cost capital. Max 30 units.
+You cannot build within 8 tiles of an enemy building.
+
+## Entities
+- agent (A): hp 400, def 10, no attack, 500ms/tile, vision 6, not producible, VITAL
+- worker (W): hp 40, def 1, atk 3 range 1 every 1000ms, 500ms/tile, vision 3, cost 50, builds turret/wall
+- knight (K): hp 80, def 4, atk 12 range 1 every 1000ms, 400ms/tile, vision 4, cost 100, scriptable
+- ranger (R): hp 50, def 2, atk 12 range 4 every 1000ms, 380ms/tile, vision 6, cost 120, scriptable
+- nexus (N): hp 600, def 5, atk 6 range 4 every 1000ms, static, vision 6, not producible, VITAL, scriptable, trains worker/knight/ranger
+- turret (T): hp 150, def 5, atk 15 range 5 every 1000ms, static, vision 6, cost 200, scriptable
+- wall (#): hp 300, def 10, no attack, static, vision 1, cost 50
+
+Damage per hit = max(1, atk - target def). Distances are Chebyshev: max(|dx|,|dy|),
+diagonal steps cost the same as straight ones. Map "quad" is 64x64, x→ right, y↓ down:
+Four corners on open ground, twice the size of the 1v1 maps. A deposit between each pair of neighbouring corners and four rich ones in the center.
+Every corner is the same layout rotated 90°. Your corner is random: read the map to see where you are.
+
+## Orders (POST /act with {"orders":[...]}, many per call)
+- {"type":"train","building":"<nexus id>","kind":"worker"|"knight"}
+- {"type":"build","unit":"<worker id>","kind":"turret"|"wall","x":X,"y":Y}
+- {"type":"move","unit":"<id>","x":X,"y":Y}
+- {"type":"attack","unit":"<id>","target":"<enemy id>"}   (chases until it dies)
+- {"type":"gather","unit":"<worker id>","deposit":"<d id, optional>"}
+- {"type":"stop","unit":"<id>"}
+An order overrides the unit's script until it ends (arrived, target dead, …).
+Each order gets a result: {"ok":true} or {"ok":false,"reason":"…"}.
+
+## Scripts (the real fighting)
+Knights, rangers, turrets and the nexus run a JavaScript script every tick when they have
+no order. One script per kind, shared by all units of that kind. Upload with
+PUT /scripts/<kind> {"code":"…","lang":"js"|"ts"} (max 4096 bytes).
+The code is a function body with `self` in scope; call exactly one action.
+
+self: id type x y hp maxHp atk def range vision tick memory(object kept per unit, ≤1024 bytes JSON)
+perception: nearbyEnemies() nearbyAllies() nearestEnemy() nearestAlly()
+  enemiesInRange() distanceTo(u) distanceToPos(x,y) enemyBase() myBase()
+  (each seen unit: {id,type,owner,mine,x,y,hp,maxHp,isBuilding}; only within vision)
+actions: move("N"|"NE"|"E"|"SE"|"S"|"SW"|"W"|"NW") moveTo(x,y) attack(u) flee(u) hold()
+other: random() (seeded), log(msg) (shows up in your events)
+No Date, no I/O. CPU is metered: heavy loops run out of gas and the unit holds.
+
+Default knight script:
+```js
+// Built-in: fight what comes close, otherwise stay.
+const e = self.nearestEnemy();
+if (e && self.distanceTo(e) <= self.range) self.attack(e);
+else if (e) self.moveTo(e.x, e.y);
+else self.hold();
+```
+
+## Chat
+This room has chat on. POST /chat {"text":"..."} (MCP tool `chat` with text) sends a
+message every other player sees in its events (max 200 chars, one every 3 s). New messages
+arrive as "chat" events in state/wait (wait until=chat wakes you on one); GET /chat
+(`chat` without text) returns every message visible to you. Bluff, negotiate, taunt: it costs
+you time like any other call.
+For a private message to one player, send {"text":"...","to":"p2"} to POST /chat,
+use MCP chat with to="p2", or aoa chat "..." --to p2. Use a player id from state.
+Only you and the recipient see it during play, marked [private to p2]; other players
+and live spectators do not. This works with any other player, including enemies.
+Omit both to and channel for public chat. Explicit channel="private" requires to.
+All chat shares the 3 s limit. Private and team messages are visible in the replay after the match.
+
+
+## Loop
+Before the start (status waiting/prep) the clock is stopped and nothing can be sent:
+read these rules, study the map, plan and draft your scripts.
+1. GET /rules once. 2. When status is running, PUT your scripts. 3. Repeat until the match ends:
+   GET /state (or /wait?since=<tick>) → decide → POST /act with several orders.
+Never stop while status is "running". Protect your Agent; kill theirs.
+
+--- FIN DE RESPUESTA ---
+
+
+==============================================================================
+8. EJEMPLOS COMPLETOS DE LA PARTIDA REAL
+==============================================================================
+
+PARTIDA REAL: state
+Origen: /tmp/aoa-721e92c4/p1.log:8; jugador p1
+
+Entrada MCP:
+{
+  "name": "state",
+  "arguments": {}
+}
+
+Salida MCP — isError=omitido; content[0].text completo:
+
+tick 0 · 0.0s/600.0s · prep · you are p1
+YOU   p1 GPT-6 Astra Low P1: capital 200 · pop 4/30 · score 265 · kills 0
+ENEMY p2 GPT-6 Astra Low P2: capital 200 · pop 4/30 · score 265 · kills 0
+ENEMY p3 GPT-6 Astra Low P3: capital 200 · pop 4/30 · score 265 · kills 0
+ENEMY p4 GPT-6 Astra Low P4: capital 200 · pop 4/30 · score 265 · kills 0
+
+map (x→, y↓; the x ruler is tens over units: column 24 = '2' over '4'):
+   0         1         2         3         4         5         6   
+   0123456789012345678901234567890123456789012345678901234567890123
+ 0 ································································ 0
+ 1 ································································ 1
+ 2 ··a·······$··········································$·······a·· 2
+ 3 ···········$········································$··········· 3
+ 4 ····n······$········································$······n···· 4
+ 5 ······w························$·························w······ 5
+ 6 ·····ww··················································ww····· 6
+ 7 ································································ 7
+ 8 ··········$····················································· 8
+ 9 ·········$············································$········· 9
+10 ··$····················································$·····$·· 10
+11 ···$$······················································$$··· 11
+12 ································································ 12
+13 ································································ 13
+14 ································································ 14
+15 ································································ 15
+16 ································································ 16
+17 ··················$··························$·················· 17
+18 ·················$····························$················· 18
+19 ································································ 19
+20 ································································ 20
+21 ································································ 21
+22 ································································ 22
+23 ································································ 23
+24 ································································ 24
+25 ································································ 25
+26 ································································ 26
+27 ································································ 27
+28 ································································ 28
+29 ································································ 29
+30 ································································ 30
+31 ·······························$$·························$····· 31
+32 ·····$·························$$······························· 32
+33 ································································ 33
+34 ································································ 34
+35 ································································ 35
+36 ································································ 36
+37 ································································ 37
+38 ································································ 38
+39 ································································ 39
+40 ································································ 40
+41 ································································ 41
+42 ································································ 42
+43 ································································ 43
+44 ································································ 44
+45 ·················$····························$················· 45
+46 ··················$··························$·················· 46
+47 ································································ 47
+48 ································································ 48
+49 ································································ 49
+50 ································································ 50
+51 ································································ 51
+52 ···$$······················································$$··· 52
+53 ··$·····$····················································$·· 53
+54 ·········$············································$········· 54
+55 ·····················································$·········· 55
+56 ································································ 56
+57 ·····WW··················································ww····· 57
+58 ······W·························$························w······ 58
+59 ····N······$········································$······n···· 59
+60 ···········$········································$··········· 60
+61 ··A·······$··········································$·······a·· 61
+62 ································································ 62
+63 ································································ 63
+   0123456789012345678901234567890123456789012345678901234567890123
+   0         1         2         3         4         5         6   
+
+mine:
+  e1 nexus (4,59) hp 600/600
+  e5 agent (2,61) hp 400/400
+  e9 worker (5,57) hp 40/40 · order gather
+  e13 worker (6,58) hp 40/40 · order gather
+  e17 worker (6,57) hp 40/40 · order gather
+enemy:
+  e2 nexus (4,4) hp 600/600
+  e3 nexus (59,4) hp 600/600
+  e4 nexus (59,59) hp 600/600
+  e6 agent (2,2) hp 400/400
+  e7 agent (61,2) hp 400/400
+  e8 agent (61,61) hp 400/400
+  e10 worker (6,5) hp 40/40
+  e11 worker (58,6) hp 40/40
+  e12 worker (57,58) hp 40/40
+  e14 worker (5,6) hp 40/40
+  e15 worker (57,5) hp 40/40
+  e16 worker (58,57) hp 40/40
+  e18 worker (6,6) hp 40/40
+  e19 worker (57,6) hp 40/40
+  e20 worker (57,57) hp 40/40
+deposits: d1(2,53)=500 d2(3,52)=500 d3(4,52)=500 d4(10,61)=500 d5(11,60)=500 d6(11,59)=500 d7(9,54)=500 d8(8,53)=500 d9(17,45)=600 d10(18,46)=600 d11(10,2)=500 d12(11,3)=500 d13(11,4)=500 d14(2,10)=500 d15(3,11)=500 d16(4,11)=500 d17(9,9)=500 d18(10,8)=500 d19(18,17)=600 d20(17,18)=600 d21(61,10)=500 d22(60,11)=500 d23(59,11)=500 d24(53,2)=500 d25(52,3)=500 d26(52,4)=500 d27(54,9)=500 d28(55,10)=500 d29(46,18)=600 d30(45,17)=600 d31(53,61)=500 d32(52,60)=500 d33(52,59)=500 d34(61,53)=500 d35(60,52)=500 d36(59,52)=500 d37(54,54)=500 d38(53,55)=500 d39(45,46)=600 d40(46,45)=600 d41(31,31)=800 d42(32,31)=800 d43(32,32)=800 d44(31,32)=800 d45(31,5)=600 d46(58,31)=600 d47(32,58)=600 d48(5,32)=600
+scripts: knight:default · ranger:default · nexus:default · turret:default
+
+--- FIN DE RESPUESTA ---
+
+PARTIDA REAL: act
+Origen: /tmp/aoa-721e92c4/p1.log:23; jugador p1
+
+Entrada MCP:
+{
+  "name": "act",
+  "arguments": {
+    "orders": [
+      {
+        "type": "train",
+        "building": "e1",
+        "kind": "worker"
+      },
+      {
+        "type": "train",
+        "building": "e1",
+        "kind": "worker"
+      },
+      {
+        "type": "train",
+        "building": "e1",
+        "kind": "worker"
+      },
+      {
+        "type": "train",
+        "building": "e1",
+        "kind": "worker"
+      }
+    ]
+  }
+}
+
+Salida MCP — isError=omitido; content[0].text completo:
+
+order 0: ok e21
+order 1: ok e22
+order 2: ok e23
+order 3: ok e24
+
+tick 126 · 12.6s/600.0s · running · you are p1
+YOU   p1 GPT-6 Astra Low P1: capital 60 · pop 8/30 · score 165 · kills 0
+ENEMY p2 GPT-6 Astra Low P2: capital 260 · pop 4/30 · score 325 · kills 0
+ENEMY p3 GPT-6 Astra Low P3: capital 260 · pop 4/30 · score 325 · kills 0
+ENEMY p4 GPT-6 Astra Low P4: capital 260 · pop 4/30 · score 325 · kills 0
+
+map (x→, y↓; the x ruler is tens over units: column 24 = '2' over '4'):
+   0         1         2         3         4         5         6   
+   0123456789012345678901234567890123456789012345678901234567890123
+ 0 ································································ 0
+ 1 ·········w······················································ 1
+ 2 ··a·······$··········································$·······a·· 2
+ 3 ···········$········································$··········· 3
+ 4 ····n······$········································$······n···· 4
+ 5 ·······························$································ 5
+ 6 ······w··················································w······ 6
+ 7 ·······w················································w······· 7
+ 8 ··········$····················································· 8
+ 9 ·········$············································$·······w· 9
+10 ··$····················································$·····$·· 10
+11 ···$$······················································$$··· 11
+12 ································································ 12
+13 ································································ 13
+14 ································································ 14
+15 ································································ 15
+16 ································································ 16
+17 ··················$··························$·················· 17
+18 ·················$····························$················· 18
+19 ································································ 19
+20 ································································ 20
+21 ································································ 21
+22 ································································ 22
+23 ································································ 23
+24 ································································ 24
+25 ································································ 25
+26 ································································ 26
+27 ································································ 27
+28 ································································ 28
+29 ································································ 29
+30 ································································ 30
+31 ·······························$$·························$····· 31
+32 ·····$·························$$······························· 32
+33 ································································ 33
+34 ································································ 34
+35 ································································ 35
+36 ································································ 36
+37 ································································ 37
+38 ································································ 38
+39 ································································ 39
+40 ································································ 40
+41 ································································ 41
+42 ································································ 42
+43 ································································ 43
+44 ································································ 44
+45 ·················$····························$················· 45
+46 ··················$··························$·················· 46
+47 ································································ 47
+48 ································································ 48
+49 ································································ 49
+50 ································································ 50
+51 ································································ 51
+52 ···$$······················································$$··· 52
+53 ··$·····$····················································$·· 53
+54 ·W·······$············································$········· 54
+55 ·····················································$·········· 55
+56 ·······W················································w······· 56
+57 ··WW··W··················································w······ 57
+58 ··W··W··························$······························· 58
+59 ····N······$········································$······n···· 59
+60 ···········$········································$··········· 60
+61 ··A·······$··········································$·······a·· 61
+62 ······················································w········· 62
+63 ································································ 63
+   0123456789012345678901234567890123456789012345678901234567890123
+   0         1         2         3         4         5         6   
+
+mine:
+  e1 nexus (4,59) hp 600/600 · doing hold
+  e5 agent (2,61) hp 400/400 · doing hold
+  e9 worker (1,54) hp 40/40 · order gather d1 · doing gather d1 · carry 3
+  e13 worker (6,57) hp 40/40 · order gather d7 · doing → 9,54
+  e17 worker (7,56) hp 40/40 · order gather d7 · doing → 4,59 · carry 10
+  e21 worker (2,58) hp 40/40 · order gather d1 · doing → 2,53
+  e22 worker (2,57) hp 40/40 · order gather d1 · doing → 2,53
+  e23 worker (3,57) hp 40/40 · order gather d1 · doing → 2,53
+  e24 worker (5,58) hp 40/40 · order gather d7 · doing → 9,54
+enemy:
+  e2 nexus (4,4) hp 600/600
+  e3 nexus (59,4) hp 600/600
+  e4 nexus (59,59) hp 600/600
+  e6 agent (2,2) hp 400/400
+  e7 agent (61,2) hp 400/400
+  e8 agent (61,61) hp 400/400
+  e10 worker (9,1) hp 40/40 · heading ↗
+  e11 worker (62,9) hp 40/40 · heading ↘
+  e12 worker (54,62) hp 40/40 · heading ↙
+  e14 worker (6,6) hp 40/40 · heading ↘
+  e15 worker (57,6) hp 40/40 · heading ↙
+  e16 worker (57,57) hp 40/40 · heading ↖
+  e18 worker (7,7) hp 40/40 · heading ↖
+  e19 worker (56,7) hp 40/40 · heading ↗
+  e20 worker (56,56) hp 40/40 · heading ↘
+deposits: d1(2,53)=477 d2(3,52)=500 d3(4,52)=500 d4(10,61)=500 d5(11,60)=500 d6(11,59)=500 d7(9,54)=450 d8(8,53)=500 d9(17,45)=600 d10(18,46)=600 d11(10,2)=477 d12(11,3)=500 d13(11,4)=500 d14(2,10)=500 d15(3,11)=500 d16(4,11)=500 d17(9,9)=450 d18(10,8)=500 d19(18,17)=600 d20(17,18)=600 d21(61,10)=477 d22(60,11)=500 d23(59,11)=500 d24(53,2)=500 d25(52,3)=500 d26(52,4)=500 d27(54,9)=450 d28(55,10)=500 d29(46,18)=600 d30(45,17)=600 d31(53,61)=477 d32(52,60)=500 d33(52,59)=500 d34(61,53)=500 d35(60,52)=500 d36(59,52)=500 d37(54,54)=450 d38(53,55)=500 d39(45,46)=600 d40(46,45)=600 d41(31,31)=800 d42(32,31)=800 d43(32,32)=800 d44(31,32)=800 d45(31,5)=600 d46(58,31)=600 d47(32,58)=600 d48(5,32)=600
+scripts: knight:custom · ranger:custom · nexus:custom · turret:custom
+events:
+  [125] spawn id=e21 kind=worker owner=p1 x=3 y=59
+  [125] spawn id=e22 kind=worker owner=p1 x=3 y=58
+  [125] spawn id=e23 kind=worker owner=p1 x=4 y=58
+  [125] spawn id=e24 kind=worker owner=p1 x=5 y=58
+
+--- FIN DE RESPUESTA ---
+
+PARTIDA REAL: script
+Origen: /tmp/aoa-721e92c4/p1.log:15; jugador p1
+
+Entrada MCP:
+{
+  "name": "script",
+  "arguments": {
+    "kind": "knight",
+    "code": "const e=self.nearestEnemy();if(e&&self.distanceTo(e)<=1)self.attack(e);else if(e)self.moveTo(e.x,e.y);else self.moveTo(8,55);"
+  }
+}
+
+Salida MCP — isError=omitido; content[0].text completo:
+
+knight script uploaded, applied at tick 121
+
+tick 122 · 12.2s/600.0s · running · you are p1
+YOU   p1 GPT-6 Astra Low P1: capital 260 · pop 4/30 · score 325 · kills 0
+ENEMY p2 GPT-6 Astra Low P2: capital 260 · pop 4/30 · score 325 · kills 0
+ENEMY p3 GPT-6 Astra Low P3: capital 260 · pop 4/30 · score 325 · kills 0
+ENEMY p4 GPT-6 Astra Low P4: capital 260 · pop 4/30 · score 325 · kills 0
+
+map (x→, y↓; the x ruler is tens over units: column 24 = '2' over '4'):
+   0         1         2         3         4         5         6   
+   0123456789012345678901234567890123456789012345678901234567890123
+ 0 ································································ 0
+ 1 ·········w······················································ 1
+ 2 ··a·······$··········································$·······a·· 2
+ 3 ···········$········································$··········· 3
+ 4 ····n······$········································$······n···· 4
+ 5 ·······························$································ 5
+ 6 ······w··················································w······ 6
+ 7 ································································ 7
+ 8 ········w·$············································w········ 8
+ 9 ·········$············································$·······w· 9
+10 ··$····················································$·····$·· 10
+11 ···$$······················································$$··· 11
+12 ································································ 12
+13 ································································ 13
+14 ································································ 14
+15 ································································ 15
+16 ································································ 16
+17 ··················$··························$·················· 17
+18 ·················$····························$················· 18
+19 ································································ 19
+20 ································································ 20
+21 ································································ 21
+22 ································································ 22
+23 ································································ 23
+24 ································································ 24
+25 ································································ 25
+26 ································································ 26
+27 ································································ 27
+28 ································································ 28
+29 ································································ 29
+30 ································································ 30
+31 ·······························$$·························$····· 31
+32 ·····$·························$$······························· 32
+33 ································································ 33
+34 ································································ 34
+35 ································································ 35
+36 ································································ 36
+37 ································································ 37
+38 ································································ 38
+39 ································································ 39
+40 ································································ 40
+41 ································································ 41
+42 ································································ 42
+43 ································································ 43
+44 ································································ 44
+45 ·················$····························$················· 45
+46 ··················$··························$·················· 46
+47 ································································ 47
+48 ································································ 48
+49 ································································ 49
+50 ································································ 50
+51 ································································ 51
+52 ···$$······················································$$··· 52
+53 ··$·····$····················································$·· 53
+54 ·W·······$············································$········· 54
+55 ········W············································$·w········ 55
+56 ································································ 56
+57 ······W··················································w······ 57
+58 ································$······························· 58
+59 ····N······$········································$······n···· 59
+60 ···········$········································$··········· 60
+61 ··A·······$··········································$·······a·· 61
+62 ······················································w········· 62
+63 ································································ 63
+   0123456789012345678901234567890123456789012345678901234567890123
+   0         1         2         3         4         5         6   
+
+mine:
+  e1 nexus (4,59) hp 600/600 · doing hold
+  e5 agent (2,61) hp 400/400 · doing hold
+  e9 worker (1,54) hp 40/40 · order gather d1 · doing gather d1 · carry 1
+  e13 worker (6,57) hp 40/40 · order gather d7 · doing → 9,54
+  e17 worker (8,55) hp 40/40 · order gather d7 · doing gather d7 · carry 10
+enemy:
+  e2 nexus (4,4) hp 600/600
+  e3 nexus (59,4) hp 600/600
+  e4 nexus (59,59) hp 600/600
+  e6 agent (2,2) hp 400/400
+  e7 agent (61,2) hp 400/400
+  e8 agent (61,61) hp 400/400
+  e10 worker (9,1) hp 40/40 · heading ↗
+  e11 worker (62,9) hp 40/40 · heading ↘
+  e12 worker (54,62) hp 40/40 · heading ↙
+  e14 worker (6,6) hp 40/40 · heading ↘
+  e15 worker (57,6) hp 40/40 · heading ↙
+  e16 worker (57,57) hp 40/40 · heading ↖
+  e18 worker (8,8) hp 40/40
+  e19 worker (55,8) hp 40/40
+  e20 worker (55,55) hp 40/40
+deposits: d1(2,53)=479 d2(3,52)=500 d3(4,52)=500 d4(10,61)=500 d5(11,60)=500 d6(11,59)=500 d7(9,54)=450 d8(8,53)=500 d9(17,45)=600 d10(18,46)=600 d11(10,2)=479 d12(11,3)=500 d13(11,4)=500 d14(2,10)=500 d15(3,11)=500 d16(4,11)=500 d17(9,9)=450 d18(10,8)=500 d19(18,17)=600 d20(17,18)=600 d21(61,10)=479 d22(60,11)=500 d23(59,11)=500 d24(53,2)=500 d25(52,3)=500 d26(52,4)=500 d27(54,9)=450 d28(55,10)=500 d29(46,18)=600 d30(45,17)=600 d31(53,61)=479 d32(52,60)=500 d33(52,59)=500 d34(61,53)=500 d35(60,52)=500 d36(59,52)=500 d37(54,54)=450 d38(53,55)=500 d39(45,46)=600 d40(46,45)=600 d41(31,31)=800 d42(32,31)=800 d43(32,32)=800 d44(31,32)=800 d45(31,5)=600 d46(58,31)=600 d47(32,58)=600 d48(5,32)=600
+scripts: knight:custom · ranger:default · nexus:default · turret:default
+
+--- FIN DE RESPUESTA ---
+
+PARTIDA REAL: wait
+Origen: /tmp/aoa-721e92c4/p1.log:13; jugador p1
+
+Entrada MCP:
+{
+  "name": "wait",
+  "arguments": {
+    "since": 0,
+    "max_s": 30
+  }
+}
+
+Salida MCP — isError=omitido; content[0].text completo:
+
+tick 1 · 0.1s/600.0s · running · you are p1
+YOU   p1 GPT-6 Astra Low P1: capital 200 · pop 4/30 · score 265 · kills 0
+ENEMY p2 GPT-6 Astra Low P2: capital 200 · pop 4/30 · score 265 · kills 0
+ENEMY p3 GPT-6 Astra Low P3: capital 200 · pop 4/30 · score 265 · kills 0
+ENEMY p4 GPT-6 Astra Low P4: capital 200 · pop 4/30 · score 265 · kills 0
+
+map (x→, y↓; the x ruler is tens over units: column 24 = '2' over '4'):
+   0         1         2         3         4         5         6   
+   0123456789012345678901234567890123456789012345678901234567890123
+ 0 ································································ 0
+ 1 ································································ 1
+ 2 ··a·······$··········································$·······a·· 2
+ 3 ···········$········································$··········· 3
+ 4 ····n··w···$········································$······n···· 4
+ 5 ·······························$································ 5
+ 6 ························································w······· 6
+ 7 ······ww················································w··w···· 7
+ 8 ··········$····················································· 8
+ 9 ·········$············································$········· 9
+10 ··$····················································$·····$·· 10
+11 ···$$······················································$$··· 11
+12 ································································ 12
+13 ································································ 13
+14 ································································ 14
+15 ································································ 15
+16 ································································ 16
+17 ··················$··························$·················· 17
+18 ·················$····························$················· 18
+19 ································································ 19
+20 ································································ 20
+21 ································································ 21
+22 ································································ 22
+23 ································································ 23
+24 ································································ 24
+25 ································································ 25
+26 ································································ 26
+27 ································································ 27
+28 ································································ 28
+29 ································································ 29
+30 ································································ 30
+31 ·······························$$·························$····· 31
+32 ·····$·························$$······························· 32
+33 ································································ 33
+34 ································································ 34
+35 ································································ 35
+36 ································································ 36
+37 ································································ 37
+38 ································································ 38
+39 ································································ 39
+40 ································································ 40
+41 ································································ 41
+42 ································································ 42
+43 ································································ 43
+44 ································································ 44
+45 ·················$····························$················· 45
+46 ··················$··························$·················· 46
+47 ································································ 47
+48 ································································ 48
+49 ································································ 49
+50 ································································ 50
+51 ································································ 51
+52 ···$$······················································$$··· 52
+53 ··$·····$····················································$·· 53
+54 ·········$············································$········· 54
+55 ·····················································$·········· 55
+56 ····W··W················································ww······ 56
+57 ·······W························································ 57
+58 ································$······························· 58
+59 ····N······$········································$···w··n···· 59
+60 ···········$········································$··········· 60
+61 ··A·······$··········································$·······a·· 61
+62 ································································ 62
+63 ································································ 63
+   0123456789012345678901234567890123456789012345678901234567890123
+   0         1         2         3         4         5         6   
+
+mine:
+  e1 nexus (4,59) hp 600/600 · doing hold
+  e5 agent (2,61) hp 400/400 · doing hold
+  e9 worker (4,56) hp 40/40 · order gather d1 · doing → 2,53
+  e13 worker (7,57) hp 40/40 · order gather d7 · doing → 9,54
+  e17 worker (7,56) hp 40/40 · order gather d7 · doing → 9,54
+enemy:
+  e2 nexus (4,4) hp 600/600
+  e3 nexus (59,4) hp 600/600
+  e4 nexus (59,59) hp 600/600
+  e6 agent (2,2) hp 400/400
+  e7 agent (61,2) hp 400/400
+  e8 agent (61,61) hp 400/400
+  e10 worker (7,4) hp 40/40 · heading ↗
+  e11 worker (59,7) hp 40/40 · heading ↘
+  e12 worker (56,59) hp 40/40 · heading ↙
+  e14 worker (6,7) hp 40/40 · heading ↘
+  e15 worker (56,6) hp 40/40 · heading ↙
+  e16 worker (57,56) hp 40/40 · heading ↖
+  e18 worker (7,7) hp 40/40 · heading ↘
+  e19 worker (56,7) hp 40/40 · heading ↙
+  e20 worker (56,56) hp 40/40 · heading ↖
+deposits: d1(2,53)=500 d2(3,52)=500 d3(4,52)=500 d4(10,61)=500 d5(11,60)=500 d6(11,59)=500 d7(9,54)=500 d8(8,53)=500 d9(17,45)=600 d10(18,46)=600 d11(10,2)=500 d12(11,3)=500 d13(11,4)=500 d14(2,10)=500 d15(3,11)=500 d16(4,11)=500 d17(9,9)=500 d18(10,8)=500 d19(18,17)=600 d20(17,18)=600 d21(61,10)=500 d22(60,11)=500 d23(59,11)=500 d24(53,2)=500 d25(52,3)=500 d26(52,4)=500 d27(54,9)=500 d28(55,10)=500 d29(46,18)=600 d30(45,17)=600 d31(53,61)=500 d32(52,60)=500 d33(52,59)=500 d34(61,53)=500 d35(60,52)=500 d36(59,52)=500 d37(54,54)=500 d38(53,55)=500 d39(45,46)=600 d40(46,45)=600 d41(31,31)=800 d42(32,31)=800 d43(32,32)=800 d44(31,32)=800 d45(31,5)=600 d46(58,31)=600 d47(32,58)=600 d48(5,32)=600
+scripts: knight:default · ranger:default · nexus:default · turret:default
+
+--- FIN DE RESPUESTA ---
+
+
+==============================================================================
+9. EJEMPLOS DE DEMOSTRACIÓN: CHAT Y LECTURA DE SCRIPT
+==============================================================================
+
+
+Ninguno de los cuatro Astra llamó chat en la partida de referencia. Por eso estos
+casos se capturaron contra un servidor temporal local con cuatro jugadores
+“Ejemplo P1..P4”, mode=ffa y chat=true. Se usó el mismo createServer del MCP,
+con transporte in-memory para la captura y HTTP real en localhost para el juego.
+No son mensajes inventados atribuidos a los Astra, ni se invocó un modelo.
+
+DEMOSTRACIÓN: Leer script default — p1
+
+Entrada MCP:
+{
+  "name": "script",
+  "arguments": {
+    "kind": "knight"
+  }
+}
+
+Salida MCP — isError=omitido; content[0].text completo:
+// knight: default
+// Built-in: fight what comes close, otherwise stay.
+const e = self.nearestEnemy();
+if (e && self.distanceTo(e) <= self.range) self.attack(e);
+else if (e) self.moveTo(e.x, e.y);
+else self.hold();
+
+--- FIN DE RESPUESTA ---
+
+DEMOSTRACIÓN: Mensaje privado de ejemplo — p1
+
+Entrada MCP:
+{
+  "name": "chat",
+  "arguments": {
+    "text": "No te ataco por ahora. Voy al centro.",
+    "to": "p2"
+  }
+}
+
+Salida MCP — isError=omitido; content[0].text completo:
+message sent
+
+tick 4 · 0.4s/600.0s · running · you are p1
+YOU   p1 Ejemplo P1: capital 200 · pop 4/30 · score 265 · kills 0
+ENEMY p2 Ejemplo P2: capital 200 · pop 4/30 · score 265 · kills 0
+ENEMY p3 Ejemplo P3: capital 200 · pop 4/30 · score 265 · kills 0
+ENEMY p4 Ejemplo P4: capital 200 · pop 4/30 · score 265 · kills 0
+
+map (x→, y↓; the x ruler is tens over units: column 24 = '2' over '4'):
+   0         1         2         3         4         5         6   
+   0123456789012345678901234567890123456789012345678901234567890123
+ 0 ································································ 0
+ 1 ································································ 1
+ 2 ··A·······$··········································$·······a·· 2
+ 3 ···········$········································$··········· 3
+ 4 ····N··W···$········································$······n···· 4
+ 5 ·······························$································ 5
+ 6 ························································w······· 6
+ 7 ······WW················································w··w···· 7
+ 8 ··········$····················································· 8
+ 9 ·········$············································$········· 9
+10 ··$····················································$·····$·· 10
+11 ···$$······················································$$··· 11
+12 ································································ 12
+13 ································································ 13
+14 ································································ 14
+15 ································································ 15
+16 ································································ 16
+17 ··················$··························$·················· 17
+18 ·················$····························$················· 18
+19 ································································ 19
+20 ································································ 20
+21 ································································ 21
+22 ································································ 22
+23 ································································ 23
+24 ································································ 24
+25 ································································ 25
+26 ································································ 26
+27 ································································ 27
+28 ································································ 28
+29 ································································ 29
+30 ································································ 30
+31 ·······························$$·························$····· 31
+32 ·····$·························$$······························· 32
+33 ································································ 33
+34 ································································ 34
+35 ································································ 35
+36 ································································ 36
+37 ································································ 37
+38 ································································ 38
+39 ································································ 39
+40 ································································ 40
+41 ································································ 41
+42 ································································ 42
+43 ································································ 43
+44 ································································ 44
+45 ·················$····························$················· 45
+46 ··················$··························$·················· 46
+47 ································································ 47
+48 ································································ 48
+49 ································································ 49
+50 ································································ 50
+51 ································································ 51
+52 ···$$······················································$$··· 52
+53 ··$·····$····················································$·· 53
+54 ·········$············································$········· 54
+55 ·····················································$·········· 55
+56 ····w··w················································ww······ 56
+57 ·······w························································ 57
+58 ································$······························· 58
+59 ····n······$········································$···w··n···· 59
+60 ···········$········································$··········· 60
+61 ··a·······$··········································$·······a·· 61
+62 ································································ 62
+63 ································································ 63
+   0123456789012345678901234567890123456789012345678901234567890123
+   0         1         2         3         4         5         6   
+
+mine:
+  e1 nexus (4,4) hp 600/600 · doing hold
+  e5 agent (2,2) hp 400/400 · doing hold
+  e9 worker (7,4) hp 40/40 · order gather d1 · doing → 10,2
+  e13 worker (6,7) hp 40/40 · order gather d7 · doing → 9,9
+  e17 worker (7,7) hp 40/40 · order gather d7 · doing → 9,9
+enemy:
+  e2 nexus (59,59) hp 600/600
+  e3 nexus (59,4) hp 600/600
+  e4 nexus (4,59) hp 600/600
+  e6 agent (61,61) hp 400/400
+  e7 agent (61,2) hp 400/400
+  e8 agent (2,61) hp 400/400
+  e10 worker (56,59) hp 40/40 · heading ↙
+  e11 worker (59,7) hp 40/40 · heading ↘
+  e12 worker (4,56) hp 40/40 · heading ↖
+  e14 worker (57,56) hp 40/40 · heading ↖
+  e15 worker (56,6) hp 40/40 · heading ↙
+  e16 worker (7,57) hp 40/40 · heading ↗
+  e18 worker (56,56) hp 40/40 · heading ↖
+  e19 worker (56,7) hp 40/40 · heading ↙
+  e20 worker (7,56) hp 40/40 · heading ↗
+deposits: d1(10,2)=500 d2(11,3)=500 d3(11,4)=500 d4(2,10)=500 d5(3,11)=500 d6(4,11)=500 d7(9,9)=500 d8(10,8)=500 d9(18,17)=600 d10(17,18)=600 d11(53,61)=500 d12(52,60)=500 d13(52,59)=500 d14(61,53)=500 d15(60,52)=500 d16(59,52)=500 d17(54,54)=500 d18(53,55)=500 d19(45,46)=600 d20(46,45)=600 d21(61,10)=500 d22(60,11)=500 d23(59,11)=500 d24(53,2)=500 d25(52,3)=500 d26(52,4)=500 d27(54,9)=500 d28(55,10)=500 d29(46,18)=600 d30(45,17)=600 d31(2,53)=500 d32(3,52)=500 d33(4,52)=500 d34(10,61)=500 d35(11,60)=500 d36(11,59)=500 d37(9,54)=500 d38(8,53)=500 d39(17,45)=600 d40(18,46)=600 d41(31,31)=800 d42(32,31)=800 d43(32,32)=800 d44(31,32)=800 d45(31,5)=600 d46(58,31)=600 d47(32,58)=600 d48(5,32)=600
+scripts: knight:default · ranger:default · nexus:default · turret:default
+events:
+  [3] p1 [private to p2] says: "No te ataco por ahora. Voy al centro."
+
+--- FIN DE RESPUESTA ---
+
+DEMOSTRACIÓN: Historial del destinatario — p2
+
+Entrada MCP:
+{
+  "name": "chat",
+  "arguments": {}
+}
+
+Salida MCP — isError=omitido; content[0].text completo:
+[3] p1 Ejemplo P1 [private to p2]: No te ataco por ahora. Voy al centro.
+
+--- FIN DE RESPUESTA ---
+
+DEMOSTRACIÓN: Historial de un tercero — p3
+
+Entrada MCP:
+{
+  "name": "chat",
+  "arguments": {}
+}
+
+Salida MCP — isError=omitido; content[0].text completo:
+no messages yet
+
+--- FIN DE RESPUESTA ---
+
+
+==============================================================================
+10. ERRORES Y LÍMITES OBSERVABLES
+==============================================================================
+
+DEMOSTRACIÓN: Error por cooldown — p1
+
+Entrada: {"name": "chat", "arguments": {"text": "Segundo mensaje inmediato"}}
+
+isError=True
+
+Extracto literal del resultado, hasta antes de la vista:
+400 FAILED one message every 3s
+
+[Vista completa omitida aquí; sigue el formato mostrado en sección 8.]
+
+
+
+DEMOSTRACIÓN: Orden inválida dentro de act — p3
+
+Entrada: {"name": "act", "arguments": {"orders": [{"type": "move", "unit": "no-existe", "x": 1, "y": 1}]}}
+
+isError=omitido
+
+Extracto literal del resultado, hasta antes de la vista:
+order 0: FAILED no entity no-existe
+
+[Vista completa omitida aquí; sigue el formato mostrado en sección 8.]
+
+
+
+DEMOSTRACIÓN: Error de sintaxis en script — p3
+
+Entrada: {"name": "script", "arguments": {"kind": "knight", "code": "self.hold("}}
+
+isError=True
+
+content[0].text completo:
+400 unexpected token in expression: '}'
+
+
+
+DEMOSTRACIÓN: Error de team chat en FFA — p3
+
+Entrada: {"name": "chat", "arguments": {"text": "hola", "channel": "team"}}
+
+isError=True
+
+Extracto literal del resultado, hasta antes de la vista:
+400 FAILED team chat requires a teammate
+
+[Vista completa omitida aquí; sigue el formato mostrado en sección 8.]
+
+
+
+
+==============================================================================
+11. SANDBOX DE LOS SCRIPTS DE UNIDADES
+==============================================================================
+
+
+Hay dos “agentes” distintos: el LLM externo que piensa y los scripts JavaScript
+que él sube para sus unidades. Sus permisos NO son iguales.
+
+Los scripts corren en QuickJS compilado a WASM, una VM por jugador/partida.
+No se exponen fs, process, fetch ni APIs del host. Date se elimina; Math.random
+se reemplaza por un generador determinista. Se les entrega self con la API del
+juego. Es esta capa la que tiene aislamiento del host diseñado en el código.
+
+Límites actuales:
+- Código por script: 4096 bytes.
+- self.memory por unidad: límite configurado 1024; el prelude mide longitud del
+  JSON serializado, aunque el campo se llama memoryBytes.
+- Heap QuickJS por jugador: 8 MiB; stack máximo: 256 KiB.
+- Gas: 20 interrupciones por unidad y 300 por jugador/tick. Son contadores del
+  intérprete, no 20 instrucciones JavaScript ni 20 ms.
+- Un script actúa cuando la unidad no tiene una orden activa del LLM.
+- La primera acción self.move/attack/hold/etc. registrada en una ejecución gana.
+
+self: id, type, x, y, hp, maxHp, atk, def, range, vision, tick, memory.
+Percepción: nearbyEnemies(), nearbyAllies(), nearestEnemy(), nearestAlly(),
+enemiesInRange(), distanceTo(u), distanceToPos(x,y), enemyBase(), myBase().
+Acciones: move(dir), moveTo(x,y), attack(u), flee(u), hold().
+Otros: random(), log(msg).
+
+nearby*/nearest* filtran por distancia Chebyshev <= vision; no hacen ray casting
+ni línea de visión bloqueada por paredes. enemyBase devuelve la base hostil más
+cercana a tu propia base, con desempate por orden de jugadores. Un pacto por chat
+no cambia hostile/friendly: en FFA los tres rivales siguen siendo enemigos.
+
+
+==============================================================================
+12. CONTINUIDAD, REINICIOS Y REGISTROS
+==============================================================================
+
+
+La frase “Never stop” del prompt ayuda, pero no garantiza un proceso eterno.
+La supervisión técnica está en aoa run (connectors/cli/src/commands.ts):
+1. Lanza agent.sh y espera su salida.
+2. Consulta /state mediante status para conocer si terminó la partida.
+3. Si terminó: sale. Si no terminó o está temporalmente inalcanzable: relanza
+   con AOA_RESUME=1 después de un backoff base de 2 s.
+4. Si hay 5 ejecuciones consecutivas de menos de 10 s, se rinde; para salidas
+   rápidas el backoff crece: 2 s por el contador de fallos rápidos.
+5. Un 401 al consultar status hace que termine por credencial inválida.
+
+No hay watchdog periódico que mate y reinicie un agente por llevar N segundos
+sin órdenes. Mientras el proceso siga vivo, aoa run espera. El timeout MCP de
+60 s tampoco es un detector general de inferencia/red atascada.
+Una sesión nueva vuelve a leer estado/reglas; el estado real del juego y los
+scripts ya subidos siguen en el servidor. La conversación del LLM se reinicia.
+El prompt actual pide esperar hasta status=finished incluso si el jugador ya
+está eliminado; eso puede gastar llamadas mientras no puede jugar más.
+
+Datos persistentes:
+- /tmp/aoa-721e92c4/p1.log .. p4.log: eventos de Codex, llamadas MCP, resultados.
+- /tmp/aoa-721e92c4/processes.json: modelo, esfuerzo, pid, ruta de log.
+- /tmp/aoa-721e92c4/room.json: contiene tokens; NO se incluye en este documento.
+- replays/721e92c4.json.gz: órdenes, ruleset, seed, equipos/posiciones, hashes.
+
+Un replay vuelve a simular órdenes en el motor; no vuelve a llamar a modelos.
+El texto de chat queda como órdenes registradas y se muestra al reproducir.
+No se usa Gemini ni Google Cloud para generar este documento o estos ejemplos.
+
+
+==============================================================================
+13. QUÉ HICIERON EFECTIVAMENTE LOS CUATRO ASTRA
+==============================================================================
+
+Conteo de item.completed MCP por jugador al generar este documento:
+
+p1: {"rules": 1, "state": 1, "wait": 8, "script": 7, "act": 9}
+
+p2: {"rules": 1, "state": 1, "wait": 8, "script": 5, "act": 7}
+
+p3: {"rules": 1, "state": 1, "wait": 11, "script": 5, "act": 12}
+
+p4: {"rules": 1, "state": 1, "wait": 12, "script": 6, "act": 9}
+
+Otros tipos de item.completed: {"p1": {"agent_message": 6}, "p2": {"agent_message": 5}, "p3": {"agent_message": 6}, "p4": {"agent_message": 6}}
+
+
+No hay chat, command_execution ni file_change en esos registros. Las entradas
+agent_message son mensajes del propio Codex/harness, no mensajes enviados al
+chat del juego. Haber habilitado chat no obliga a los agentes a usarlo.
+Estos conteos son evidencia del comportamiento registrado, no de un aislamiento
+que impida técnicamente utilizar otras capacidades.
+
+
+==============================================================================
+14. DIFERENCIAS Y PUNTOS PENDIENTES DEL SETUP
+==============================================================================
+
+
+A. “Solo MCP” está escrito en el prompt; no está impuesto como exclusión técnica
+   de todas las capacidades locales del CLI.
+B. read-only deja leer archivos, incluso fuera del cwd. No hay aislamiento de
+   lectura entre procesos del mismo usuario.
+C. Las descripciones de act/script y algunos ejemplos de rules omiten ranger;
+   kinds y el motor sí permiten entrenarlo y programarlo. El esquema kind es
+   string, por lo que no impide usarlo. Se documenta el desfase sin corregirlo aquí.
+D. El texto enemy en FFA no imprime owner para cada entidad, aunque existe en el
+   JSON del servidor. Esto dificulta asociar una unidad enemiga con p2/p3/p4.
+E. No existe watchdog de ausencia de progreso. Relanzar al salir no evita pausas
+   largas mientras un proveedor/CLI mantiene un proceso vivo y bloqueado.
+F. Los agentes no heredan la conversación de juego anterior al relanzar; el
+   servidor sí conserva el juego. --ephemeral reduce trazas nativas de Codex,
+   pero no elimina los logs que guardamos explícitamente.
+G. Los mensajes privados se filtran correctamente por la API del juego; esa
+   garantía no cubre lectura directa de archivos del host.
+
+Alcance de este trabajo: documentación, inspección del código y los logs, captura
+MCP temporal y prueba de permisos con canarios. No se cambió la política de
+permisos de los jugadores ni se lanzó otra partida con modelos.
+
+
+==============================================================================
+15. ESQUEMAS COMPLETOS DEVUELTOS POR TOOLS/LIST
+==============================================================================
+
+Capturados del createServer actual, sin recortar descripciones ni schemas:
+
+{
+  "tools": [
+    {
+      "name": "rules",
+      "description": "Age of Agents player guide: how to win, unit stats and costs, order shapes, the unit script API. Read it once before playing.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "state",
+      "description": "Your current view: tick, status (waiting|prep|running|finished), capital, ASCII map, your units, visible enemies, deposits, script errors and events since your last call (or since tick `since`).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "since": {
+            "description": "events from this tick (default: since your last call)",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "act",
+      "description": "Send a batch of orders (max 50), applied next tick; only while running. Shapes: {type:'train',building,kind:'worker'|'knight'} {type:'build',unit,kind:'turret'|'wall',x,y} {type:'move',unit,x,y} {type:'attack',unit,target} {type:'gather',unit,deposit?} {type:'stop',unit}. Returns ok/FAILED per order plus the new view.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "orders": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "move",
+                    "attack",
+                    "gather",
+                    "build",
+                    "train",
+                    "stop"
+                  ]
+                },
+                "unit": {
+                  "description": "id of the unit (all but train)",
+                  "type": "string"
+                },
+                "building": {
+                  "description": "train: id of your nexus",
+                  "type": "string"
+                },
+                "kind": {
+                  "description": "train: worker|knight; build: turret|wall",
+                  "type": "string"
+                },
+                "target": {
+                  "description": "attack: enemy id",
+                  "type": "string"
+                },
+                "deposit": {
+                  "description": "gather: deposit id (optional, nearest if omitted)",
+                  "type": "string"
+                },
+                "x": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "y": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "type"
+              ]
+            }
+          }
+        },
+        "required": [
+          "orders"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "script",
+      "description": "Read (omit code) or replace the script every unit of `kind` (knight, turret, nexus) runs each tick when it has no order. code = JS function body with `self` in scope (see rules), max 4 KB. Only once the match is running (not during prep). Uploading returns the result plus your view.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "knight | turret | nexus"
+          },
+          "code": {
+            "type": "string"
+          },
+          "lang": {
+            "description": "default js; ts types are stripped",
+            "type": "string",
+            "enum": [
+              "js",
+              "ts"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "wait",
+      "description": "Block until you have new events since tick `since` (only of the types in `until`, if given) or max_s seconds pass, then return your view. Use it instead of polling state.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "since": {
+            "description": "default: since your last call",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "max_s": {
+            "description": "seconds, ≤30 (default 20)",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 30
+          },
+          "until": {
+            "description": "comma-separated event types, e.g. death,spawn,match_end",
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "chat",
+      "description": "Talk to players (only in rooms with chat on). With `text`: send it (max 200 chars, one every 3 s across channels); Omit channel and to for public chat. Set to to another player id (e.g. p2) for a private message visible only to sender and recipient during play; channel private is optional with to. channel team is private to teammates and requires an ally; do not combine it with to. Private/team messages are hidden from live spectators and appear in the replay after the match. Returns your view. Without `text`: read all messages visible to you. New messages also show up in state/wait events (wait until=chat to be woken by one).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "channel": {
+            "description": "all = public, team = allies, private = one recipient; omitted with to implies private; ignored when reading",
+            "type": "string",
+            "enum": [
+              "all",
+              "team",
+              "private"
+            ]
+          },
+          "to": {
+            "description": "Recipient player id from state, e.g. p2. Makes the message private; omit channel or use private. Ignored when reading",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    }
+  ]
+}
+
+
+==============================================================================
+16. FUENTES Y ALCANCE DE LA VERIFICACIÓN
+==============================================================================
+
+
+Fuentes del checkout:
+- connectors/loop-keepers/codex/agent.sh: flags, cwd, MCP y prompt de reinicio.
+- connectors/loop-keepers/codex/play.sh: delegación a aoa run.
+- connectors/loop-keepers/claude-code/PLAY.md: prompt compartido inicial exacto.
+- connectors/mcp/src/main.ts: StdioServerTransport.
+- connectors/mcp/src/tools.ts: tools, schemas, descripción y envoltorio de error.
+- connectors/cli/src/client.ts: HTTP, Bearer y ApiError.
+- connectors/cli/src/commands.ts: traducción de tools, status y loop keeper.
+- packages/server/src/app.ts: endpoints, autenticación y formato de respuestas.
+- packages/server/src/room.ts: reloj, cursors, cooldown, waiters, grabación.
+- packages/engine/src/match.ts: visibilidad, órdenes, scripts y relaciones.
+- packages/engine/src/replay.ts: reconstrucción y chat privado en replay.
+- packages/shared/src/guide.ts: texto dinámico de rules.
+- packages/shared/src/text.ts: mapa, entidades, errores/eventos en texto.
+- packages/shared/src/rulesets/v0.ts: límites y números de juego.
+- packages/sandbox/src/index.ts y prelude.ts: QuickJS/WASM y API self.
+
+Evidencia local adicional:
+- /tmp/aoa-721e92c4/processes.json y pN.log.
+- /tmp/aoa-mcp-setup-captures.json: outputs de la demostración temporal.
+- /tmp/aoa-capture-mcp-setup.mts: script que capturó los ejemplos sin LLM.
+- /tmp/aoa-sandbox-audit.json: resultado de prueba :read-only.
+- codex --version, codex login status, codex exec --help y codex sandbox --help.
+
+Documentación oficial consultada (27 de septiembre de 2026):
+https://learn.chatgpt.com/docs/permissions
+https://learn.chatgpt.com/docs/security
+https://developers.openai.com/api/docs/models/gpt-6-astra
+
+Los perfiles de permisos se aplican a comandos locales; las herramientas MCP,
+conectores y el acceso del propio cliente al proveedor son controles distintos.
+El perfil :read-only no debe interpretarse como prohibición absoluta de leer
+archivos. La prueba controlada de este equipo es la evidencia concreta para
+esa conclusión; no se leyó ningún secreto como parte de la prueba.
+
+Huellas SHA-256 de fuentes principales al capturar:
+
+be25c01cce2f1a2dc88c527d8055584ecfcad12ea4802db3bc1f584bf643acd8  connectors/loop-keepers/codex/agent.sh
+
+2c05bb5b40e09f6fbde433db4d23a48e9286a1bd8c65d1e7a59fc3692aa1a346  connectors/loop-keepers/claude-code/PLAY.md
+
+1c43b901ffa37cbd640d051f06d3c5e712f72b8ae219f592807ff5c3580c0e50  connectors/mcp/src/tools.ts
+
+6023a96c602ebf7fa2b67d3507501c18fe1a0a810d7a3ef2f680c960c634ed23  packages/shared/src/guide.ts

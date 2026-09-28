@@ -1,37 +1,56 @@
 import { useState } from "react";
 import type { GameEvent, PlayerStats, PlayerTiming, SpectatorView } from "@aoa/shared";
 import type { HoverInfo } from "../render/renderer";
-import { fmtTime } from "../api";
+import { fmtTime, winnersOf } from "../api";
 import { sfx } from "../audio/sfx";
 
-const TEAM_CLASS = ["team-a", "team-b"];
-
-export function TopBar({ view, names, timing }: { view: SpectatorView; names: Record<string, string>; timing?: Record<string, PlayerTiming> }) {
-  const [a, b] = view.players;
+/**
+ * The score list, as in Age of Empires: the clock, then every player in its
+ * colour with gold, population, kills and score, grouped by team in 2v2.
+ */
+export function PlayerList({ view, names, timing, colors }: {
+  view: SpectatorView; names: Record<string, string>; timing?: Record<string, PlayerTiming>; colors: Record<string, number>;
+}) {
+  const teams = [...new Set(view.players.map((p) => p.team))];
+  const grouped = teams.length < view.players.length;
   return (
-    <div className="topbar">
-      {a && <PlayerCard p={a} name={names[a.id] ?? a.name} team={0} timing={timing?.[a.id]} matchMs={view.timeMs} />}
+    <div className="scores">
       <div className="clock">
-        <div className="time">{fmtTime(view.timeMs)}</div>
-        <div className="sub">of {fmtTime(view.matchMs)}</div>
+        <span className="time">{fmtTime(view.timeMs)}</span> <span className="sub">/ {fmtTime(view.matchMs)}</span>
       </div>
-      {b && <PlayerCard p={b} name={names[b.id] ?? b.name} team={1} timing={timing?.[b.id]} matchMs={view.timeMs} />}
+      <table>
+        <thead>
+          <tr><th /><th>gold</th><th>pop</th><th>kills</th><th>score</th></tr>
+        </thead>
+        {teams.map((t, i) => (
+          <tbody key={t}>
+            {grouped && <tr className="team"><td colSpan={5}>Team {i + 1}</td></tr>}
+            {view.players.filter((p) => p.team === t).map((p) => (
+              <PlayerRows key={p.id} p={p} name={names[p.id] ?? p.name} color={colors[p.id] ?? 0} timing={timing?.[p.id]} matchMs={view.timeMs} />
+            ))}
+          </tbody>
+        ))}
+      </table>
     </div>
   );
 }
 
-function PlayerCard({ p, name, team, timing, matchMs }: { p: PlayerStats; name: string; team: number; timing?: PlayerTiming; matchMs: number }) {
+function PlayerRows({ p, name, color, timing, matchMs }: { p: PlayerStats; name: string; color: number; timing?: PlayerTiming; matchMs: number }) {
   return (
-    <div className={`player ${TEAM_CLASS[team]} ${p.alive ? "" : "dead"}`}>
-      <div className="name">{name}</div>
-      <div className="stats">
-        <span title="capital"><i>gold</i> {p.capital}</span>
-        <span title="population"><i>pop</i> {p.pop}/{p.popCap}</span>
-        <span title="kills"><i>kills</i> {p.kills}</span>
-        <span title="score"><i>score</i> {p.score}</span>
-      </div>
-      {timing && <TimingLine t={timing} matchMs={matchMs} />}
-    </div>
+    <>
+      <tr className={p.alive ? "" : "dead"}>
+        <td className={`name pc${color}`}><span className={`swatch bg${color}`} />{name}</td>
+        <td>{p.capital}</td>
+        <td>{p.pop}/{p.popCap}</td>
+        <td>{p.kills}</td>
+        <td>{p.score}</td>
+      </tr>
+      {timing && (
+        <tr className="timing">
+          <td colSpan={5}><TimingLine t={timing} matchMs={matchMs} /></td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -52,10 +71,12 @@ function TimingLine({ t, matchMs }: { t: PlayerTiming; matchMs: number }) {
 }
 
 /** Notable events, newest first. */
-export function EventFeed({ events, names, owners }: { events: GameEvent[]; names: Record<string, string>; owners: string[] }) {
-  const team = (id?: string) => TEAM_CLASS[Math.max(0, owners.indexOf(id ?? ""))];
+export function EventFeed({ events, names, colors }: { events: GameEvent[]; names: Record<string, string>; colors: Record<string, number> }) {
+  const team = (id?: string) => `pc${colors[id ?? ""] ?? 0}`;
+  // An eliminated player's entities all die at once: show the elimination, not each death.
+  const out = new Set(events.filter((e) => e.type === "eliminated").map((e) => `${e.tick}:${e.owner}`));
   const lines = events
-    .filter((e) => e.type === "death" || (e.type === "spawn" && e.kind !== "worker") || e.type === "match_end" || e.type === "chat")
+    .filter((e) => (e.type === "death" && !out.has(`${e.tick}:${e.owner}`)) || e.type === "eliminated" || (e.type === "spawn" && e.kind !== "worker") || e.type === "match_end" || e.type === "chat")
     .slice(-8)
     .reverse();
   return (
@@ -75,7 +96,12 @@ export function EventFeed({ events, names, owners }: { events: GameEvent[]; name
           )}
           {e.type === "chat" && (
             <>
-              <b className={team(e.owner)}>{names[e.owner] ?? e.owner}</b>: <q>{e.text}</q>
+              <b className={team(e.owner)}>{names[e.owner] ?? e.owner}</b>{e.channel === "private" ? <span className="muted"> [private → {names[e.to ?? ""] ?? e.to}]</span> : e.channel === "team" && <span className="muted"> [team]</span>}: <q>{e.text}</q>
+            </>
+          )}
+          {e.type === "eliminated" && (
+            <>
+              <b className={team(e.owner)}>{names[e.owner] ?? e.owner}</b> is out
             </>
           )}
           {e.type === "match_end" && <b>The battle is over</b>}
@@ -111,11 +137,11 @@ export function Tooltip({ hover }: { hover: HoverInfo | null }) {
 export function OutcomeBanner({ view, names }: { view: SpectatorView; names: Record<string, string> }) {
   const o = view.outcome;
   if (!o) return null;
-  const winner = o.winner ? names[o.winner] ?? o.winner : null;
+  const winners = winnersOf(o).map((id) => names[id] ?? id);
   const reason = o.reason === "vital_lost" ? "a vital unit has fallen" : o.reason === "timeout" ? "time ran out: the higher score wins" : "forfeit";
   return (
     <div className="banner">
-      <div className="big">{winner ? `${winner} is victorious` : "Stalemate"}</div>
+      <div className="big">{winners.length ? `${winners.join(" & ")} ${winners.length > 1 ? "are" : "is"} victorious` : "Stalemate"}</div>
       <div className="sub">{reason}</div>
     </div>
   );

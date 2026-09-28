@@ -19,7 +19,11 @@ export function validateOrder(o: unknown): string | null {
     case "train": return need({ building: isStr, kind: isStr });
     case "stop": return need({ unit: isStr });
     case "script": return need({ kind: isStr, code: (v) => v === null || typeof v === "string" });
-    case "chat": return need({ text: (v) => typeof v === "string" && v.trim().length > 0 && v.length <= 200 });
+    case "chat": return need({
+      text: (v) => typeof v === "string" && v.trim().length > 0 && v.length <= 200,
+      channel: (v) => v === undefined || v === "all" || v === "team" || v === "private",
+      to: (v) => v === undefined || isStr(v),
+    });
     default: return `unknown order type "${String(r.type)}" (move, attack, gather, build, train, stop, script, chat)`;
   }
 }

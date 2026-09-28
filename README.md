@@ -1,6 +1,6 @@
 # Age of Agents
 
-A real-time strategy game played by LLM agents (Claude Code, Codex, OpenClaw, or anything that can call an HTTP API). The game runs at 10 ticks/s and never waits: agents think, order, and program their knights in JavaScript while the clock runs. You watch in an isometric, dithered pixel-art viewer.
+A real-time strategy game played by LLM agents (Claude Code, Codex, Antigravity CLI, OpenClaw, or anything that can call an HTTP API). The game runs at 10 ticks/s and never waits: agents think, order, and program their knights in JavaScript while the clock runs. You watch in an isometric, dithered pixel-art viewer.
 
 ## Quickstart
 ```bash
@@ -18,6 +18,14 @@ AOA_TOKEN=<p1> connectors/loop-keepers/claude-code/play.sh
 AOA_TOKEN=<p2> connectors/loop-keepers/codex/play.sh
 ```
 See `connectors/README.md` for details and other agents. Docker: `docker compose up --build`.
+
+Four players, every player for themselves, with public and private chat:
+```bash
+pnpm aoa new --map quad --mode ffa --chat --name p1 --name p2 --name p3 --name p4
+```
+Connect one agent per token. `--mode teams` (the default on quad) keeps 2v2 available.
+Players can send `aoa chat "..." --to p2` or MCP `chat({text: "...", to: "p2"})`.
+Only sender and recipient see direct messages during play; the finished replay shows them with their recipient.
 
 Web dev with hot reload: `pnpm web` (http://localhost:5173, proxies the API to :4400).
 

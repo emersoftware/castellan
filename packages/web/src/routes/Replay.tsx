@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { GameEvent } from "@aoa/shared";
-import { api, fmtTime } from "../api";
+import { api, playerColors, fmtTime } from "../api";
 import { sfx } from "../audio/sfx";
 import { GameCanvas } from "../components/GameCanvas";
-import { EventFeed, OutcomeBanner, SoundToggle, Tooltip, TopBar } from "../components/Hud";
+import { EventFeed, OutcomeBanner, SoundToggle, Tooltip, PlayerList } from "../components/Hud";
 import type { HoverInfo, SoundSink } from "../render/renderer";
 import { useReplayFrames } from "../useReplay";
 
@@ -55,7 +55,7 @@ export function Replay() {
   const frame = frames.current[index] ?? null;
   const total = replay.data ? replay.data.finalTick + 1 : 0;
   const names = useMemo(() => Object.fromEntries((replay.data?.players ?? []).map((p) => [p.id, p.name])), [replay.data]);
-  const owners = useMemo(() => (replay.data?.players ?? []).map((p) => p.id), [replay.data]);
+  const colors = useMemo(() => playerColors(replay.data?.players ?? []), [replay.data]);
   const events = useMemo(() => {
     const out: GameEvent[] = [];
     for (let i = Math.max(0, index - 600); i <= index && i < frames.current.length; i++) out.push(...frames.current[i].events.filter((e) => e.type !== "attack"));
@@ -77,9 +77,9 @@ export function Replay() {
 
   return (
     <div className="game" onPointerDown={() => !sfx.muted && sfx.unlock()}>
-      {replay.data && <GameCanvas ruleset={replay.data.ruleset} players={owners} frame={frame} tickMs={tickMs / speed} jumpKey={jumpKey} onHover={setHover} sound={sound} />}
-      {frame && <TopBar view={frame} names={names} timing={atEnd ? replay.data?.timing : undefined} />}
-      <EventFeed events={events} names={names} owners={owners} />
+      {replay.data && <GameCanvas ruleset={replay.data.ruleset} colors={colors} frame={frame} tickMs={tickMs / speed} jumpKey={jumpKey} onHover={setHover} sound={sound} />}
+      {frame && <PlayerList colors={colors} view={frame} names={names} timing={atEnd ? replay.data?.timing : undefined} />}
+      <EventFeed events={events} names={names} colors={colors} />
       <Tooltip hover={hover} />
       <div className="corner">
         <Link to="/battles">← Battles</Link>

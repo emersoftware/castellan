@@ -22,12 +22,15 @@ export async function initSandbox(): Promise<void> {
 /** What a script's unit can perceive: every entity, compact. */
 export interface ScriptWorld {
   tick: number;
-  /** 0 or 1: the player's half of the rotated map (used for tie-breaks). */
+  /** The player's seat (map rotation) 0..3. */
   side: number;
   /** Units that must decide this tick, by id. */
   units: Record<string, ScriptUnit>;
-  /** All entities: [id, kind, owner, mine(0|1), x, y, hp, maxHp, isBuilding(0|1)]. */
-  all: [string, string, string, number, number, number, number, number, number][];
+  /**
+   * All entities: [id, kind, owner, relation (0 enemy, 1 mine, 2 ally), x, y,
+   * hp, maxHp, isBuilding (0|1), tie-break key (position in the player's own reading order)].
+   */
+  all: [string, string, string, number, number, number, number, number, number, number][];
   myBase: { x: number; y: number } | null;
   enemyBase: { x: number; y: number } | null;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { RAMPS, TEAM_RAMPS } from "../render/palette";
+import { RAMPS, PLAYER_RAMPS } from "../render/palette";
 import { ditherRamp } from "../render/cpuDither";
 
 /** Units show their front-right facing (sheet view 1). */
@@ -12,7 +12,7 @@ export function Portrait({ kind, team = 0, height = 120 }: { kind: string; team?
     const img = new Image();
     img.onload = () => {
       const w = Math.round((height * img.width) / img.height);
-      const ramp = kind === "deposit" ? RAMPS.gold : kind === "rock" ? RAMPS.neutral : TEAM_RAMPS[team];
+      const ramp = kind === "deposit" ? RAMPS.gold : kind === "rock" ? RAMPS.neutral : PLAYER_RAMPS[team];
       const out = ditherRamp(img, w, height, ramp, 1.1);
       const cv = ref.current;
       if (!cv) return;

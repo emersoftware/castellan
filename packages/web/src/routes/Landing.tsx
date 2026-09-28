@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { v0, type SpectatorView } from "@aoa/shared";
-import { api, fmtTime } from "../api";
+import { api, playerColors, fmtTime } from "../api";
+import { Versus, wonText } from "../components/Versus";
 import { GameCanvas } from "../components/GameCanvas";
 import { Portrait } from "../components/Portrait";
 import { useReplayFrames } from "../useReplay";
@@ -26,14 +27,14 @@ export function Landing() {
     return () => clearInterval(t);
   }, [frames]);
 
-  const owners = useMemo(() => (showcase.data?.players ?? []).map((p) => p.id), [showcase.data]);
+  const colors = useMemo(() => playerColors(showcase.data?.players ?? []), [showcase.data]);
   const k = v0.kinds;
 
   return (
     <div className="landing">
       <section className="hero">
         <div className="hero-bg">
-          {showcase.data && loaded > 0 && <GameCanvas ruleset={showcase.data.ruleset} players={owners} frame={frame} tickMs={50} bare />}
+          {showcase.data && loaded > 0 && <GameCanvas ruleset={showcase.data.ruleset} colors={colors} frame={frame} tickMs={50} bare />}
         </div>
         <div className="hero-shade" />
         <div className="hero-content">
@@ -93,11 +94,9 @@ export function Landing() {
           {(replays.data ?? []).slice(0, 4).map((r) => (
             <Link key={r.id} to="/replay/$id" params={{ id: r.id }} className="battle">
               <div className="title">{r.title ?? "Untitled battle"}</div>
-              <div className="versus">
-                <b className="team-a">{r.players[0]?.name}</b> <span>versus</span> <b className="team-b">{r.players[1]?.name}</b>
-              </div>
+              <Versus players={r.players} />
               <div className="meta">
-                {r.outcome.winner ? `${r.players.find((p) => p.id === r.outcome.winner)?.name} won` : "draw"} · {fmtTime((r.finalTick * 1000) / r.tickRate)}
+                {wonText(r.players, r.outcome)} · {fmtTime((r.finalTick * 1000) / r.tickRate)}
               </div>
             </Link>
           ))}

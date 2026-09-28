@@ -2,15 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { GameEvent, Ruleset, SpectatorMessage, SpectatorView } from "@aoa/shared";
-import { api, spectateUrl } from "../api";
+import { api, playerColors, spectateUrl } from "../api";
 import { GameCanvas } from "../components/GameCanvas";
-import { EventFeed, OutcomeBanner, SoundToggle, Tooltip, TopBar } from "../components/Hud";
+import { EventFeed, OutcomeBanner, SoundToggle, Tooltip, PlayerList } from "../components/Hud";
 import { sfx } from "../audio/sfx";
 import type { HoverInfo } from "../render/renderer";
 
 export function Watch() {
   const { id } = useParams({ from: "/watch/$id" });
-  const room = useQuery({ queryKey: ["room", id], queryFn: () => api.room(id), refetchInterval: 1000 });
+  const room = useQuery({ queryKey: ["room", id], queryFn: () => api.room(id), refetchInterval: 1000, refetchIntervalInBackground: true });
   const [ruleset, setRuleset] = useState<Ruleset | null>(null);
   const [tickMs, setTickMs] = useState(100);
   const [frame, setFrame] = useState<SpectatorView | null>(null);
@@ -47,14 +47,16 @@ export function Watch() {
   }, [id]);
 
   const names = useMemo(() => Object.fromEntries((room.data?.players ?? []).map((p) => [p.id, p.name])), [room.data]);
-  const owners = useMemo(() => (room.data?.players ?? []).map((p) => p.id), [room.data]);
-  const status = room.data?.status ?? frame?.status;
+  const colors = useMemo(() => playerColors(room.data?.players ?? []), [room.data]);
+  // The websocket carries the current game status. Lobby polling can lag or
+  // fail independently; an old "prep" response must not cover a running match.
+  const status = frame?.status ?? room.data?.status;
 
   return (
     <div className="game" onPointerDown={() => !sfx.muted && sfx.unlock()}>
-      {ruleset && owners.length > 0 && <GameCanvas ruleset={ruleset} players={owners} frame={frame} tickMs={tickMs} onHover={setHover} sound={sfx.play} />}
-      {frame && <TopBar view={frame} names={names} timing={room.data?.timing} />}
-      <EventFeed events={events} names={names} owners={owners} />
+      {ruleset && Object.keys(colors).length > 0 && <GameCanvas ruleset={ruleset} colors={colors} frame={frame} tickMs={tickMs} onHover={setHover} sound={sfx.play} />}
+      {frame && <PlayerList colors={colors} view={frame} names={names} timing={room.data?.timing} />}
+      <EventFeed events={events} names={names} colors={colors} />
       <Tooltip hover={hover} />
       <div className="corner">
         <Link to="/battles">← Battles</Link> <span className="live">{status === "running" ? "● live" : status}</span> <SoundToggle />

@@ -1,6 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PlayerView } from "@aoa/shared";
-import { ApiError, act, client, getScript, newRoom, putScript, rooms, run, state, status, wait, watch } from "../src/index";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
+import { ApiError, act, chat, client, getScript, newRoom, putScript, rooms, rules, run, state, status, wait, watch } from "../src/index";
 import { startServer } from "./server";
 
 let srv: Awaited<ReturnType<typeof startServer>>;
@@ -8,6 +11,66 @@ beforeAll(async () => void (srv = await startServer()));
 afterAll(() => srv.app.close());
 
 describe("aoa commands", () => {
+  it("creates FFA rooms and sends direct messages from the CLI without leaking over HTTP", async () => {
+    const lobby = client({ server: srv.url });
+    const bin = fileURLToPath(new URL("../bin/aoa.mjs", import.meta.url));
+    const created = await promisify(execFile)(process.execPath, [bin, "new", "--map", "quad", "--mode", "ffa", "--chat", "--json"], {
+      env: { ...process.env, AOA_SERVER: srv.url },
+    });
+    const room = JSON.parse(created.stdout);
+    expect(room.mode).toBe("ffa");
+    expect(new Set(room.players.map((p: { team: number }) => p.team)).size).toBe(4);
+    const clients = room.players.map((p: { token: string }) => client({ server: srv.url, token: p.token }));
+    const guide = await rules(clients[0]);
+    expect(guide).toContain("four-player free-for-all");
+    expect(guide).toContain('"to":"p2"');
+    expect(guide).not.toContain("allied AI");
+    for (const c of clients) await state(c);
+    await wait(clients[0], { seconds: 2 });
+    const { stdout } = await promisify(execFile)(process.execPath, [bin, "chat", "just for you", "--to", "p2"], {
+      env: { ...process.env, AOA_SERVER: srv.url, AOA_TOKEN: room.players[0].token },
+    });
+    expect(stdout).toContain('p1 "player1" (you) [private to p2]: "just for you"');
+    expect(await chat(clients[1])).toContain("[private to p2]: just for you");
+    for (const c of clients.slice(2)) {
+      expect(JSON.parse(await chat(c, undefined, { json: true })).messages).toEqual([]);
+      expect(await state(c, { since: 0 })).not.toContain("just for you");
+      expect(await wait(c, { seconds: 0, since: 0, until: "chat" })).not.toContain("just for you");
+    }
+    await act(clients[1], { type: "chat", to: "p1", text: "direct reply" });
+    expect(await chat(clients[0])).toContain("direct reply");
+    expect(await chat(clients[2])).not.toContain("direct reply");
+    await expect(clients[2].post("/chat", { text: "bad", to: null })).rejects.toMatchObject({ status: 400 });
+    await expect(lobby.post("/rooms", { map: "quad", mode: "ffa", players: [{ team: 0 }] })).rejects.toMatchObject({ status: 400 });
+    await expect(lobby.post("/rooms", { map: "quad", mode: "typo" })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("sends private team chat through the CLI and filters history and views over HTTP", async () => {
+    const room = JSON.parse(await newRoom(client({ server: srv.url }), { json: true, names: ["a", "b", "c", "d"], map: "quad", chat: true }));
+    const clients = room.players.map((p: { token: string }) => client({ server: srv.url, token: p.token }));
+    for (const c of clients) await state(c);
+    await wait(clients[0], { seconds: 2 });
+    const bin = fileURLToPath(new URL("../bin/aoa.mjs", import.meta.url));
+    const { stdout } = await promisify(execFile)(process.execPath, [bin, "chat", "secret plan", "--channel", "team"], {
+      env: { ...process.env, AOA_SERVER: srv.url, AOA_TOKEN: room.players[0].token },
+    });
+    expect(stdout).toContain("message sent");
+    expect(stdout).toContain('p1 "a" (you) [team]: "secret plan"');
+    expect(await chat(clients[1])).toContain("[team]: secret plan");
+    expect(await state(clients[1], { since: 0 })).toContain("secret plan");
+    for (const c of clients.slice(2)) {
+      expect(JSON.parse(await chat(c, undefined, { json: true })).messages).toEqual([]);
+      expect(await state(c, { since: 0 })).not.toContain("secret plan");
+      expect(await wait(c, { seconds: 0, since: 0, until: "chat" })).not.toContain("secret plan");
+    }
+    // The batch endpoint must use the same privacy checks.
+    await act(clients[1], { type: "chat", channel: "team", text: "private reply" });
+    expect(await chat(clients[0])).toContain("private reply");
+    expect(await chat(clients[2])).not.toContain("private reply");
+    await expect(clients[2].post("/chat", { text: "bad", channel: "typo" })).rejects.toMatchObject({ status: 400 });
+    expect(await act(clients[2], { type: "chat", channel: "typo", text: "bad" })).toContain('FAILED chat: bad or missing "channel"');
+  });
+
   it("plays a match through the command functions", async () => {
     const lobby = client({ server: srv.url });
     expect(await newRoom(lobby, { names: ["x"], bots: ["eco"] })).toMatch(/^room \w+ \(waiting\) · map open\n.*corner\].*AOA_TOKEN=\w+\n.*\(bot eco\)\nwatch http/);

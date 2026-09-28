@@ -23,13 +23,13 @@ export async function runReplay(replay: ReplayFile, onFrame: (view: SpectatorVie
   }
   let desyncAt: number | undefined;
   try {
-    onFrame(m.spectate(-1));
+    onFrame(m.spectate(-1, { includePrivateChat: true }));
     while (m.tick < replay.finalTick && !m.outcome) {
       const t = m.tick;
       m.step(byTick.get(t) ?? []);
       const expected = replay.hashes[t];
       if (expected !== undefined && desyncAt === undefined && expected !== m.hash()) desyncAt = t;
-      onFrame(m.spectate());
+      onFrame(m.spectate(undefined, { includePrivateChat: true }));
     }
     const last = replay.hashes[m.tick];
     if (last !== undefined && desyncAt === undefined && last !== m.hash()) desyncAt = m.tick;

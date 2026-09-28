@@ -3,13 +3,17 @@ import type {
   PlayerView, Ruleset, SpectatorView,
 } from "@aoa/shared";
 import { createScriptHost, type ScriptAction, type ScriptHost, type ScriptWorld } from "@aoa/sandbox";
-import { DIRS, DIR_LIST, DIR_LIST_ROTATED, canCross, cheb, findPath, inBounds, type Grid } from "./grid";
+import { DIRS, DIR_LIST, SEAT_DIRS, canCross, cheb, findPath, inBounds, mapToSeat, seatToMap, type Grid } from "./grid";
 import { validateOrder } from "./validate";
 
 export interface MatchConfig {
   ruleset: Ruleset;
-  /** `side` 0 starts at the map's listed layout, 1 at its 180° rotation. Default: list order. */
-  players: { id: PlayerId; name: string; side?: number }[];
+  /**
+   * `side` is the seat: 0 starts at the map's listed layout, 1 at its 180°
+   * rotation, 2 and 3 (4-seat maps) at 90° and 270°. Default: 0, 1, 0, 1…
+   * Players with the same `team` are allies. Default: each player alone.
+   */
+  players: { id: PlayerId; name: string; side?: number; team?: number }[];
   seed: number;
   /** Simulation ticks per second. Resolution only: the ruleset is in ms. */
   tickRate: number;
@@ -74,8 +78,9 @@ interface Deposit {
 
 interface Player {
   id: PlayerId;
-  /** 0 or 1: which half of the rotated map is home. Tie-breaks follow it so mirrored play stays mirrored. */
+  /** Seat 0..3: which rotation of the map is home. Tie-breaks follow it so mirrored play stays mirrored. */
   side: number;
+  team: number;
   name: string;
   capital: number;
   kills: number;
@@ -129,7 +134,7 @@ export class Match {
       },
     };
     this.players = cfg.players.map((p, i) => ({
-      id: p.id, side: p.side ?? i % 2, name: p.name, capital: cfg.ruleset.startCapital, kills: 0, buildingKills: 0, alive: true,
+      id: p.id, side: p.side ?? i % 2, team: p.team ?? i, name: p.name, capital: cfg.ruleset.startCapital, kills: 0, buildingKills: 0, alive: true,
       host: createScriptHost(cfg.ruleset.script, (cfg.seed * 31 + i * 7919) >>> 0),
       scripts: new Map(), logsThisTick: 0,
     }));
@@ -167,7 +172,17 @@ export class Match {
     // 1. Orders, alternating between players so nobody always goes first.
     const queues = prio.map((p) => input.map((o, i) => [o, i] as const).filter(([o]) => o.player === p.id));
     for (let k = 0; queues.some((q) => k < q.length); k++) {
-      for (const q of queues) if (k < q.length) results[q[k][1]] = this.apply(q[k][0], emit);
+      for (const q of queues) if (k < q.length) {
+        const [po, index] = q[k];
+        const p = this.player(po.player);
+        const before = p.capital;
+        const result = this.apply(po, emit);
+        if (po.order?.type === "train" || po.order?.type === "build") {
+          result.capital = { spent: before - p.capital, remaining: p.capital,
+            ...(result.ok && po.order.type === "build" ? { pending: this.ruleset.kinds[po.order.kind].cost } : {}) };
+        }
+        results[index] = result;
+      }
     }
 
     // 2. What each entity wants to do: its order, else its script.
@@ -214,7 +229,7 @@ export class Match {
       const it = intents.get(e.id);
       if (it?.t !== "attack" || T < e.nextAttack || !e.spec.atk) continue;
       const target = this.ents.get(it.id);
-      if (!target || target.owner === e.owner || cheb(e.x, e.y, target.x, target.y) > (e.spec.range ?? 1)) continue;
+      if (!target || !this.hostile(target.owner, e.owner) || cheb(e.x, e.y, target.x, target.y) > (e.spec.range ?? 1)) continue;
       const dmg = Math.max(1, e.spec.atk - target.spec.def);
       damage.set(target.id, (damage.get(target.id) ?? 0) + dmg);
       lastHit.set(target.id, e.owner);
@@ -231,6 +246,7 @@ export class Match {
     }
 
     // 6. Deaths and the vital rule.
+    const fallen: Player[] = [];
     for (const [id, dmg] of damage) {
       const e = this.ents.get(id)!;
       e.hp -= dmg;
@@ -240,10 +256,21 @@ export class Match {
       if (killer) e.spec.building ? killer.buildingKills++ : killer.kills++;
       this.remove(e);
       emit({ tick: T, type: "death", id, kind: e.kind, owner: e.owner, x: e.x, y: e.y, by });
-      if (e.spec.vital) this.players.find((p) => p.id === e.owner)!.alive = false;
+      const owner = this.player(e.owner);
+      if (e.spec.vital && owner.alive) (owner.alive = false), fallen.push(owner);
     }
     this.checkEnd(T, emit);
+    // In team matches the game can go on without them: everything they had falls.
+    if (!this._outcome) for (const p of fallen) this.eliminate(p, emit);
 
+    // A build may complete in the same tick as its order. Otherwise its later
+    // spawn event carries the actual charge, rather than claiming it was prepaid.
+    input.forEach(({ order, player }, i) => {
+      if (order?.type !== "build" || !results[i].ok) return;
+      if (input.some((later, j) => j > i && results[j].ok && later.player === player && later.order?.type === "build" && later.order.unit === order.unit)) return;
+      const built = events.find((e) => e.type === "spawn" && e.builder === order.unit && e.owner === player && e.kind === order.kind && e.x === order.x && e.y === order.y);
+      if (built?.type === "spawn" && built.capital) results[i].capital = built.capital;
+    });
     this._tick++;
     this.log.push(...events);
     const cutoff = this._tick - EVENT_WINDOW_TICKS;
@@ -253,7 +280,10 @@ export class Match {
 
   /** Events `player` may see with tick ≥ `since` (attacks excluded: too many). */
   events(player: PlayerId, since: number): GameEvent[] {
-    return this.log.filter((e) => e.tick >= since && e.type !== "attack" && visibleTo(e, player));
+    return this.log.filter((e) => e.tick >= since && e.type !== "attack" && visibleTo(e, player)
+      && (e.type !== "chat" || (e.channel === "private"
+        ? e.owner === player || e.to === player
+        : e.channel !== "team" || !this.hostile(e.owner, player))));
   }
 
   /** What `player` sees. Events are those with tick ≥ `since` (default: the last 10 s). */
@@ -272,7 +302,8 @@ export class Match {
       players: this.stats(),
       grid: this.ascii(player),
       mine: all.filter((e) => e.owner === player).map((e) => this.entityView(e, player)),
-      enemy: all.filter((e) => e.owner !== player).map((e) => this.entityView(e, player)),
+      allies: all.filter((e) => e.owner !== player && !this.hostile(e.owner, player)).map((e) => this.entityView(e, player)),
+      enemy: all.filter((e) => this.hostile(e.owner, player)).map((e) => this.entityView(e, player)),
       deposits: this.depositViews(),
       scripts,
       events,
@@ -280,8 +311,8 @@ export class Match {
     };
   }
 
-  /** Everything, for spectators and replays. Events default to the last tick's. */
-  spectate(since?: number): SpectatorView {
+  /** Events default to the last tick's. Only finished-match replays opt into private chat. */
+  spectate(since?: number, options: { includePrivateChat?: boolean; includeTeamChat?: boolean } = {}): SpectatorView {
     const from = since ?? this._tick - 1;
     return {
       tick: this._tick,
@@ -291,7 +322,9 @@ export class Match {
       players: this.stats(),
       entities: [...this.ents.values()].map((e) => this.entityView(e)),
       deposits: this.depositViews(),
-      events: this.log.filter((e) => e.tick >= from && e.type !== "log" && e.type !== "script_error"),
+      events: this.log.filter((e) => e.tick >= from && e.type !== "log" && e.type !== "script_error"
+        && (e.type !== "chat" || (e.channel === "private" ? options.includePrivateChat
+          : e.channel !== "team" || options.includePrivateChat || options.includeTeamChat))),
       outcome: this._outcome ?? undefined,
     };
   }
@@ -302,12 +335,14 @@ export class Match {
     return s ? { code: s.code, custom: s.custom } : null;
   }
 
-  /** Ends the match now in favour of the other players (e.g. a player left). */
+  /** `player` leaves (e.g. disconnected): its side loses if it has nobody else left, else it is out. */
   forfeit(player: PlayerId): void {
     if (this._outcome) return;
-    this.player(player).alive = false;
-    const alive = this.players.filter((p) => p.alive);
-    this.finish(alive.length === 1 ? alive[0].id : null, "forfeit", this._tick, () => {});
+    const p = this.player(player);
+    p.alive = false;
+    const teams = this.aliveTeams();
+    if (teams.size <= 1) this.finish(this.teamOf([...teams][0]), "forfeit", this._tick, () => {});
+    else this.eliminate(p, (e) => this.log.push(e));
   }
 
   /** Compact fingerprint of the state, to detect replay desyncs. */
@@ -336,7 +371,7 @@ export class Match {
 
   private setup() {
     const { map } = this.ruleset;
-    const mirror = (x: number, y: number, side: number) => (side === 0 ? [x, y] : [map.width - 1 - x, map.height - 1 - y]);
+    const mirror = (x: number, y: number, side: number) => seatToMap(x, y, side, map.width, map.height);
     for (const w of map.walls ?? []) this.occ[w.y * map.width + w.x] = ROCK;
     for (const p of this.players) {
       for (const d of map.deposits) {
@@ -385,9 +420,23 @@ export class Match {
     if (bad) return { ok: false, reason: bad };
     const p = this.player(po.player);
     const o = po.order;
+    if (!p.alive) return { ok: false, reason: "you are out of the match" };
     if (o.type === "script") return this.setScript(p, o.kind, o.code);
     if (o.type === "chat") {
-      emit({ tick: this._tick, type: "chat", owner: p.id, text: o.text.trim() });
+      if (o.to !== undefined && o.channel !== undefined && o.channel !== "private") {
+        return { ok: false, reason: "to requires private chat (omit channel or use private)" };
+      }
+      if (o.to !== undefined || o.channel === "private") {
+        if (!o.to || o.to === p.id || !this.players.some((other) => other.id === o.to)) {
+          return { ok: false, reason: "private chat requires another player id in to" };
+        }
+        emit({ tick: this._tick, type: "chat", owner: p.id, text: o.text.trim(), channel: "private", to: o.to });
+        return { ok: true };
+      }
+      if (o.channel === "team" && !this.players.some((ally) => ally.id !== p.id && ally.team === p.team)) {
+        return { ok: false, reason: "team chat requires a teammate" };
+      }
+      emit({ tick: this._tick, type: "chat", owner: p.id, text: o.text.trim(), ...(o.channel ? { channel: o.channel } : {}) });
       return { ok: true };
     }
     if (o.type === "train") return this.train(p, o.building, o.kind, emit);
@@ -411,6 +460,7 @@ export class Match {
         if (!e.spec.atk) return { ok: false, reason: `${e.kind} cannot attack` };
         if (!t) return { ok: false, reason: `no entity ${o.target}` };
         if (t.owner === p.id) return { ok: false, reason: `${o.target} is yours` };
+        if (!this.hostile(t.owner, p.id)) return { ok: false, reason: `${o.target} is your ally's` };
         e.order = { type: "attack", target: t.id };
         return { ok: true };
       }
@@ -525,7 +575,7 @@ export class Match {
         return { t: "goto", x: clamp(a.x, 0, width - 1), y: clamp(a.y, 0, height - 1), range: 0 };
       case "attack": {
         const t = this.ents.get(a.id);
-        if (!t || t.owner === e.owner || !e.spec.atk) return { t: "hold" };
+        if (!t || !this.hostile(t.owner, e.owner) || !e.spec.atk) return { t: "hold" };
         const range = e.spec.range ?? 1;
         if (cheb(e.x, e.y, t.x, t.y) <= range) return { t: "attack", id: t.id };
         return e.spec.moveMs ? { t: "goto", x: t.x, y: t.y, range } : { t: "hold" };
@@ -557,11 +607,20 @@ export class Match {
   }
 
   private scriptWorld(p: Player, units: Entity[]): ScriptWorld {
-    const base = (mine: boolean) => {
-      const own = [...this.ents.values()].filter((e) => (e.owner === p.id) === mine && e.spec.vital);
-      const b = own.find((e) => e.spec.building) ?? own[0];
+    const baseOf = (owner: PlayerId) => {
+      const vital = [...this.ents.values()].filter((e) => e.owner === owner && e.spec.vital);
+      const b = vital.find((e) => e.spec.building) ?? vital[0];
       return b ? { x: b.x, y: b.y } : null;
     };
+    const myBase = baseOf(p.id);
+    // The enemy base is the nearest hostile player's (ties: player order).
+    let enemyBase: { x: number; y: number } | null = null;
+    for (const q of this.players) {
+      if (!q.alive || !this.hostile(q.id, p.id)) continue;
+      const b = baseOf(q.id);
+      if (b && (!enemyBase || (myBase && cheb(myBase.x, myBase.y, b.x, b.y) < cheb(myBase.x, myBase.y, enemyBase.x, enemyBase.y)))) enemyBase = b;
+    }
+    const relation = (owner: PlayerId) => (owner === p.id ? 1 : this.hostile(owner, p.id) ? 0 : 2);
     const u: ScriptWorld["units"] = {};
     for (const e of units) {
       u[e.id] = {
@@ -574,10 +633,10 @@ export class Match {
       side: p.side,
       units: u,
       all: [...this.ents.values()].map((e) => [
-        e.id, e.kind, e.owner, e.owner === p.id ? 1 : 0, e.x, e.y, e.hp, e.spec.hp, e.spec.building ? 1 : 0,
+        e.id, e.kind, e.owner, relation(e.owner), e.x, e.y, e.hp, e.spec.hp, e.spec.building ? 1 : 0, this.readingKey(e.x, e.y, p.side),
       ]),
-      myBase: base(true),
-      enemyBase: base(false),
+      myBase,
+      enemyBase,
     };
   }
 
@@ -689,29 +748,40 @@ export class Match {
     if (this.enemyBuildingNear(p.id, o.x, o.y)) return this.endOrder(e, "too close to an enemy building", emit);
     p.capital -= spec.cost;
     const b = this.spawn(o.kind, p.id, o.x, o.y);
-    emit({ tick: this._tick, type: "spawn", id: b.id, kind: o.kind, owner: p.id, x: b.x, y: b.y });
+    emit({ tick: this._tick, type: "spawn", id: b.id, kind: o.kind, owner: p.id, x: b.x, y: b.y, builder: e.id, capital: { spent: spec.cost, remaining: p.capital } });
     e.order = e.spec.gathers ? { type: "gather" } : null;
     e.path = null;
   }
 
   // ───────────────────────── end ─────────────────────────
 
+  /** A side wins when every other side is out; at the timeout, the highest team score. */
   private checkEnd(T: number, emit: (e: GameEvent) => void) {
-    const alive = this.players.filter((p) => p.alive);
-    if (alive.length < this.players.length && alive.length <= 1) {
-      this.finish(alive[0]?.id ?? null, "vital_lost", T, emit);
+    const teams = this.aliveTeams();
+    if (teams.size <= 1 && this.players.some((p) => !p.alive)) {
+      this.finish(this.teamOf([...teams][0]), "vital_lost", T, emit);
     } else if (T + 1 >= this.maxTicks) {
-      const scores = this.players.map((p) => this.score(p));
-      const top = Math.max(...scores);
-      const leaders = this.players.filter((_, i) => scores[i] === top);
-      this.finish(leaders.length === 1 ? leaders[0].id : null, "timeout", T, emit);
+      const score = new Map<number, number>();
+      for (const p of this.players) score.set(p.team, (score.get(p.team) ?? 0) + this.score(p));
+      const top = Math.max(...score.values());
+      const leaders = [...score].filter(([, s]) => s === top);
+      this.finish(leaders.length === 1 ? this.teamOf(leaders[0][0]) : [], "timeout", T, emit);
     }
   }
 
-  private finish(winner: PlayerId | null, reason: Outcome["reason"], T: number, emit: (e: GameEvent) => void) {
+  private aliveTeams(): Set<number> {
+    return new Set(this.players.filter((p) => p.alive).map((p) => p.team));
+  }
+
+  /** Every player of `team` (none for undefined: a draw). */
+  private teamOf(team: number | undefined): PlayerId[] {
+    return this.players.filter((p) => p.team === team).map((p) => p.id);
+  }
+
+  private finish(winners: PlayerId[], reason: Outcome["reason"], T: number, emit: (e: GameEvent) => void) {
     const scores: Record<PlayerId, number> = {};
     for (const p of this.players) scores[p.id] = this.score(p);
-    this._outcome = { winner, reason, scores };
+    this._outcome = { winner: winners.length === 1 ? winners[0] : null, winners, reason, scores };
     const e: GameEvent = { tick: T, type: "match_end", outcome: this._outcome };
     emit(e);
     if (reason === "forfeit") this.log.push(e);
@@ -732,9 +802,25 @@ export class Match {
     return p;
   }
 
-  /** Players in this tick's priority order: alternates every tick. */
+  /** Players in this tick's priority order: rotates every tick, so each goes first in turn. */
   private priority(): Player[] {
-    return this._tick % 2 === 0 ? [...this.players] : [...this.players].reverse();
+    const k = this._tick % this.players.length;
+    return [...this.players.slice(k), ...this.players.slice(0, k)];
+  }
+
+  /** Can `a`'s entities attack `b`'s? Teammates can't hurt each other. */
+  private hostile(a: PlayerId, b: PlayerId): boolean {
+    return this.player(a).team !== this.player(b).team;
+  }
+
+  /** A player whose vital entity died in a match that goes on: its entities are removed. */
+  private eliminate(p: Player, emit: (e: GameEvent) => void) {
+    for (const e of [...this.ents.values()]) {
+      if (e.owner !== p.id) continue;
+      this.remove(e);
+      emit({ tick: this._tick, type: "death", id: e.id, kind: e.kind, owner: e.owner, x: e.x, y: e.y });
+    }
+    emit({ tick: this._tick, type: "eliminated", owner: p.id });
   }
 
   /** Entities in creation order, alternating between players by priority. */
@@ -747,13 +833,13 @@ export class Match {
 
   private enemyBuildingNear(owner: PlayerId, x: number, y: number): Entity | undefined {
     for (const b of this.ents.values()) {
-      if (b.owner !== owner && b.spec.building && cheb(x, y, b.x, b.y) < this.ruleset.buildExclusion) return b;
+      if (b.spec.building && this.hostile(b.owner, owner) && cheb(x, y, b.x, b.y) < this.ruleset.buildExclusion) return b;
     }
     return undefined;
   }
 
   private dirs(owner: PlayerId): [number, number][] {
-    return this.player(owner).side === 0 ? DIR_LIST : DIR_LIST_ROTATED;
+    return SEAT_DIRS[this.player(owner).side] ?? DIR_LIST;
   }
 
   /** Is `a` closer to `e` than `b`? Ties go to the tile first in `e`'s owner's reading order. */
@@ -761,9 +847,15 @@ export class Match {
     const da = cheb(e.x, e.y, a.x, a.y);
     const db = cheb(e.x, e.y, b.x, b.y);
     if (da !== db) return da < db;
+    const side = this.player(e.owner).side;
+    return this.readingKey(a.x, a.y, side) < this.readingKey(b.x, b.y, side);
+  }
+
+  /** Position of a tile in a seat's own reading order (row by row from its corner). */
+  private readingKey(x: number, y: number, side: number): number {
     const { width: W, height: H } = this.ruleset.map;
-    const key = (t: { x: number; y: number }) => (this.player(e.owner).side === 0 ? t.y * W + t.x : (H - 1 - t.y) * W + (W - 1 - t.x));
-    return key(a) < key(b);
+    const [lx, ly] = mapToSeat(x, y, side, W, H);
+    return ly * W + lx;
   }
 
   private pop(owner: PlayerId): number {
@@ -811,7 +903,7 @@ export class Match {
   private stats(): PlayerStats[] {
     return this.players.map((p) => ({
       id: p.id, name: p.name, capital: p.capital, pop: this.pop(p.id), popCap: this.ruleset.popCap,
-      score: this.score(p), kills: p.kills + p.buildingKills, alive: p.alive,
+      score: this.score(p), kills: p.kills + p.buildingKills, team: p.team, alive: p.alive,
     }));
   }
 
@@ -820,7 +912,9 @@ export class Match {
     const rows = Array.from({ length: height }, () => new Array<string>(width).fill("·"));
     for (const w of this.ruleset.map.walls ?? []) rows[w.y][w.x] = "^";
     for (const d of this.deps.values()) rows[d.y][d.x] = "$";
-    for (const e of this.ents.values()) rows[e.y][e.x] = e.owner === player ? e.spec.symbol : e.spec.enemySymbol;
+    for (const e of this.ents.values()) {
+      rows[e.y][e.x] = e.owner === player ? e.spec.symbol : this.hostile(e.owner, player) ? e.spec.enemySymbol : e.spec.building ? "=" : "+";
+    }
     return rows.map((r) => r.join(""));
   }
 

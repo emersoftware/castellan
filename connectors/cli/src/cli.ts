@@ -13,10 +13,11 @@ const USAGE = `aoa — Age of Agents client (env AOA_SERVER, AOA_TOKEN)
   aoa script <kind> <file|-> [--ts]  upload a script (.ts files imply --ts)
   aoa script <kind> --reset          restore the built-in script
   aoa wait [seconds] [--since T] [--until a,b]
-  aoa chat ["<message>"]             talk to the other player; no message = read the conversation
+  aoa chat ["<message>"] [--channel all|team|private] [--to p2]  public by default; --to = private to one player; no message = read
   aoa status                         waiting | prep | running | finished
   aoa watch [--since T]              one line per event until the match ends
-  aoa new [--name a --name b | --bot eco ...] [--map open|ridge|canyons] [--sides random|fixed] [--chat] [--prep ms] [--seed n]
+  aoa new [--name a --name b | --bot eco ...] [--map open|ridge|canyons|quad] [--sides random|fixed] [--chat] [--prep ms] [--seed n]
+          [--mode teams|ffa] (quad defaults to 2v2; --mode ffa is 1v1v1v1)
   aoa rooms
   aoa run -- <command...>            relaunch the agent until the match ends
 
@@ -44,6 +45,9 @@ const parse = () =>
       map: { type: "string" },
       sides: { type: "string" },
       chat: { type: "boolean" },
+      channel: { type: "string" },
+      to: { type: "string" },
+      mode: { type: "string" },
       seed: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
@@ -76,14 +80,16 @@ async function main(): Promise<string | number | void> {
     case "wait":
       return cmd.wait(c, { json, seconds: num(args[0]), since: num(o.since), until: o.until });
     case "chat":
-      return cmd.chat(c, args.join(" ") || undefined, { json });
+      if (o.channel !== undefined && o.channel !== "all" && o.channel !== "team" && o.channel !== "private") throw new Error('channel must be "all", "team" or "private"');
+      return cmd.chat(c, args.length ? args.join(" ") : undefined, { json, channel: o.channel, to: o.to });
     case "status":
       return cmd.status(c);
     case "watch":
       await cmd.watch(c, (line) => console.log(line), { json, since: num(o.since) });
       return;
     case "new":
-      return cmd.newRoom(c, { json, names: o.name, bots: o.bot, prepMs: num(o.prep), seed: num(o.seed), map: o.map, sides: o.sides === "fixed" ? "fixed" : undefined, chat: o.chat });
+      if (o.mode !== undefined && o.mode !== "teams" && o.mode !== "ffa") throw new Error('mode must be "teams" or "ffa"');
+      return cmd.newRoom(c, { json, names: o.name, bots: o.bot, prepMs: num(o.prep), seed: num(o.seed), map: o.map, sides: o.sides === "fixed" ? "fixed" : undefined, chat: o.chat, mode: o.mode });
     case "rooms":
       return cmd.rooms(c, { json });
     case "run": {

@@ -6,8 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useParams } from "@tanstack/react-router";
 import type { GameEvent, ReplayFile, SpectatorView } from "@aoa/shared";
-import { api } from "../api";
-import { EventFeed, OutcomeBanner, TopBar } from "../components/Hud";
+import { api, playerColors } from "../api";
+import { EventFeed, OutcomeBanner, PlayerList } from "../components/Hud";
 import { GameRenderer } from "../render/renderer";
 import type { WorkerOut } from "../replay.worker";
 
@@ -36,7 +36,7 @@ export function Record() {
     w.onmessage = async (e: MessageEvent<WorkerOut>) => {
       if (e.data.type === "frames") frames.push(...e.data.frames);
       if (e.data.type !== "done") return;
-      renderer = await GameRenderer.create(host.current!, replay.ruleset, replay.players.map((p) => p.id));
+      renderer = await GameRenderer.create(host.current!, replay.ruleset, playerColors(replay.players));
       const clock = renderer.manualClock();
       const tickMs = 1000 / replay.tickRate;
       let shown = -1;
@@ -69,14 +69,14 @@ export function Record() {
   }, [replay]);
 
   const names = useMemo(() => Object.fromEntries((replay?.players ?? []).map((p) => [p.id, p.name])), [replay]);
-  const owners = useMemo(() => (replay?.players ?? []).map((p) => p.id), [replay]);
+  const colors = useMemo(() => playerColors(replay?.players ?? []), [replay]);
   const last = !!replay && !!view && view.tick >= replay.finalTick;
 
   return (
     <div className="game">
       <div className="canvas-host" ref={host} />
-      {view && <TopBar view={view} names={names} timing={last ? replay?.timing : undefined} />}
-      <EventFeed events={events} names={names} owners={owners} />
+      {view && <PlayerList colors={colors} view={view} names={names} timing={last ? replay?.timing : undefined} />}
+      <EventFeed events={events} names={names} colors={colors} />
       {view && last && <OutcomeBanner view={view} names={names} />}
       <div className="corner brandmark">Age of Agents</div>
     </div>

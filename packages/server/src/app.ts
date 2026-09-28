@@ -63,17 +63,28 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
 
   app.post("/rooms", async (req, reply) => {
     const body = (req.body ?? {}) as {
-      players?: { name?: string; bot?: string }[]; seed?: number; prepMs?: number; tickRate?: number; botLatencyMs?: number;
-      map?: string; sides?: "random" | "fixed"; chat?: boolean;
+      players?: { name?: string; bot?: string; team?: number }[]; seed?: number; prepMs?: number; tickRate?: number; botLatencyMs?: number;
+      map?: string; sides?: "random" | "fixed"; chat?: boolean; mode?: "teams" | "ffa";
     };
     const map = MAPS[body.map ?? "open"];
     if (!map) return reply.code(400).send({ error: `unknown map ${body.map}; available: ${Object.keys(MAPS).join(", ")}` });
-    const players = (body.players ?? [{}, {}]).slice(0, 2).map((p, i) => ({ name: String(p.name ?? p.bot ?? `player${i + 1}`).slice(0, 32), bot: p.bot }));
-    while (players.length < 2) players.push({ name: `player${players.length + 1}`, bot: undefined });
+    if (body.mode !== undefined && body.mode !== "teams" && body.mode !== "ffa") return reply.code(400).send({ error: 'mode must be "teams" or "ffa"' });
+    if (body.mode === "ffa" && body.players?.some((p) => p.team !== undefined)) return reply.code(400).send({ error: "ffa does not accept teams" });
+    // One player per seat; four-seat maps support 2v2 (default) or free-for-all.
+    const seats = map.seats ?? 2;
+    const players = (body.players ?? []).slice(0, seats).map((p, i) => ({
+      name: String(p.name ?? p.bot ?? `player${i + 1}`).slice(0, 32), bot: p.bot, team: seats === 4 ? p.team : undefined,
+    }));
+    while (players.length < seats) players.push({ name: `player${players.length + 1}`, bot: undefined, team: undefined });
+    if (seats === 4 && players.some((p) => p.team !== undefined)) {
+      const count = (t: number) => players.filter((p) => p.team === t).length;
+      if (count(0) !== 2 || count(1) !== 2) return reply.code(400).send({ error: "4-seat maps are 2v2: give two players team 0 and two team 1 (or no teams: list order)" });
+    }
     for (const p of players) if (p.bot && !BOTS[p.bot]) return reply.code(400).send({ error: `unknown bot ${p.bot}; available: ${Object.keys(BOTS).join(", ")}` });
     const room = await Room.create({
       ruleset: { ...ruleset, map },
       players,
+      mode: body.mode,
       sides: body.sides === "fixed" ? "fixed" : "random",
       chat: body.chat === true,
       seed: int(body.seed, Math.floor(Math.random() * 2 ** 31)),
@@ -86,12 +97,12 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     for (const p of room.players) tokens.set(p.token, { room, player: p.id });
     return {
       ...room.summary(),
-      players: room.players.map((p) => ({ id: p.id, name: p.name, bot: p.bot?.name, side: p.side, token: p.bot ? undefined : p.token })),
+      players: room.players.map((p) => ({ id: p.id, name: p.name, bot: p.bot?.name, side: p.side, team: p.team, token: p.bot ? undefined : p.token })),
       watch: `/watch/${room.id}`,
     };
   });
 
-  app.get("/maps", async () => Object.values(MAPS).map(({ name, description, width, height, walls }) => ({ name, description, width, height, walls })));
+  app.get("/maps", async () => Object.values(MAPS).map(({ name, description, width, height, walls, seats }) => ({ name, description, width, height, walls, players: seats ?? 2 })));
 
   app.get("/rooms", async () => [...rooms.values()].map((r) => r.summary()).reverse());
 
@@ -125,7 +136,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const h = req.headers.authorization ?? "";
     const room = tokens.get(h.startsWith("Bearer ") ? h.slice(7) : "")?.room;
     const r = room?.ruleset ?? ruleset;
-    const guide = playerGuide(r, { chat: room?.chat ?? false });
+    const guide = playerGuide(r, { chat: room?.chat ?? false, teams: room?.teams });
     if (wantsText(req)) return guide;
     return { ruleset: r, guide };
   });
@@ -148,24 +159,28 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const prepared = orders.map((o, i) => (scripts[i]?.ok ? { ...o, code: scripts[i]!.code } : o)) as Order[];
     const { results, tick } = await who.room.act(who.player, prepared);
     const view = who.room.view(who.player, body?.since);
-    return wantsText(req) ? `${results.map((r, i) => `order ${i}: ${r.ok ? "ok" + ("id" in r && r.id ? " " + r.id : "") : "FAILED " + r.reason}`).join("\n")}\n\n${viewToText(view)}` : { results, view };
+    const capital = { spent: results.reduce((n, r) => n + (r.capital?.spent ?? 0), 0), remaining: view.players.find((p) => p.id === who.player)!.capital };
+    const line = results.map((r, i) => `order ${i}: ${r.ok ? "ok" + ("id" in r && r.id ? " " + r.id : "") : "FAILED " + r.reason}${r.capital ? ` · capital spent ${r.capital.spent}, remaining ${r.capital.remaining}${r.capital.pending !== undefined ? ` · build cost ${r.capital.pending} pending until completion` : ""}` : ""}`).join("\n");
+    return wantsText(req) ? `${line}\ncapital spent by these orders: ${capital.spent} · remaining now: ${capital.remaining}\n\n${viewToText(view)}` : { results, capital, view };
   });
 
   app.get("/chat", async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
-    const log = who.room.conversation();
+    const log = who.room.conversation(who.player);
     if (!wantsText(req)) return { chat: who.room.chat, messages: log };
     if (!who.room.chat) return "chat is off in this room";
-    return log.length ? log.map((m) => `[${m.tick}] ${m.from} ${m.name}${m.from === who.player ? " (you)" : ""}: ${m.text}`).join("\n") : "no messages yet";
+    return log.length ? log.map((m) => `[${m.tick}] ${m.from} ${m.name}${m.from === who.player ? " (you)" : ""}${m.channel === "private" ? ` [private to ${m.to}]` : m.channel === "team" ? " [team]" : ""}: ${m.text}`).join("\n") : "no messages yet";
   });
 
   app.post("/chat", async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
-    const text = (req.body as { text?: unknown } | undefined)?.text;
+    const { text, channel, to } = (req.body as { text?: unknown; channel?: unknown; to?: unknown } | undefined) ?? {};
     if (typeof text !== "string") return reply.code(400).send({ error: 'body must be {"text":"..."} (max 200 chars)' });
-    const { results } = await who.room.act(who.player, [{ type: "chat", text }]);
+    if (channel !== undefined && channel !== "all" && channel !== "team" && channel !== "private") return reply.code(400).send({ error: 'channel must be "all", "team" or "private"' });
+    if (to !== undefined && (typeof to !== "string" || !to.length || to.length >= 64)) return reply.code(400).send({ error: "to must be a player id" });
+    const { results } = await who.room.act(who.player, [{ type: "chat", text, channel, to }]);
     const r = results[0];
     return answer(req, reply, who, r.ok ? "message sent" : `FAILED ${r.reason}`, { ok: r.ok, error: r.ok ? undefined : r.reason }, r.ok ? 200 : 400);
   });
@@ -204,7 +219,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return wantsText(req) ? viewToText(v) : v;
   });
 
-  /** Every action answers with its result and the player's view, so an agent never needs a separate state call. */
+  /** Actions return their result and the current player view. */
   function answer(req: FastifyRequest, reply: FastifyReply, who: { room: Room; player: string }, line: string, body: object, code: number) {
     const view = who.room.view(who.player);
     reply.code(code);

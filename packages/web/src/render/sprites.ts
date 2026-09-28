@@ -16,8 +16,8 @@ export interface SpriteArt {
   texture: Texture;
   /** White where the sprite is solid: drawn tinted with a depth code. */
   silhouette: Texture;
-  /** Outline ring + black interior, per team (ring blue channel 1.0 / 0.6, interior 0.25). */
-  xray: [Texture, Texture];
+  /** Outline ring + black interior, per player colour (ring blue channel 1.0, 0.8, 0.6, 0.4; interior 0.15). */
+  xray: Texture[];
   /** Display scale to apply (1/stored scale). */
   scale: number;
   /** The point that stands on the tile centre, 0..1 of the width/height. */
@@ -123,10 +123,7 @@ function derive(img: HTMLImageElement): Pick<SpriteArt, "texture" | "silhouette"
   return {
     texture,
     silhouette: make(() => [255, 255, 255]),
-    xray: [
-      make((_x, _y, ring) => (ring ? [255, 255, 255] : [255, 255, 64])),
-      make((_x, _y, ring) => (ring ? [255, 255, 153] : [255, 255, 64])),
-    ],
+    xray: [255, 204, 153, 102].map((b) => make((_x, _y, ring) => (ring ? [255, 255, b] : [255, 255, 38]))),
   };
 }
 

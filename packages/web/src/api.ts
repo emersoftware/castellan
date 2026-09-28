@@ -8,9 +8,10 @@ export interface RoomSummary {
   createdAt: string;
   prepEndsAt?: string;
   map?: string;
+  mode?: "teams" | "ffa";
   chat?: boolean;
   timing?: Record<string, PlayerTiming>;
-  players: { id: string; name: string; bot?: string; connected: boolean; token?: string; side?: number }[];
+  players: { id: string; name: string; bot?: string; connected: boolean; token?: string; side?: number; team?: number }[];
   outcome?: Outcome;
 }
 
@@ -18,7 +19,7 @@ export interface ReplaySummary {
   id: string;
   title?: string;
   createdAt: string;
-  players: { id: string; name: string }[];
+  players: { id: string; name: string; team?: number }[];
   outcome: Outcome;
   finalTick: number;
   tickRate: number;
@@ -89,3 +90,13 @@ export const fmtTime = (ms: number) => {
   const s = Math.floor(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
+
+/** Each player's colour index (0 blue, 1 red, 2 verdigris, 3 amethyst): its place in the list, as in AoE. */
+export function playerColors(players: { id: string }[]): Record<string, number> {
+  return Object.fromEntries(players.map((p, i) => [p.id, i % 4]));
+}
+
+/** The winning players (empty = draw), for outcomes with or without teams. */
+export function winnersOf(o: Outcome): string[] {
+  return o.winners ?? (o.winner ? [o.winner] : []);
+}

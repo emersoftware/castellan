@@ -6,7 +6,7 @@
 import { randomBytes } from "node:crypto";
 import { createMatch, type Match } from "@aoa/engine";
 import type {
-  GameEvent, MatchStatus, Order, OrderResult, PlayerId, PlayerTiming, PlayerView, ReplayFile, Ruleset, SpectatorMessage, SpectatorView,
+  ChatMessage, GameEvent, MatchStatus, Order, OrderResult, PlayerId, PlayerTiming, PlayerView, ReplayFile, Ruleset, SpectatorMessage, SpectatorView,
 } from "@aoa/shared";
 import { BOTS, type Bot } from "@aoa/sim";
 
@@ -21,16 +21,21 @@ export interface RoomPlayer {
   bot?: { name: string; fn: Bot; every: number; offset: number };
   /** Has made at least one authenticated call. */
   seen: boolean;
-  /** 0 = the map's listed corner, 1 = the rotated one. */
+  /** Seat: 0 = the map's listed corner, 1 = rotated 180°, 2 and 3 = 90° and 270° (4-seat maps). */
   side: number;
+  /** Players with the same team are allies. */
+  team: number;
 }
 
 export interface RoomOptions {
   ruleset: Ruleset;
-  players: { name: string; bot?: string }[];
+  /** One per map seat. `team` defaults to each player alone (2 seats) or 2v2 in list order (4 seats). */
+  players: { name: string; bot?: string; team?: number }[];
+  /** Four-seat maps default to teams; ffa gives every player their own side. */
+  mode?: "teams" | "ffa";
   tickRate: number;
   seed: number;
-  /** "random" (default) shuffles which corner each player starts in, from the seed. */
+  /** "random" (default) shuffles which corner each player starts in, from the seed. "fixed": list order. */
   sides: "random" | "fixed";
   prepMs: number;
   /** Decision delay of practice bots. */
@@ -78,7 +83,7 @@ export class Room {
   /** Tick of the last view returned to each player. */
   private seen = new Map<PlayerId, number>();
   /** The whole conversation (events only keep the last minute). */
-  private chatLog: { tick: number; from: PlayerId; name: string; text: string }[] = [];
+  private chatLog: ChatMessage[] = [];
 
   private constructor(private opts: RoomOptions) {
     this.id = randomBytes(4).toString("hex");
@@ -95,25 +100,34 @@ export class Room {
         bot: make ? { name: p.bot!, fn: make(), every, offset: (i * 7) % every } : undefined,
         seen: !!make,
         side: i % 2,
+        team: opts.mode === "ffa" ? i : p.team ?? (opts.players.length === 4 ? (i < 2 ? 0 : 1) : i),
       };
     });
-    if (opts.sides === "random" && seededCoin(opts.seed)) for (const p of this.players) p.side = 1 - p.side;
+    if (opts.players.length === 4) {
+      const seats = opts.sides === "random" ? seededShuffle([0, 1, 2, 3], opts.seed) : [0, 1, 2, 3];
+      this.players.forEach((p, i) => (p.side = seats[i]));
+    } else if (opts.sides === "random" && seededCoin(opts.seed)) {
+      for (const p of this.players) p.side = 1 - p.side;
+    }
   }
 
   static async create(opts: RoomOptions): Promise<Room> {
     const room = new Room(opts);
-    room.match = await createMatch({ ruleset: opts.ruleset, seed: opts.seed, tickRate: opts.tickRate, players: room.players.map(({ id, name, side }) => ({ id, name, side })) });
+    room.match = await createMatch({ ruleset: opts.ruleset, seed: opts.seed, tickRate: opts.tickRate, players: room.players.map(({ id, name, side, team }) => ({ id, name, side, team })) });
     room.maybeStart();
     return room;
   }
 
-  /** Where `player`'s unseen events start. */
   cursor(player: PlayerId): number {
     return this.seen.get(player) ?? 0;
   }
 
   get chat(): boolean {
     return this.opts.chat;
+  }
+
+  get teams(): boolean {
+    return new Set(this.players.map((p) => p.team)).size < this.players.length;
   }
 
   get state(): MatchStatus {
@@ -146,9 +160,11 @@ export class Room {
     if (this.status === "running") t.waitMs += waitedMs;
   }
 
-  /** Every chat message of the match, oldest first. */
-  conversation() {
-    return [...this.chatLog];
+  /** Only messages visible to this authenticated player, oldest first. */
+  conversation(player: PlayerId) {
+    const team = this.player(player).team;
+    return this.chatLog.filter((m) => m.channel === "private" ? m.from === player || m.to === player
+      : m.channel !== "team" || this.player(m.from).team === team);
   }
 
   timingStats(): Record<PlayerId, PlayerTiming> {
@@ -170,14 +186,15 @@ export class Room {
     }
   }
 
-  /**
-   * What `player` sees. Events default to "since the last view we gave this
-   * player", so every answer carries everything new even if the agent keeps no cursor.
-   */
+  /** Events default to the last view returned to this player. */
   view(player: PlayerId, since?: number): PlayerView {
     const v = this.match.view(player, since ?? this.seen.get(player) ?? 0);
     this.seen.set(player, v.tick);
     v.status = this.status;
+    const messages = this.conversation(player).slice(-5);
+    v.chat = { enabled: this.chat, messages };
+    // Keep older chat out of JSON events too, even with an explicit old cursor.
+    v.events = v.events.filter((e) => e.type !== "chat" || messages.some((m) => m.tick === e.tick && m.from === e.owner));
     if (this.status !== "running" && this.status !== "finished") v.timeMs = 0;
     return v;
   }
@@ -254,9 +271,10 @@ export class Room {
       createdAt: this.createdAt.toISOString(),
       prepEndsAt: this.status === "prep" ? new Date(this.prepEndsAt).toISOString() : undefined,
       map: this.ruleset.map.name,
+      mode: this.teams ? "teams" : "ffa",
       chat: this.opts.chat,
       timing: this.timingStats(),
-      players: this.players.map((p) => ({ id: p.id, name: p.name, bot: p.bot?.name, connected: p.seen, side: p.side })),
+      players: this.players.map((p) => ({ id: p.id, name: p.name, bot: p.bot?.name, connected: p.seen, side: p.side, team: p.team })),
       outcome: this.match.outcome ?? undefined,
     };
   }
@@ -302,6 +320,7 @@ export class Room {
     const batch = this.queue;
     this.queue = [];
     const input = batch.map(({ player, order }) => ({ player, order }));
+    // Replays are published after the match and include both chat channels.
     for (const o of input) this.recorded.push({ tick: T, ...o });
     const { results, events } = this.match.step(input);
     batch.forEach((b, i) => b.resolve?.({ result: results[i], tick: T }));
@@ -321,7 +340,7 @@ export class Room {
       ruleset: this.ruleset,
       seed: this.opts.seed,
       tickRate: this.tickRate,
-      players: this.players.map(({ id, name, side }) => ({ id, name, side })),
+      players: this.players.map(({ id, name, side, team }) => ({ id, name, side, team })),
       orders: this.recorded,
       hashes: this.hashes,
       finalTick: this.match.tick,
@@ -338,7 +357,7 @@ export class Room {
   }
 
   private notify(events: GameEvent[]) {
-    for (const e of events) if (e.type === "chat") this.chatLog.push({ tick: e.tick, from: e.owner, name: this.player(e.owner).name, text: e.text });
+    for (const e of events) if (e.type === "chat") this.chatLog.push({ tick: e.tick, from: e.owner, name: this.player(e.owner).name, text: e.text, ...(e.channel ? { channel: e.channel } : {}), ...(e.to ? { to: e.to } : {}) });
     this.broadcast();
     if (events.length === 0) return;
     for (const w of [...this.waiters]) if (this.hasNews(w.player, w.since, w.until)) w.resolve();
@@ -368,6 +387,23 @@ export class Room {
     if (!p) throw new Error(`unknown player ${id}`);
     return p;
   }
+}
+
+/** A deterministic shuffle from the room seed (mulberry32 + Fisher–Yates). */
+function seededShuffle<T>(items: T[], seed: number): T[] {
+  let a = seed >>> 0;
+  const rand = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
 /** A deterministic coin flip from the room seed (so a replay knows the sides). */

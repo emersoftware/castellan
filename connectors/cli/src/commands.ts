@@ -4,7 +4,7 @@
  * connectors can call them without spawning processes.
  */
 import { spawn } from "node:child_process";
-import { eventLine, type MatchStatus, type Outcome, type PlayerView } from "@aoa/shared";
+import { eventLine, type ChatChannel, type MatchStatus, type Outcome, type PlayerView } from "@aoa/shared";
 import { ApiError, query, type Client } from "./client";
 
 export interface Fmt {
@@ -47,13 +47,13 @@ export async function putScript(c: Client, kind: string, code: string | null, o:
   return o.json ? pretty(r) : (r as string);
 }
 
-/** With text: sends a chat message (rooms created with chat on). Without: the conversation so far. */
-export async function chat(c: Client, text?: string, o: Fmt = {}): Promise<string> {
-  if (!text) {
+/** With text: sends publicly, to the team, or to one player. Without: visible history. */
+export async function chat(c: Client, text?: string, o: Fmt & { channel?: ChatChannel; to?: string } = {}): Promise<string> {
+  if (text === undefined) {
     const r = await c.get(`/chat${query({ format: format(o.json) })}`);
     return o.json ? pretty(r) : (r as string);
   }
-  const r = await c.post(`/chat${query({ format: format(o.json) })}`, { text });
+  const r = await c.post(`/chat${query({ format: format(o.json) })}`, { text, channel: o.channel, to: o.to });
   return o.json ? pretty(r) : (r as string);
 }
 
@@ -89,22 +89,30 @@ interface RoomSummary {
   status: MatchStatus;
   tick: number;
   map?: string;
+  mode?: "teams" | "ffa";
   chat?: boolean;
-  players: { id: string; name: string; bot?: string; token?: string; side?: number }[];
+  players: { id: string; name: string; bot?: string; token?: string; side?: number; team?: number }[];
   outcome?: Outcome;
   watch?: string;
 }
 
+/** Where each seat's base is on the isometric screen. */
+const CORNERS = ["top", "bottom", "right", "left"];
+
 export async function newRoom(
   c: Client,
-  o: Fmt & { names?: string[]; bots?: string[]; prepMs?: number; seed?: number; map?: string; sides?: "random" | "fixed"; chat?: boolean } = {},
+  o: Fmt & { names?: string[]; bots?: string[]; prepMs?: number; seed?: number; map?: string; sides?: "random" | "fixed"; chat?: boolean; mode?: "teams" | "ffa" } = {},
 ): Promise<string> {
   const players = [...(o.names ?? []).map((name) => ({ name })), ...(o.bots ?? []).map((bot) => ({ bot }))];
-  const r = await c.post<RoomSummary>("/rooms", { players: players.length ? players : undefined, prepMs: o.prepMs, seed: o.seed, map: o.map, sides: o.sides, chat: o.chat });
+  const r = await c.post<RoomSummary>("/rooms", { players: players.length ? players : undefined, prepMs: o.prepMs, seed: o.seed, map: o.map, sides: o.sides, chat: o.chat, mode: o.mode });
   if (o.json) return pretty(r);
   return [
-    `room ${r.id} (${r.status})${r.map ? ` · map ${r.map}` : ""}${r.chat ? " · chat on" : ""}`,
-    ...r.players.map((p) => `${p.id} ${p.name}${p.side === undefined ? "" : p.side === 0 ? " [top corner]" : " [bottom corner]"}  ${p.bot ? `(bot ${p.bot})` : `AOA_TOKEN=${p.token}`}`),
+    `room ${r.id} (${r.status})${r.map ? ` · map ${r.map}` : ""}${r.players.length > 2 && r.mode === "ffa" ? " · free-for-all" : ""}${r.chat ? " · chat on" : ""}`,
+    ...r.players.map((p) => {
+      const corner = p.side === undefined ? "" : ` [${CORNERS[p.side]} corner]`;
+      const team = r.players.length > 2 && r.mode !== "ffa" && p.team !== undefined ? ` team ${p.team}` : "";
+      return `${p.id} ${p.name}${corner}${team}  ${p.bot ? `(bot ${p.bot})` : `AOA_TOKEN=${p.token}`}`;
+    }),
     `watch ${c.server}${r.watch}`,
   ].join("\n");
 }

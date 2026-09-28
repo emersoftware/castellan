@@ -34,6 +34,7 @@ describe("engine", () => {
     const nexus = mine(m, "p1", "nexus")[0];
     const r = m.step([{ player: "p1", order: { type: "train", building: nexus.id, kind: "knight" } }]);
     expect(r.results[0]).toMatchObject({ ok: true });
+    expect(r.results[0].capital).toEqual({ spent: 100, remaining: v0.startCapital - 100 });
     expect(mine(m, "p1", "knight")).toHaveLength(1);
     expect(m.view("p1").players[0].capital).toBe(v0.startCapital - 100);
     const r2 = m.step([
@@ -41,6 +42,8 @@ describe("engine", () => {
       { player: "p1", order: { type: "train", building: nexus.id, kind: "knight" } },
     ]);
     expect(r2.results[1]).toMatchObject({ ok: false });
+    expect(r2.results[0].capital).toEqual({ spent: 100, remaining: 0 });
+    expect(r2.results[1].capital).toEqual({ spent: 0, remaining: 0 });
   });
 
   it("rejects malformed and foreign orders without throwing", async () => {
@@ -98,10 +101,25 @@ else { const b = self.enemyBase(); self.moveTo(b.x, b.y); }`;
   it("builds instantly when the worker arrives", async () => {
     const m = await make();
     const w = mine(m, "p1", "worker")[0];
-    m.step([{ player: "p1", order: { type: "build", unit: w.id, kind: "turret", x: 7, y: 7 } }]);
+    const ordered = m.step([{ player: "p1", order: { type: "build", unit: w.id, kind: "turret", x: 7, y: 7 } }]);
+    expect(ordered.results[0].capital).toEqual({ spent: 0, remaining: v0.startCapital, pending: v0.kinds.turret.cost });
     run(m, 60);
     expect(mine(m, "p1", "turret")).toHaveLength(1);
     expect(mine(m, "p1", "worker").find((x) => x.id === w.id)!.order).toMatch(/gather/);
+    expect(m.events("p1", 0)).toContainEqual(expect.objectContaining({ type: "spawn", builder: w.id, capital: { spent: v0.kinds.turret.cost, remaining: expect.any(Number) } }));
+  });
+
+  it("reports one actual charge when repeated build orders complete in the same tick", async () => {
+    const m = await make();
+    const v = m.view("p1");
+    const w = mine(m, "p1", "worker")[0];
+    const places = [-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => ({ x: w.x + dx, y: w.y + dy })));
+    const pos = places.find(({ x, y }) => v.grid[y]?.[x] === "·")!;
+    const order: Order = { type: "build", unit: w.id, kind: "wall", ...pos };
+    const { results } = m.step([{ player: "p1", order }, { player: "p1", order }]);
+    expect(mine(m, "p1", "wall")).toHaveLength(1);
+    expect(results.reduce((sum, r) => sum + (r.capital?.spent ?? 0), 0)).toBe(v0.kinds.wall.cost);
+    expect(results[1].capital).toEqual({ spent: v0.kinds.wall.cost, remaining: v0.startCapital - v0.kinds.wall.cost });
   });
 
   it("times out on score", async () => {
@@ -127,8 +145,20 @@ describe("replay", () => {
 });
 
 describe("building rules", () => {
-  it("forbids building next to enemy buildings", async () => {
+  it("allows a tower rush to build and damage the enemy Nexus", async () => {
     const m = await make();
+    const w = mine(m, "p1", "worker")[0];
+    const enemyNexus = mine(m, "p2", "nexus")[0];
+    const x = enemyNexus.x - v0.kinds.turret.range!;
+    const r = m.step([{ player: "p1", order: { type: "build", unit: w.id, kind: "turret", x, y: enemyNexus.y } }]);
+    expect(r.results[0]).toMatchObject({ ok: true });
+    run(m, 300);
+    expect(mine(m, "p1", "turret")).toHaveLength(1);
+    expect(mine(m, "p2", "nexus")[0].hp).toBeLessThan(enemyNexus.hp);
+  });
+
+  it("preserves build exclusion when enabled by a saved ruleset", async () => {
+    const m = await make({ ...v0, buildExclusion: 8 });
     const w = mine(m, "p1", "worker")[0];
     const enemyNexus = mine(m, "p2", "nexus")[0];
     const r = m.step([{ player: "p1", order: { type: "build", unit: w.id, kind: "turret", x: enemyNexus.x - 5, y: enemyNexus.y } }]);

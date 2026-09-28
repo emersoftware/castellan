@@ -10,7 +10,7 @@ import type { DepositView, EntityView, GameEvent, Ruleset, SpectatorView } from 
 import { TILE_H, TILE_W, loadSprites, screenDir, terrainTexture, type SpriteArt, type SpriteSet } from "./sprites";
 import { createXrayFilter, depthTint } from "./xray";
 import { createDitherFilter } from "./dither";
-import { RAMPS, TEAM_RAMPS, dim } from "./palette";
+import { RAMPS, PLAYER_RAMPS, dim } from "./palette";
 
 export interface HoverInfo {
   x: number;
@@ -29,7 +29,8 @@ interface Drawn {
   sprite: Sprite;
   shadow: Graphics;
   bar: Graphics;
-  team: number;
+  /** Player colour index (PLAYER_RAMPS). */
+  color: number;
   from: { x: number; y: number };
   to: { x: number; y: number };
   /** Screen direction 0..7 (S, SE, E, NE, N, NW, W, SW) the unit faces. */
@@ -84,13 +85,14 @@ export class GameRenderer {
   /** Wall clock by default; a virtual one while recording video. */
   private now: () => number = () => performance.now();
 
-  private constructor(private host: HTMLElement, private ruleset: Ruleset, private owners: string[]) {
+  private constructor(private host: HTMLElement, private ruleset: Ruleset, private colors: Record<string, number>) {
     this.width = ruleset.map.width;
     this.height = ruleset.map.height;
   }
 
-  static async create(host: HTMLElement, ruleset: Ruleset, players: string[]): Promise<GameRenderer> {
-    const r = new GameRenderer(host, ruleset, players);
+  /** `colors`: each player's colour index (0..3). */
+  static async create(host: HTMLElement, ruleset: Ruleset, colors: Record<string, number>): Promise<GameRenderer> {
+    const r = new GameRenderer(host, ruleset, colors);
     await r.init();
     return r;
   }
@@ -320,7 +322,7 @@ export class GameRenderer {
   }
 
   private addEntity(e: EntityView) {
-    const team = this.team(e.owner);
+    const color = this.colorOf(e.owner);
     const spec = this.ruleset.kinds[e.kind];
     // Start facing the middle of the map.
     const c = iso((this.width - 1) / 2, (this.height - 1) / 2);
@@ -330,12 +332,12 @@ export class GameRenderer {
     const sprite = new Sprite(art.texture);
     sprite.anchor.set(art.anchorX, art.anchorY);
     sprite.scale.set(art.scale);
-    sprite.tint = TEAM_RAMPS[team].key;
+    sprite.tint = PLAYER_RAMPS[color].key;
     let xray: Sprite | null = null;
     let depth: Sprite | null = null;
     if (spec?.building) depth = this.depthSprite(art);
     else {
-      xray = new Sprite(art.xray[team]);
+      xray = new Sprite(art.xray[color]);
       this.xrayLayer.addChild(xray);
     }
     const r = spec?.building ? (e.kind === "nexus" ? 22 : 12) : 6;
@@ -345,7 +347,7 @@ export class GameRenderer {
     const bar = new Graphics();
     this.fx.addChild(bar);
     this.drawn.set(e.id, {
-      view: e, sprite, shadow, bar, team, from: { x: e.x, y: e.y }, to: { x: e.x, y: e.y },
+      view: e, sprite, shadow, bar, color, from: { x: e.x, y: e.y }, to: { x: e.x, y: e.y },
       dir, xray, depth, flashUntil: 0, lungeUntil: 0, lunge: { x: 0, y: 0 },
     });
   }
@@ -376,7 +378,7 @@ export class GameRenderer {
       }
       d.sprite.position.set(sx + ox, sy + oy + (building ? 0 : 3));
       d.sprite.zIndex = Math.round((x + y) * 10) + 5;
-      d.sprite.tint = now < d.flashUntil ? RAMPS.neutral.key : TEAM_RAMPS[d.team].key;
+      d.sprite.tint = now < d.flashUntil ? RAMPS.neutral.key : PLAYER_RAMPS[d.color].key;
       if (d.view.kind === "agent") d.sprite.position.y += Math.sin(t * 1.5) * 0.4;
       if (!building) {
         const { art, flip } = this.sprites(d.view.kind, d.dir);
@@ -384,7 +386,7 @@ export class GameRenderer {
         d.sprite.anchor.set(art.anchorX, art.anchorY);
         d.sprite.scale.set(flip ? -art.scale : art.scale, art.scale);
         if (d.xray) {
-          d.xray.texture = art.xray[d.team];
+          d.xray.texture = art.xray[d.color];
           d.xray.anchor.copyFrom(d.sprite.anchor);
           d.xray.scale.copyFrom(d.sprite.scale);
           d.xray.position.copyFrom(d.sprite.position);
@@ -411,7 +413,7 @@ export class GameRenderer {
     const top = Math.round(d.sprite.y - d.sprite.height - 4);
     const left = Math.round(sx - w / 2);
     d.bar.rect(left - 0.5, top - 0.5, w + 1, 2.5).fill(0x000000);
-    d.bar.rect(left, top, (w * hp) / maxHp, 1.5).fill(hp / maxHp > 0.35 ? TEAM_RAMPS[d.team].key : RAMPS.neutral.key);
+    d.bar.rect(left, top, (w * hp) / maxHp, 1.5).fill(hp / maxHp > 0.35 ? PLAYER_RAMPS[d.color].key : RAMPS.neutral.key);
   }
 
   // ───────────────────────── events → effects & sound ─────────────────────────
@@ -454,7 +456,7 @@ export class GameRenderer {
     } else if (ev.type === "chat") {
       const agent = [...this.drawn.values()].find((d) => d.view.owner === ev.owner && d.view.kind === "agent");
       if (agent) {
-        this.effects.push(this.bubble(ev.text, agent));
+        this.effects.push(this.bubble(`${ev.channel === "private" ? `[private → ${ev.to}] ` : ev.channel === "team" ? "[team] " : ""}${ev.text}`, agent));
         this.play("chat", agent.to.x, agent.to.y, 0.6);
       }
     } else if (ev.type === "match_end") {
@@ -478,7 +480,7 @@ export class GameRenderer {
   private corpse(d: Drawn): Effect {
     const building = this.ruleset.kinds[d.view.kind]?.building;
     const start = this.now();
-    d.sprite.tint = dim(TEAM_RAMPS[d.team].key, 0.45);
+    d.sprite.tint = dim(PLAYER_RAMPS[d.color].key, 0.45);
     if (building) this.effects.push(this.dust(d.to.x, d.to.y, 0xaaaaaa, 24, 14));
     else {
       d.sprite.anchor.set(0.5, 0.5);
@@ -582,7 +584,7 @@ export class GameRenderer {
     const w = Math.ceil(t.width) + 8;
     const h = Math.ceil(t.height) + 4;
     const g = new Graphics();
-    g.rect(0, 0, w, h).fill(0xdddddd).stroke({ width: 1, color: TEAM_RAMPS[d.team].key });
+    g.rect(0, 0, w, h).fill(0xdddddd).stroke({ width: 1, color: PLAYER_RAMPS[d.color].key });
     g.poly([w / 2 - 3, h, w / 2 + 3, h, w / 2, h + 4]).fill(0xdddddd);
     box.addChild(g, t);
     this.fx.addChild(box);
@@ -646,9 +648,8 @@ export class GameRenderer {
 
   // ───────────────────────── helpers ─────────────────────────
 
-  private team(owner: string): number {
-    const i = this.owners.indexOf(owner);
-    return i < 0 ? 0 : i % TEAM_RAMPS.length;
+  private colorOf(owner: string): number {
+    return (this.colors[owner] ?? 0) % PLAYER_RAMPS.length;
   }
 
   private initialAmount(d: DepositView): number {

@@ -6,8 +6,8 @@ import { Filter, GlProgram, UniformGroup, type Texture } from "pixi.js";
  * something in front covers them.
  *
  * The x-ray layer draws each unit's outline texture tinted with its depth code
- * (hi, lo, _) and the texture's blue channel says ring (team A 1.0, team B 0.6)
- * or interior (0.25). `uDepth` holds the front-most occluder's depth code per
+ * (hi, lo, _) and the texture's blue channel says ring (player colour 0..3:
+ * 1.0, 0.8, 0.6, 0.4) or interior (0.15). `uDepth` holds the front-most occluder's depth code per
  * screen pixel. The layer must cover the whole screen (filterArea = screen).
  */
 const vertex = `in vec2 aPosition;
@@ -38,8 +38,10 @@ void main(void) {
   vec3 c = x.rgb / x.a;
   vec4 d = texture(uDepth, vScreen / uScreen);
   if (d.a < 0.5 || code(d) <= code(vec4(c, 1.0))) { finalColor = vec4(0.0); return; }
-  if (c.b > 0.8) finalColor = vec4(0.0, 0.0, 0.95, 1.0);
-  else if (c.b > 0.45) finalColor = vec4(0.95, 0.0, 0.0, 1.0);
+  if (c.b > 0.9) finalColor = vec4(0.0, 0.0, 0.95, 1.0);
+  else if (c.b > 0.7) finalColor = vec4(0.95, 0.0, 0.0, 1.0);
+  else if (c.b > 0.5) finalColor = vec4(0.0, 0.95, 0.95, 1.0);
+  else if (c.b > 0.3) finalColor = vec4(0.95, 0.0, 0.95, 1.0);
   else finalColor = vec4(0.0, 0.0, 0.0, 1.0);
 }`;
 

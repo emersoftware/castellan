@@ -21,7 +21,7 @@ export const v0: Ruleset = {
   startCapital: 200,
   popCap: 30,
   gather: { carry: 10, ms: 200 },
-  buildExclusion: 8,
+  buildExclusion: 0,
   kinds: {
     agent: { building: false, symbol: "A", enemySymbol: "a", hp: 400, def: 10, vision: 6, cost: 0, vital: true, moveMs: 500 },
     worker: {
@@ -54,6 +54,6 @@ export const v0: Ruleset = {
   legend: {
     "·": "empty", $: "capital deposit",
     A: "agent (vital)", W: "worker", K: "knight", R: "ranger", N: "nexus (vital)", T: "turret", "#": "wall", "^": "rock (impassable terrain)",
-    lowercase: "enemy (enemy wall is %)",
+    lowercase: "enemy (enemy wall is %)", "+": "allied unit (2v2)", "=": "allied building (2v2)",
   },
 };

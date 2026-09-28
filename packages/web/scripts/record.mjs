@@ -1,6 +1,10 @@
 // Records a replay to MP4: headless Chrome renders /record/:id frame by frame on a
 // virtual clock (so no frame is dropped), ffmpeg encodes.
-//   node scripts/record.mjs <replayId> [--speed 2] [--fps 30] [--out file.mp4]
+// Dithering is the worst case for video codecs (per-pixel noise, colour on single
+// pixels), so frames are upscaled with nearest neighbour (--scale 2: each pixel a
+// 2×2 block, which lines up with 4:2:0 chroma so colours don't bleed) and encoded
+// at high quality. A screen recording (QuickTime) gets neither and looks smeared.
+//   node scripts/record.mjs <replayId> [--speed 2] [--fps 30] [--scale 2] [--out file.mp4]
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -16,6 +20,7 @@ const { values: o, positionals } = parseArgs({
     server: { type: "string", default: process.env.AOA_SERVER ?? "http://localhost:4400" },
     width: { type: "string", default: "1280" },
     height: { type: "string", default: "720" },
+    scale: { type: "string", default: "2" },
   },
 });
 const id = positionals[0];
@@ -42,8 +47,10 @@ try {
   const frames = Math.ceil(gameMs / step) + fps * 4; // hold the final screen 4 s
   console.log(`replay ${id}: ${ticks} ticks, verified ${verified}; ${frames} frames → ${out}`);
 
+  const scale = Math.max(1, Math.round(Number(o.scale)));
   const ffmpeg = spawn("ffmpeg", ["-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", String(fps), "-i", "-",
-    "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", out], { stdio: ["pipe", "inherit", "inherit"] });
+    "-vf", `scale=iw*${scale}:ih*${scale}:flags=neighbor`,
+    "-c:v", "libx264", "-preset", "slow", "-crf", "12", "-pix_fmt", "yuv420p", "-movflags", "+faststart", out], { stdio: ["pipe", "inherit", "inherit"] });
   const cdp = await page.createCDPSession();
   const started = Date.now();
   for (let k = 0; k < frames; k++) {

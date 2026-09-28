@@ -7,9 +7,9 @@ const world: ScriptWorld = {
   side: 0,
   units: { e1: { id: "e1", type: "knight", x: 5, y: 5, hp: 80, maxHp: 80, atk: 12, def: 4, range: 1, vision: 4 } },
   all: [
-    ["e1", "knight", "p1", 1, 5, 5, 80, 80, 0],
-    ["e2", "knight", "p2", 0, 6, 6, 50, 80, 0],
-    ["e3", "worker", "p2", 0, 20, 20, 40, 40, 0],
+    ["e1", "knight", "p1", 1, 5, 5, 80, 80, 0, 5 * 32 + 5],
+    ["e2", "knight", "p2", 0, 6, 6, 50, 80, 0, 6 * 32 + 6],
+    ["e3", "worker", "p2", 0, 20, 20, 40, 40, 0, 20 * 32 + 20],
   ],
   myBase: { x: 4, y: 4 },
   enemyBase: { x: 27, y: 27 },

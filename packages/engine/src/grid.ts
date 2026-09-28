@@ -7,6 +7,40 @@ export const DIR_LIST = Object.values(DIRS);
 /** The same directions rotated 180°: the second player's point of view. */
 export const DIR_LIST_ROTATED = DIR_LIST.map(([dx, dy]) => [-dx, -dy] as [number, number]);
 
+/**
+ * Direction order for each seat (see `seatToMap`): DIR_LIST turned with the
+ * seat, so tie-breaks look the same from every corner.
+ */
+export const SEAT_DIRS: [number, number][][] = [
+  DIR_LIST,
+  DIR_LIST_ROTATED,
+  DIR_LIST.map(([dx, dy]) => [-dy, dx] as [number, number]),
+  DIR_LIST.map(([dx, dy]) => [dy, -dx] as [number, number]),
+];
+
+/**
+ * Where a tile of the map's layout lands for seat 0..3: as listed, rotated
+ * 180°, 90° clockwise, 270°. Seats 2 and 3 need a square map.
+ */
+export function seatToMap(x: number, y: number, seat: number, w: number, h: number): [number, number] {
+  switch (seat) {
+    case 1: return [w - 1 - x, h - 1 - y];
+    case 2: return [w - 1 - y, x];
+    case 3: return [y, h - 1 - x];
+    default: return [x, y];
+  }
+}
+
+/** The inverse of `seatToMap`: a map tile in the seat's own layout coordinates. */
+export function mapToSeat(x: number, y: number, seat: number, w: number, h: number): [number, number] {
+  switch (seat) {
+    case 1: return [w - 1 - x, h - 1 - y];
+    case 2: return [y, w - 1 - x];
+    case 3: return [h - 1 - y, x];
+    default: return [x, y];
+  }
+}
+
 export function cheb(ax: number, ay: number, bx: number, by: number): number {
   return Math.max(Math.abs(ax - bx), Math.abs(ay - by));
 }
