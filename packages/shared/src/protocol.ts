@@ -32,6 +32,33 @@ export type OrderResult = ({ ok: true; id?: string } | { ok: false; reason: stri
 
 export type MatchStatus = "waiting" | "prep" | "running" | "finished";
 
+export interface SeriesProgress {
+  id: string;
+  gameNumber: number;
+  totalGames: 3;
+  status: "running" | "finished" | "error";
+  score: Record<PlayerId, number>;
+  previousGames: number[];
+}
+
+export interface SeriesSummary {
+  id: string;
+  createdAt: string;
+  totalGames: 3;
+  status: SeriesProgress["status"];
+  currentGame: number;
+  players: { id: PlayerId; name: string; team: number; bot?: string }[];
+  score: Record<PlayerId, number>;
+  winners?: PlayerId[];
+  games: { number: number; roomId: string; status: MatchStatus; outcome?: Outcome }[];
+}
+
+export interface SeriesReplay {
+  format: "aoa-series-v1";
+  series: SeriesSummary;
+  games: ReplayFile[];
+}
+
 export interface Outcome {
   /** The sole winner; null for a draw or when a team won (see `winners`). */
   winner: PlayerId | null;
@@ -94,6 +121,7 @@ export type GameEvent =
 
 /** What one player sees. `tick` is the next tick to be simulated; use it as `since`. */
 export interface PlayerView {
+  series?: SeriesProgress;
   tick: number;
   timeMs: number;
   matchMs: number;
@@ -130,6 +158,7 @@ export interface SpectatorView {
 
 /** A finished match: enough to re-simulate it exactly. */
 export interface ReplayFile {
+  series?: { id: string; gameNumber: number; totalGames: 3 };
   format: 1;
   id: string;
   createdAt: string;

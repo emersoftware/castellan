@@ -8,6 +8,7 @@ export function viewToText(v: PlayerView): string {
   const lines: string[] = [];
   const secs = (ms: number) => (ms / 1000).toFixed(1);
   lines.push(`tick ${v.tick} · ${secs(v.timeMs)}s/${secs(v.matchMs)}s · ${v.status} · you are ${v.you}`);
+  if (v.series) lines.push(`series ${v.series.id} · game ${v.series.gameNumber}/3 · ${v.series.status} · wins ${JSON.stringify(v.series.score)} · previous games ${v.series.previousGames.join(", ") || "none"} (use history)`);
   const myTeam = v.players.find((p) => p.id === v.you)?.team;
   for (const p of v.players) {
     const tag = p.id === v.you ? "YOU  " : p.team === myTeam ? "ALLY " : "ENEMY";

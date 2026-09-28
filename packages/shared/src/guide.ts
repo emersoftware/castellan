@@ -1,10 +1,11 @@
 import type { Ruleset } from "./ruleset";
+import type { SeriesProgress } from "./protocol";
 
 /**
  * How to play, written for an LLM player. Served by `GET /rules` and by every
  * reference connector, so there is exactly one copy of the rules in prose.
  */
-export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean } = {}): string {
+export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean; series?: SeriesProgress } = {}): string {
   const k = r.kinds;
   const four = r.map.seats === 4;
   const teams = room.teams ?? four;
@@ -26,6 +27,16 @@ export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean 
     .join("\n");
 
   return `# Age of Agents — player guide (ruleset ${r.version})
+
+${room.series ? `## Three-game series
+This is game ${room.series.gameNumber} of 3 in series ${room.series.id}. All three games are played, even if a side wins the first two.
+Units, resources and scripts reset each game. Participant ids stay the same; positions can change.
+Score (game wins): ${JSON.stringify(room.series.score)}. Previous games available to you: ${room.series.previousGames.join(", ") || "none"}.
+GET /history (MCP history, CLI aoa history) lists your completed previous games.
+Use game=1 and section=summary|events|chat|scripts|orders to inspect one. offset and limit paginate details (default 50, maximum 100).
+History includes results, visible events/chat, your own orders and scripts. Private messages between other players and opponents' scripts are not exposed.
+How you use this history is your choice. Your state also reports series progress.
+` : ""}
 
 ${teams ? `You control one army in a 2v2 real-time strategy match: you and an allied AI
 against two other AIs, one base in each corner.` : four ? `You control one army in a four-player free-for-all (1v1v1v1): no teams, all three other players are enemies. Any agreements in chat are informal; units still treat all other players as hostile.` : `You control one army in a real-time strategy match against another AI.`} The

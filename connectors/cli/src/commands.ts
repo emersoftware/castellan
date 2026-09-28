@@ -4,8 +4,8 @@
  * connectors can call them without spawning processes.
  */
 import { spawn } from "node:child_process";
-import { eventLine, type ChatChannel, type MatchStatus, type Outcome, type PlayerView } from "@aoa/shared";
-import { ApiError, query, type Client } from "./client";
+import { eventLine, type ChatChannel, type MatchStatus, type Outcome, type PlayerView, type SeriesSummary } from "@aoa/shared";
+import { ApiError, client, query, type Client } from "./client";
 
 export interface Fmt {
   json?: boolean;
@@ -16,6 +16,11 @@ const format = (json?: boolean) => (json ? undefined : "text");
 
 export async function rules(c: Client, o: Fmt = {}): Promise<string> {
   return o.json ? pretty(await c.get("/rules")) : c.get<string>("/rules?format=text");
+}
+
+export async function history(c: Client, o: Fmt & { game?: number; section?: string; offset?: number; limit?: number } = {}): Promise<string> {
+  const result = await c.get(`/history${query({ game: o.game, section: o.section, offset: o.offset, limit: o.limit, format: format(o.json) })}`);
+  return o.json ? pretty(result) : result as string;
 }
 
 export async function state(c: Client, o: Fmt & { since?: number } = {}): Promise<string> {
@@ -101,9 +106,13 @@ const CORNERS = ["top", "bottom", "right", "left"];
 
 export async function newRoom(
   c: Client,
-  o: Fmt & { names?: string[]; bots?: string[]; prepMs?: number; seed?: number; map?: string; sides?: "random" | "fixed"; chat?: boolean; mode?: "teams" | "ffa" } = {},
+  o: Fmt & { names?: string[]; bots?: string[]; prepMs?: number; seed?: number; map?: string; sides?: "random" | "fixed"; chat?: boolean; mode?: "teams" | "ffa"; series?: boolean } = {},
 ): Promise<string> {
   const players = [...(o.names ?? []).map((name) => ({ name })), ...(o.bots ?? []).map((bot) => ({ bot }))];
+  if (o.series) {
+    const r = await c.post<Omit<SeriesSummary, "players"> & { players: { id: string; name: string; token?: string; bot?: string }[]; watch: string }>("/series", { players: players.length ? players : undefined, prepMs: o.prepMs, seed: o.seed, map: o.map, sides: o.sides, chat: o.chat, mode: o.mode });
+    return o.json ? pretty(r) : [`series ${r.id} · 3 games`, ...r.players.map((p) => `${p.id} ${p.name} ${p.bot ? `(bot ${p.bot})` : `AOA_TOKEN=${p.token}`}`), `watch ${c.server}${r.watch}`].join("\n");
+  }
   const r = await c.post<RoomSummary>("/rooms", { players: players.length ? players : undefined, prepMs: o.prepMs, seed: o.seed, map: o.map, sides: o.sides, chat: o.chat, mode: o.mode });
   if (o.json) return pretty(r);
   return [
@@ -131,6 +140,7 @@ export async function rooms(c: Client, o: Fmt = {}): Promise<string> {
 }
 
 export interface RunOptions {
+  env?: NodeJS.ProcessEnv;
   /** A run shorter than this counts as a fast failure, whatever its exit code. */
   fastMs?: number;
   maxFastFailures?: number;
@@ -147,7 +157,8 @@ export async function run(c: Client, cmd: string[], o: RunOptions = {}): Promise
   let fast = 0;
   for (let attempt = 0; ; attempt++) {
     const started = Date.now();
-    const code = await exec(cmd, attempt ? { ...process.env, AOA_RESUME: "1" } : process.env);
+    const env = o.env ?? process.env;
+    const code = await exec(cmd, attempt ? { ...env, AOA_RESUME: "1" } : env);
     let s: MatchStatus | "unreachable";
     try {
       s = await status(c);
@@ -169,6 +180,32 @@ export async function run(c: Client, cmd: string[], o: RunOptions = {}): Promise
     }
     log(`aoa run: agent exited (code ${code}) with the match ${s}; relaunching with AOA_RESUME=1`);
     await new Promise((r) => setTimeout(r, backoffMs * Math.max(1, fast)));
+  }
+}
+
+/** Series token belongs to the runner; children receive only their current game's token. */
+export async function runSeries(c: Client, cmd: string[], o: RunOptions = {}): Promise<number> {
+  const log = o.log ?? ((s: string) => console.error(s));
+  let last: string | undefined;
+  for (;;) {
+    let joined: { series: SeriesSummary; game: { id: string; number: number; token: string; status: MatchStatus } };
+    try { joined = await c.get("/series/current"); }
+    catch (error) {
+      if (!(error instanceof ApiError) || error.status === 401) throw error;
+      log("aoa run-series: waiting for server");
+      await new Promise((r) => setTimeout(r, o.backoffMs ?? 1000)); continue;
+    }
+    if (joined.series.status === "finished") { log("aoa run-series: all three games finished"); return 0; }
+    if (joined.series.status === "error") { log("aoa run-series: series persistence failed"); return 1; }
+    if (joined.game.id === last || joined.game.status === "finished") {
+      await new Promise((r) => setTimeout(r, o.backoffMs ?? 1000)); continue;
+    }
+    const env: NodeJS.ProcessEnv = { ...(o.env ?? process.env), AOA_SERVER: c.server, AOA_TOKEN: joined.game.token };
+    delete env.AOA_RESUME;
+    log(`aoa run-series: game ${joined.game.number}/3 (${joined.game.id})`);
+    const code = await run(client({ server: c.server, token: joined.game.token }), cmd, { ...o, env, log });
+    if (code !== 0) return code;
+    last = joined.game.id;
   }
 }
 

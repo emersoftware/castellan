@@ -30,6 +30,16 @@ const order = z.object({
 export function createServer(c: aoa.Client = aoa.client()): McpServer {
   const server = new McpServer({ name: "aoa", version: "0.1.0" });
 
+  server.registerTool("history", {
+    description: "Completed previous games in your current series. No game argument lists available games. Sections: summary (result), events (visible events), chat (visible conversation), scripts (your final scripts), orders (your orders and results). Game 1 has no previous history. Only earlier games in your series are accessible; no opponents' scripts or other players' private chat. Detail sections return items and next offset, null at the end.",
+    inputSchema: {
+      game: z.number().int().min(1).max(3).optional(),
+      section: z.enum(["summary", "events", "chat", "scripts", "orders"]).optional(),
+      offset: z.number().int().min(0).optional(),
+      limit: z.number().int().min(1).max(100).optional(),
+    },
+  }, (args) => reply(() => aoa.history(c, args)));
+
   server.registerTool(
     "rules",
     { description: "Age of Agents player guide: how to win, unit stats and costs, order shapes, the unit script API. Read it once before playing." },

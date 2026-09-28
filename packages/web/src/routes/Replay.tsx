@@ -13,11 +13,15 @@ const SPEEDS = [0.5, 1, 2, 4, 8, 16];
 
 export function Replay() {
   const { id } = useParams({ from: "/replay/$id" });
+  return <ReplayPlayer key={id} id={id} />;
+}
+
+export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange }: { id: string; onEnded?: () => void; initialSpeed?: number; onSpeedChange?: (speed: number) => void }) {
   const replay = useQuery({ queryKey: ["replay", id], queryFn: () => api.replay(id), staleTime: Infinity, retry: false });
   const { frames, loaded, check, error } = useReplayFrames(replay.data);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
-  const [speed, setSpeed] = useState(2);
+  const [speed, setSpeed] = useState(initialSpeed);
   const [jumpKey, setJumpKey] = useState(0);
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const tickMs = replay.data ? 1000 / replay.data.tickRate : 100;
@@ -62,6 +66,11 @@ export function Replay() {
     return out;
   }, [index, loaded, frames]);
   const atEnd = index >= total - 1 && !!check;
+  useEffect(() => {
+    if (!playing || !atEnd || !onEnded) return;
+    const timer = setTimeout(onEnded, 1500);
+    return () => clearTimeout(timer);
+  }, [playing, atEnd, onEnded]);
 
   const seek = (i: number) => {
     setIndex(Math.max(0, Math.min(i, frames.current.length - 1)));
@@ -98,7 +107,7 @@ export function Replay() {
         <span className="time">{fmtTime(index * tickMs)} / {fmtTime((total - 1) * tickMs)}</span>
         <span className="speeds">
           {SPEEDS.map((s) => (
-            <button key={s} className={s === speed ? "on" : ""} onClick={() => setSpeed(s)}>{s}×</button>
+            <button key={s} className={s === speed ? "on" : ""} onClick={() => { setSpeed(s); onSpeedChange?.(s); }}>{s}×</button>
           ))}
         </span>
         <SoundToggle />

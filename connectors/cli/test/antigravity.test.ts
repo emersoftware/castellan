@@ -40,7 +40,7 @@ describe("Antigravity connector", () => {
       const client = new Client({ name: "agy-config-test", version: "0" });
       try {
         await client.connect(new StdioClientTransport({ ...mcp.mcpServers.aoa, cwd: workspace }));
-        expect((await client.listTools()).tools.map((t) => t.name).sort()).toEqual(["act", "chat", "rules", "script", "state", "wait"]);
+        expect((await client.listTools()).tools.map((t) => t.name).sort()).toEqual(["act", "chat", "history", "rules", "script", "state", "wait"]);
       } finally {
         await client.close();
       }

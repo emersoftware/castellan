@@ -13,3 +13,11 @@ const app = await buildServer({
 });
 await app.listen({ port, host: process.env.HOST ?? "0.0.0.0" });
 console.log(`Age of Agents server on http://localhost:${port}`);
+
+let stopping = false;
+for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, async () => {
+  if (stopping) return;
+  stopping = true;
+  try { await app.close(); process.exit(0); }
+  catch (error) { console.error("Unable to save server progress:", error); process.exit(1); }
+});

@@ -6,7 +6,7 @@
 import { randomBytes } from "node:crypto";
 import { createMatch, type Match } from "@aoa/engine";
 import type {
-  ChatMessage, GameEvent, MatchStatus, Order, OrderResult, PlayerId, PlayerTiming, PlayerView, ReplayFile, Ruleset, SpectatorMessage, SpectatorView,
+  ChatMessage, GameEvent, MatchStatus, Order, OrderResult, PlayerId, PlayerTiming, PlayerView, ReplayFile, Ruleset, SeriesProgress, SpectatorMessage, SpectatorView,
 } from "@aoa/shared";
 import { BOTS, type Bot } from "@aoa/sim";
 
@@ -28,6 +28,10 @@ export interface RoomPlayer {
 }
 
 export interface RoomOptions {
+  id?: string;
+  createdAt?: string;
+  /** Series rooms start only after their credentials/checkpoint have been saved. */
+  deferredStart?: boolean;
   ruleset: Ruleset;
   /** One per map seat. `team` defaults to each player alone (2 seats) or 2v2 in list order (4 seats). */
   players: { name: string; bot?: string; team?: number }[];
@@ -43,6 +47,18 @@ export interface RoomOptions {
   /** Players may send chat messages to each other. */
   chat: boolean;
   onFinish: (replay: ReplayFile) => void;
+}
+
+export interface RoomCheckpoint {
+  options: Omit<RoomOptions, "onFinish">;
+  players: { id: string; token: string; side: number; team: number }[];
+  tick: number;
+  hash: string;
+  orders: ReplayFile["orders"];
+  hashes: Record<number, string>;
+  timing: Record<string, PlayerTiming>;
+  cursors: [string, number][];
+  lastChat: [string, number][];
 }
 
 interface Pending {
@@ -64,7 +80,8 @@ export interface Spectator {
 
 export class Room {
   readonly id: string;
-  readonly createdAt = new Date();
+  readonly createdAt: Date;
+  seriesProgress?: () => SeriesProgress;
   readonly players: RoomPlayer[];
   readonly ruleset: Ruleset;
   readonly tickRate: number;
@@ -77,6 +94,7 @@ export class Room {
   private recorded: ReplayFile["orders"] = [];
   private hashes: Record<number, string> = {};
   private timer: NodeJS.Timeout | null = null;
+  private closed = false;
   private runningSince = 0;
   private timing = new Map<PlayerId, PlayerTiming & { answeredAt: number | null }>();
   private lastChat = new Map<PlayerId, number>();
@@ -86,7 +104,8 @@ export class Room {
   private chatLog: ChatMessage[] = [];
 
   private constructor(private opts: RoomOptions) {
-    this.id = randomBytes(4).toString("hex");
+    this.id = opts.id ?? randomBytes(4).toString("hex");
+    this.createdAt = opts.createdAt ? new Date(opts.createdAt) : new Date();
     this.ruleset = opts.ruleset;
     this.tickRate = opts.tickRate;
     const every = Math.max(1, Math.round((opts.botLatencyMs * opts.tickRate) / 1000));
@@ -114,8 +133,58 @@ export class Room {
   static async create(opts: RoomOptions): Promise<Room> {
     const room = new Room(opts);
     room.match = await createMatch({ ruleset: opts.ruleset, seed: opts.seed, tickRate: opts.tickRate, players: room.players.map(({ id, name, side, team }) => ({ id, name, side, team })) });
-    room.maybeStart();
+    if (!opts.deferredStart) room.maybeStart();
     return room;
+  }
+
+  activate() { this.maybeStart(); }
+
+  checkpoint(): RoomCheckpoint {
+    const { onFinish: _, ...options } = this.opts;
+    return {
+      options: { ...options, id: this.id, createdAt: this.createdAt.toISOString() },
+      players: this.players.map(({ id, token, side, team }) => ({ id, token, side, team })),
+      tick: this.tick, hash: this.match.hash(), orders: this.recorded, hashes: this.hashes,
+      timing: this.timingStats(), cursors: [...this.seen], lastChat: [...this.lastChat],
+    };
+  }
+
+  static async restore(saved: RoomCheckpoint, onFinish: RoomOptions["onFinish"]): Promise<Room> {
+    const room = new Room({ ...saved.options, deferredStart: true, onFinish });
+    for (const p of room.players) Object.assign(p, saved.players.find((s) => s.id === p.id));
+    room.match = await createMatch({ ruleset: room.ruleset, seed: saved.options.seed, tickRate: room.tickRate, players: room.players });
+    const byTick = new Map<number, typeof saved.orders>();
+    for (const order of saved.orders) {
+      const list = byTick.get(order.tick) ?? [];
+      list.push(order); byTick.set(order.tick, list);
+    }
+    while (room.tick < saved.tick && !room.match.outcome) {
+      // Rebuild reference bots' private decision state without enqueueing twice.
+      for (const p of room.players) if (p.bot && room.tick % p.bot.every === p.bot.offset) p.bot.fn(room.match.view(p.id, room.tick));
+      const { events } = room.match.step(byTick.get(room.tick) ?? []);
+      room.captureChat(events);
+    }
+    if (room.tick !== saved.tick || room.match.hash() !== saved.hash) {
+      room.match.dispose(); throw new Error(`checkpoint mismatch for room ${room.id}`);
+    }
+    room.recorded = saved.orders;
+    room.hashes = saved.hashes;
+    room.seen = new Map(saved.cursors);
+    room.lastChat = new Map(saved.lastChat);
+    for (const [player, timing] of Object.entries(saved.timing)) room.timing.set(player, { ...timing, answeredAt: null });
+    if (room.match.outcome) room.status = "finished";
+    return room;
+  }
+
+  replay(): ReplayFile | undefined {
+    if (!this.match.outcome) return;
+    return { format: 1, id: this.id, createdAt: this.createdAt.toISOString(), ruleset: this.ruleset,
+      seed: this.opts.seed, tickRate: this.tickRate,
+      players: this.players.map(({ id, name, side, team }) => ({ id, name, side, team })),
+      orders: this.recorded, hashes: { ...this.hashes, [this.tick]: this.match.hash() }, finalTick: this.tick,
+      outcome: this.match.outcome, timing: this.timingStats(), chat: this.chat,
+      ...(this.seriesProgress ? { series: { id: this.seriesProgress().id, gameNumber: this.seriesProgress().gameNumber, totalGames: 3 as const } } : {}),
+    };
   }
 
   cursor(player: PlayerId): number {
@@ -136,6 +205,7 @@ export class Room {
   get tick(): number {
     return this.match.tick;
   }
+  get outcome() { return this.match.outcome; }
 
   /**
    * A player's call begins. The gap since we last answered it is its thinking
@@ -191,6 +261,7 @@ export class Room {
     const v = this.match.view(player, since ?? this.seen.get(player) ?? 0);
     this.seen.set(player, v.tick);
     v.status = this.status;
+    v.series = this.seriesProgress?.();
     const messages = this.conversation(player).slice(-5);
     v.chat = { enabled: this.chat, messages };
     // Keep older chat out of JSON events too, even with an explicit old cursor.
@@ -265,6 +336,7 @@ export class Room {
   summary() {
     return {
       id: this.id,
+      series: this.seriesProgress?.(),
       status: this.status,
       tick: this.tick,
       timeMs: this.match.spectate().timeMs,
@@ -280,23 +352,30 @@ export class Room {
   }
 
   close() {
-    if (this.timer) clearInterval(this.timer);
+    this.suspend();
     for (const w of [...this.waiters]) w.resolve();
     this.match.dispose();
+  }
+
+  suspend() {
+    this.closed = true;
+    if (this.timer) clearTimeout(this.timer);
   }
 
   // ───────────────────────── lifecycle ─────────────────────────
 
   private maybeStart() {
-    if (this.status !== "waiting" || !this.players.every((p) => p.seen)) return;
+    if (this.closed || this.status !== "waiting" || !this.players.every((p) => p.seen)) return;
+    if (this.tick > 0) { this.run(); return; }
     const humansOrLlms = this.players.some((p) => !p.bot);
     const prep = humansOrLlms ? this.opts.prepMs : 0;
     this.setStatus("prep");
     this.prepEndsAt = Date.now() + prep;
-    setTimeout(() => this.run(), prep);
+    this.timer = setTimeout(() => this.run(), prep);
   }
 
   private run() {
+    if (this.closed) return;
     this.runningSince = Date.now();
     this.setStatus("running");
     const ms = 1000 / this.tickRate;
@@ -333,21 +412,7 @@ export class Room {
     this.hashes[this.match.tick] = this.match.hash();
     this.setStatus("finished");
     if (this.timer) clearTimeout(this.timer);
-    this.opts.onFinish({
-      format: 1,
-      id: this.id,
-      createdAt: this.createdAt.toISOString(),
-      ruleset: this.ruleset,
-      seed: this.opts.seed,
-      tickRate: this.tickRate,
-      players: this.players.map(({ id, name, side, team }) => ({ id, name, side, team })),
-      orders: this.recorded,
-      hashes: this.hashes,
-      finalTick: this.match.tick,
-      outcome: this.match.outcome!,
-      timing: this.timingStats(),
-      chat: this.opts.chat,
-    });
+    this.opts.onFinish(this.replay()!);
   }
 
   private setStatus(s: MatchStatus) {
@@ -357,10 +422,14 @@ export class Room {
   }
 
   private notify(events: GameEvent[]) {
-    for (const e of events) if (e.type === "chat") this.chatLog.push({ tick: e.tick, from: e.owner, name: this.player(e.owner).name, text: e.text, ...(e.channel ? { channel: e.channel } : {}), ...(e.to ? { to: e.to } : {}) });
+    this.captureChat(events);
     this.broadcast();
     if (events.length === 0) return;
     for (const w of [...this.waiters]) if (this.hasNews(w.player, w.since, w.until)) w.resolve();
+  }
+
+  private captureChat(events: GameEvent[]) {
+    for (const e of events) if (e.type === "chat") this.chatLog.push({ tick: e.tick, from: e.owner, name: this.player(e.owner).name, text: e.text, ...(e.channel ? { channel: e.channel } : {}), ...(e.to ? { to: e.to } : {}) });
   }
 
   private hasNews(player: PlayerId, since: number, until: Set<string> | null): boolean {

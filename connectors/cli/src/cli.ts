@@ -7,6 +7,7 @@ import * as cmd from "./commands";
 const USAGE = `aoa — Age of Agents client (env AOA_SERVER, AOA_TOKEN)
 
   aoa rules                          player guide
+  aoa history [--game N] [--section summary|events|chat|scripts|orders] [--offset N] [--limit N]
   aoa state [--since T]              your view (+ events since tick T)
   aoa act '<order|[orders]>'         or: aoa act -f orders.json (- = stdin)
   aoa script <kind>                  print the current script
@@ -19,6 +20,8 @@ const USAGE = `aoa — Age of Agents client (env AOA_SERVER, AOA_TOKEN)
   aoa new [--name a --name b | --bot eco ...] [--map open|ridge|canyons|quad] [--sides random|fixed] [--chat] [--prep ms] [--seed n]
           [--mode teams|ffa] (quad defaults to 2v2; --mode ffa is 1v1v1v1)
   aoa rooms
+  aoa new --series                   create a three-game series (same options as new)
+  aoa run-series -- <command...>     play all three games with a series participant token
   aoa run -- <command...>            relaunch the agent until the match ends
 
   --json  raw JSON instead of text`;
@@ -34,6 +37,11 @@ const parse = () =>
     allowPositionals: true,
     options: {
       json: { type: "boolean" },
+      series: { type: "boolean" },
+      game: { type: "string" },
+      section: { type: "string" },
+      offset: { type: "string" },
+      limit: { type: "string" },
       since: { type: "string" },
       until: { type: "string" },
       file: { type: "string", short: "f" },
@@ -63,6 +71,8 @@ async function main(): Promise<string | number | void> {
   switch (name) {
     case "rules":
       return cmd.rules(c, { json });
+    case "history":
+      return cmd.history(c, { json, game: num(o.game), section: o.section, offset: num(o.offset), limit: num(o.limit) });
     case "state":
       return cmd.state(c, { json, since: num(o.since) });
     case "act": {
@@ -89,13 +99,14 @@ async function main(): Promise<string | number | void> {
       return;
     case "new":
       if (o.mode !== undefined && o.mode !== "teams" && o.mode !== "ffa") throw new Error('mode must be "teams" or "ffa"');
-      return cmd.newRoom(c, { json, names: o.name, bots: o.bot, prepMs: num(o.prep), seed: num(o.seed), map: o.map, sides: o.sides === "fixed" ? "fixed" : undefined, chat: o.chat, mode: o.mode });
+      return cmd.newRoom(c, { json, series: o.series, names: o.name, bots: o.bot, prepMs: num(o.prep), seed: num(o.seed), map: o.map, sides: o.sides === "fixed" ? "fixed" : undefined, chat: o.chat, mode: o.mode });
     case "rooms":
       return cmd.rooms(c, { json });
-    case "run": {
+    case "run":
+    case "run-series": {
       const command = dash < 0 ? [] : argv.slice(dash + 1);
       if (!command.length) throw new Error("usage: aoa run -- <command...>");
-      return cmd.run(c, command);
+      return name === "run-series" ? cmd.runSeries(c, command) : cmd.run(c, command);
     }
     default:
       console.log(USAGE);

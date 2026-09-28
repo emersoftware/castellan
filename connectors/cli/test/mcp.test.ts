@@ -89,7 +89,8 @@ describe("aoa-mcp", () => {
 
   it("serves the game over stdio", async () => {
     const { tools } = await mcp.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(["act", "chat", "rules", "script", "state", "wait"]);
+    expect(tools.map((t) => t.name).sort()).toEqual(["act", "chat", "history", "rules", "script", "state", "wait"]);
+    expect(JSON.parse(text(await mcp.callTool({ name: "history", arguments: {} })))).toEqual({ series: null, games: [] });
 
     const s = await mcp.callTool({ name: "state", arguments: {} });
     expect(s.isError).toBeFalsy();

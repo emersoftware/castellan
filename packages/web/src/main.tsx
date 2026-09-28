@@ -9,6 +9,7 @@ import { Battles } from "./routes/Battles";
 import { Watch } from "./routes/Watch";
 import { Replay } from "./routes/Replay";
 import { Record } from "./routes/Record";
+import { SeriesWatch, SeriesReplay } from "./routes/Series";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -24,6 +25,8 @@ const routeTree = rootRoute.addChildren([
   createRoute({ getParentRoute: () => rootRoute, path: "/watch/$id", component: Watch }),
   createRoute({ getParentRoute: () => rootRoute, path: "/replay/$id", component: Replay }),
   createRoute({ getParentRoute: () => rootRoute, path: "/record/$id", component: Record }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/series/$id/watch", component: SeriesWatch }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/series/$id/replay", component: SeriesReplay }),
 ]);
 const router = createRouter({ routeTree });
 declare module "@tanstack/react-router" {

@@ -122,6 +122,13 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
 
 /* ─────────── game ─────────── */
 .game { position: fixed; inset: 0; overflow: hidden; background: var(--black); }
+.series-strip { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6; background: rgba(0,0,0,.93); border: 1px solid var(--grey); padding: 10px 16px; max-width: calc(100vw - 32px); text-align: center; }
+.series-score, .series-games { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 16px; }
+.series-score { margin-bottom: 8px; }
+.series-score strong { color: var(--white); margin-left: 6px; }
+.series-result { font-size: 12px; margin-top: 6px; color: var(--light-grey); }
+.series-games button:disabled { opacity: .4; cursor: default; }
+@media (max-width: 900px) { .series-strip { top: 40px; width: calc(100vw - 32px); } .series-view .scores { top: 175px; } }
 .canvas-host { position: absolute; inset: 0; cursor: grab; }
 .canvas-host:active { cursor: grabbing; }
 .zoom { position: absolute; right: 14px; bottom: 70px; display: flex; flex-direction: column; gap: 4px; z-index: 3; }

@@ -3,7 +3,7 @@
  * (MCP, CLI, anything else) are thin clients of these routes.
  */
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
@@ -15,6 +15,7 @@ import { validateScript } from "@aoa/sandbox";
 import { MAPS, playerGuide, v0, viewToText, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
 import { BOTS } from "@aoa/sim";
 import { Room } from "./room";
+import { SeriesStore, type HistorySection } from "./series";
 
 export interface ServerOptions {
   replayDir: string;
@@ -31,6 +32,12 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   const rooms = new Map<string, Room>();
   const tokens = new Map<string, { room: Room; player: string }>();
   await mkdir(opts.replayDir, { recursive: true });
+  const register = (room: Room) => {
+    rooms.set(room.id, room);
+    for (const p of room.players) tokens.set(p.token, { room, player: p.id });
+  };
+  const series = new SeriesStore(join(opts.replayDir, "series"), register, (replay) => saveReplay(opts.replayDir, replay));
+  await series.load();
 
   const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 64 * 1024 });
   await app.register(cors, { origin: true });
@@ -61,7 +68,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
 
   app.get("/health", async () => ({ ok: true }));
 
-  app.post("/rooms", async (req, reply) => {
+  const createRoom = async (req: FastifyRequest, reply: FastifyReply) => {
     const body = (req.body ?? {}) as {
       players?: { name?: string; bot?: string; team?: number }[]; seed?: number; prepMs?: number; tickRate?: number; botLatencyMs?: number;
       map?: string; sides?: "random" | "fixed"; chat?: boolean; mode?: "teams" | "ffa";
@@ -81,25 +88,38 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
       if (count(0) !== 2 || count(1) !== 2) return reply.code(400).send({ error: "4-seat maps are 2v2: give two players team 0 and two team 1 (or no teams: list order)" });
     }
     for (const p of players) if (p.bot && !BOTS[p.bot]) return reply.code(400).send({ error: `unknown bot ${p.bot}; available: ${Object.keys(BOTS).join(", ")}` });
-    const room = await Room.create({
+    const config = {
       ruleset: { ...ruleset, map },
       players,
       mode: body.mode,
-      sides: body.sides === "fixed" ? "fixed" : "random",
+      sides: body.sides === "fixed" ? "fixed" as const : "random" as const,
       chat: body.chat === true,
       seed: int(body.seed, Math.floor(Math.random() * 2 ** 31)),
       tickRate: int(body.tickRate, opts.tickRate ?? 10),
       prepMs: int(body.prepMs, opts.prepMs ?? ruleset.prepMs),
       botLatencyMs: int(body.botLatencyMs, 3000),
-      onFinish: (replay) => void saveReplay(opts.replayDir, replay),
-    });
-    rooms.set(room.id, room);
-    for (const p of room.players) tokens.set(p.token, { room, player: p.id });
+    };
+    if (req.routeOptions.url === "/series") return series.create(config);
+    const room = await Room.create({ ...config, onFinish: (replay) => void saveReplay(opts.replayDir, replay) });
+    register(room);
     return {
       ...room.summary(),
       players: room.players.map((p) => ({ id: p.id, name: p.name, bot: p.bot?.name, side: p.side, team: p.team, token: p.bot ? undefined : p.token })),
       watch: `/watch/${room.id}`,
     };
+  };
+  app.post("/rooms", createRoom);
+  app.post("/series", createRoom);
+  app.get("/series", async () => series.list());
+  app.get("/series/current", async (req, reply) => {
+    const token = (req.headers.authorization ?? "").replace(/^Bearer /, "");
+    return series.current(token) ?? reply.code(401).send({ error: "a valid series participant token is required" });
+  });
+  app.get("/series/:id", async (req, reply) => series.summary((req.params as { id: string }).id) ?? reply.code(404).send({ error: "no such series" }));
+  app.get("/series/:id/replay.json", async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    if (!series.summary(id)) return reply.code(404).send({ error: "no such series" });
+    return series.replay(id) ?? reply.code(409).send({ error: "series replay is available after all three games finish" });
   });
 
   app.get("/maps", async () => Object.values(MAPS).map(({ name, description, width, height, walls, seats }) => ({ name, description, width, height, walls, players: seats ?? 2 })));
@@ -136,7 +156,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const h = req.headers.authorization ?? "";
     const room = tokens.get(h.startsWith("Bearer ") ? h.slice(7) : "")?.room;
     const r = room?.ruleset ?? ruleset;
-    const guide = playerGuide(r, { chat: room?.chat ?? false, teams: room?.teams });
+    const guide = playerGuide(r, { chat: room?.chat ?? false, teams: room?.teams, series: room?.seriesProgress?.() });
     if (wantsText(req)) return guide;
     return { ruleset: r, guide };
   });
@@ -147,6 +167,25 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const q = req.query as Record<string, string>;
     const v = who.room.view(who.player, q.since === undefined ? undefined : int(q.since, 0));
     return wantsText(req) ? viewToText(v) : v;
+  });
+
+  app.get("/history", async (req, reply) => {
+    const who = auth(req, reply);
+    if (!who) return;
+    const q = req.query as Record<string, string>;
+    const section = q.section ?? "summary";
+    if (!["summary", "events", "chat", "scripts", "orders"].includes(section)) return reply.code(400).send({ error: "section must be summary, events, chat, scripts or orders" });
+    const game = q.game === undefined ? undefined : Number(q.game);
+    const offset = q.offset === undefined ? 0 : Number(q.offset);
+    const limit = q.limit === undefined ? 50 : Number(q.limit);
+    if ((game !== undefined && (!Number.isInteger(game) || game < 1 || game > 3)) || !Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) return reply.code(400).send({ error: "game must be 1..3, offset >= 0, limit 1..100 (integers)" });
+    try {
+      const history = await series.history(who.room.id, who.player, game, section as HistorySection, offset, limit);
+      return wantsText(req) ? JSON.stringify(history, null, 2) : history;
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("only completed previous")) return reply.code(403).send({ error: error.message });
+      throw error;
+    }
   });
 
   app.post("/act", async (req, reply) => {
@@ -234,6 +273,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   }
 
   app.addHook("onClose", async () => {
+    await series.close();
     for (const r of rooms.values()) r.close();
   });
   return app;
@@ -266,12 +306,21 @@ interface ReplayIndexEntry {
   tickRate: number;
 }
 
-export async function saveReplay(dir: string, replay: ReplayFile): Promise<void> {
-  await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, `${replay.id}.json.gz`), gzipSync(JSON.stringify(replay)));
-  const index = await readIndex(dir);
-  index.unshift({ id: replay.id, createdAt: replay.createdAt, players: replay.players, outcome: replay.outcome, finalTick: replay.finalTick, tickRate: replay.tickRate });
-  await writeFile(join(dir, "index.json"), JSON.stringify(index, null, 1));
+const replayWrites = new Map<string, Promise<void>>();
+export function saveReplay(dir: string, replay: ReplayFile): Promise<void> {
+  const write = (replayWrites.get(dir) ?? Promise.resolve()).catch(() => {}).then(async () => {
+    await mkdir(dir, { recursive: true });
+    const path = join(dir, `${replay.id}.json.gz`);
+    await writeFile(`${path}.tmp`, gzipSync(JSON.stringify(replay)));
+    await rename(`${path}.tmp`, path);
+    const index = (await readIndex(dir)).filter((r) => r.id !== replay.id);
+    index.unshift({ id: replay.id, createdAt: replay.createdAt, players: replay.players, outcome: replay.outcome, finalTick: replay.finalTick, tickRate: replay.tickRate });
+    const indexPath = join(dir, "index.json");
+    await writeFile(`${indexPath}.tmp`, JSON.stringify(index, null, 1));
+    await rename(`${indexPath}.tmp`, indexPath);
+  });
+  replayWrites.set(dir, write);
+  return write;
 }
 
 async function readIndex(dir: string): Promise<ReplayIndexEntry[]> {

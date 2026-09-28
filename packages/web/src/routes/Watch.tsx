@@ -10,6 +10,10 @@ import type { HoverInfo } from "../render/renderer";
 
 export function Watch() {
   const { id } = useParams({ from: "/watch/$id" });
+  return <WatchPlayer key={id} id={id} />;
+}
+
+export function WatchPlayer({ id }: { id: string }) {
   const room = useQuery({ queryKey: ["room", id], queryFn: () => api.room(id), refetchInterval: 1000, refetchIntervalInBackground: true });
   const [ruleset, setRuleset] = useState<Ruleset | null>(null);
   const [tickMs, setTickMs] = useState(100);

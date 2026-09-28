@@ -1,4 +1,4 @@
-import type { Outcome, PlayerTiming, ReplayFile } from "@aoa/shared";
+import type { Outcome, PlayerTiming, ReplayFile, SeriesReplay, SeriesSummary } from "@aoa/shared";
 
 export interface RoomSummary {
   id: string;
@@ -35,11 +35,16 @@ async function json<T>(res: Response): Promise<T> {
 
 /** A replay dropped into the page (never uploaded anywhere). */
 let dropped: ReplayFile | null = null;
+let droppedSeries: SeriesReplay | null = null;
 export function setDroppedReplay(r: ReplayFile) {
   dropped = r;
 }
+export function setDroppedSeries(r: SeriesReplay) { droppedSeries = r; }
 
 export const api = {
+  series: () => fetch("/series").then((r) => json<SeriesSummary[]>(r)),
+  seriesSummary: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries.series) : fetch(`/series/${id}`).then((r) => json<SeriesSummary>(r)),
+  seriesReplay: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries) : fetch(`/series/${id}/replay.json`).then((r) => json<SeriesReplay>(r)),
   room: (id: string) => fetch(`/rooms/${id}`).then((r) => json<RoomSummary>(r)),
 
   /** Featured replays ship with the site; a local server adds yours. */
@@ -57,6 +62,8 @@ export const api = {
   },
 
   async replay(id: string): Promise<ReplayFile> {
+    const seriesGame = droppedSeries?.games.find((g) => g.id === id);
+    if (seriesGame) return seriesGame;
     if (id === "dropped") {
       if (!dropped) throw new Error("no replay file loaded");
       return dropped;
@@ -70,13 +77,17 @@ export const api = {
 };
 
 /** Reads a replay file (.json or .json.gz) chosen or dropped by the user. */
-export async function readReplayFile(file: File): Promise<ReplayFile> {
+export async function readReplayFile(file: File): Promise<ReplayFile | SeriesReplay> {
   let text: string;
   if (file.name.endsWith(".gz")) {
     const stream = file.stream().pipeThrough(new DecompressionStream("gzip"));
     text = await new Response(stream).text();
   } else text = await file.text();
-  const r = JSON.parse(text) as ReplayFile;
+  const r = JSON.parse(text) as ReplayFile | SeriesReplay;
+  if (r.format === "aoa-series-v1") {
+    if (r.series?.totalGames !== 3 || r.series.status !== "finished" || !Array.isArray(r.games) || r.games.length !== 3 || r.games.some((g) => g.format !== 1 || !Array.isArray(g.orders))) throw new Error("not a complete three-game series replay");
+    return r;
+  }
   if (r.format !== 1 || !Array.isArray(r.orders)) throw new Error("not an Age of Agents replay");
   return r;
 }

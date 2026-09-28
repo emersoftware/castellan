@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { api, fmtTime, readReplayFile, setDroppedReplay } from "../api";
+import { api, fmtTime, readReplayFile, setDroppedReplay, setDroppedSeries } from "../api";
 import { Versus, wonText } from "../components/Versus";
 
 export function Battles() {
   const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays });
+  const series = useQuery({ queryKey: ["series"], queryFn: api.series, refetchInterval: 3000 });
   const nav = useNavigate();
   const [over, setOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -13,8 +14,14 @@ export function Battles() {
   const open = async (file: File | undefined) => {
     if (!file) return;
     try {
-      setDroppedReplay(await readReplayFile(file));
-      nav({ to: "/replay/$id", params: { id: "dropped" } });
+      const replay = await readReplayFile(file);
+      if (replay.format === "aoa-series-v1") {
+        setDroppedSeries(replay);
+        nav({ to: "/series/$id/replay", params: { id: "dropped" } });
+      } else {
+        setDroppedReplay(replay);
+        nav({ to: "/replay/$id", params: { id: "dropped" } });
+      }
     } catch (e) {
       setError(String((e as Error).message));
     }
@@ -42,11 +49,16 @@ export function Battles() {
         }}
       >
         <input type="file" accept=".json,.gz" hidden onChange={(e) => void open(e.target.files?.[0])} />
-        Drop a replay from your machine here (<code>replays/*.json.gz</code>) or click to choose one. It never leaves your browser.
+        Drop a game or series replay here (.json or .json.gz), or click to choose one. It never leaves your browser.
         {error && <div className="error">{error}</div>}
       </label>
 
       <div className="battle-list">
+        {(series.data ?? []).map((s) => <Link key={s.id} to={s.status === "finished" ? "/series/$id/replay" : "/series/$id/watch"} params={{ id: s.id }} className="battle">
+          <div className="title">Three-game series <span className="tag">{s.status === "finished" ? "replay" : "live"}</span></div>
+          <Versus players={s.players} />
+          <div className="meta">{s.players.map((p) => `${p.name}: ${s.score[p.id]}`).join(" · ")} · {s.status === "finished" ? "3 games completed" : `Game ${s.currentGame} of 3`}</div>
+        </Link>)}
         {(replays.data ?? []).map((r) => (
           <Link key={r.id} to="/replay/$id" params={{ id: r.id }} className="battle">
             <div className="title">

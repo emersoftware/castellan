@@ -1,3 +1,68 @@
+ACTUALIZACIÓN: CONECTOR DEEPSEEK HARNESS (2026-09-28)
+
+Hay un conector oficial dsh 0.1.7-rc.2 en connectors/loop-keepers/deepseek/.
+Modelo por defecto: deepseek-flash. Esfuerzo por defecto: low.
+Usa el mismo prompt inicial y las mismas siete tools MCP descritas abajo.
+Modelo, esfuerzo y versión de harness se registran por separado en run.json.
+
+El perfil deshabilita herramientas de shell, archivos, web, subagentes y acceso
+a otros MCP. También valida que solo estén disponibles las siete tools de AoA.
+Cada proceso usa un directorio vacío y un DSH_HOME independiente; la memoria de
+serie sigue viniendo de rules/state/history. Esto limita las capacidades del
+modelo, pero no constituye un sandbox de sistema operativo para Node/dsh.
+
+Se instala con node connectors/loop-keepers/deepseek/setup.mjs.
+Se valida sin llamadas pagadas con:
+node connectors/loop-keepers/deepseek/agent.mjs --check
+
+Para jugar requiere DEEPSEEK_API_KEY configurada localmente y AOA_TOKEN.
+Partida: connectors/loop-keepers/deepseek/play.sh --effort low
+Serie: pnpm aoa run-series -- node connectors/loop-keepers/deepseek/agent.mjs --effort low
+Guarda sesiones JSONL y usage.json con tokens reportados por el proveedor.
+Detalles, límites de aislamiento y pruebas: connectors/loop-keepers/deepseek/README.md.
+
+──────────────────────────────────────────────────────────────────────────────
+
+ACTUALIZACIÓN: SERIES DE TRES JUEGOS (2026-09-28)
+
+La API ahora permite aoa new --series y aoa run-series -- <comando del agente>.
+Cada juego arranca un proceso nuevo, con el mismo modelo/esfuerzo y otro token.
+El prompt inicial sigue siendo general: la información de la serie pertenece
+al servidor y se descubre mediante rules, state y la nueva tool history.
+La primera frase actual usa "Play through the tools provided by the aoa MCP
+server." en lugar de enumerar seis tools. Ahora hay siete: rules, state, act,
+script, wait, chat, history. Las secciones históricas inferiores son snapshots.
+
+MCP entrada: {"name":"history","arguments":{}}
+Salida en el primer juego: {"series":{"id":"<series-id>","gameNumber":1,
+"totalGames":3,"status":"running","score":{"p1":0,"p2":0},
+"previousGames":[]},"games":[]}
+
+MCP entrada: {"name":"history","arguments":{"game":1,"section":"chat","limit":50}}
+Salida ilustrativa durante el segundo juego:
+{"game":1,"section":"chat","items":[{"tick":40,"type":"chat","owner":"p1",
+"to":"p2","text":"pactemos una tregua"}],"total":1,"next":null}
+
+history lista solo juegos anteriores completados. section acepta summary,
+events, chat, scripts, orders. La paginación usa offset, limit (1..100,
+default 50) y next (siguiente offset o null). Chat se filtra por visibilidad;
+scripts y órdenes son los propios. Los replays para espectadores siguen
+mostrando todas las órdenes y conversaciones, como antes.
+
+state incorpora series: id, gameNumber, totalGames, status, score, previousGames.
+rules explica el modo y cómo consultar history; el agente decide cómo usarlo.
+El estado del tablero, capital y scripts se reinicia entre juegos. La memoria
+no depende de conservar la conversación del proceso anterior.
+
+Watch: /series/<id>/watch. Replay: /series/<id>/replay.
+Exportación: GET /series/<id>/replay.json, bundle aoa-series-v1 con los tres juegos.
+Se puede abrir el archivo completo desde Battles; no se sube al servidor.
+Persistencia y recuperación: ver SERIES.md (incluye límite del checkpoint
+periódico ante cierre abrupto). No cambia el aislamiento del harness descrito
+abajo ni se agrega acceso local para leer el historial.
+
+──────────────────────────────────────────────────────────────────────────────
+
 ACTUALIZACIÓN DEL SETUP — 27 DE SEPTIEMBRE DE 2026
 
 Esta actualización reemplaza el comportamiento de chat y el prompt del snapshot

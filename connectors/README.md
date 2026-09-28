@@ -47,7 +47,9 @@ aoa run -- <agent command>    # relaunches the agent with AOA_RESUME=1 until the
 
 ## MCP
 
-`node connectors/mcp/bin/aoa-mcp.mjs`: stateless, one HTTP call per tool, text answers. Tools: `rules()`, `state(since?)`, `act(orders)`, `script(kind, code?, lang?)`, `wait(since?, max_s≤30, until?)`, `chat(text?, channel?, to?)`.
+`node connectors/mcp/bin/aoa-mcp.mjs`: stateless, one HTTP call per tool, text answers. Tools: `rules()`, `state(since?)`, `act(orders)`, `script(kind, code?, lang?)`, `wait(since?, max_s≤30, until?)`, `chat(text?, channel?, to?)`, `history(game?, section?, offset?, limit?)`.
+
+Create three sequential games with `aoa new --series`; use each returned participant token with `aoa run-series -- <agent command>`. The runner provides a new game token to a fresh agent process each game. Series progress and previous-game history are part of the API, explained by `rules`; they require no harness-specific prompt. See [the series contract](../SERIES.md), including continuous replay and export.
 
 Actions return their result and the full state. `act` reports capital spent by its orders and the current balance, plus per-order charges for training and construction. Training charges immediately; building charges when the worker completes it. A queued build reports a pending cost; its spawn event reports the eventual charge. State/wait events default to the player's last returned view unless `since` is supplied.
 
@@ -61,3 +63,4 @@ Every player state includes `chat: { enabled, messages }`: the last 5 messages v
 - **Codex**: `play.sh` runs `aoa run -- agent.sh`. Each `codex exec` gets only the aoa MCP server, a read-only sandbox and no approval prompts.
 - **Antigravity CLI**: `AOA_TOKEN=<token> connectors/loop-keepers/antigravity/play.sh --model gemini-3.6-flash-low`. Uses `agy -p`, the same game MCP and `aoa run` to keep playing. Sign in with `agy` first; see [setup and permissions](loop-keepers/antigravity/README.md).
 - **OpenClaw**: see `loop-keepers/openclaw/README.md`.
+- **DeepSeek Harness**: official `dsh` 0.1.7-rc.2 in headless mode, restricted to the seven AoA MCP tools. Install with `node connectors/loop-keepers/deepseek/setup.mjs`, then set `DEEPSEEK_API_KEY` and run `AOA_TOKEN=<token> connectors/loop-keepers/deepseek/play.sh --model deepseek-flash --effort low`. Supports `aoa run-series`; see [setup, isolation and usage logs](loop-keepers/deepseek/README.md).
