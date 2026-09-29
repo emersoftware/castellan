@@ -115,6 +115,10 @@ describe("chat and timing", () => {
     expect(summary.chat).toBe(true);
     expect(summary.timing.p1.calls).toBeGreaterThanOrEqual(3);
     expect(summary.timing.p1.thinks).toBeGreaterThanOrEqual(1);
+    // Supervisor status checks are not player calls.
+    expect((await call("/status", "nope")).status).toBe(401);
+    expect((await call("/status", a)).body).toMatchObject({ room: on.id, player: "p1", status: "running" });
+    expect((await call(`/rooms/${on.id}`)).body.timing.p1.calls).toBe(summary.timing.p1.calls);
     expect((await call("/rules?format=text", a)).body).toContain("## Chat");
     expect((await call("/chat?format=text", b)).body).toContain("p1 a: gg, your nexus is mine");
 

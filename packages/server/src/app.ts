@@ -165,6 +165,14 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return { ruleset: r, guide };
   });
 
+  // For harness supervisors: checks a token's match without counting as a player call or connection.
+  app.get("/status", async (req, reply) => {
+    const h = req.headers.authorization ?? "";
+    const who = tokens.get(h.startsWith("Bearer ") ? h.slice(7) : "");
+    if (!who) return reply.code(401).send({ error: "missing or invalid token (Authorization: Bearer <token>)" });
+    return { room: who.room.id, player: who.player, status: who.room.state, tick: who.room.tick };
+  });
+
   app.get("/state", async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
