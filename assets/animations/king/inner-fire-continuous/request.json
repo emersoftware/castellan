@@ -1,0 +1,19 @@
+{
+  "space": "emersoftware/aoa-minimax-animation-worker",
+  "original_space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "prompt": "Locked still head and camera. Only fire and sparks stream steadily from inside hood toward upper right. Constant strong flow, no buildup or pauses. Particles fade before frame edges.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 6,
+  "steps": 8,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "first_and_last_frame": false,
+  "source": "assets/raw/king-head-inner-fire-v2.png",
+  "reference": "reference.png",
+  "reference_size": 384,
+  "reference_offset": [
+    16,
+    128
+  ]
+}

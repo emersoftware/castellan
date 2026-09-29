@@ -1,0 +1,19 @@
+{
+  "space": "emersoftware/aoa-minimax-animation-worker",
+  "original_space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "prompt": "Only fire and sparks blast from inside the hood, bottom-left to top-right. Strong continuous flow, all particles stay inside frame. Head, crown, hood and camera perfectly still.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 6,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "first_and_last_frame": true,
+  "source": "assets/raw/king-head-inner-fire-v2.png",
+  "reference": "reference.png",
+  "reference_size": 384,
+  "reference_offset": [
+    16,
+    128
+  ]
+}
