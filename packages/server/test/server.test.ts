@@ -131,3 +131,30 @@ describe("chat and timing", () => {
     expect(denied.body.error).toMatch(/chat is off/);
   });
 });
+
+describe("one-shot player scripts", () => {
+  it("runs code over the JSON view and rules, applies its orders together, and returns value and logs", async () => {
+    const room = (await call("/rooms", undefined, { method: "POST", body: JSON.stringify({ players: [{ name: "a" }, { name: "b" }], prepMs: 0 }) })).body;
+    const [a, b] = room.players.map((p: any) => p.token);
+    await call("/state", a); await call("/state", b);
+    await new Promise((r) => setTimeout(r, 150));
+    const run = (code: string, format = "") => call(`/run${format}`, a, { method: "POST", body: JSON.stringify({ code }) });
+    const ok = (await run(`const base = view.mine.find(e => rules.kinds[e.kind].trains);
+      act({ type: "stop", unit: view.mine.find(e => !rules.kinds[e.kind].building).id });
+      act({ type: "chat", text: "not from run" });
+      log("capital", view.players.find(p => p.id === view.you).capital);
+      return { base: base.id, kinds: Object.keys(rules.kinds).length };`)).body;
+    expect(ok.error).toBeUndefined();
+    expect(ok.results).toEqual([{ ok: true }]);
+    expect(ok.rejected).toBe(1);
+    expect(ok.value).toMatchObject({ base: expect.any(String) });
+    expect(ok.logs[0]).toMatch(/^capital \d+$/);
+    const failed = (await run(`act({ type: "stop", unit: "e1" }); throw new Error("boom");`)).body;
+    expect(failed).toMatchObject({ error: "boom", orders: [], results: [] });
+    expect((await run("while (true) {}")).body.error).toMatch(/out of gas/);
+    const text = (await run(`return 42`, "?format=text")).body;
+    expect(text).toContain("run ok · 0 order(s)");
+    expect(text).toContain("returned: 42");
+    expect((await call("/run", a, { method: "POST", body: JSON.stringify({}) })).status).toBe(400);
+  });
+});

@@ -107,7 +107,7 @@ describe("DeepSeek connector", () => {
         expect(req.model).toBe("deepseek-flash");
         if (effort === "off") expect(req.thinking).toEqual({ type: "disabled" });
         else expect(req.output_config.effort).toBe("low");
-        expect(req.tools.map((t: any) => t.name).sort()).toEqual(["act", "chat", "history", "rules", "script", "state", "wait"].map((t) => `mcp__aoa__${t}`));
+        expect(req.tools.map((t: any) => t.name).sort()).toEqual(["act", "chat", "history", "rules", "run", "script", "state", "wait"].map((t) => `mcp__aoa__${t}`));
       }
       const final = (await game.inject({ url: "/state", headers: { authorization: `Bearer ${token}` } })).json();
       expect(final.status).toBe("finished");

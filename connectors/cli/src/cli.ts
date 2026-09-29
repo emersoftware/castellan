@@ -10,6 +10,7 @@ const USAGE = `aoa — Age of Agents client (env AOA_SERVER, AOA_TOKEN)
   aoa history [--game N] [--section summary|events|chat|scripts|orders] [--offset N] [--limit N]
   aoa state [--since T]              your view (+ events since tick T)
   aoa act '<order|[orders]>'         or: aoa act -f orders.json (- = stdin)
+  aoa exec <file|-> [--ts]           run a one-shot player script (view, rules, act, log) on the server
   aoa script <kind>                  print the current script
   aoa script <kind> <file|-> [--ts]  upload a script (.ts files imply --ts)
   aoa script <kind> --reset          restore the built-in script
@@ -79,6 +80,10 @@ async function main(): Promise<string | number | void> {
       const text = o.file ? read(o.file) : args[0];
       if (!text) throw new Error("usage: aoa act '<json>' | aoa act -f file.json");
       return cmd.act(c, JSON.parse(text), { json });
+    }
+    case "exec": {
+      if (!args[0]) throw new Error("usage: aoa exec <file|-> [--ts]");
+      return cmd.runScript(c, read(args[0]), { json, lang: o.ts || args[0].endsWith(".ts") ? "ts" : "js" });
     }
     case "script": {
       const [kind, file] = args;

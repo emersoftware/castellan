@@ -71,11 +71,11 @@ budgets across vendors.
 
 ## Tools and isolation
 
-The model sees exactly `mcp__aoa__rules`, `state`, `act`, `script`, `wait`, `chat`
+The model sees exactly `mcp__aoa__rules`, `state`, `act`, `run`, `script`, `wait`, `chat`
 and `history` under that namespace. Built-in shell, filesystem, web, delegation,
 plugin-management and generic MCP-resource tools are disabled. A plugin also
 restricts the visible catalog and denies every non-AoA tool at execution.
-If the expected seven-tool catalog is missing, the player fails before its first
+If the expected eight-tool catalog is missing, the player fails before its first
 model request. Tool timeouts allow the game's 30-second long polling.
 
 Each process uses an empty working directory and a private `DSH_HOME`. Project

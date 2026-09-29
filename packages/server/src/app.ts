@@ -11,7 +11,7 @@ import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { transform } from "esbuild";
-import { validateScript } from "@aoa/sandbox";
+import { runOnce, validateScript } from "@aoa/sandbox";
 import { mapsForRuleset, playerGuide, v10, viewToText, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
 import { BOTS } from "@aoa/sim";
 import { Room } from "./room";
@@ -213,6 +213,33 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const capital = { spent: results.reduce((n, r) => n + (r.capital?.spent ?? 0), 0), remaining: view.players.find((p) => p.id === who.player)!.capital };
     const line = results.map((r, i) => `order ${i}: ${r.ok ? "ok" + ("id" in r && r.id ? " " + r.id : "") : "FAILED " + r.reason}${r.capital ? ` · capital spent ${r.capital.spent}, remaining ${r.capital.remaining}${r.capital.pending !== undefined ? ` · build cost ${r.capital.pending} pending until completion` : ""}` : ""}`).join("\n");
     return wantsText(req) ? `${line}\ncapital spent by these orders: ${capital.spent} · remaining now: ${capital.remaining}\n\n${viewToText(view)}` : { results, capital, view };
+  });
+
+  // A one-shot player script: reads the full JSON view and rules, returns orders applied like /act.
+  app.post("/run", async (req, reply) => {
+    const who = auth(req, reply);
+    if (!who) return;
+    const body = req.body as { code?: unknown; lang?: unknown } | undefined;
+    if (typeof body?.code !== "string" || !body.code.trim()) return reply.code(400).send({ error: 'body must be {"code":"...","lang"?:"js"|"ts"}' });
+    let code = body.code;
+    if (body.lang === "ts") {
+      try { code = (await transform(code, { loader: "ts", format: "esm" })).code; }
+      catch (e) { return reply.code(400).send({ error: String((e as Error).message).slice(0, 300) }); }
+    }
+    const view = who.room.view(who.player);
+    const out = runOnce(code, { view, rules: who.room.ruleset ?? ruleset });
+    const allowed = new Set(["move", "attack", "gather", "build", "train", "upgrade", "stop"]);
+    const orders = out.orders.filter((o): o is Order => !!o && typeof o === "object" && allowed.has((o as Order).type));
+    const rejected = out.orders.length - orders.length;
+    const { results, tick } = orders.length ? await who.room.act(who.player, orders) : { results: [], tick: who.room.tick };
+    const result = { ...(out.error ? { error: out.error } : {}), tick, orders, results, ...(rejected ? { rejected } : {}), value: out.value, logs: out.logs };
+    if (!wantsText(req)) return result;
+    return [
+      out.error ? `run FAILED: ${out.error} (no orders applied)` : `run ok · ${orders.length} order(s)${rejected ? ` · ${rejected} ignored (run accepts move, attack, gather, build, train, upgrade, stop)` : ""}`,
+      ...results.map((r, i) => `order ${i} ${JSON.stringify(orders[i])}: ${r.ok ? "ok" + ("id" in r && r.id ? " " + r.id : "") : "FAILED " + r.reason}`),
+      ...(out.value !== null ? [`returned: ${JSON.stringify(out.value)}`] : []),
+      ...(out.logs.length ? ["logs:", ...out.logs.map((l) => `  ${l}`)] : []),
+    ].join("\n");
   });
 
   app.get("/chat", async (req, reply) => {

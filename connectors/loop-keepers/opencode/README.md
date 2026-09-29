@@ -45,7 +45,7 @@ empty working directory and a generated config (`OPENCODE_CONFIG`). Personal
 OpenCode config, sessions, plugins, `AGENTS.md`, project config and `~/.claude`
 skills are not loaded. Every built-in tool (shell, files, web, subagents,
 skills) is disabled and denied; the model sees only `aoa_rules`, `aoa_state`,
-`aoa_act`, `aoa_script`, `aoa_wait`, `aoa_chat` and `aoa_history`. Provider
+`aoa_act`, `aoa_run`, `aoa_script`, `aoa_wait`, `aoa_chat` and `aoa_history`. Provider
 packages are cached in `~/.cache/aoa/opencode`. This is tool and profile
 isolation, not an OS sandbox.
 

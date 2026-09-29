@@ -177,6 +177,21 @@ else self.hold();
 ` : ""}other: random() (seeded), log(msg) (shows up in your events)
 No Date, no I/O. CPU is metered: heavy loops run out of gas and the unit holds.
 
+## Player scripts (POST /run, MCP \`run\`, aoa exec)
+A one-shot script for you, not a unit: it runs once on the server, right away, and is gone.
+\`code\` is a function body with \`view\` (your full state as JSON: the same data as state,
+including underAttack and lastSeen), \`rules\` (this ruleset as JSON), \`act(order)\` (queue an
+order, same shapes as /act except script and chat; max 50) and \`log(...)\` in scope. Queued
+orders are applied together when it returns; if it throws, none are. The response has each
+order's result, your return value (JSON) and your logs. CPU and memory are metered
+(deterministically); no network, timers or I/O. It reads your view like a state call.
+\`\`\`js
+const target = view.enemy.filter(e => !e.ruin).sort((a, b) => a.hp - b.hp)[0];
+for (const u of view.mine.filter(u => u.kind === "knight"))
+  act(u.hp < u.maxHp / 3 ? { type: "move", unit: u.id, x: 4, y: 4 } : target ? { type: "attack", unit: u.id, target: target.id } : { type: "stop", unit: u.id });
+return { target: target && target.id };
+\`\`\`
+
 Default knight script:
 \`\`\`js
 ${r.defaultScripts.knight.trim()}

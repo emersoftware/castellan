@@ -90,6 +90,25 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
   );
 
   server.registerTool(
+    "run",
+    {
+      description:
+        "Run a one-shot player script on the server, once, right now. `code` is a JS function body with these in scope: " +
+        "`view` = your full state as JSON (players, mine, allies, enemy, deposits, grid, visibility, events since your last call, chat, underAttack, lastSeen, projectiles, timeMs, matchMs...; " +
+        "entities carry id, kind, owner, x, y, hp, maxHp, stats, order, doing, training), `rules` = the full ruleset JSON (kinds with costs and stats, upgrades, map), " +
+        "`act(order)` = queue one order (same shapes as act; move/attack/gather/build/train/upgrade/stop; max 50) and `log(...)`. " +
+        "All queued orders are applied together when it returns; if it throws, none are. Its return value (JSON) and logs come back with each order's result. " +
+        "Deterministic CPU/memory limits (heavy loops fail with out of gas); no network or timers. It reads your view like state does. Use it to issue computed batches of orders, " +
+        "e.g. every hurt knight retreats and the rest attack the weakest visible enemy, or to inspect data the text state summarizes.",
+      inputSchema: {
+        code: z.string().min(1).max(16384).describe("function body; may `return` a JSON value"),
+        lang: z.enum(["js", "ts"]).optional().describe("default js; ts types are stripped"),
+      },
+    },
+    ({ code, lang }) => reply(() => aoa.runScript(c, code, { lang })),
+  );
+
+  server.registerTool(
     "wait",
     {
       description:

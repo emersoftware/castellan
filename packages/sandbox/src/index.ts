@@ -180,6 +180,57 @@ export function createScriptHost(limits: ScriptLimits, seed: number): ScriptHost
   };
 }
 
+export interface RunLimits { maxBytes: number; heapBytes: number; gas: number; maxOrders: number; maxOutputBytes: number }
+export const RUN_LIMITS: RunLimits = { maxBytes: 16 * 1024, heapBytes: 32 * 1024 * 1024, gas: 2_500, maxOrders: 50, maxOutputBytes: 32 * 1024 };
+export interface RunResult { orders: unknown[]; logs: string[]; value: unknown; error?: string }
+
+/**
+ * Runs a player's one-shot script in a fresh VM: `code` is a function body with
+ * `view`, `rules`, `act(order)` and `log(...)` in scope; its return value is sent
+ * back. Gas is counted in interpreter cycles, so the cap is deterministic.
+ */
+export function runOnce(code: string, input: { view: unknown; rules: unknown }, limits: RunLimits = RUN_LIMITS): RunResult {
+  if (!quickjs) throw new Error("call initSandbox() first");
+  if (new TextEncoder().encode(code).length > limits.maxBytes) return { orders: [], logs: [], value: null, error: `script over ${limits.maxBytes} bytes` };
+  const runtime = quickjs.newRuntime();
+  runtime.setMemoryLimit(limits.heapBytes);
+  runtime.setMaxStackSize(512 * 1024);
+  let cycles = 0;
+  runtime.setInterruptHandler(() => ++cycles > limits.gas);
+  const ctx = runtime.newContext();
+  try {
+    const wrapper = `(function (input) {"use strict";
+  const data = JSON.parse(input), orders = [], logs = [];
+  const act = function (order) { if (orders.length >= ${limits.maxOrders}) throw new Error("more than ${limits.maxOrders} orders"); orders.push(JSON.parse(JSON.stringify(order))); };
+  const log = function () { if (logs.length < 50) logs.push(Array.prototype.map.call(arguments, function (x) { return typeof x === "string" ? x : JSON.stringify(x); }).join(" ").slice(0, 500)); };
+  const value = (function (view, rules, act, log) {"use strict";
+${code}
+})(data.view, data.rules, act, log);
+  return JSON.stringify({ orders: orders, logs: logs, value: value === undefined ? null : value });
+})`;
+    const fn = ctx.evalCode(wrapper, "run.js");
+    if (fn.error) { const error = describe(ctx, fn.error); fn.error.dispose(); return { orders: [], logs: [], value: null, error }; }
+    const arg = ctx.newString(JSON.stringify(input));
+    const r = ctx.callFunction(fn.value, ctx.undefined, arg);
+    arg.dispose(); fn.value.dispose();
+    if (r.error) {
+      const error = cycles > limits.gas ? `out of gas (${limits.gas})` : describe(ctx, r.error);
+      r.error.dispose();
+      return { orders: [], logs: [], value: null, error };
+    }
+    const raw = ctx.dump(r.value);
+    r.value.dispose();
+    if (typeof raw !== "string" || raw.length > limits.maxOutputBytes) return { orders: [], logs: [], value: null, error: `result must be JSON under ${limits.maxOutputBytes} bytes` };
+    const out = JSON.parse(raw) as RunResult;
+    return { orders: Array.isArray(out.orders) ? out.orders : [], logs: Array.isArray(out.logs) ? out.logs.map(String) : [], value: out.value ?? null };
+  } catch (e) {
+    return { orders: [], logs: [], value: null, error: (e as Error).message.slice(0, 300) };
+  } finally {
+    ctx.dispose();
+    runtime.dispose();
+  }
+}
+
 /** Compile-checks a script without any match. Used to answer uploads immediately. */
 export function validateScript(code: string, limits: ScriptLimits): { ok: true } | { ok: false; error: string } {
   const host = createScriptHost(limits, 0);

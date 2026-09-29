@@ -35,6 +35,12 @@ export async function act(c: Client, orders: unknown, o: Fmt = {}): Promise<stri
   return o.json ? pretty(r) : (r as string);
 }
 
+/** Runs a one-shot player script on the server: full JSON view and rules in scope, act() orders applied at once. */
+export async function runScript(c: Client, code: string, o: Fmt & { lang?: "js" | "ts" } = {}): Promise<string> {
+  const r = await c.post(`/run${query({ format: format(o.json) })}`, { code, lang: o.lang ?? "js" });
+  return o.json ? pretty(r) : (r as string);
+}
+
 interface ScriptInfo {
   code: string;
   custom: boolean;
