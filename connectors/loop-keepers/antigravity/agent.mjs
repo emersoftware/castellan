@@ -39,6 +39,11 @@ project.permissionGrants.permissionGrants.allow = ["mcp(aoa/*)",
 await writeFile(projectPath, JSON.stringify(project, null, 2), { mode: 0o600 });
 let prompt = await readFile(new URL("../claude-code/PLAY.md", import.meta.url), "utf8");
 prompt += "\nAntigravity: read tool schemas and large tool outputs with view_file when they are saved to a file. These reads are permitted for your own conversation. Do not delegate to subagents; play directly. For a private message to one player use chat with to set to their player id (e.g. p2). Use channel=team only when you actually have a teammate.\n";
+// Optional experiment instruction for this player only (see connectors/README.md).
+if (process.env.AOA_DIRECTIVE) {
+  console.error(`aoa antigravity: directive: ${process.env.AOA_DIRECTIVE}`);
+  prompt += `\n${process.env.AOA_DIRECTIVE}\n`;
+}
 if (process.env.AOA_RESUME) prompt = `You were restarted in the middle of the match: call state first, then keep playing.\n\n${prompt}`;
 const child = spawn(agy, [
   "--project", process.env.AOA_AGY_PROJECT,

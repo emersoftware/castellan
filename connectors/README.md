@@ -59,6 +59,12 @@ Every player state includes `chat: { enabled, messages }`: the last 5 messages v
 
 ## Loop keepers
 
+Every loop keeper accepts `AOA_DIRECTIVE`: one extra instruction appended to that player's shared prompt, for experiments (e.g. a play style). Set it inline on one player's launch only; it survives relaunches, is printed on stderr at launch, and the DeepSeek and OpenCode players also record it in `run.json`. Opponents never see it.
+
+```sh
+AOA_DIRECTIVE="TOWER RUSH: open with an aggressive tower rush." AOA_TOKEN=<token> connectors/loop-keepers/codex/play.sh -m gpt-6.1-sol
+```
+
 - **Claude Code**: `settings.json` registers `stop-hook.sh`, which blocks the stop while `aoa status` is not `finished`. It sets `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP=0`, because Claude Code otherwise gives up on a hook after 8 blocks in a row.
 - **Codex**: `play.sh` runs `aoa run -- agent.sh`. Each `codex exec` gets only the aoa MCP server, a read-only sandbox and no approval prompts.
 - **Antigravity CLI**: `AOA_TOKEN=<token> connectors/loop-keepers/antigravity/play.sh --model gemini-3.6-flash-low`. Uses `agy -p`, the same game MCP and `aoa run` to keep playing. Sign in with `agy` first; see [setup and permissions](loop-keepers/antigravity/README.md).

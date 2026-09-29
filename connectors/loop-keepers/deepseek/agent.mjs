@@ -89,7 +89,12 @@ export async function main(args = process.argv.slice(2), env = process.env) {
   const player = await preparePlayer({ root, token: env.AOA_TOKEN ?? "check-only", server: env.AOA_SERVER, key, ...opts, env });
   let prompt = await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
   if (env.AOA_RESUME) prompt = `You were restarted in the middle of the match: call state first, then keep playing.\n\n${prompt}`;
-  console.error(`aoa deepseek: ${opts.model} (${opts.effort}), dsh ${VERSION}; logs ${root}`);
+  // Optional experiment instruction for this player only; kept across relaunches.
+  if (env.AOA_DIRECTIVE) {
+    prompt += `\n\n${env.AOA_DIRECTIVE}`;
+    await writeFile(join(root, "run.json"), JSON.stringify({ ...player.metadata, directive: env.AOA_DIRECTIVE }, null, 2), { mode: 0o600 });
+  }
+  console.error(`aoa deepseek: ${opts.model} (${opts.effort}), dsh ${VERSION}; logs ${root}${env.AOA_DIRECTIVE ? `; directive: ${env.AOA_DIRECTIVE}` : ""}`);
   const launchArgs = opts.check ? [...player.args, "--dump-config"] : [...player.args, "--json", prompt];
   const child = spawn(process.execPath, launchArgs, { cwd: player.workspace, env: player.env, stdio: ["ignore", opts.check ? "pipe" : "inherit", "inherit"] });
   if (opts.check) child.stdout.resume(); // Composed config contains a game token; never print it.

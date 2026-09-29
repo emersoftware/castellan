@@ -61,6 +61,9 @@ and passes a fresh game token per game. Model and effort stay the same; each
 attempt gets a separate workspace and dsh home. `rules`, `state` and `history`
 expose the series history through the game API.
 
+`AOA_DIRECTIVE` appends one extra instruction to that player's prompt (see the
+connectors README); it is recorded in `run.json`.
+
 Accepted player flags: `--model <id>`, `--effort off|low|high|max`, `--check`.
 `off` explicitly sends `thinking: {type: "disabled"}`; omitting `--effort`
 uses this connector's default `low`, not zero reasoning.

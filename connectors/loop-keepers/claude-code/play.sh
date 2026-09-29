@@ -11,7 +11,15 @@ export CLAUDE_CODE_STOP_HOOK_BLOCK_CAP=0
 # no auto-memory (a player must not learn from previous matches), and no
 # built-in tools: only the aoa MCP tools.
 export CLAUDE_CODE_DISABLE_AUTO_MEMORY=1
-exec claude -p "$(cat PLAY.md)" \
+prompt=$(cat PLAY.md)
+# Optional experiment instruction for this player only (see connectors/README.md).
+if [ -n "$AOA_DIRECTIVE" ]; then
+  echo "aoa claude-code: directive: $AOA_DIRECTIVE" >&2
+  prompt="$prompt
+
+$AOA_DIRECTIVE"
+fi
+exec claude -p "$prompt" \
   --setting-sources "" --tools "" --disable-slash-commands \
   --mcp-config .mcp.json --strict-mcp-config \
   --settings settings.json \

@@ -7,6 +7,13 @@ if [ -n "$AOA_RESUME" ]; then
 
 $prompt"
 fi
+# Optional experiment instruction for this player only (see connectors/README.md).
+if [ -n "$AOA_DIRECTIVE" ]; then
+  echo "aoa codex: directive: $AOA_DIRECTIVE" >&2
+  prompt="$prompt
+
+$AOA_DIRECTIVE"
+fi
 exec codex exec --skip-git-repo-check --ephemeral --ignore-user-config -s read-only -C "$here" \
   -c approval_policy=never \
   -c 'mcp_servers.aoa.command="node"' \
