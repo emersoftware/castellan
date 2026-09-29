@@ -43,7 +43,7 @@ interface Drawn {
   /** Simulation time of the next possible tile step; unchanged ticks are not idle. */
   walkUntil?: number;
   step?: { at: number; ms: number };
-  /** Distance completed before the current interpolated step, in map tiles. */
+  /** Grid steps completed before the current interpolated step. */
   walkDistance?: number;
   /** Units: drawn where an occluder hides them. Buildings: their depth silhouette. */
   xray: Sprite | null;
@@ -62,6 +62,8 @@ interface Effect {
 }
 
 const iso = (x: number, y: number) => ({ sx: (x - y) * (TILE_W / 2), sy: (x + y) * (TILE_H / 2) });
+/** Grid steps between two points, Chebyshev like the engine: a diagonal step is one step, so feet keep the same cadence. */
+const gridSteps = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
 export class GameRenderer {
   private app!: Application;
@@ -245,7 +247,7 @@ export class GameRenderer {
           const cadence = Math.max(1, Math.round(moveMs / this.gameTickMs)) * this.gameTickMs;
           const dx = e.x - d.to.x, dy = e.y - d.to.y;
           const position = this.position(d, alpha, previousGameMs);
-          d.walkDistance = (d.walkDistance ?? 0) + Math.hypot(position.x - d.from.x, position.y - d.from.y);
+          d.walkDistance = (d.walkDistance ?? 0) + gridSteps(position, d.from);
           d.from = position;
           d.to = { x: e.x, y: e.y };
           d.step = { at: this.gameMs, ms: cadence };
@@ -511,7 +513,7 @@ export class GameRenderer {
         // one tick's interpolation. This also avoids an idle flash just before
         // the next movement snapshot arrives at the cadence boundary.
         const walking = this.gameMs < (d.walkUntil ?? 0);
-        const distance = (d.walkDistance ?? 0) + Math.hypot(x - d.from.x, y - d.from.y);
+        const distance = (d.walkDistance ?? 0) + gridSteps({ x, y }, d.from);
         const mining = !walking && !d.shot ? d.view.gathering : undefined;
         const animation = (mining && unitMiningAnimation(d.view.kind, animationMs)) || unitAnimation(d.view.kind, animationMs, walking, d.shot, distance);
         if (mining) {
@@ -606,7 +608,7 @@ export class GameRenderer {
           const shot = ev.projectile && this.shots.get(ev.projectile);
           if (shot) shot.launchOffset = { x: visible.sx - a.sx, y: visible.sy - a.sy, at: this.gameMs };
           // Settle at the authoritative tile promptly, without delaying release.
-          from.walkDistance = (from.walkDistance ?? 0) + Math.hypot(position.x - from.from.x, position.y - from.from.y);
+          from.walkDistance = (from.walkDistance ?? 0) + gridSteps(position, from.from);
           from.from = position;
           from.step = { at: this.gameMs, ms: this.gameTickMs };
           from.sprite.position.set(visible.sx, visible.sy + 3);
@@ -618,7 +620,7 @@ export class GameRenderer {
       } else if (targetPosition) {
         if (hasUnitAnimation(from.view.kind, "attack")) {
           const position = this.position(from, this.alpha(now), this.animationMs(now));
-          from.walkDistance = (from.walkDistance ?? 0) + Math.hypot(position.x - from.from.x, position.y - from.from.y);
+          from.walkDistance = (from.walkDistance ?? 0) + gridSteps(position, from.from);
           from.from = position;
           from.step = { at: this.gameMs, ms: this.gameTickMs };
           from.walkUntil = undefined;

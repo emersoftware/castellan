@@ -56,7 +56,7 @@ it.each(['ranger','knight','king','worker'])('ties %s foot motion to traveled di
   };
   expect(sample(200,1)).toEqual(sample(400,2)); // half a tile at either speed
   expect(sample(200,1)).toEqual({action:'walk',frame:kind==='ranger'?14:7});
-  expect(sample(400,2,true)?.frame).toBeGreaterThan(sample(400,2)!.frame);
+  expect(sample(400,2,true)).toEqual(sample(400,2)); // a diagonal step keeps the orthogonal cadence
 });
 it.each([false,true])('faces the melee target immediately, including lethal hits (dead=%s)',dead=>{
   const h=setup('knight');h.renderer.setFrame(h.frame(1),100);
