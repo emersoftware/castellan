@@ -35,12 +35,12 @@ else self.hold();
 `;
 
 const count = (v: PlayerView, kind: string) => v.mine.filter((e) => e.kind === kind).length;
-const nexus = (v: PlayerView) => v.mine.find((e) => e.kind === "nexus");
-const capital = (v: PlayerView) => v.players.find((p) => p.id === v.you)!.capital;
+const castle = (v: PlayerView) => v.mine.find((e) => (e.kind === "castle" || e.kind === "nexus"));
+const capital = (v: PlayerView) => v.players.find((p) => p.id === v.you)!.capital ?? 0;
 
 /** Spends capital on workers up to `workers`, then on `army` units. */
 function spend(v: PlayerView, workers: number, reserve = 0, army = "knight"): Order[] {
-  const n = nexus(v);
+  const n = castle(v);
   if (!n) return [];
   const out: Order[] = [];
   let cap = capital(v) - reserve;
@@ -89,7 +89,7 @@ export function turtle(): Bot {
   const spots = [[7, 7], [7, 3], [3, 7]];
   return (v) => {
     const out: Order[] = [];
-    const n = nexus(v);
+    const n = castle(v);
     const flip = n && n.x > 15;
     const turrets = count(v, "turret");
     const pending = v.mine.some((e) => e.order?.startsWith("build"));
@@ -118,7 +118,7 @@ export function kite(): Bot {
 export function archers(): Bot {
   return (v) => {
     const rangers = v.mine.filter((e) => e.kind === "ranger");
-    const target = v.enemy.find((e) => e.kind === "nexus");
+    const target = v.enemy.find((e) => (e.kind === "castle" || e.kind === "nexus"));
     const attack: Order[] = rangers.length >= 8 && target ? rangers.filter((r) => !r.order).map((r) => ({ type: "attack", unit: r.id, target: target.id })) : [];
     return [...attack, ...spend(v, 9, 0, "ranger")];
   };

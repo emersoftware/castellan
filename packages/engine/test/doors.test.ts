@@ -1,0 +1,123 @@
+import { afterEach, expect, it } from "vitest";
+import { v7, MAPS, playerGuide, viewToText, type Ruleset, type ReplayFile } from "@aoa/shared";
+import { createMatch, runReplay, type Match, type PlayerOrder } from "../src";
+
+const live: Match[] = [];
+afterEach(() => { for (const m of live.splice(0)) m.dispose(); });
+const players = [{ id: "a", name: "A", side: 0, team: 0 }, { id: "b", name: "B", side: 1, team: 1 }];
+const entity = (m: Match, kind: string, owner = "a") => m.spectate().entities.find(e => e.kind === kind && e.owner === owner)!;
+const step = (m: Match, n = 1) => { for (let i = 0; i < n; i++) m.step([]); };
+const move = (m: Match, id: string, x: number, y: number, player = "a") => m.step([{ player, order: { type: "move", unit: id, x, y } }]);
+async function setup(team = false, corridor = true) {
+  const ruleset: Ruleset = { ...v7, fogOfWar: undefined, matchMs: 10000, startCapital: 1000,
+    defaultScripts: { ...v7.defaultScripts, castle: "self.hold();" },
+    map: { name: "doors", description: "", width: 9, height: 9,
+      start: [{ kind: "worker", x: 1, y: 4 }, { kind: "agent", x: 0, y: 0 }, { kind: "castle", x: 0, y: 1 }],
+      deposits: [], sharedDeposits: [], walls: corridor ? [3,5].flatMap(y => Array.from({ length: 9 }, (_, x) => ({ x, y }))) : [] } };
+  const participants = team ? [...players, { id: "ally", name: "Ally", side: 2, team: 0 }] : players;
+  const m = await createMatch({ ruleset, players: participants, seed: 1, tickRate: 10 }); live.push(m);
+  const build: PlayerOrder = { player: "a", order: { type: "build", unit: entity(m,"worker").id, kind: "door", x: 2, y: 4 } };
+  return { m, build, ruleset };
+}
+
+it("uses castle consistently in current maps, rules, text, training and script API", async () => {
+  expect(Object.values(MAPS).every(map => map.start.some(s => s.kind === "castle") && map.start.every(s => s.kind !== "nexus"))).toBe(true);
+  expect(v7.kinds.nexus).toBeUndefined();
+  expect(playerGuide(v7)).not.toMatch(/nexus/i);
+  const { m } = await setup();
+  expect(viewToText(m.view("a"))).toContain("castle");
+  const castle = entity(m,"castle");
+  expect(m.step([{ player:"a",order:{type:"script",kind:"castle",code:"self.hold();"} },
+    { player:"a",order:{type:"train",building:castle.id,kind:"worker"} }]).results.every(r => r.ok)).toBe(true);
+  expect(entity(m,"castle").training).toHaveLength(1);
+  expect(m.step([{ player:"a", order:{type:"script",kind:"nexus",code:"self.hold();"} }]).results[0].ok).toBe(false);
+});
+
+it("builds a one-tile door with the advertised charge; allies cross and it closes behind them", async () => {
+  const { m, build } = await setup();
+  const result = m.step([build]);
+  expect(result.events).toContainEqual(expect.objectContaining({ type:"spawn", kind:"door", x:2,y:4,capital:{spent:75,remaining:925} }));
+  expect(entity(m,"door")).toMatchObject({ open:false,hp:300 });
+  const worker = entity(m,"worker");
+  move(m,worker.id,4,4);
+  expect(entity(m,"worker").x).toBe(2);
+  expect(entity(m,"door").open).toBe(true);
+  expect(m.view("a").grid[4][2]).toBe("W");
+  step(m,10);
+  expect(entity(m,"worker").x).toBe(4);
+  expect(entity(m,"door").open).toBe(false);
+  expect(m.view("a").grid[4][2]).toBe("D");
+});
+
+it("blocks hostile pathfinding while allowing same-team passage", async () => {
+  const { m, build } = await setup(true);
+  m.step([build]);
+  const worker = entity(m,"worker");
+  move(m,worker.id,4,4); step(m,10);
+  const internals = m as unknown as { spawn(kind:string,owner:string,x:number,y:number):{id:string} };
+  const ally = internals.spawn("worker","ally",1,4);
+  move(m,ally.id,3,4,"ally");
+  expect(m.spectate().entities.find(e=>e.id===ally.id)!.x).toBe(2);
+  const enemy = entity(m,"worker","b");
+  move(m,enemy.id,1,4,"b"); step(m,10);
+  expect(entity(m,"worker","b").x).toBeGreaterThan(2);
+  expect(m.spectate().entities.find(e=>e.id===ally.id)!.x).toBe(3);
+});
+
+it("keeps the occupant when a door is destroyed, then opens the route to enemies", async () => {
+  const { m, build } = await setup(); m.step([build]);
+  const worker = entity(m,"worker"), door = entity(m,"door");
+  move(m,worker.id,2,4);
+  const internals = m as unknown as { ents: Map<string,{hp:number}>; spawn(kind:string,owner:string,x:number,y:number):{id:string}; occ:(string|null)[] };
+  internals.ents.get(door.id)!.hp=1;
+  const knight=internals.spawn("knight","b",3,4);
+  m.step([{player:"b",order:{type:"attack",unit:knight.id,target:door.id}}]);
+  expect(entity(m,"door")).toBeUndefined();
+  expect(internals.occ[4*9+2]).toBe(worker.id);
+  move(m,worker.id,1,4); step(m,5);
+  move(m,knight.id,2,4,"b"); step(m,5);
+  expect(m.spectate().entities.find(e=>e.id===knight.id)!.x).toBe(2);
+});
+
+it("retains the door when a unit on it dies; another ally can enter", async () => {
+  const {m,build}=await setup();m.step([build]);const worker=entity(m,"worker"), door=entity(m,"door");
+  move(m,worker.id,2,4);
+  const internals=m as unknown as {ents:Map<string,{hp:number}>;spawn(kind:string,owner:string,x:number,y:number):{id:string}};
+  internals.ents.get(worker.id)!.hp=1;
+  const knight=internals.spawn("knight","b",3,4);
+  m.step([{player:"b",order:{type:"attack",unit:knight.id,target:worker.id}}]);
+  expect(entity(m,"door")).toMatchObject({id:door.id,open:false});
+  const replacement=internals.spawn("worker","a",1,4);
+  move(m,replacement.id,2,4);
+  expect(entity(m,"door").open).toBe(true);
+});
+
+it("prevents overlapping construction even when a door's passage is empty", async () => {
+  const {m,build}=await setup();m.step([build]);
+  for(const kind of ["door","wall","castle"]){
+    expect(m.step([{player:"a",order:{type:"build",unit:entity(m,"worker").id,kind,x:2,y:4}}]).results[0].ok).toBe(false);
+  }
+  expect(m.spectate().entities.filter(e=>e.x===2&&e.y===4)).toHaveLength(1);
+});
+
+it("keeps diagonal corner checks owner-aware around a door", async () => {
+  const {m,build}=await setup(false,false);m.step([build]);
+  const internals=m as unknown as {ents:Map<string,unknown>;canStep(e:unknown,x:number,y:number):boolean;spawn(kind:string,owner:string,x:number,y:number):{id:string}};
+  // Door is the east neighbour of the worker, diagonal target is otherwise free.
+  expect(internals.canStep(internals.ents.get(entity(m,"worker").id),2,3)).toBe(true);
+  const enemy=internals.spawn("worker","b",1,5);
+  expect(internals.canStep(internals.ents.get(enemy.id),2,4)).toBe(false);
+  // From (1,4), attempting (2,3) across the hostile door corner is also blocked.
+  const hostile={...internals.ents.get(entity(m,"worker").id) as object,owner:"b"};
+  expect(internals.canStep(hostile,2,3)).toBe(false);
+});
+
+it("serializes doors and their shared tiles through deterministic replay", async () => {
+  const {m,build,ruleset}=await setup();const orders=[{...build,tick:0},{player:"a",tick:1,order:{type:"move" as const,unit:entity(m,"worker").id,x:4,y:4}}];
+  const hashes:Record<number,string>={};
+  while(!m.outcome){const tick=m.tick;m.step(orders.filter(o=>o.tick===tick));hashes[tick]=m.hash();}
+  const replay:ReplayFile={format:1,id:"doors",createdAt:"",ruleset,seed:1,tickRate:10,players,orders,hashes,finalTick:m.tick,outcome:m.outcome!};
+  let openSeen=false;
+  expect(await runReplay(replay,v=>{openSeen ||= v.entities.some(e=>e.kind==="door"&&e.open)})).toMatchObject({verified:true});
+  expect(openSeen).toBe(true);
+});

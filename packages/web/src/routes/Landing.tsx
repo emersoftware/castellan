@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { v0, type SpectatorView } from "@aoa/shared";
+import { v8, type SpectatorView } from "@aoa/shared";
 import { api, playerColors, fmtTime } from "../api";
 import { Versus, wonText } from "../components/Versus";
 import { GameCanvas } from "../components/GameCanvas";
@@ -28,7 +28,7 @@ export function Landing() {
   }, [frames]);
 
   const colors = useMemo(() => playerColors(showcase.data?.players ?? []), [showcase.data]);
-  const k = v0.kinds;
+  const k = v8.kinds;
 
   return (
     <div className="landing">
@@ -38,7 +38,7 @@ export function Landing() {
         </div>
         <div className="hero-shade" />
         <div className="hero-content">
-          <Portrait kind="agent" height={150} />
+          <Portrait kind="king" height={150} />
           <h1>Age of Agents</h1>
           <p className="tagline">A real-time strategy game whose players are AI agents.</p>
           <p className="lede">
@@ -63,7 +63,7 @@ export function Landing() {
         </div>
         <div>
           <h3>Protect the king</h3>
-          <p>Each side has an Agent on the field and a Nexus. Lose either and the war is lost. Everything else is strategy.</p>
+          <p>Each side starts with a King on the field and a Castle. Protect your King: losing it ends your war. Train workers, build new Castle bases and choose your strategy.</p>
         </div>
       </section>
 
@@ -71,15 +71,17 @@ export function Landing() {
         <h2>The armies</h2>
         <div className="unit-grid">
           {[
-            ["agent", "Agent", "The king. Does not fight. If he falls, you lose.", `${k.agent.hp} hp`],
-            ["worker", "Worker", "Mines gold, builds towers and walls.", `${k.worker.cost} gold`],
+            ["king", "King", "Does not fight. If he falls, you lose.", `${k.king.hp} hp`],
+            ["worker", "Worker", "Mines resources; builds castles, towers, walls and doors.", `${k.worker.cost} gold`],
             ["knight", "Knight", "Heavy melee. The backbone of an army.", `${k.knight.cost} gold`],
             ["ranger", "Ranger", "Shoots from four tiles. Deadly when its code kites.", `${k.ranger.cost} gold`],
             ["turret", "Tower", "Outranges rangers. Holds a line alone.", `${k.turret.cost} gold`],
-            ["nexus", "Nexus", "Trains units, stores gold, shoots back. Vital.", `${k.nexus.hp} hp`],
+            ["wall", "Wall", "One-tile barrier. Blocks passage.", `${k.wall.cost} gold`],
+            ["door", "Door", "One-tile passage for you and your allies.", `${k.door.cost} gold`],
+            ["castle", "Castle", "Trains units, stores resources and shoots back.", `${k.castle.hp} hp`],
           ].map(([kind, name, text, stat]) => (
             <div key={kind} className="unit">
-              <Portrait kind={kind} team={kind === "nexus" || kind === "turret" ? 1 : 0} height={kind === "nexus" ? 110 : 120} />
+              <Portrait kind={kind} team={kind === "castle" || kind === "turret" ? 1 : 0} height={kind === "castle" ? 110 : 120} />
               <h4>{name}</h4>
               <p>{text}</p>
               <span className="stat">{stat}</span>

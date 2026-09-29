@@ -74,3 +74,27 @@ describe("sandbox", () => {
     h.dispose();
   });
 });
+
+it('exposes worker economy controls with first action winning', () => {
+ const h=createScriptHost(v0.script,1);
+ const w={...world,units:{e1:{...world.units.e1,type:'worker',carrying:2,carryCapacity:10,lastAttackedTick:null,lastAttacker:null}},
+  deposits:[{id:'far',x:8,y:8,amount:20,tie:80},{id:'near',x:5,y:6,amount:10,tie:50}]};
+ try {
+  h.setScript('worker','self.gather(self.nearestDeposit()); self.unload();');
+  expect(h.run(w,['e1']).e1.action).toEqual({a:'gather',id:'near'});
+  h.setScript('worker','if(self.carrying === 2 && self.carryCapacity === 10) self.unload();');
+  expect(h.run(w,['e1']).e1.action).toEqual({a:'unload'});
+  h.setScript('worker','self.gather();');expect(h.run(w,['e1']).e1.action).toEqual({a:'gather'});
+ }finally{h.dispose();}
+});
+it('only returns a living visible hostile attacker and leaves legacy APIs unchanged',()=>{
+ const h=createScriptHost(v0.script,1);
+ try {
+  h.setScript('knight','self.log(typeof self.lastAttacker);');expect(h.run(world,['e1']).e1.log).toBe('undefined');
+  h.setScript('knight','self.log(self.lastAttacker() ? self.lastAttacker().id : "none");');
+  for(const [id,result] of [['e2','e2'],['e3','none'],['e1','none'],['dead','none']]){
+   const w={...world,units:{e1:{...world.units.e1,lastAttackedTick:4,lastAttacker:id}}};
+   expect(h.run(w,['e1']).e1.log).toBe(result);
+  }
+ }finally{h.dispose();}
+});

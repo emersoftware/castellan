@@ -136,7 +136,7 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
 
 /* The score list (AoE style), top right. */
 .scores {
-  position: absolute; top: 14px; right: 14px; z-index: 3; pointer-events: none; min-width: 300px;
+  position: absolute; top: 14px; right: 14px; z-index: 3; pointer-events: auto; min-width: 300px;
   background: linear-gradient(to bottom, rgba(24,24,24,0.94), rgba(0,0,0,0.8)); border: 1px solid var(--line); padding: 8px 12px 10px;
 }
 .scores .clock { text-align: right; margin-bottom: 4px; }
@@ -255,3 +255,13 @@ button.on { background: linear-gradient(to bottom, #ffffff, #8c8c8c); }
 .feed .line { background: linear-gradient(to right, rgba(20,20,20,0.9), rgba(0,0,0,0.25)); }
 .tooltip { background: linear-gradient(to bottom, rgba(24,24,24,0.92), rgba(0,0,0,0.7)); }
 .pillars > div, .host pre { background: linear-gradient(to bottom, #151515, #000000); padding: 18px; border: 1px solid var(--line); }
+
+/* Player perspective is selected from the scoreboard in watch and replay. */
+.perspective-label { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 11px; color: var(--grey); margin: 4px 0; }
+.scores .player-perspective { font: inherit; color: inherit; background: transparent; border: 0; padding: 0; cursor: pointer; }
+.scores .player-perspective:hover, .scores .player-perspective[aria-pressed="true"] { text-decoration: underline; text-underline-offset: 3px; }
+
+.chat-panel { position: absolute; left: 14px; bottom: 108px; z-index: 4; width: min(370px, calc(100vw - 28px)); background: rgba(0,0,0,.88); border: 1px solid var(--line); padding: 8px 10px; font-size: 12px; }
+.chat-panel summary { cursor: pointer; color: var(--light-grey); }
+.chat-messages { max-height: 160px; overflow-y: auto; margin-top: 6px; overflow-wrap: anywhere; }
+.chat-message + .chat-message { margin-top: 6px; }

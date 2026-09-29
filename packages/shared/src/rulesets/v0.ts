@@ -1,5 +1,5 @@
 import type { Ruleset } from "../ruleset";
-import { MAPS } from "../maps";
+import { LEGACY_MAPS as MAPS } from "../maps";
 
 const guardKnight = `// Built-in: fight what comes close, otherwise stay.
 const e = self.nearestEnemy();

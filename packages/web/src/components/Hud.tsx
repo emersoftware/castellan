@@ -1,5 +1,6 @@
-import { useState } from "react";
-import type { GameEvent, PlayerStats, PlayerTiming, SpectatorView } from "@aoa/shared";
+import { displayKind } from "../render/names";
+import { useEffect, useRef, useState } from "react";
+import type { ChatMessage, EntityView, GameEvent, PlayerStats, PlayerTiming, SpectatorView } from "@aoa/shared";
 import type { HoverInfo } from "../render/renderer";
 import { fmtTime, winnersOf } from "../api";
 import { sfx } from "../audio/sfx";
@@ -8,8 +9,9 @@ import { sfx } from "../audio/sfx";
  * The score list, as in Age of Empires: the clock, then every player in its
  * colour with gold, population, kills and score, grouped by team in 2v2.
  */
-export function PlayerList({ view, names, timing, colors }: {
+export function PlayerList({ view, names, timing, colors, selectedPlayer, onSelectPlayer }: {
   view: SpectatorView; names: Record<string, string>; timing?: Record<string, PlayerTiming>; colors: Record<string, number>;
+  selectedPlayer?: string | null; onSelectPlayer?: (player: string | null) => void;
 }) {
   const teams = [...new Set(view.players.map((p) => p.team))];
   const grouped = teams.length < view.players.length;
@@ -18,6 +20,7 @@ export function PlayerList({ view, names, timing, colors }: {
       <div className="clock">
         <span className="time">{fmtTime(view.timeMs)}</span> <span className="sub">/ {fmtTime(view.matchMs)}</span>
       </div>
+      {onSelectPlayer && <div className="perspective-label"><span>{selectedPlayer ? `View: ${names[selectedPlayer] ?? view.players.find((p) => p.id === selectedPlayer)?.name ?? selectedPlayer}` : "View: everyone"}</span> <button onClick={() => onSelectPlayer(null)} aria-pressed={!selectedPlayer}>View all</button></div>}
       <table>
         <thead>
           <tr><th /><th>gold</th><th>pop</th><th>kills</th><th>score</th></tr>
@@ -26,7 +29,7 @@ export function PlayerList({ view, names, timing, colors }: {
           <tbody key={t}>
             {grouped && <tr className="team"><td colSpan={5}>Team {i + 1}</td></tr>}
             {view.players.filter((p) => p.team === t).map((p) => (
-              <PlayerRows key={p.id} p={p} name={names[p.id] ?? p.name} color={colors[p.id] ?? 0} timing={timing?.[p.id]} matchMs={view.timeMs} />
+              <PlayerRows key={p.id} p={p} selected={selectedPlayer === p.id} onSelect={onSelectPlayer ? () => onSelectPlayer(p.id) : undefined} name={names[p.id] ?? p.name} color={colors[p.id] ?? 0} timing={timing?.[p.id]} matchMs={view.timeMs} builders={view.entities.filter((e) => e.owner === p.id && (e.construction || e.training?.length))} />
             ))}
           </tbody>
         ))}
@@ -35,15 +38,15 @@ export function PlayerList({ view, names, timing, colors }: {
   );
 }
 
-function PlayerRows({ p, name, color, timing, matchMs }: { p: PlayerStats; name: string; color: number; timing?: PlayerTiming; matchMs: number }) {
+function PlayerRows({ p, name, color, timing, matchMs, builders, selected, onSelect }: { selected?: boolean; onSelect?: () => void; p: PlayerStats; name: string; color: number; timing?: PlayerTiming; matchMs: number; builders: EntityView[] }) {
   return (
     <>
       <tr className={p.alive ? "" : "dead"}>
-        <td className={`name pc${color}`}><span className={`swatch bg${color}`} />{name}</td>
-        <td>{p.capital}</td>
-        <td>{p.pop}/{p.popCap}</td>
-        <td>{p.kills}</td>
-        <td>{p.score}</td>
+        <td className={`name pc${color}`}><span className={`swatch bg${color}`} />{onSelect ? <button className="player-perspective" aria-pressed={selected} onClick={onSelect} title={`View as ${name}`}>{name}</button> : name}</td>
+        <td>{p.capital ?? "—"}</td>
+        <td>{p.pop ?? "—"}/{p.popCap}{p.queuedPop ? ` (+${p.queuedPop})` : ""}</td>
+        <td>{p.kills ?? "—"}</td>
+        <td>{p.score ?? "—"}</td>
       </tr>
       {timing && (
         <tr className="timing">
@@ -56,6 +59,10 @@ function PlayerRows({ p, name, color, timing, matchMs }: { p: PlayerStats; name:
           {p.research && <div>Researching {p.research.upgrade.replaceAll("_", " ")} L{p.research.level} · {Math.max(0, (p.research.completesAtMs - matchMs) / 1000).toFixed(1)}s</div>}
         </td></tr>
       )}
+      {builders.map((e) => <tr className="timing" key={e.id}><td colSpan={5}>
+        {e.construction && <>Building {e.construction.kind} ({e.construction.x}, {e.construction.y}) · {Math.max(0, (e.construction.completesAtMs - matchMs) / 1000).toFixed(1)}s</>}
+        {e.training?.map((job, i) => <div key={i}>{e.id}: {i === 0 ? "Training" : "Queued"} {job.kind}{job.completesAtMs !== undefined ? job.completesAtMs <= matchMs ? " · waiting for exit" : ` · ${((job.completesAtMs - matchMs) / 1000).toFixed(1)}s` : ""}</div>)}
+      </td></tr>)}
     </>
   );
 }
@@ -82,7 +89,7 @@ export function EventFeed({ events, names, colors }: { events: GameEvent[]; name
   // An eliminated player's entities all die at once: show the elimination, not each death.
   const out = new Set(events.filter((e) => e.type === "eliminated").map((e) => `${e.tick}:${e.owner}`));
   const lines = events
-    .filter((e) => (e.type === "death" && !out.has(`${e.tick}:${e.owner}`)) || e.type === "eliminated" || (e.type === "spawn" && e.kind !== "worker") || e.type === "match_end" || e.type === "chat" || e.type === "research_started" || e.type === "upgrade_completed")
+    .filter((e) => (e.type === "death" && !out.has(`${e.tick}:${e.owner}`)) || e.type === "eliminated" || (e.type === "spawn" && e.kind !== "worker") || e.type === "match_end" || e.type === "chat" || e.type === "research_started" || e.type === "upgrade_completed" || e.type === "construction_started")
     .slice(-8)
     .reverse();
   return (
@@ -92,12 +99,12 @@ export function EventFeed({ events, names, colors }: { events: GameEvent[]; name
           <span className="t">{fmtTime(e.tick * 100)}</span>{" "}
           {e.type === "death" && (
             <>
-              <b className={team(e.owner)}>{names[e.owner] ?? e.owner}</b> lost a {e.kind}
+              <b className={team(e.owner)}>{names[e.owner] ?? e.owner}</b> lost a {displayKind(e.kind)}
             </>
           )}
           {e.type === "spawn" && (
             <>
-              <b className={team(e.owner)}>{names[e.owner] ?? e.owner}</b> {["knight", "ranger", "worker"].includes(e.kind) ? "trained" : "built"} a {e.kind}
+              <b className={team(e.owner)}>{names[e.owner] ?? e.owner}</b> {["knight", "ranger", "worker"].includes(e.kind) ? "trained" : "built"} a {displayKind(e.kind)}
             </>
           )}
           {e.type === "chat" && (
@@ -111,6 +118,9 @@ export function EventFeed({ events, names, colors }: { events: GameEvent[]; name
             </>
           )}
           {e.type === "match_end" && <b>The battle is over</b>}
+          {e.type === "construction_started" && <>
+            <b className={team(e.owner)}>{names[e.owner] ?? e.owner}</b> started building a {displayKind(e.kind)}
+          </>}
           {(e.type === "research_started" || e.type === "upgrade_completed") && <>
             <b className={team(e.owner)}>{names[e.owner] ?? e.owner}</b> {e.type === "research_started" ? "researching" : "completed"} {e.upgrade.replaceAll("_", " ")} L{e.level}
           </>}
@@ -118,6 +128,24 @@ export function EventFeed({ events, names, colors }: { events: GameEvent[]; name
       ))}
     </div>
   );
+}
+
+/** Conversation is separate from combat events and follows the selected perspective. */
+export function ChatPanel({ messages, names, colors, tickMs, player }: {
+  messages: ChatMessage[]; names: Record<string, string>; colors: Record<string, number>; tickMs: number; player: string | null;
+}) {
+  const scroll = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; }, [messages.length, messages.at(-1)?.tick, player]);
+  return <details className="chat-panel" open>
+    <summary>Chat · {player ? names[player] ?? player : "everyone"} <span className="muted">({messages.length})</span></summary>
+    <div className="chat-messages" ref={scroll} aria-label="Player chat">
+      {!messages.length && <div className="muted">No messages</div>}
+      {messages.map((m, i) => <div className="chat-message" key={`${m.tick}-${m.from}-${i}`}>
+        <span className="muted">{fmtTime(m.tick * tickMs)}</span>{" "}<b className={`pc${colors[m.from] ?? 0}`}>{names[m.from] ?? m.name}</b>
+        <span className="muted">{m.channel === "private" ? ` [private → ${names[m.to ?? ""] ?? m.to}]` : m.channel === "team" ? " [team]" : " [all]"}</span>: {m.text}
+      </div>)}
+    </div>
+  </details>;
 }
 
 export function Tooltip({ hover }: { hover: HoverInfo | null }) {
@@ -129,7 +157,9 @@ export function Tooltip({ hover }: { hover: HoverInfo | null }) {
       <span className="muted">({hover.x}, {hover.y})</span>{" "}
       {e && (
         <>
-          <b>{e.kind}</b> {e.id} · {e.owner} · {e.hp}/{e.maxHp} hp{e.order ? ` · ${e.order}` : ""}
+          <b>{displayKind(e.kind)}</b> {e.id} · {e.owner} · {e.hp}/{e.maxHp} hp{e.order ? ` · ${e.order}` : ""}
+          {e.vital ? " · VITAL" : ""}
+          {e.construction && ` · building ${e.construction.kind} (${e.construction.x},${e.construction.y})`}
           {e.stats && ` · atk ${e.stats.atk} · def ${e.stats.def} · range ${e.stats.range} · attack ${e.stats.attackMs}ms · move ${e.stats.moveMs}ms`}
           {e.doing ? ` · ${e.doing}` : e.heading ? ` · ${e.heading}` : ""}
         </>
@@ -148,7 +178,7 @@ export function OutcomeBanner({ view, names }: { view: SpectatorView; names: Rec
   const o = view.outcome;
   if (!o) return null;
   const winners = winnersOf(o).map((id) => names[id] ?? id);
-  const reason = o.reason === "vital_lost" ? "a vital unit has fallen" : o.reason === "timeout" ? "time ran out: the higher score wins" : "forfeit";
+  const reason = o.reason === "vital_lost" ? "a vital unit has fallen" : o.reason === "timeout" ? (winners.length ? "time ran out: victory on score under this replay's rules" : "time limit reached: draw") : "forfeit";
   return (
     <div className="banner">
       <div className="big">{winners.length ? `${winners.join(" & ")} ${winners.length > 1 ? "are" : "is"} victorious` : "Stalemate"}</div>

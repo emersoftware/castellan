@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MAPS, v0, viewToText, type GameEvent, type ReplayFile, type SpectatorMessage } from "@aoa/shared";
+import { LEGACY_MAPS as MAPS, v0, viewToText, type GameEvent, type ReplayFile, type SpectatorMessage } from "@aoa/shared";
 import { runReplay } from "@aoa/engine";
 import { Room } from "../src/room";
 
@@ -114,7 +114,9 @@ describe("team chat privacy", () => {
     const lateWait = room.wait("p4", 0, 2000, ["chat"]).then(lateWake);
     await vi.advanceTimersByTimeAsync(100);
     expect(lateWake).not.toHaveBeenCalled();
-    expect(JSON.stringify(room.spectate(0))).not.toContain("private pact");
+    expect(JSON.stringify({ events: room.spectate(0).events, chat: room.spectate(0).chat })).not.toContain("private pact");
+    expect(room.spectate(0).playerChats?.p1).toContainEqual(expect.objectContaining({ text: "private pact" }));
+    expect(room.spectate(0).playerChats?.p3).toEqual([]);
     expect((await room.act("p1", [{ type: "chat", text: "again" }])).results[0]).toMatchObject({ ok: false, reason: "one message every 3s" });
     const reply = room.act("p2", [{ type: "chat", channel: "private", to: "p1", text: "agreed" }]);
     await vi.advanceTimersByTimeAsync(100);
@@ -134,8 +136,8 @@ describe("team chat privacy", () => {
       { tick: 3, type: "chat", owner: "p2", channel: "private", to: "p1", text: "agreed" },
       { tick: 4, type: "chat", owner: "p3", text: "hello all" },
     ]);
-    expect(JSON.stringify(frames)).not.toContain("private pact");
-    expect(JSON.stringify(frames)).not.toContain("agreed");
+    expect(JSON.stringify(frames.map((f) => ({ events: f.view.events, chat: f.view.chat })))).not.toContain("private pact");
+    expect(JSON.stringify(frames.map((f) => ({ events: f.view.events, chat: f.view.chat })))).not.toContain("agreed");
   });
 
   it("does not share a direct message with either player's teammates", async () => {
@@ -180,8 +182,10 @@ describe("team chat privacy", () => {
     const lateWait = room.wait("p4", 0, 2000, ["chat"]).then(lateEnemyWake);
     await vi.advanceTimersByTimeAsync(100);
     expect(lateEnemyWake).not.toHaveBeenCalled();
-    expect(JSON.stringify(frames)).not.toContain("secret north attack");
-    expect(JSON.stringify(room.spectate(0))).not.toContain("secret north attack");
+    expect(JSON.stringify(frames.map((f) => ({ events: f.view.events, chat: f.view.chat })))).not.toContain("secret north attack");
+    expect(JSON.stringify({ events: room.spectate(0).events, chat: room.spectate(0).chat })).not.toContain("secret north attack");
+    expect(room.spectate(0).playerChats?.p3).toContainEqual(expect.objectContaining({ text: "secret north attack" }));
+    expect(room.spectate(0).playerChats?.p2).toEqual([]);
 
     // Existing public chat still reaches everyone and is recorded.
     const publicSent = room.act("p2", [{ type: "chat", text: "hello everyone" }]);
@@ -199,7 +203,7 @@ describe("team chat privacy", () => {
       { tick: 1, type: "chat", owner: "p1", text: "secret north attack", channel: "team" },
       { tick: 3, type: "chat", owner: "p2", text: "hello everyone" },
     ]);
-    expect(JSON.stringify(frames)).not.toContain("secret north attack");
+    expect(JSON.stringify(frames.map((f) => ({ events: f.view.events, chat: f.view.chat })))).not.toContain("secret north attack");
   });
 
   it("shares the cooldown between public and private messages and honors chat off", async () => {

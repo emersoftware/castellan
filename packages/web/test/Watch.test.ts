@@ -12,14 +12,15 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 vi.mock("../src/components/GameCanvas", () => ({ GameCanvas: () => null }));
 vi.mock("../src/components/Hud", () => ({
-  EventFeed: () => null, OutcomeBanner: () => null, SoundToggle: () => null,
+  ChatPanel: () => null, EventFeed: () => null, OutcomeBanner: () => null, SoundToggle: () => null,
   Tooltip: () => null, PlayerList: () => null,
 }));
+vi.mock("../src/routes/Replay", () => ({ ReplayPlayer: ({ id }: { id: string }) => createElement("div", null, `Saved replay ${id}`) }));
 vi.mock("../src/audio/sfx", () => ({ sfx: { muted: true } }));
 
 let root: Root;
 let host: HTMLDivElement;
-let socket: { onmessage?: (m: { data: string }) => void };
+let socket: { onmessage?: (m: { data: string }) => void; onclose?: (e: { code: number }) => void };
 beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("WebSocket", class {
@@ -45,4 +46,10 @@ it.each(["running", "finished"])("uses websocket %s over stale lobby prep status
   }) }));
   expect(host.textContent).not.toContain("The battle begins in");
   expect(host.querySelector(".live")?.textContent).toBe(status === "running" ? "● live" : "finished");
+});
+
+it("opens the saved replay when a finished room is no longer in server memory", async () => {
+  await act(async () => socket.onclose!({ code: 4404 }));
+  expect(host.textContent).toContain("Saved replay test");
+  expect(host.textContent).not.toContain("reconnecting");
 });

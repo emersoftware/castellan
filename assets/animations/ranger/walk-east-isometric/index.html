@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arquero · Segunda prueba</title>
+<style>
+body{background:#171b18;color:#efefe5;font:16px system-ui;max-width:1120px;padding:32px;margin:auto}h1{font-weight:550}p{color:#bcc6ba;line-height:1.5}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px}figure{margin:0}video{width:100%;border-radius:8px}figcaption{margin:12px 0}a{color:#c6dda0}button{font:inherit;padding:8px 16px;cursor:pointer}img{width:220px}
+</style>
+<h1>Arquero · Caminata</h1>
+<p>Comparación con la misma referencia, seed y parámetros. En la segunda prueba se pide explícitamente una cámara isométrica elevada y fija.</p>
+<button id="restart">Reproducir ambas desde el inicio</button>
+<main>
+<figure><figcaption>Primera prueba · “side view”</figcaption><video src="../walk-east/generated.mp4" controls loop muted playsinline preload="auto"></video></figure>
+<figure><figcaption>Segunda prueba · “fixed isometric view”</figcaption><video src="generated.mp4" controls loop muted playsinline preload="auto"></video></figure>
+</main>
+<p><a href="preview.gif">GIF de la segunda prueba</a> · <a href="generated.mp4">Descargar video</a> · <a href="request.json">Prompt y parámetros</a></p>
+<details><summary>Referencia utilizada</summary><img src="reference.png" alt="Referencia original del arquero"></details>
+<script>document.getElementById('restart').onclick=()=>{document.querySelectorAll('video').forEach(v=>{v.currentTime=0;v.play()})}</script>
+</html>

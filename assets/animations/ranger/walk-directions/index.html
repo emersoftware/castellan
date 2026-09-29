@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arquero · Caminata en ocho direcciones</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;padding:32px 20px 60px;background:#171c18;color:#edeee4;font:15px system-ui}header,main,footer{max-width:820px;margin:auto}header{margin-bottom:24px}h1{font-size:27px;font-weight:550;letter-spacing:-.5px}p{color:#b7c1b5;line-height:1.6}main{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}figure{margin:0;background:#283229;border:1px solid #3b493c;border-radius:10px;overflow:hidden;position:relative;min-width:0}figcaption{padding:14px 16px 0;color:#d0dacb;font-size:13px}figure img{display:block;width:100%;aspect-ratio:1;object-fit:contain}section{display:grid;place-content:center;text-align:center;border:1px dashed #425344;border-radius:10px;padding:12px;color:#becfb9}section strong{color:#e3eddd;font-size:19px;font-weight:500}section span{margin-top:8px;line-height:1.5;font-size:12px}footer{margin-top:24px}a{color:#c4dca8}canvas{width:100%;aspect-ratio:1;display:none;image-rendering:pixelated}.sprite img{display:none}.sprite canvas{display:block}button{background:#c4dca8;border:0;border-radius:5px;padding:9px 14px;font:inherit;color:#172315;cursor:pointer;margin-bottom:18px}@media(max-width:500px){body{padding:16px 8px}main{gap:6px}figcaption{padding:8px 8px 0;font-size:11px}section strong{font-size:15px}section span{font-size:10px}h1{font-size:22px}}
+</style>
+<header><h1>Arquero · Caminar</h1><p>Ocho direcciones. Se conserva la caminata al este aprobada; oeste y las diagonales izquierdas usan espejo, igual que el juego.</p><button id="mode">Ver sprites en gris</button></header>
+<main>
+<figure data-row="3" data-flip="1"><figcaption>↖ Noroeste</figcaption><img src="export/walk-nw.gif" alt="Caminata noroeste"><canvas width="224" height="224"></canvas></figure>
+<figure data-row="4"><figcaption>↑ Norte</figcaption><img src="export/walk-n.gif" alt="Caminata norte"><canvas width="224" height="224"></canvas></figure>
+<figure data-row="3"><figcaption>↗ Noreste</figcaption><img src="export/walk-ne.gif" alt="Caminata noreste"><canvas width="224" height="224"></canvas></figure>
+<figure data-row="2" data-flip="1"><figcaption>← Oeste</figcaption><img src="export/walk-w.gif" alt="Caminata oeste"><canvas width="224" height="224"></canvas></figure>
+<section><strong>Arquero</strong><span>Ciclo de caminata<br>28 cuadros · 12 fps<br>Fondo transparente</span></section>
+<figure data-row="2"><figcaption>→ Este · aprobado</figcaption><img src="export/walk-e.gif" alt="Caminata este aprobada"><canvas width="224" height="224"></canvas></figure>
+<figure data-row="1" data-flip="1"><figcaption>↙ Suroeste</figcaption><img src="export/walk-sw.gif" alt="Caminata suroeste"><canvas width="224" height="224"></canvas></figure>
+<figure data-row="0"><figcaption>↓ Sur</figcaption><img src="export/walk-s.gif" alt="Caminata sur"><canvas width="224" height="224"></canvas></figure>
+<figure data-row="1"><figcaption>↘ Sureste</figcaption><img src="export/walk-se.gif" alt="Caminata sureste"><canvas width="224" height="224"></canvas></figure>
+</main>
+<footer><p><a href="export/ranger-walk.png">Spritesheet: cinco vistas</a> · <a href="export/manifest.json">Mapa de direcciones y cuadros</a></p><p>Animaciones preparadas. Todavía no están conectadas al renderer del juego.</p></footer>
+<script>
+const btn=document.getElementById('mode');let sprites=false;btn.onclick=()=>{sprites=!sprites;document.body.classList.toggle('sprite',sprites);btn.textContent=sprites?'Ver arte en color':'Ver sprites en gris'};
+const atlas=new Image();atlas.src='export/ranger-walk.png';const cards=[...document.querySelectorAll('figure')];atlas.onload=()=>{const start=performance.now();function draw(now){const frame=Math.floor((now-start)*12/1000)%28;for(const f of cards){const c=f.querySelector('canvas').getContext('2d');c.clearRect(0,0,224,224);c.imageSmoothingEnabled=false;c.save();if(f.dataset.flip){c.translate(224,0);c.scale(-1,1)}c.drawImage(atlas,frame*112,Number(f.dataset.row)*112,112,112,0,0,224,224);c.restore()}requestAnimationFrame(draw)}requestAnimationFrame(draw)};
+</script>
+</html>

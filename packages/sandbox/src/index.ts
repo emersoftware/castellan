@@ -9,7 +9,7 @@
  */
 import { newQuickJSWASMModuleFromVariant, type QuickJSContext, type QuickJSHandle, type QuickJSRuntime, type QuickJSWASMModule } from "quickjs-emscripten-core";
 import variant from "@jitl/quickjs-singlefile-mjs-release-sync";
-import type { ScriptLimits } from "@aoa/shared";
+import type { ProjectileView, ScriptLimits } from "@aoa/shared";
 import { PRELUDE } from "./prelude";
 
 let quickjs: QuickJSWASMModule | null = null;
@@ -21,6 +21,8 @@ export async function initSandbox(): Promise<void> {
 
 /** What a script's unit can perceive: every entity, compact. */
 export interface ScriptWorld {
+  deposits?: { id: string; x: number; y: number; amount: number; tie: number }[];
+  projectiles?: ProjectileView[];
   tick: number;
   /** The player's seat (map rotation) 0..3. */
   side: number;
@@ -48,6 +50,10 @@ export interface ScriptUnit {
   vision: number;
   attackMs?: number;
   moveMs?: number;
+  carrying?: number;
+  carryCapacity?: number;
+  lastAttacker?: string | null;
+  lastAttackedTick?: number | null;
 }
 
 /** The single action a unit chose. Validated by the engine, never trusted. */
@@ -56,7 +62,9 @@ export type ScriptAction =
   | { a: "move"; dir: string }
   | { a: "moveTo"; x: number; y: number }
   | { a: "attack"; id: string }
-  | { a: "flee"; id: string };
+  | { a: "flee"; id: string }
+  | { a: "gather"; id?: string }
+  | { a: "unload" };
 
 export interface UnitRun {
   action: ScriptAction;
@@ -215,5 +223,7 @@ function parseRun(raw: string): UnitRun {
   if (a.a === "move" && DIRS.has(a.dir)) out.action = { a: "move", dir: a.dir };
   else if (a.a === "moveTo" && int(a.x) && int(a.y)) out.action = { a: "moveTo", x: a.x, y: a.y };
   else if ((a.a === "attack" || a.a === "flee") && typeof a.id === "string") out.action = { a: a.a, id: a.id };
+  else if (a.a === "gather" && (a.id === undefined || typeof a.id === "string")) out.action = { a: "gather", ...(a.id === undefined ? {} : { id: a.id }) };
+  else if (a.a === "unload") out.action = { a: "unload" };
   return out;
 }

@@ -1,12 +1,12 @@
 // Turns the renders in assets/raw/ (drawn by gen-templated.sh on the isometric
 // templates, subjects on flat magenta) into game sprites: magenta keyed out,
 // colour dropped, contrast stretched, cut per object, scaled from the template's
-// tile size, and ringed with a thin black outline so same-coloured figures stay
-// apart. Unit sheets give 5 facings (<name>_0..4: toward camera, front-right,
+// tile size. Conditional unit outlines are rendered at runtime, never baked
+// into the PNGs. Unit sheets give 5 facings (<name>_0..4: toward camera, front-right,
 // right, back-right, away).
 // The output is luminance + alpha; the renderer tints and the dither pass colours.
 //   node scripts/assets.mjs
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import sharp from "sharp";
 
@@ -14,7 +14,7 @@ const RAW = resolve(import.meta.dirname, "../../../assets/raw");
 const OUT = resolve(import.meta.dirname, "../public/sprites");
 /** Sprites are stored at 3× their on-screen size (zoom 1). */
 const SCALE = 3;
-/** Black outline thickness, in stored pixels (1 screen px). */
+/** Transparent padding, in stored pixels (1 screen px). Keeps existing anchors. */
 const RING = 3;
 
 /**
@@ -29,7 +29,7 @@ const RING = 3;
 const unitRow = (name, fh) => [0, 1, 2, 3, 4].map((i) => ({ name: `${name}_${i}`, cx: 190 + i * 290, cy: 900, dw: 240, fh }));
 const LAYOUT = {
   "buildings.png": [
-    { name: "nexus", cx: 380, cy: 830, dw: 600, fw: 66 },
+    { name: "castle", cx: 380, cy: 830, dw: 600, fw: 66 },
     { name: "tower", cx: 760, cy: 880, dw: 240, fw: 32 },
     { name: "wall", cx: 1050, cy: 880, dw: 240, fw: 32 },
     { name: "wallpost", cx: 1330, cy: 880, dw: 220, fw: 30 },
@@ -38,7 +38,7 @@ const LAYOUT = {
     { name: "gold", cx: 560, cy: 760, dw: 400, fw: 32 },
     { name: "rock", cx: 1100, cy: 760, dw: 400, fw: 34 },
   ],
-  "agent_sheet.png": unitRow("agent", 29),
+  "king_sheet.png": unitRow("king", 29),
   "worker_sheet.png": unitRow("worker", 25),
   "knight_sheet.png": unitRow("knight", 29),
   "ranger_sheet.png": unitRow("ranger", 28),
@@ -46,7 +46,9 @@ const LAYOUT = {
 const TEMPLATE_W = 1536;
 
 mkdirSync(OUT, { recursive: true });
-const manifest = {};
+const manifestPath = resolve(OUT, "manifest.json");
+// Retain hand-authored crop metadata and assets outside the source sheets.
+const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, "utf8")).sprites : {};
 
 /**
  * Background → alpha, colour → luminance. Magenta is keyed by hue (with its
@@ -135,7 +137,7 @@ function grade(img, boxes) {
   return out;
 }
 
-/** Crops `box`, scales by `k`, adds the black ring, writes `<name>.png`; (ax, ay) is the anchor in image pixels. */
+/** Crops/scales with transparent padding; (ax, ay) is the anchor in image pixels. */
 async function emit(name, img, graded, box, k, ax, ay) {
   const tw = Math.max(1, Math.round(box.w * k));
   const th = Math.max(1, Math.round(box.h * k));
@@ -144,7 +146,7 @@ async function emit(name, img, graded, box, k, ax, ay) {
     .resize(tw, th, { kernel: "lanczos3" })
     .raw()
     .toBuffer({ resolveWithObject: true });
-  // Pad and ring: any transparent pixel within RING of the figure becomes opaque black.
+  // Keep padding transparent. Outlines depend on overlapping player colours.
   const W = tw + RING * 2;
   const H = th + RING * 2;
   const out = Buffer.alloc(W * H * 4);
@@ -158,16 +160,12 @@ async function emit(name, img, graded, box, k, ax, ay) {
         out[o] = data[i]; out[o + 1] = data[i + 1]; out[o + 2] = data[i + 2]; out[o + 3] = 255;
         continue;
       }
-      let near = false;
-      for (let dy = -RING; dy <= RING && !near; dy++) for (let dx = -RING; dx <= RING && !near; dx++) {
-        if (dx * dx + dy * dy <= RING * RING && solid(sx + dx, sy + dy)) near = true;
-      }
-      if (near) out[o + 3] = 255; // black
     }
   }
   await sharp(out, { raw: { width: W, height: H, channels: 4 } }).png().toFile(resolve(OUT, `${name}.png`));
   // The anchor (the diamond's centre) in the padded sprite.
   manifest[name] = {
+    ...manifest[name],
     width: W / SCALE,
     height: H / SCALE,
     anchorX: ((ax - box.x) * k + RING) / W,

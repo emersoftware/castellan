@@ -1,0 +1,18 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "kind": "knight",
+  "action": "walk",
+  "stage": "bootstrap",
+  "direction": "e",
+  "prompt": "Seamless walk cycle in place, constant pace, no pauses or easing. Fixed isometric camera. Preserve character, facing, sword and shield and magenta background.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 4,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": true,
+  "source": "assets/raw/knight_sheet.png",
+  "source_view": 2
+}

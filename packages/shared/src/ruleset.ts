@@ -10,6 +10,8 @@ export interface Ruleset {
   version: string;
   /** Match length before the timeout rule decides. */
   matchMs: number;
+  /** Omitted in legacy replays: highest score wins. New matches may draw at the limit. */
+  timeoutOutcome?: "score" | "draw";
   /** Clock-stopped phase where players may read rules and upload scripts. */
   prepMs: number;
   startCapital: number;
@@ -24,6 +26,14 @@ export interface Ruleset {
   kinds: Record<string, KindSpec>;
   /** Optional in old replays. Research belongs to a player and affects one kind. */
   upgrades?: Record<string, UpgradeSpec>;
+  /** Maximum paid units waiting/working at each producer. Legacy training is instant. */
+  trainingQueueLimit?: number;
+  /** Shared team vision; remember explored terrain, but never unseen enemy updates. */
+  fogOfWar?: { rememberTerrain: boolean };
+  /** Real ranged shots; absent preserves legacy instant damage. Speed is Euclidean tiles/s. */
+  projectiles?: { speed: number; unitRadius: number; buildingRadius: number };
+  /** Expose recent damage and economy controls to scripts; preserve older VM views. */
+  reactiveScripts?: boolean;
   map: MapSpec;
   script: ScriptLimits;
   score: { unit: number; building: number; capital: number; kill: number; buildingKill: number };
@@ -47,6 +57,8 @@ export interface UpgradeSpec {
  */
 export interface KindSpec {
   building: boolean;
+  /** One-tile door: allied units may share its tile, enemies may not. */
+  alliedPassage?: boolean;
   /** ASCII symbol for the owner's view; the enemy sees `enemySymbol`. */
   symbol: string;
   enemySymbol: string;
@@ -55,6 +67,10 @@ export interface KindSpec {
   vision: number;
   /** Capital to train (units) or build (buildings). 0 = not producible. */
   cost: number;
+  /** Time a builder must work adjacent to a free site. Omitted means instant. */
+  buildMs?: number;
+  /** Production time per unit. Omitted means instant. */
+  trainMs?: number;
   /** Losing any vital entity loses the match. */
   vital?: boolean;
   /** Present on mobile kinds: time to step one tile (any of 8 directions). */

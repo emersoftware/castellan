@@ -1,0 +1,18 @@
+{
+  "space": "emersoftware/aoa-minimax-animation-worker",
+  "kind": "ranger",
+  "action": "death",
+  "stage": "death",
+  "direction": "se",
+  "prompt": "Collapses onto the ground and remains motionless. No recovery, no blood. Fixed isometric camera. Preserve character, bow and quiver and magenta background.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 6,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": false,
+  "source": "assets/raw/ranger_sheet.png",
+  "source_view": 1
+}

@@ -82,6 +82,7 @@ export const PRELUDE = String.raw`
       atk: u.atk, def: u.def, range: u.range, vision: u.vision, tick: world.tick,
       ...(u.attackMs !== undefined ? { attackMs: u.attackMs, moveMs: u.moveMs } : {}),
       memory: memory[id],
+      projectiles: function () { return (world.projectiles || []).map(function (p) { return { ...p }; }); },
       nearbyEnemies: function () { return visible(hostile); },
       nearbyAllies: function () { return visible(friendly); },
       nearestEnemy: function () { return visible(hostile)[0] || null; },
@@ -99,6 +100,24 @@ export const PRELUDE = String.raw`
       flee: function (t) { act({ a: "flee", id: idOf(t) }); },
       hold: function () { act({ a: "hold" }); },
     };
+    if (u.lastAttackedTick !== undefined) {
+      self.lastAttackedTick = u.lastAttackedTick;
+      self.lastAttacker = function () {
+        return visible(hostile).find(function (o) { return o.id === u.lastAttacker; }) || null;
+      };
+    }
+    if (u.carrying !== undefined) {
+      self.carrying = u.carrying;
+      self.carryCapacity = u.carryCapacity;
+      self.deposits = function () {
+        return (world.deposits || []).slice().sort(function (a,b) {
+          return cheb(u,a)-cheb(u,b) || a.tie-b.tie;
+        }).map(function (d) { return {id:d.id,x:d.x,y:d.y,amount:d.amount}; });
+      };
+      self.nearestDeposit = function () { return self.deposits()[0] || null; };
+      self.gather = function (d) { act({a:"gather",id:idOf(d)}); };
+      self.unload = function () { act({a:"unload"}); };
+    }
     let err;
     try {
       fn(self);

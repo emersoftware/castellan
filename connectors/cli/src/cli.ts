@@ -17,8 +17,8 @@ const USAGE = `aoa — Age of Agents client (env AOA_SERVER, AOA_TOKEN)
   aoa chat ["<message>"] [--channel all|team|private] [--to p2]  public by default; --to = private to one player; no message = read
   aoa status                         waiting | prep | running | finished
   aoa watch [--since T]              one line per event until the match ends
-  aoa new [--name a --name b | --bot eco ...] [--map open|ridge|canyons|quad] [--sides random|fixed] [--chat] [--prep ms] [--seed n]
-          [--mode teams|ffa] (quad defaults to 2v2; --mode ffa is 1v1v1v1)
+  aoa new [--name a --name b | --bot eco ...] [--map open|fortress|fortress-quad|ridge|canyons|quad] [--sides random|fixed] [--chat] [--prep ms] [--seed n]
+          [--mode teams|ffa] (four-seat maps default to 2v2; --mode ffa is 1v1v1v1)
   aoa rooms
   aoa new --series                   create a three-game series (same options as new)
   aoa run-series -- <command...>     play all three games with a series participant token

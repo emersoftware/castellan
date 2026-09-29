@@ -1,0 +1,17 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "direction": "n",
+  "stage": "shoot",
+  "prompt": "Single bow shot: nock one arrow, draw the string to the cheek, release forward, return to idle. Feet planted. Fixed isometric camera. Preserve character, facing and magenta background.",
+  "canvas": "544x544 · 1:1 fast",
+  "duration": 2,
+  "steps": 4,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": true,
+  "source": "assets/raw/ranger_sheet.png",
+  "source_view": 4,
+  "reference_shift_y": 40
+}

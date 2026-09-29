@@ -1,13 +1,16 @@
 /**
  * Sprites generated from rendered art (see scripts/assets.mjs): grayscale +
- * alpha with a black outline, stored at `scale`× their on-screen size. The
+ * alpha, stored at `scale`× their on-screen size. The
  * renderer tints them with a ramp key; nothing here knows about teams.
  *
  * Each sprite also gets a silhouette (for the occlusion depth pass) and x-ray
  * textures (an outline ring over a black interior) used where a unit is hidden
  * behind a building or a rock.
  */
-import { Texture } from "pixi.js";
+import { Rectangle, Texture } from "pixi.js";
+import { xrayMark } from "./xray";
+import { averageTerrainPatches } from "./terrain";
+import { isCharacter, normalizeCharacterContrast } from "./characterContrast";
 
 export const TILE_W = 32;
 export const TILE_H = 16;
@@ -16,8 +19,10 @@ export interface SpriteArt {
   texture: Texture;
   /** White where the sprite is solid: drawn tinted with a depth code. */
   silhouette: Texture;
-  /** Outline ring + black interior, per player colour (ring blue channel 1.0, 0.8, 0.6, 0.4; interior 0.15). */
+  /** Colour + ring/interior codes for the x-ray shader, one texture per player. */
   xray: Texture[];
+  /** Exterior ring, drawn only over a same-colour entity behind this unit. */
+  outline?: Texture[];
   /** Display scale to apply (1/stored scale). */
   scale: number;
   /** The point that stands on the tile centre, 0..1 of the width/height. */
@@ -33,8 +38,8 @@ export interface Facing {
 
 /** Game kind → sprite file. */
 const FILES: Record<string, string> = {
-  agent: "agent", worker: "worker", knight: "knight", ranger: "ranger",
-  nexus: "nexus", turret: "tower", wall: "wall", wallpost: "wallpost", deposit: "gold", rock: "rock",
+  agent: "king", king: "king", worker: "worker", knight: "knight", ranger: "ranger",
+  castle: "castle", nexus: "castle", door: "door", turret: "tower", wall: "wall", wallpost: "wallpost", deposit: "minerals-full", rock: "rock",
 };
 
 /**
@@ -44,22 +49,73 @@ const FILES: Record<string, string> = {
 const SHEET_VIEW = [0, 1, 2, 3, 4, 3, 2, 1];
 const MIRRORED = [false, false, false, false, false, true, true, true];
 
-export type SpriteSet = (kind: string, dir?: number) => Facing;
+export interface AnimationFrame { action: "idle" | "walk" | "shoot" | "attack" | "death" | "mine"; frame: number }
+export type SpriteSet = (kind: string, dir?: number, animation?: AnimationFrame) => Facing;
 
-export async function loadSprites(base = "/sprites"): Promise<SpriteSet> {
+/** Atlas cells have a local ground anchor, shared by all texture passes. */
+export function animationCell(art: SpriteArt, frame: { x: number; y: number; width: number; height: number }): SpriteArt {
+  return { ...cropSpriteArt(art, frame), anchorX: art.anchorX, anchorY: art.anchorY };
+}
+
+/** Select one sprite from a source image without moving its ground anchor. */
+export function cropSpriteArt(art: SpriteArt, frame: { x: number; y: number; width: number; height: number }): SpriteArt {
+  const crop = (texture: Texture) => new Texture({ source: texture.source, frame: new Rectangle(frame.x, frame.y, frame.width, frame.height) });
+  return {
+    ...art,
+    anchorX: (art.anchorX * art.texture.width - frame.x) / frame.width,
+    anchorY: (art.anchorY * art.texture.height - frame.y) / frame.height,
+    texture: crop(art.texture),
+    silhouette: crop(art.silhouette),
+    xray: art.xray.map(crop),
+    outline: art.outline?.map(crop),
+  };
+}
+
+// Reconnects and replay perspective switches create new renderers. Atlas GPU
+// sources are shared; rebuilding their masks on each mount wastes memory.
+const spriteLoads = new Map<string, Promise<SpriteSet>>();
+export function loadSprites(base = "/sprites"): Promise<SpriteSet> {
+  let pending = spriteLoads.get(base);
+  if (!pending) {
+    pending = buildSprites(base).catch((error) => { spriteLoads.delete(base); throw error; });
+    spriteLoads.set(base, pending);
+  }
+  return pending;
+}
+
+async function buildSprites(base: string): Promise<SpriteSet> {
   const manifest = (await fetch(`${base}/manifest.json`).then((r) => r.json())) as {
     scale: number;
-    sprites: Record<string, { anchorX?: number; anchorY: number }>;
+    sprites: Record<string, { format?: "svg"; anchorX?: number; anchorY: number; rasterWidth?: number; rasterHeight?: number; frame?: { x: number; y: number; width: number; height: number } }>;
   };
   const arts = new Map<string, SpriteArt>();
   await Promise.all(
     Object.entries(manifest.sprites).map(async ([name, m]) => {
-      const img = await loadImage(`${base}/${name}.png`);
-      arts.set(name, { ...derive(img), scale: 1 / manifest.scale, anchorX: m.anchorX ?? 0.5, anchorY: m.anchorY });
+      const img = await loadImage(`${base}/${name}.${m.format ?? "png"}`);
+      const art = { ...derive(img, m.rasterWidth, m.rasterHeight, isCharacter(name)), scale: 1 / manifest.scale, anchorX: m.anchorX ?? 0.5, anchorY: m.anchorY };
+      arts.set(name, m.frame ? cropSpriteArt(art, m.frame) : art);
     }),
   );
   const fallback = arts.get("knight") ?? arts.get("knight_2") ?? [...arts.values()][0];
-  return (kind, dir = 2) => {
+  const animations = new Map<string, SpriteArt[][]>();
+  await Promise.all(["ranger", "knight", "king", "worker"].map(async kind => {
+    const metadata = await fetch(`${base}/${kind}/manifest.json`).then((r) => r.json()) as Partial<Record<AnimationFrame["action"], {
+      available?: boolean; image: string; frameCount: number; frameWidth: number; frameHeight: number; storedScale: number; anchorX: number; anchorY: number; rows: string[];
+    }>>;
+    await Promise.all(Object.entries(metadata).map(async ([action, m]) => {
+      if (m.available === false) return;
+      const img = await loadImage(`${base}/${kind}/${m.image}`);
+      const atlas = { ...derive(img, undefined, undefined, true), scale: 1 / m.storedScale, anchorX: m.anchorX, anchorY: m.anchorY };
+      animations.set(`${kind}:${action}`, m.rows.map((_, row) => Array.from({ length: m.frameCount }, (_, frame) => animationCell(atlas, {
+        x: frame * m.frameWidth, y: row * m.frameHeight, width: m.frameWidth, height: m.frameHeight,
+      }))));
+    }));
+  }));
+  return (kind, dir = 2, animation) => {
+    if (animation) {
+      const frames = animations.get(`${kind === "agent" ? "king" : kind}:${animation.action}`)?.[SHEET_VIEW[dir]];
+      if (frames) return { art: frames[Math.max(0, Math.min(frames.length - 1, Math.floor(animation.frame)))], flip: MIRRORED[dir] };
+    }
     const file = FILES[kind] ?? kind;
     const view = arts.get(`${file}_${SHEET_VIEW[dir]}`);
     if (view) return { art: view, flip: MIRRORED[dir] };
@@ -85,17 +141,24 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /** Builds the sprite texture plus its silhouette and x-ray variants. */
-function derive(img: HTMLImageElement): Pick<SpriteArt, "texture" | "silhouette" | "xray"> {
-  const w = img.naturalWidth;
-  const h = img.naturalHeight;
+function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHeight = Math.round(img.naturalHeight * rasterWidth / img.naturalWidth), character = false): Pick<SpriteArt, "texture" | "silhouette" | "xray" | "outline"> {
+  // Generated source art can be large. Rasterize once at game resolution before
+  // deriving the masks, preserving alpha and a consistent on-screen footprint.
+  const w = rasterWidth;
+  const h = rasterHeight;
   const base = document.createElement("canvas");
   base.width = w;
   base.height = h;
   const ctx = base.getContext("2d")!;
-  ctx.drawImage(img, 0, 0);
-  const src = ctx.getImageData(0, 0, w, h).data;
+  ctx.drawImage(img, 0, 0, w, h);
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const src = imageData.data;
+  if (character) {
+    normalizeCharacterContrast(src);
+    ctx.putImageData(imageData, 0, 0);
+  }
   const solid = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && src[(y * w + x) * 4 + 3] > 127;
-  const make = (fill: (x: number, y: number, ring: boolean) => [number, number, number] | null) => {
+  const make = (fill: (x: number, y: number, ring: boolean) => [number, number, number] | null, exterior = false) => {
     const cv = document.createElement("canvas");
     cv.width = w;
     cv.height = h;
@@ -103,10 +166,13 @@ function derive(img: HTMLImageElement): Pick<SpriteArt, "texture" | "silhouette"
     const out = c.createImageData(w, h);
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
-        if (!solid(x, y)) continue;
+        if (exterior ? solid(x, y) : !solid(x, y)) continue;
         // The ring: solid pixels within 3 stored px (1 screen px) of the edge.
         let ring = false;
-        for (let d = 1; d <= 3 && !ring; d++) ring = !solid(x - d, y) || !solid(x + d, y) || !solid(x, y - d) || !solid(x, y + d);
+        for (let d = 1; d <= 3 && !ring; d++) ring = exterior
+          ? solid(x - d, y) || solid(x + d, y) || solid(x, y - d) || solid(x, y + d)
+          : !solid(x - d, y) || !solid(x + d, y) || !solid(x, y - d) || !solid(x, y + d);
+        if (exterior && !ring) continue;
         const col = fill(x, y, ring);
         if (!col) continue;
         const i = (y * w + x) * 4;
@@ -123,7 +189,8 @@ function derive(img: HTMLImageElement): Pick<SpriteArt, "texture" | "silhouette"
   return {
     texture,
     silhouette: make(() => [255, 255, 255]),
-    xray: [255, 204, 153, 102].map((b) => make((_x, _y, ring) => (ring ? [255, 255, b] : [255, 255, 38]))),
+    xray: [0, 1, 2, 3].map((colour) => make((_x, _y, ring) => [255, 255, xrayMark(colour, ring)])),
+    outline: [0, 1, 2, 3].map((colour) => make(() => [255, 255, xrayMark(colour, true)], true)),
   };
 }
 
@@ -158,38 +225,27 @@ export function terrainTexture(width: number, height: number): { texture: Textur
   const ctx = cv.getContext("2d")!;
   const img = ctx.createImageData(w, h + 8);
   const px = img.data;
+  const patches = averageTerrainPatches(width, height, (mx, my) => {
+    const n = noise(mx / 4, my / 4, 7) * 0.6 + noise(mx / 1.3, my / 1.3, 11) * 0.4;
+    const shade = 1.1 - ((mx + my) / (width + height)) * 0.35;
+    return Math.min(1, (0.02 + n * n * 0.34) * shade);
+  });
   for (let sy = 0; sy < h + 8; sy++) {
     for (let sx = 0; sx < w; sx++) {
       const u = (sx - ox) / (TILE_W / 2);
       const v = (sy - TILE_H / 2) / (TILE_H / 2);
       const mx = (u + v) / 2 + 0.5;
       const my = (v - u) / 2 + 0.5;
-      if (mx < 0 || my < 0 || mx > width || my > height) continue;
-      const n = noise(mx / 4, my / 4, 7) * 0.6 + noise(mx / 1.3, my / 1.3, 11) * 0.4;
-      const shade = 1.1 - ((mx + my) / (width + height)) * 0.35;
-      const L = (0.02 + n * n * 0.34) * shade;
+      if (mx < 0 || my < 0 || mx >= width || my >= height) continue;
+      const L = patches[Math.floor(my * 2) * (width * 2) + Math.floor(mx * 2)];
       const i = (sy * w + sx) * 4;
       px[i + 1] = Math.round(Math.min(1, L) * 255);
       px[i + 3] = 255;
     }
   }
   ctx.putImageData(img, 0, 0);
-  // Brighter grass tufts.
-  for (let i = 0; i < width * height * 0.9; i++) {
-    const x = noise(i * 1.7, 3, 5) * width;
-    const y = noise(5, i * 1.3, 9) * height;
-    const cx = ox + (x - y) * (TILE_W / 2);
-    const cy = (x + y) * (TILE_H / 2) + TILE_H / 2;
-    ctx.strokeStyle = `rgba(0,${90 + (i % 5) * 25},0,0.9)`;
-    ctx.lineWidth = 0.6;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx - 0.6, cy - 1.8);
-    ctx.moveTo(cx + 0.8, cy);
-    ctx.lineTo(cx + 1.2, cy - 1.5);
-    ctx.stroke();
-  }
   const texture = Texture.from(cv);
-  texture.source.scaleMode = "linear";
+  // Keep half-tile boundaries crisp; the final shader supplies the semitones.
+  texture.source.scaleMode = "nearest";
   return { texture, originX: ox, originY: TILE_H / 2 };
 }

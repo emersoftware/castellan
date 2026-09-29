@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { BOTS, simulate } from "@aoa/sim";
-import { v0 } from "@aoa/shared";
+import { v9 } from "@aoa/shared";
 import { saveReplay } from "./app";
 
 const root = resolve(fileURLToPath(import.meta.url), "../../../..");
@@ -14,7 +14,7 @@ for (const [a, b] of pairs) {
   const r = await simulate({ bot: BOTS[a](), latencyMs: 3000 }, { bot: BOTS[b](), latencyMs: 3000 }, { seed });
   const id = randomBytes(4).toString("hex");
   await saveReplay(dir, {
-    format: 1, id, createdAt: new Date().toISOString(), ruleset: v0, seed, tickRate: 10,
+    format: 1, id, createdAt: new Date().toISOString(), ruleset: v9, seed, tickRate: 10,
     players: [{ id: "p1", name: `bot:${a}` }, { id: "p2", name: `bot:${b}` }],
     orders: r.orders, hashes: r.hashes, finalTick: r.ticks, outcome: r.outcome,
   });

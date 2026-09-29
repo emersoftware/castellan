@@ -16,6 +16,7 @@ function fakeRenderer() {
   return {
     destroy: vi.fn(() => { destroyed = true; }),
     setFrame: vi.fn(checkAlive),
+    setPaused: vi.fn(checkAlive),
     onHover: vi.fn(checkAlive),
     onSound: vi.fn(checkAlive),
     zoom: vi.fn(checkAlive),

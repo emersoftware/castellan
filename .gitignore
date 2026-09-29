@@ -10,3 +10,14 @@ files.zip
 /*.png
 assets/raw/v1/
 assets/raw/v2/
+
+# Animation generation caches and review artifacts (keep source clips and atlases).
+assets/animations/**/__pycache__/
+assets/animations/**/*frames*/
+assets/animations/**/attempt-*/
+assets/animations/**/rejected-*/
+assets/animations/downloads/
+assets/animations/**/*.gif
+assets/animations/**/contact-sheet.png
+assets/animations/**/*.jsonl
+assets/animations/**/result.json

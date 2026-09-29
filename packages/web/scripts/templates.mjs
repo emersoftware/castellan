@@ -28,7 +28,7 @@ let units = cube(110, 170, 60);
 for (let i = 0; i < 5; i++) units += diamond(190 + i * 290, 900, 120);
 await sharp(Buffer.from(svg(W, H, units))).png().toFile(resolve(OUT, "units.png"));
 
-// Buildings: nexus on 2×2, then tower, wall piece, wall post on 1×1 tiles.
+// Buildings: castle on 2×2, then tower, wall piece, wall post on 1×1 tiles.
 let blds = cube(110, 170, 60);
 blds += diamond(380, 830, 150, 2);
 blds += diamond(760, 880, 120);

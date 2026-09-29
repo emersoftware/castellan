@@ -1,0 +1,6 @@
+{
+  "referenceScale": {
+    "n": 0.9007352941176471
+  },
+  "review": "N input padded for overhead scepter clearance; undo its scale at export to match all other King actions."
+}

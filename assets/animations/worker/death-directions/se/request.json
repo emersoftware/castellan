@@ -1,0 +1,18 @@
+{
+  "space": "emersoftware/aoa-minimax-animation-worker",
+  "kind": "worker",
+  "action": "death",
+  "stage": "death",
+  "direction": "se",
+  "prompt": "Falls onto his side, lying dead and still. Static isometric view. Preserve character and pickaxe. Solid magenta background stays unchanged.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 6,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": false,
+  "source": "assets/raw/worker_sheet.png",
+  "source_view": 1
+}

@@ -6,11 +6,15 @@
  * corpses on the field.
  */
 import { Application, Container, Graphics, RenderTexture, Sprite, Text, type Filter } from "pixi.js";
-import type { DepositView, EntityView, GameEvent, Ruleset, SpectatorView } from "@aoa/shared";
+import type { DepositView, EntityView, GameEvent, ProjectileView, Ruleset, SpectatorView } from "@aoa/shared";
 import { TILE_H, TILE_W, loadSprites, screenDir, terrainTexture, type SpriteArt, type SpriteSet } from "./sprites";
-import { createXrayFilter, depthTint } from "./xray";
+import { createXrayFilter, depthTint, occluderTint } from "./xray";
 import { createDitherFilter } from "./dither";
 import { RAMPS, PLAYER_RAMPS, dim } from "./palette";
+import { depositSprite, initialDepositAmount } from "./deposits";
+import { type RangerShot } from "./rangerAnimation";
+
+import { animatedUnit, unitAnimation, recoveryMs, hasUnitAnimation, unitDeathAnimation, unitMiningAnimation } from "./unitAnimation";
 
 export interface HoverInfo {
   x: number;
@@ -35,8 +39,15 @@ interface Drawn {
   to: { x: number; y: number };
   /** Screen direction 0..7 (S, SE, E, NE, N, NW, W, SW) the unit faces. */
   dir: number;
+  shot?: RangerShot;
+  /** Simulation time of the next possible tile step; unchanged ticks are not idle. */
+  walkUntil?: number;
+  step?: { at: number; ms: number };
+  /** Distance completed before the current interpolated step, in map tiles. */
+  walkDistance?: number;
   /** Units: drawn where an occluder hides them. Buildings: their depth silhouette. */
   xray: Sprite | null;
+  outline: Sprite | null;
   depth: Sprite | null;
   flashUntil: number;
   lungeUntil: number;
@@ -46,6 +57,8 @@ interface Drawn {
 interface Effect {
   /** Returns false when finished. */
   update(now: number): boolean;
+  /** Remove persistent remains when seeking away from their timeline. */
+  destroy?(): void;
 }
 
 const iso = (x: number, y: number) => ({ sx: (x - y) * (TILE_W / 2), sy: (x + y) * (TILE_H / 2) });
@@ -60,21 +73,32 @@ export class GameRenderer {
   private objects = new Container();
   private fx = new Container();
   private hoverMark = new Graphics();
-  /** Units' x-ray outlines, shown only where an occluder is in front (see xray.ts). */
+  private fog = new Graphics();
+  private visibility?: string[];
+  /** Only units get x-ray outlines, behind buildings of their own colour. */
   private xrayLayer = new Container();
+  private outlineLayer = new Container();
   /** Occluders' silhouettes tinted with depth codes, rendered off-screen each frame. */
   private depthWorld = new Container();
   private depthLayer = new Container();
   private depthRT!: RenderTexture;
   private xrayFilter!: Filter;
+  private outlineFilter!: Filter;
   /** Static occluders (rocks, mines) and their depth sprites. */
-  private staticDepth: { sprite: Sprite; depth: Sprite }[] = [];
+  private staticDepth: { sprite: Sprite; depth: Sprite; x: number; y: number }[] = [];
   private drawn = new Map<string, Drawn>();
   private deposits = new Map<string, { view: DepositView; sprite: Sprite; shadow: Graphics; depth: Sprite }>();
   private effects: Effect[] = [];
+  private shots = new Map<string, { graphic: Graphics; from: { x: number; y: number }; to: ProjectileView;
+    launchOffset?: { x: number; y: number; at: number } }>();
   private frameAt = 0;
   private tickMs = 100;
   private first = true;
+  private gameMs = 0;
+  private gameTickMs = 100;
+  private lastTick = -1;
+  private pausedAt?: number;
+  private pauseOffset = 0;
   private zoomLevel = 1;
   private hoverCb: (h: HoverInfo | null) => void = () => {};
   private hovered: { x: number; y: number } | null = null;
@@ -107,8 +131,10 @@ export class GameRenderer {
 
     this.objects.sortableChildren = true;
     this.depthLayer.sortableChildren = true;
+    this.xrayLayer.sortableChildren = true;
+    this.outlineLayer.sortableChildren = true;
     this.depthWorld.addChild(this.depthLayer);
-    this.world.addChild(this.ground, this.shadows, this.hoverMark, this.objects, this.xrayLayer, this.fx);
+    this.world.addChild(this.ground, this.shadows, this.hoverMark, this.objects, this.outlineLayer, this.xrayLayer, this.fx, this.fog);
     this.root.addChild(this.world);
     this.root.filters = [createDitherFilter()];
     this.app.stage.addChild(this.root);
@@ -128,6 +154,18 @@ export class GameRenderer {
   onSound(sink: SoundSink) {
     this.sound = sink;
   }
+
+  /** Freeze the presentation clock along with a paused replay. */
+  setPaused(paused: boolean) {
+    if (paused && this.pausedAt === undefined) this.pausedAt = this.now();
+    else if (!paused && this.pausedAt !== undefined) {
+      this.pauseOffset += this.now() - this.pausedAt;
+      this.pausedAt = undefined;
+    }
+  }
+
+  private presentationNow() { return (this.pausedAt ?? this.now()) - this.pauseOffset; }
+  private animationMs(now: number) { return this.gameMs + this.alpha(now) * this.gameTickMs; }
 
   /** Zoom by a factor around the screen center (0.35×–3×). */
   zoom(factor: number) {
@@ -163,11 +201,27 @@ export class GameRenderer {
    * `jump` (seeking a replay) snaps to the state without animations, effects or sounds.
    */
   setFrame(v: SpectatorView, tickMs: number, jump = false) {
-    const now = this.now();
+    const now = this.presentationNow();
     const alpha = this.alpha(now);
-    const quiet = jump || this.first;
+    const previousGameMs = this.animationMs(now);
+    const sameTick = v.tick === this.lastTick;
+    const quiet = jump || this.first || sameTick;
+    this.lastTick = v.tick;
+    if (v.tick > 0 && Number.isFinite(v.timeMs)) this.gameTickMs = v.timeMs / v.tick;
+    this.gameMs = v.timeMs ?? v.tick * this.gameTickMs;
     this.tickMs = tickMs;
-    this.frameAt = now;
+    // GameCanvas also resends the current snapshot when replay speed changes.
+    // Preserve its fraction instead of rewinding the animation by a tick.
+    this.frameAt = sameTick && !jump ? now - alpha * tickMs : now;
+    this.visibility = v.visibility;
+    this.fog.clear();
+    for (const rock of this.staticDepth) rock.sprite.visible = !v.visibility || v.visibility[rock.y]?.[rock.x] !== "0";
+    if (v.visibility) for (let y = 0; y < this.height; y++) for (let x = 0; x < this.width; x++) {
+      const visibility = v.visibility[y]?.[x];
+      if (visibility === "2") continue;
+      const { sx, sy } = iso(x, y);
+      this.fog.poly([sx, sy - TILE_H / 2, sx + TILE_W / 2, sy, sx, sy + TILE_H / 2, sx - TILE_W / 2, sy]).fill({ color: 0x000000, alpha: visibility === "1" ? 0.8 : 1 });
+    }
     const seen = new Set<string>();
 
     for (const e of v.entities) {
@@ -177,20 +231,45 @@ export class GameRenderer {
         this.addEntity(e);
         continue;
       }
-      d.from = jump ? { x: e.x, y: e.y } : { x: d.from.x + (d.to.x - d.from.x) * alpha, y: d.from.y + (d.to.y - d.from.y) * alpha };
-      d.to = { x: e.x, y: e.y };
-      const mx = e.x - d.from.x;
-      const my = e.y - d.from.y;
-      if (Math.abs(mx) + Math.abs(my) > 0.01) d.dir = screenDir(mx - my, (mx + my) / 2);
+      if (animatedUnit(e.kind)) {
+        if (jump) {
+          d.walkUntil = undefined;
+          d.step = undefined;
+          d.walkDistance = 0;
+          d.from = d.to = { x: e.x, y: e.y };
+        }
+        else if (e.x !== d.to.x || e.y !== d.to.y) {
+          const moveMs = e.stats?.moveMs ?? this.ruleset.kinds[e.kind]?.moveMs ?? this.gameTickMs;
+          // Same quantization as the engine: a 380 ms step at 10 Hz takes
+          // four ticks. Only an actual tile change renews this window.
+          const cadence = Math.max(1, Math.round(moveMs / this.gameTickMs)) * this.gameTickMs;
+          const dx = e.x - d.to.x, dy = e.y - d.to.y;
+          const position = this.position(d, alpha, previousGameMs);
+          d.walkDistance = (d.walkDistance ?? 0) + Math.hypot(position.x - d.from.x, position.y - d.from.y);
+          d.from = position;
+          d.to = { x: e.x, y: e.y };
+          d.step = { at: this.gameMs, ms: cadence };
+          d.walkUntil = this.gameMs + cadence;
+          d.dir = screenDir(dx - dy, (dx + dy) / 2);
+        }
+      } else {
+        if (!sameTick || jump) d.from = jump ? { x: e.x, y: e.y } : this.position(d, alpha, previousGameMs);
+        d.to = { x: e.x, y: e.y };
+        const mx = e.x - d.from.x;
+        const my = e.y - d.from.y;
+        if (Math.abs(mx) + Math.abs(my) > 0.01) d.dir = screenDir(mx - my, (mx + my) / 2);
+      }
       d.view = e;
+      if (jump) d.shot = undefined;
     }
     for (const [id, d] of this.drawn) {
       if (seen.has(id)) continue;
       this.drawn.delete(id);
       d.bar.destroy();
       d.xray?.destroy();
+      d.outline?.destroy();
       d.depth?.destroy();
-      if (quiet) {
+      if (quiet || (v.visibility && !v.events.some((e) => e.type === "death" && e.id === id))) {
         d.sprite.destroy();
         d.shadow.destroy();
       } else this.effects.push(this.corpse(d));
@@ -199,13 +278,13 @@ export class GameRenderer {
     const depSeen = new Set<string>();
     for (const dv of v.deposits) {
       depSeen.add(dv.id);
+      const { art } = this.sprites(depositSprite(dv.amount, initialDepositAmount(this.ruleset.map, dv)));
       let d = this.deposits.get(dv.id);
       if (!d) {
         const { sx, sy } = iso(dv.x, dv.y);
-        const { art } = this.sprites("deposit");
         const sprite = new Sprite(art.texture);
         sprite.anchor.set(art.anchorX, art.anchorY);
-        sprite.tint = RAMPS.gold.key;
+        sprite.tint = RAMPS.neutral.key;
         sprite.position.set(sx, sy + 2);
         sprite.zIndex = (dv.x + dv.y) * 10 + 1;
         const shadow = new Graphics().ellipse(sx, sy + 3, 12, 4).fill({ color: 0x000000, alpha: 0.35 });
@@ -214,21 +293,50 @@ export class GameRenderer {
         d = { view: dv, sprite, shadow, depth: this.depthSprite(art) };
         this.deposits.set(dv.id, d);
       }
-      // A mine shrinks as it is emptied.
-      d.sprite.scale.set(this.sprites("deposit").art.scale * (0.55 + 0.45 * Math.min(1, dv.amount / this.initialAmount(dv))));
+      d.sprite.texture = art.texture;
+      d.sprite.anchor.set(art.anchorX, art.anchorY);
+      d.sprite.scale.set(art.scale);
+      d.depth.texture = art.silhouette;
       d.view = dv;
     }
     for (const [id, d] of this.deposits) {
       if (depSeen.has(id)) continue;
-      if (!quiet) this.effects.push(this.dust(d.view.x, d.view.y, RAMPS.gold.key, 10));
+      if (!quiet && !v.visibility) this.effects.push(this.dust(d.view.x, d.view.y, RAMPS.neutral.key, 10));
       d.sprite.destroy();
       d.shadow.destroy();
       d.depth.destroy();
       this.deposits.delete(id);
     }
 
+    if (jump) {
+      this.effects = this.effects.filter((effect) => {
+        if (!effect.destroy) return true;
+        effect.destroy();
+        return false;
+      });
+      for (const shot of this.shots.values()) shot.graphic.destroy();
+      this.shots.clear();
+    }
+    const activeShots = new Set((v.projectiles ?? []).map((p) => p.id));
+    for (const [id, shot] of this.shots) {
+      if (activeShots.has(id)) continue;
+      // Impact state already includes damage: stop the shot in this same frame.
+      shot.graphic.destroy();
+      this.shots.delete(id);
+    }
+    for (const p of v.projectiles ?? []) {
+      const shot = this.shots.get(p.id);
+      if (shot) {
+        if (!sameTick) shot.from = { x: shot.from.x + (shot.to.x - shot.from.x) * alpha, y: shot.from.y + (shot.to.y - shot.from.y) * alpha };
+        shot.to = p;
+      } else {
+        const graphic = new Graphics();
+        this.fx.addChild(graphic);
+        this.shots.set(p.id, { graphic, from: { x: p.x, y: p.y }, to: p });
+      }
+    }
     this.layoutWalls();
-    if (!quiet) for (const ev of v.events) this.onEvent(ev, now);
+    if (!quiet) for (const ev of v.events) this.onEvent(ev, now, v.events);
     this.first = false;
     this.refreshHover();
   }
@@ -255,7 +363,7 @@ export class GameRenderer {
       r.position.set(sx, sy + 3);
       r.zIndex = (w.x + w.y) * 10 + 4;
       this.objects.addChild(r);
-      this.staticDepth.push({ sprite: r, depth: this.depthSprite(art) });
+      this.staticDepth.push({ sprite: r, depth: this.depthSprite(art), x: w.x, y: w.y });
     }
   }
 
@@ -267,13 +375,13 @@ export class GameRenderer {
   }
 
   /** Mirrors an occluder into the depth pass, tinted with its depth code. */
-  private syncDepth(src: Sprite, depth: Sprite) {
+  private syncDepth(src: Sprite, depth: Sprite, colour?: number, building = false) {
     depth.position.copyFrom(src.position);
     depth.scale.copyFrom(src.scale);
     depth.anchor.copyFrom(src.anchor);
     depth.rotation = src.rotation;
     depth.zIndex = src.zIndex;
-    depth.tint = depthTint(src.zIndex);
+    depth.tint = occluderTint(src.zIndex, colour, building);
     depth.visible = src.visible && src.alpha > 0.5;
   }
 
@@ -283,12 +391,12 @@ export class GameRenderer {
    */
   private layoutWalls() {
     const at = new Map<string, Drawn>();
-    for (const d of this.drawn.values()) if (d.view.kind === "wall") at.set(`${d.to.x},${d.to.y},${d.view.owner}`, d);
+    for (const d of this.drawn.values()) if (d.view.kind === "wall" || d.view.kind === "door") at.set(`${d.to.x},${d.to.y},${d.view.owner}`, d);
     const has = (d: Drawn, dx: number, dy: number) => at.has(`${d.to.x + dx},${d.to.y + dy},${d.view.owner}`);
     for (const d of at.values()) {
       const alongX = has(d, 1, 0) || has(d, -1, 0);
       const alongY = has(d, 0, 1) || has(d, 0, -1);
-      const { art } = this.sprites(alongX !== alongY ? "wall" : "wallpost");
+      const { art } = this.sprites(d.view.kind === "door" ? (d.view.open ? "door-open" : "door") : alongX !== alongY ? "wall" : "wallpost");
       d.sprite.texture = art.texture;
       d.sprite.anchor.set(art.anchorX, art.anchorY);
       d.sprite.scale.set(alongX && !alongY ? -art.scale : art.scale, art.scale);
@@ -302,15 +410,22 @@ export class GameRenderer {
     const h = Math.max(64, this.host.clientHeight);
     this.app.renderer.resize(w, h);
     this.root.filterArea = this.app.screen;
-    this.xrayLayer.filterArea = this.app.screen;
+    // Pixi interprets filterArea in the container's local coordinates. This
+    // layer lives inside the panned/zoomed world: a screen rectangle here clips
+    // everything left of the world's origin. Let Pixi project the unit bounds.
+    this.xrayLayer.filterArea = undefined;
     this.depthRT?.destroy(true);
     this.depthRT = RenderTexture.create({ width: w, height: h, scaleMode: "nearest" });
     if (!this.xrayFilter) {
       this.xrayFilter = createXrayFilter(this.depthRT);
       this.xrayLayer.filters = [this.xrayFilter];
+      this.outlineFilter = createXrayFilter(this.depthRT, true);
+      this.outlineLayer.filters = [this.outlineFilter];
     } else {
       this.xrayFilter.resources.uDepth = this.depthRT.source;
       this.xrayFilter.resources.xrayUniforms.uniforms.uScreen = new Float32Array([w, h]);
+      this.outlineFilter.resources.uDepth = this.depthRT.source;
+      this.outlineFilter.resources.xrayUniforms.uniforms.uScreen = new Float32Array([w, h]);
     }
     if (!recenter) return;
     const mapW = (this.width + this.height) * (TILE_W / 2) + 40;
@@ -333,14 +448,21 @@ export class GameRenderer {
     sprite.anchor.set(art.anchorX, art.anchorY);
     sprite.scale.set(art.scale);
     sprite.tint = PLAYER_RAMPS[color].key;
+    // A spawn/reveal can attack in this same frame, before the animation ticker
+    // runs. Arrow endpoints must already be on the map, never at Pixi's (0, 0).
+    sprite.position.set(p.sx, p.sy + (spec?.building ? 0 : 3));
     let xray: Sprite | null = null;
-    let depth: Sprite | null = null;
-    if (spec?.building) depth = this.depthSprite(art);
-    else {
+    let outline: Sprite | null = null;
+    const depth = this.depthSprite(art);
+    if (!spec?.building) {
       xray = new Sprite(art.xray[color]);
       this.xrayLayer.addChild(xray);
+      if (art.outline) {
+        outline = new Sprite(art.outline[color]);
+        this.outlineLayer.addChild(outline);
+      }
     }
-    const r = spec?.building ? (e.kind === "nexus" ? 22 : 12) : 6;
+    const r = spec?.building ? ((e.kind === "castle" || e.kind === "nexus") ? 22 : 12) : 6;
     const shadow = new Graphics().ellipse(0, 0, r, r / 2.6).fill({ color: 0x000000, alpha: 0.4 });
     this.shadows.addChild(shadow);
     this.objects.addChild(sprite);
@@ -348,7 +470,7 @@ export class GameRenderer {
     this.fx.addChild(bar);
     this.drawn.set(e.id, {
       view: e, sprite, shadow, bar, color, from: { x: e.x, y: e.y }, to: { x: e.x, y: e.y },
-      dir, xray, depth, flashUntil: 0, lungeUntil: 0, lunge: { x: 0, y: 0 },
+      dir, xray, outline, depth, flashUntil: 0, lungeUntil: 0, lunge: { x: 0, y: 0 },
     });
   }
 
@@ -358,19 +480,23 @@ export class GameRenderer {
     return Math.min(1, Math.max(0, (now - this.frameAt) / this.tickMs));
   }
 
+  private position(d: Drawn, alpha: number, gameMs: number) {
+    const k = d.step ? Math.min(1, Math.max(0, (gameMs - d.step.at) / d.step.ms)) : alpha;
+    return { x: d.from.x + (d.to.x - d.from.x) * k, y: d.from.y + (d.to.y - d.from.y) * k };
+  }
+
   private animate() {
-    const now = this.now();
+    const now = this.presentationNow();
     const a = this.alpha(now);
-    const t = now / 1000;
+    const animationMs = this.animationMs(now);
     for (const d of this.drawn.values()) {
-      const x = d.from.x + (d.to.x - d.from.x) * a;
-      const y = d.from.y + (d.to.y - d.from.y) * a;
+      const { x, y } = this.position(d, a, animationMs);
       const { sx, sy } = iso(x, y);
       const moving = (d.from.x !== d.to.x || d.from.y !== d.to.y) && a < 1;
       const building = this.ruleset.kinds[d.view.kind]?.building;
       let ox = 0;
       let oy = 0;
-      if (moving) oy = -Math.abs(Math.sin(a * Math.PI * 2)) * 1.2;
+      if (moving && !animatedUnit(d.view.kind)) oy = -Math.abs(Math.sin(a * Math.PI * 2)) * 1.2;
       if (now < d.lungeUntil) {
         const k = Math.sin(((d.lungeUntil - now) / 140) * Math.PI);
         ox = d.lunge.x * k * 2.5;
@@ -379,25 +505,64 @@ export class GameRenderer {
       d.sprite.position.set(sx + ox, sy + oy + (building ? 0 : 3));
       d.sprite.zIndex = Math.round((x + y) * 10) + 5;
       d.sprite.tint = now < d.flashUntil ? RAMPS.neutral.key : PLAYER_RAMPS[d.color].key;
-      if (d.view.kind === "agent") d.sprite.position.y += Math.sin(t * 1.5) * 0.4;
       if (!building) {
-        const { art, flip } = this.sprites(d.view.kind, d.dir);
+        if (d.shot && animationMs >= d.shot.at + recoveryMs(d.view.kind)) d.shot = undefined;
+        // Decide locomotion from confirmed simulation ticks, not the end of
+        // one tick's interpolation. This also avoids an idle flash just before
+        // the next movement snapshot arrives at the cadence boundary.
+        const walking = this.gameMs < (d.walkUntil ?? 0);
+        const distance = (d.walkDistance ?? 0) + Math.hypot(x - d.from.x, y - d.from.y);
+        const mining = !walking && !d.shot ? d.view.gathering : undefined;
+        const animation = (mining && unitMiningAnimation(d.view.kind, animationMs)) || unitAnimation(d.view.kind, animationMs, walking, d.shot, distance);
+        if (mining) {
+          const dx = mining.x - d.view.x, dy = mining.y - d.view.y;
+          d.dir = screenDir(dx - dy, (dx + dy) / 2);
+        }
+        const { art, flip } = this.sprites(d.view.kind, d.shot?.dir ?? d.dir, animation);
         d.sprite.texture = art.texture;
         d.sprite.anchor.set(art.anchorX, art.anchorY);
         d.sprite.scale.set(flip ? -art.scale : art.scale, art.scale);
+        if (d.depth) d.depth.texture = art.silhouette;
         if (d.xray) {
           d.xray.texture = art.xray[d.color];
           d.xray.anchor.copyFrom(d.sprite.anchor);
           d.xray.scale.copyFrom(d.sprite.scale);
           d.xray.position.copyFrom(d.sprite.position);
           d.xray.tint = depthTint(d.sprite.zIndex);
+          // Hidden units must survive the mask composite behind visible units.
+          d.xray.zIndex = -d.sprite.zIndex;
         }
-      } else if (d.depth) this.syncDepth(d.sprite, d.depth);
+        if (d.outline && art.outline) {
+          d.outline.texture = art.outline[d.color];
+          d.outline.anchor.copyFrom(d.sprite.anchor);
+          d.outline.scale.copyFrom(d.sprite.scale);
+          d.outline.position.copyFrom(d.sprite.position);
+          d.outline.tint = depthTint(d.sprite.zIndex);
+          d.outline.zIndex = d.sprite.zIndex;
+        }
+      }
+      // Colour separates overlapping units; only the building tag enables x-ray.
+      if (d.depth) this.syncDepth(d.sprite, d.depth, d.color, !!building);
       d.shadow.position.set(sx, sy + (building ? 2 : 3));
       this.drawBar(d, sx);
     }
     for (const dep of this.deposits.values()) this.syncDepth(dep.sprite, dep.depth);
     for (const o of this.staticDepth) this.syncDepth(o.sprite, o.depth);
+    for (const shot of this.shots.values()) {
+      const { from, to, graphic } = shot;
+      graphic.clear();
+      const x = from.x + (to.x - from.x) * a, y = from.y + (to.y - from.y) * a;
+      const head = iso(x, y), tail = iso(x - to.vx * 0.035, y - to.vy * 0.035);
+      // A ranger can shoot before its interpolated step finishes. Start the
+      // visible arrow at that sprite and join the real trajectory in one tick.
+      if (shot.launchOffset) {
+        const k = Math.max(0, 1 - (animationMs - shot.launchOffset.at) / this.gameTickMs);
+        head.sx += shot.launchOffset.x * k; head.sy += shot.launchOffset.y * k;
+        tail.sx += shot.launchOffset.x * k; tail.sy += shot.launchOffset.y * k;
+      }
+      graphic.moveTo(tail.sx, tail.sy - 6).lineTo(head.sx, head.sy - 6).stroke({ width: 1, color: 0xaaaaaa });
+      graphic.rect(head.sx - 0.5, head.sy - 6.5, 1, 1).fill(0xffffff);
+    }
     this.effects = this.effects.filter((e) => e.update(now));
     // Depth pass for the x-ray: occluders only, in the world's current view.
     this.depthWorld.position.copyFrom(this.world.position);
@@ -418,31 +583,64 @@ export class GameRenderer {
 
   // ───────────────────────── events → effects & sound ─────────────────────────
 
-  private onEvent(ev: GameEvent, now: number) {
+  private onEvent(ev: GameEvent, now: number, events: GameEvent[] = []) {
     if (ev.type === "attack") {
       const from = this.drawn.get(ev.from);
       const to = this.drawn.get(ev.to);
-      if (!from || !to) return;
+      if (!from) return;
+      // A real shot carries its launch vector even if its target has just died
+      // or left the visible frame. Movement heading never defines this facing.
+      const projectile = ev.projectile ? this.shots.get(ev.projectile)?.to : undefined;
+      const death = events.find((e): e is Extract<GameEvent, { type: "death" }> => e.type === "death" && e.id === ev.to);
+      const targetPosition = to?.to ?? death;
+      if (!targetPosition && !projectile) return;
       const spec = this.ruleset.kinds[from.view.kind];
       const a = iso(from.to.x, from.to.y);
-      const b = iso(to.to.x, to.to.y);
+      const b = projectile ? iso(from.to.x + projectile.vx, from.to.y + projectile.vy) : iso(targetPosition!.x, targetPosition!.y);
       const dx = Math.sign(b.sx - a.sx);
       if (b.sx !== a.sx || b.sy !== a.sy) from.dir = screenDir(b.sx - a.sx, b.sy - a.sy);
       if ((spec?.range ?? 1) > 1) {
-        this.effects.push(this.arrow(from, to));
+        if (from.view.kind === "ranger") {
+          const position = this.position(from, this.alpha(now), this.animationMs(now));
+          const visible = iso(position.x, position.y);
+          const shot = ev.projectile && this.shots.get(ev.projectile);
+          if (shot) shot.launchOffset = { x: visible.sx - a.sx, y: visible.sy - a.sy, at: this.gameMs };
+          // Settle at the authoritative tile promptly, without delaying release.
+          from.walkDistance = (from.walkDistance ?? 0) + Math.hypot(position.x - from.from.x, position.y - from.from.y);
+          from.from = position;
+          from.step = { at: this.gameMs, ms: this.gameTickMs };
+          from.sprite.position.set(visible.sx, visible.sy + 3);
+          from.walkUntil = undefined;
+          from.shot = { at: this.gameMs, dir: from.dir };
+        }
+        if (!ev.projectile && to) this.effects.push(this.arrow(from, to));
         this.play(spec?.building ? "tower" : "arrow", from.to.x, from.to.y, 0.6);
-      } else {
-        from.lungeUntil = now + 140;
+      } else if (targetPosition) {
+        if (hasUnitAnimation(from.view.kind, "attack")) {
+          const position = this.position(from, this.alpha(now), this.animationMs(now));
+          from.walkDistance = (from.walkDistance ?? 0) + Math.hypot(position.x - from.from.x, position.y - from.from.y);
+          from.from = position;
+          from.step = { at: this.gameMs, ms: this.gameTickMs };
+          from.walkUntil = undefined;
+          from.shot = { at: this.gameMs, dir: from.dir };
+        }
+        from.lungeUntil = hasUnitAnimation(from.view.kind, "attack") ? 0 : now + 140;
         from.lunge = { x: dx, y: Math.sign(b.sy - a.sy) };
-        to.flashUntil = now + 90;
-        this.effects.push(this.dust(to.to.x, to.to.y, RAMPS.neutral.key, 3, 5));
-        this.play("sword", to.to.x, to.to.y, 0.5);
+        if (to) to.flashUntil = now + 90;
+        this.effects.push(this.dust(targetPosition.x, targetPosition.y, RAMPS.neutral.key, 3, 5));
+        this.play("sword", targetPosition.x, targetPosition.y, 0.5);
+      }
+    } else if (ev.type === "projectile_end") {
+      if (ev.reason !== "miss") {
+        this.effects.push(this.dust(ev.x, ev.y, RAMPS.neutral.key, 3, 5));
+        const target = ev.target && this.drawn.get(ev.target);
+        if (target) target.flashUntil = now + 90;
       }
     } else if (ev.type === "death") {
       const vital = this.ruleset.kinds[ev.kind]?.vital;
       const building = this.ruleset.kinds[ev.kind]?.building;
       this.play(vital ? "horn" : building ? "collapse" : "death", ev.x, ev.y, vital ? 1 : 0.7);
-      if (vital) this.effects.push(this.floatText(ev.kind === "agent" ? "AGENT DOWN" : "NEXUS DESTROYED", ev.x, ev.y, RAMPS.neutral.key, 3200, 12));
+      if (vital) this.effects.push(this.floatText(["king", "agent"].includes(ev.kind) ? "KING DOWN" : `${ev.kind.toUpperCase()} DESTROYED`, ev.x, ev.y, RAMPS.neutral.key, 3200, 12));
     } else if (ev.type === "spawn") {
       const building = this.ruleset.kinds[ev.kind]?.building;
       this.effects.push(this.dust(ev.x, ev.y, 0xaaaaaa, building ? 14 : 6));
@@ -454,10 +652,10 @@ export class GameRenderer {
         this.play("coin", d.to.x, d.to.y, 0.35);
       }
     } else if (ev.type === "chat") {
-      const agent = [...this.drawn.values()].find((d) => d.view.owner === ev.owner && d.view.kind === "agent");
-      if (agent) {
-        this.effects.push(this.bubble(`${ev.channel === "private" ? `[private → ${ev.to}] ` : ev.channel === "team" ? "[team] " : ""}${ev.text}`, agent));
-        this.play("chat", agent.to.x, agent.to.y, 0.6);
+      const king = [...this.drawn.values()].find((d) => d.view.owner === ev.owner && ["king", "agent"].includes(d.view.kind));
+      if (king) {
+        this.effects.push(this.bubble(`${ev.channel === "private" ? `[private → ${ev.to}] ` : ev.channel === "team" ? "[team] " : ""}${ev.text}`, king));
+        this.play("chat", king.to.x, king.to.y, 0.6);
       }
     } else if (ev.type === "match_end") {
       this.play("fanfare", this.width / 2, this.height / 2, 1);
@@ -479,18 +677,32 @@ export class GameRenderer {
   /** A fallen unit stays on the field and fades out, like AoE corpses. */
   private corpse(d: Drawn): Effect {
     const building = this.ruleset.kinds[d.view.kind]?.building;
-    const start = this.now();
+    const start = this.presentationNow();
+    const animated = !building && hasUnitAnimation(d.view.kind, 'death');
+    const facing = d.shot?.dir ?? d.dir;
+    let previous = start, elapsed = 0;
     d.sprite.tint = dim(PLAYER_RAMPS[d.color].key, 0.45);
     if (building) this.effects.push(this.dust(d.to.x, d.to.y, 0xaaaaaa, 24, 14));
-    else {
+    else if (!animated) {
       d.sprite.anchor.set(0.5, 0.5);
       d.sprite.rotation = (Math.PI / 2) * Math.sign(d.sprite.scale.x);
       d.sprite.y -= 3;
     }
     d.sprite.zIndex -= 3;
     return {
+      destroy: () => { d.sprite.destroy(); d.shadow.destroy(); },
       update: (now) => {
-        const k = (now - start) / (building ? 1500 : 6000);
+        // Follow replay speed, including changes during the fall. Keep advancing
+        // after the final snapshot so a lethal King hit can finish its animation.
+        elapsed += Math.max(0, now - previous) * (animated ? this.gameTickMs / this.tickMs : 1);
+        previous = now;
+        if (animated) {
+          const { art, flip } = this.sprites(d.view.kind, facing, unitDeathAnimation(d.view.kind, elapsed));
+          d.sprite.texture = art.texture;
+          d.sprite.anchor.set(art.anchorX, art.anchorY);
+          d.sprite.scale.set(flip ? -art.scale : art.scale, art.scale);
+        }
+        const k = elapsed / (building ? 1500 : 6000);
         d.sprite.alpha = Math.max(0, 1 - k);
         d.shadow.alpha = Math.max(0, 1 - k * 2);
         if (k < 1) return true;
@@ -535,7 +747,7 @@ export class GameRenderer {
     this.fx.addChild(g);
     const a = { x: from.sprite.x, y: from.sprite.y - from.sprite.height * 0.7 };
     const b = { x: to.sprite.x, y: to.sprite.y - 6 };
-    const start = this.now();
+    const start = this.presentationNow();
     const ms = 220;
     const dist = Math.hypot(b.x - a.x, b.y - a.y);
     return {
@@ -562,7 +774,7 @@ export class GameRenderer {
     t.anchor.set(0.5, 1);
     t.position.set(sx, sy - 18);
     this.fx.addChild(t);
-    const start = this.now();
+    const start = this.presentationNow();
     return {
       update: (now) => {
         const k = (now - start) / ms;
@@ -575,7 +787,7 @@ export class GameRenderer {
     };
   }
 
-  /** A speech scroll that follows the agent for a few seconds. */
+  /** A speech scroll that follows the king for a few seconds. */
   private bubble(text: string, d: Drawn): Effect {
     const short = text.length > 80 ? text.slice(0, 77) + "…" : text;
     const box = new Container();
@@ -588,7 +800,7 @@ export class GameRenderer {
     g.poly([w / 2 - 3, h, w / 2 + 3, h, w / 2, h + 4]).fill(0xdddddd);
     box.addChild(g, t);
     this.fx.addChild(box);
-    const start = this.now();
+    const start = this.presentationNow();
     return {
       update: (now) => {
         const k = (now - start) / 6000;
@@ -637,7 +849,7 @@ export class GameRenderer {
   private refreshHover() {
     const h = this.hovered;
     this.hoverMark.clear();
-    if (!h) return this.hoverCb(null);
+    if (!h || (this.visibility && this.visibility[h.y]?.[h.x] !== "2")) return this.hoverCb(null);
     const { sx, sy } = iso(h.x, h.y);
     this.hoverMark.poly([sx, sy - TILE_H / 2, sx + TILE_W / 2, sy, sx, sy + TILE_H / 2, sx - TILE_W / 2, sy]).stroke({ width: 1, color: 0xffffff, alpha: 0.7 });
     const entity = [...this.drawn.values()].find((d) => d.to.x === h.x && d.to.y === h.y)?.view;
@@ -652,8 +864,4 @@ export class GameRenderer {
     return (this.colors[owner] ?? 0) % PLAYER_RAMPS.length;
   }
 
-  private initialAmount(d: DepositView): number {
-    const shared = this.ruleset.map.sharedDeposits.find((s) => s.x === d.x && s.y === d.y);
-    return shared?.amount ?? this.ruleset.map.deposits[0]?.amount ?? 500;
-  }
 }

@@ -1,0 +1,4 @@
+{
+  "startFrames": { "s": 8, "se": 6, "e": 2, "ne": 4, "n": 6 },
+  "note": "Trim reviewed leading hesitation at 12 fps, then hold the fallen endpoint. Original first frame remains the ground-anchor reference."
+}

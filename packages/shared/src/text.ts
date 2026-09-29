@@ -12,7 +12,7 @@ export function viewToText(v: PlayerView): string {
   const myTeam = v.players.find((p) => p.id === v.you)?.team;
   for (const p of v.players) {
     const tag = p.id === v.you ? "YOU  " : p.team === myTeam ? "ALLY " : "ENEMY";
-    lines.push(`${tag} ${p.id} ${p.name}: capital ${p.capital} · pop ${p.pop}/${p.popCap} · score ${p.score} · kills ${p.kills}${p.alive ? "" : " · OUT"}`);
+    lines.push(`${tag} ${p.id} ${p.name}: capital ${p.capital ?? "hidden"} · pop ${p.pop ?? "hidden"}/${p.popCap}${p.queuedPop ? ` (+${p.queuedPop} queued)` : ""} · score ${p.score ?? "hidden"} · kills ${p.kills ?? "hidden"}${p.alive ? "" : " · OUT"}`);
     if (p.upgrades) lines.push(`  upgrades: ${Object.entries(p.upgrades).map(([id, level]) => `${id} L${level}`).join(", ") || "none"}`);
     if (p.research) lines.push(`  researching ${p.research.upgrade} L${p.research.level}: ${secs(Math.max(0, p.research.completesAtMs - v.timeMs))}s remaining`);
   }
@@ -30,6 +30,7 @@ export function viewToText(v: PlayerView): string {
       lines.push("  Use chat without text to read the full visible history.");
     }
   }
+  if (v.visibility) lines.push("fog: ? unexplored · : explored ground outside vision · enemies and resource amounts are current visible information only");
   lines.push("", "map (x→, y↓; the x ruler is tens over units: column 24 = '2' over '4'):");
   const w = v.grid[0]?.length ?? 0;
   const ruler = Array.from({ length: w }, (_, x) => (x % 10 === 0 ? String(x / 10) : " ")).join("");
@@ -41,6 +42,8 @@ export function viewToText(v: PlayerView): string {
   if (v.allies.length) lines.push("allies (grid + unit, = building):", ...v.allies.map((e) => `${entityLine(e)} · owner ${e.owner}`));
   lines.push("enemy:", ...v.enemy.map((e) => `${entityLine(e)} · owner ${e.owner}`));
   lines.push("deposits: " + v.deposits.map((d) => `${d.id}(${d.x},${d.y})=${d.amount}`).join(" "));
+  if (v.projectiles) lines.push("projectiles (visible; velocity in tiles/s): " + (v.projectiles.map((p) =>
+    `${p.id} owner ${p.owner} (${p.x.toFixed(2)},${p.y.toFixed(2)}) velocity (${p.vx.toFixed(2)},${p.vy.toFixed(2)}) destination (${p.endX},${p.endY})`).join("; ") || "none"));
   const scripts = Object.entries(v.scripts).map(([k, s]) => `${k}:${s.custom ? "custom" : "default"}${s.errors.length ? ` ERR ${s.errors.at(-1)}` : ""}`);
   lines.push("scripts: " + scripts.join(" · "));
   // Unloads are already visible as capital; listing them would bury the events that matter.
@@ -52,6 +55,9 @@ export function viewToText(v: PlayerView): string {
 
 function entityLine(e: EntityView): string {
   const extra = [
+    e.vital ? "VITAL" : "",
+    e.training ? `training [${e.training.map((job) => `${job.kind}${job.completesAtMs !== undefined ? ` completes at ${(job.completesAtMs / 1000).toFixed(1)}s (waits if exits blocked)` : " queued"}`).join(", ")}]` : "",
+    e.construction ? `building ${e.construction.kind} (${e.construction.x},${e.construction.y}), completes at ${(e.construction.completesAtMs / 1000).toFixed(1)}s` : "",
     e.stats ? `atk ${e.stats.atk} def ${e.stats.def} range ${e.stats.range} attack ${e.stats.attackMs}ms move ${e.stats.moveMs}ms` : "",
     e.order ? `order ${e.order}` : "",
     e.doing ? `doing ${e.doing}` : "",

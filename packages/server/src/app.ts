@@ -12,7 +12,7 @@ import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { transform } from "esbuild";
 import { validateScript } from "@aoa/sandbox";
-import { MAPS, playerGuide, v1, viewToText, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { mapsForRuleset, playerGuide, v9, viewToText, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
 import { BOTS } from "@aoa/sim";
 import { Room } from "./room";
 import { SeriesStore, type HistorySection } from "./series";
@@ -28,7 +28,8 @@ export interface ServerOptions {
 }
 
 export async function buildServer(opts: ServerOptions): Promise<FastifyInstance> {
-  const ruleset = opts.ruleset ?? v1;
+  const ruleset = opts.ruleset ?? v9;
+  const maps = mapsForRuleset(ruleset);
   const rooms = new Map<string, Room>();
   const tokens = new Map<string, { room: Room; player: string }>();
   await mkdir(opts.replayDir, { recursive: true });
@@ -73,8 +74,8 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
       players?: { name?: string; bot?: string; team?: number }[]; seed?: number; prepMs?: number; tickRate?: number; botLatencyMs?: number;
       map?: string; sides?: "random" | "fixed"; chat?: boolean; mode?: "teams" | "ffa";
     };
-    const map = MAPS[body.map ?? "open"];
-    if (!map) return reply.code(400).send({ error: `unknown map ${body.map}; available: ${Object.keys(MAPS).join(", ")}` });
+    const map = maps[body.map ?? "open"];
+    if (!map) return reply.code(400).send({ error: `unknown map ${body.map}; available: ${Object.keys(maps).join(", ")}` });
     if (body.mode !== undefined && body.mode !== "teams" && body.mode !== "ffa") return reply.code(400).send({ error: 'mode must be "teams" or "ffa"' });
     if (body.mode === "ffa" && body.players?.some((p) => p.team !== undefined)) return reply.code(400).send({ error: "ffa does not accept teams" });
     // One player per seat; four-seat maps support 2v2 (default) or free-for-all.
@@ -122,7 +123,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return series.replay(id) ?? reply.code(409).send({ error: "series replay is available after all three games finish" });
   });
 
-  app.get("/maps", async () => Object.values(MAPS).map(({ name, description, width, height, walls, seats }) => ({ name, description, width, height, walls, players: seats ?? 2 })));
+  app.get("/maps", async () => Object.values(maps).map(({ name, description, width, height, walls, seats }) => ({ name, description, width, height, walls, players: seats ?? 2 })));
 
   app.get("/rooms", async () => [...rooms.values()].map((r) => r.summary()).reverse());
 

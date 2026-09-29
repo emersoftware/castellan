@@ -37,6 +37,22 @@ Run each player in its own terminal. `/series/<id>/watch` follows the games;
 `/series/<id>/replay` plays all three and exports one portable file.
 See [SERIES.md](SERIES.md) for the API, history visibility and recovery behavior.
 
+Use `--map fortress` for a 1v1 with prebuilt corner defenses: two owned wall lines and two one-tile doors per player, with the map edges closing the other two sides. Starting mines are inside; central deposits are outside. Use `--map fortress-quad --mode ffa` for the four-player version, with the same defenses rotated into all four corners.
+
+The default ruleset is `v9-worker-scripts`: dodgeable ranged projectiles (12 tiles/s, damage on collision), immediate melee, unit upgrades, timed unit training, shared team vision, worker-built Castle expansions,
+and victory only by King elimination. At the 10-minute limit, surviving opponents draw; score never decides the winner. Click a player name in watch/replay to see their perspective; use **View all** to return to the observer view.
+See [BALANCE.md](BALANCE.md) for costs, construction
+times and the experimental balance notes. Old replays keep their embedded rules.
+
+Workers mine by default. Both Worker and King accept per-kind scripts; the King
+has a weak melee hit (attack 3, range 1, every 3 s) and only retaliates in reach by
+default. Scripts can use `self.lastAttacker()` to fight or flee. Workers can select
+known resources with `self.deposits()` / `self.gather(deposit)`, inspect
+`self.carrying`, and return early with `self.unload()`. `self.gather()` handles the
+whole mining/dropoff cycle. Upload with `aoa script worker worker.js` or
+`aoa script king king.js`; explicit orders override scripts until they finish or
+are cleared with `stop`. The live rules guide includes examples.
+
 Web dev with hot reload: `pnpm web` (http://localhost:5173, proxies the API to :4400).
 
 ## Layout
@@ -52,3 +68,5 @@ Web dev with hot reload: `pnpm web` (http://localhost:5173, proxies the API to :
 
 ## Tests
 `pnpm test` · `pnpm typecheck`
+
+Unit animations: Ranger (idle/walk/shoot/death), Knight (idle/walk/attack/death), King (idle/walk/attack/death) and Worker (walk/mine/attack/death) use eight directions. See [the animation pipeline](assets/animations/README.md). The King replaces the former in-game Agent name; historical replay data stays compatible.

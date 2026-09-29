@@ -3,9 +3,10 @@ import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { GameEvent } from "@aoa/shared";
 import { api, playerColors, fmtTime } from "../api";
+import { playerPerspective } from "../perspective";
 import { sfx } from "../audio/sfx";
 import { GameCanvas } from "../components/GameCanvas";
-import { EventFeed, OutcomeBanner, SoundToggle, Tooltip, PlayerList } from "../components/Hud";
+import { ChatPanel, EventFeed, OutcomeBanner, SoundToggle, Tooltip, PlayerList } from "../components/Hud";
 import type { HoverInfo, SoundSink } from "../render/renderer";
 import { useReplayFrames } from "../useReplay";
 
@@ -16,11 +17,12 @@ export function Replay() {
   return <ReplayPlayer key={id} id={id} />;
 }
 
-export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange }: { id: string; onEnded?: () => void; initialSpeed?: number; onSpeedChange?: (speed: number) => void }) {
+export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, initialPlaying = true }: { id: string; onEnded?: () => void; initialSpeed?: number; onSpeedChange?: (speed: number) => void; initialPlaying?: boolean }) {
   const replay = useQuery({ queryKey: ["replay", id], queryFn: () => api.replay(id), staleTime: Infinity, retry: false });
   const { frames, loaded, check, error } = useReplayFrames(replay.data);
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(initialPlaying);
   const [speed, setSpeed] = useState(initialSpeed);
   const [jumpKey, setJumpKey] = useState(0);
   const [hover, setHover] = useState<HoverInfo | null>(null);
@@ -57,14 +59,15 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange }: {
   );
 
   const frame = frames.current[index] ?? null;
+  const display = playerPerspective(frame, selectedPlayer);
   const total = replay.data ? replay.data.finalTick + 1 : 0;
   const names = useMemo(() => Object.fromEntries((replay.data?.players ?? []).map((p) => [p.id, p.name])), [replay.data]);
   const colors = useMemo(() => playerColors(replay.data?.players ?? []), [replay.data]);
   const events = useMemo(() => {
     const out: GameEvent[] = [];
-    for (let i = Math.max(0, index - 600); i <= index && i < frames.current.length; i++) out.push(...frames.current[i].events.filter((e) => e.type !== "attack"));
+    for (let i = Math.max(0, index - 600); i <= index && i < frames.current.length; i++) out.push(...(playerPerspective(frames.current[i], selectedPlayer)?.events ?? []).filter((e) => e.type !== "attack" && e.type !== "projectile_end"));
     return out;
-  }, [index, loaded, frames]);
+  }, [index, loaded, frames, selectedPlayer]);
   const atEnd = index >= total - 1 && !!check;
   useEffect(() => {
     if (!playing || !atEnd || !onEnded) return;
@@ -86,9 +89,10 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange }: {
 
   return (
     <div className="game" onPointerDown={() => !sfx.muted && sfx.unlock()}>
-      {replay.data && <GameCanvas ruleset={replay.data.ruleset} colors={colors} frame={frame} tickMs={tickMs / speed} jumpKey={jumpKey} onHover={setHover} sound={sound} />}
-      {frame && <PlayerList colors={colors} view={frame} names={names} timing={atEnd ? replay.data?.timing : undefined} />}
-      <EventFeed events={events} names={names} colors={colors} />
+      {replay.data && <GameCanvas key={selectedPlayer ?? "all"} ruleset={replay.data.ruleset} colors={colors} frame={display} tickMs={tickMs / speed} paused={!playing} jumpKey={jumpKey} onHover={setHover} sound={sound} />}
+      {display && <PlayerList selectedPlayer={selectedPlayer} onSelectPlayer={(id) => { setSelectedPlayer(id); setHover(null); }} colors={colors} view={display} names={names} timing={atEnd ? replay.data?.timing : undefined} />}
+      <EventFeed events={events.filter((e) => e.type !== "chat")} names={names} colors={colors} />
+      <ChatPanel messages={display?.chat ?? []} names={names} colors={colors} tickMs={tickMs} player={selectedPlayer} />
       <Tooltip hover={hover} />
       <div className="corner">
         <Link to="/battles">← Battles</Link>

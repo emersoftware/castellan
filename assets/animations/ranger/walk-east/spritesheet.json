@@ -1,0 +1,14 @@
+{
+  "image": "spritesheet.png",
+  "direction": "E",
+  "fps": 12,
+  "frames": 14,
+  "frameWidth": 112,
+  "frameHeight": 112,
+  "anchorX": 0.46875,
+  "anchorY": 0.90625,
+  "sourceFrameStart": 8,
+  "sourceFrameEndExclusive": 36,
+  "sourceFrameStride": 2,
+  "status": "candidate; not integrated into renderer"
+}

@@ -1,0 +1,17 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "direction": "s",
+  "stage": "shoot",
+  "prompt": "Bow shot toward bottom edge of frame: draw string to cheek, release, return to idle. Fixed isometric camera, feet planted, unchanged character and magenta background.",
+  "canvas": "544x544 · 1:1 fast",
+  "duration": 2,
+  "steps": 6,
+  "seed": 17,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": true,
+  "source": "assets/raw/ranger_sheet.png",
+  "source_view": 0,
+  "reference_shift_y": 40
+}

@@ -25,8 +25,8 @@ const base = {
   width: W,
   height: H,
   start: [
-    { kind: "nexus", x: 4, y: 4 },
-    { kind: "agent", x: 2, y: 2 },
+    { kind: "castle", x: 4, y: 4 },
+    { kind: "king", x: 2, y: 2 },
     { kind: "worker", x: 6, y: 5 },
     { kind: "worker", x: 5, y: 6 },
     { kind: "worker", x: 6, y: 6 },
@@ -48,12 +48,26 @@ const quarters = (t: { x: number; y: number; amount: number }) => [
   { ...t, x: t.y, y: W4 - 1 - t.x },
 ];
 
+const fortressStart = [
+  ...base.start,
+  ...line(0, 13, y => ({ x: 13, y })).map(p => ({ ...p, kind: p.y === 7 ? "door" : "wall" })),
+  ...line(0, 12, x => ({ x, y: 13 })).map(p => ({ ...p, kind: p.x === 7 ? "door" : "wall" })),
+];
+
 export const MAPS: Record<string, MapSpec> = {
   open: {
     ...base,
     name: "open",
     description: "Flat island, nothing in the way. Two rich deposits in the center.",
     walls: [],
+    sharedDeposits: [{ x: 15, y: 16, amount: 800 }, { x: 16, y: 15, amount: 800 }],
+  },
+  fortress: {
+    ...base,
+    name: "fortress",
+    description: "Each player starts inside a corner fortress: the map edges close two sides; two owned, destructible wall lines close the others, each with one allied-only door. All starting mines are inside. Leave through either door; breach an enemy wall or door to enter their base. Two rich deposits lie outside in the center.",
+    walls: [],
+    start: fortressStart,
     sharedDeposits: [{ x: 15, y: 16, amount: 800 }, { x: 16, y: 15, amount: 800 }],
   },
   ridge: {
@@ -70,6 +84,20 @@ export const MAPS: Record<string, MapSpec> = {
     walls: symmetric(line(4, 18, (x) => ({ x, y: x + 9 }), [11, 12])),
     sharedDeposits: [{ x: 15, y: 16, amount: 800 }, { x: 16, y: 15, amount: 800 }],
   },
+  "fortress-quad": {
+    ...base,
+    name: "fortress-quad",
+    description: "Four identical corner fortresses, rotated 90 degrees: the map edges close two sides of each base; two owned, destructible wall lines close the others, each with one allied-only door. All starting mines are inside. Leave through either door; breach enemy walls or doors to enter. Shared deposits lie between corners and in the center.",
+    width: W4,
+    height: W4,
+    seats: 4,
+    walls: [],
+    start: fortressStart,
+    sharedDeposits: [
+      ...quarters({ x: 31, y: 31, amount: 800 }),
+      ...quarters({ x: 31, y: 5, amount: 600 }),
+    ],
+  },
   quad: {
     ...base,
     name: "quad",
@@ -85,3 +113,16 @@ export const MAPS: Record<string, MapSpec> = {
     ],
   },
 };
+
+/** v7 keeps the original unit identifier for deterministic historical games. */
+export const CASTLE_MAPS: Record<string, MapSpec> = Object.fromEntries(Object.entries(MAPS).map(([id, map]) =>
+  [id, { ...map, start: map.start.map(s => ({ ...s, kind: s.kind === "king" ? "agent" : s.kind })) }]));
+
+/** Select map content using the requested rules, including older custom rooms. */
+export function mapsForRuleset(ruleset: { kinds: Record<string, unknown> }): Record<string, MapSpec> {
+  return ruleset.kinds.king ? MAPS : ruleset.kinds.castle ? CASTLE_MAPS : LEGACY_MAPS;
+}
+
+/** Layouts for v0-v6 and embedded legacy game content. Never rename replay orders. */
+export const LEGACY_MAPS: Record<string, MapSpec> = Object.fromEntries(Object.entries(CASTLE_MAPS).filter(([, map]) => !map.start.some(s => s.kind === "door")).map(([id, map]) =>
+  [id, { ...map, start: map.start.map(s => ({ ...s, kind: s.kind === "castle" ? "nexus" : s.kind })) }]));

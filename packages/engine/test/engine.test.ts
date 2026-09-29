@@ -78,7 +78,7 @@ else { const b = self.enemyBase(); self.moveTo(b.x, b.y); }`;
     m.step([{ player: "p1", order: { type: "script", kind: "knight", code: attack } }, ...p2workers]);
     run(m, 6000, (mm) => {
       const cap = mm.view("p1").players[0].capital;
-      return cap >= 100 ? [{ player: "p1", order: { type: "train", building: nexus.id, kind: "knight" } }] : [];
+      return (cap ?? 0) >= 100 ? [{ player: "p1", order: { type: "train", building: nexus.id, kind: "knight" } }] : [];
     });
     expect(m.outcome).toMatchObject({ winner: "p1", reason: "vital_lost" });
   });
@@ -133,7 +133,7 @@ describe("replay", () => {
   it("re-simulates a recorded match exactly", async () => {
     const { simulate, BOTS } = await import("@aoa/sim");
     const { runReplay } = await import("../src");
-    const r = await simulate({ bot: BOTS.eco(), latencyMs: 2000 }, { bot: BOTS.rush(), latencyMs: 3000 }, { seed: 9 });
+    const r = await simulate({ bot: BOTS.eco(), latencyMs: 2000 }, { bot: BOTS.rush(), latencyMs: 3000 }, { seed: 9, ruleset: v0 });
     let frames = 0;
     const check = await runReplay({
       format: 1, id: "t", createdAt: "", ruleset: v0, seed: 9, tickRate: 10, players,
@@ -169,7 +169,7 @@ describe("building rules", () => {
 
 describe("maps and sides", () => {
   it("rock walls block movement and building, and show as ^", async () => {
-    const { MAPS } = await import("@aoa/shared");
+    const { LEGACY_MAPS: MAPS } = await import("@aoa/shared");
     const m = await make({ ...v0, map: MAPS.ridge });
     const wall = MAPS.ridge.walls[0];
     expect(m.view("p1").grid[wall.y][wall.x]).toBe("^");

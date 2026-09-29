@@ -21,12 +21,22 @@ it("shows research progress, completed upgrades, effective stats and replay even
   await act(async () => root!.render(createElement(PlayerList, { view, names: {}, colors: {} })));
   expect(host.textContent).toContain("worker damage L1");
   expect(host.textContent).toContain("Researching knight mobility L1 · 10.0s");
+  view.entities = [{ id: "builder", kind: "worker", owner: "p1", x: 6, y: 5, hp: 40, maxHp: 40,
+    construction: { kind: "nexus", x: 7, y: 5, completesAtMs: 35000 } }];
+  await act(async () => root!.render(createElement(PlayerList, { view, names: {}, colors: {} })));
+  expect(host.textContent).toContain("Building nexus (7, 5) · 30.0s");
+  view.entities.push({ id: "nexus", kind: "nexus", owner: "p1", x: 4, y: 4, hp: 600, maxHp: 600,
+    training: [{ kind: "worker", completesAtMs: 10000 }, { kind: "ranger" }] });
+  await act(async () => root!.render(createElement(PlayerList, { view, names: {}, colors: {} })));
+  expect(host.textContent).toContain("Training worker · 5.0s");
+  expect(host.textContent).toContain("Queued ranger");
   view.timeMs = 16000;
   view.players[0].upgrades!.knight_mobility = 1;
   delete view.players[0].research;
   await act(async () => root!.render(createElement(PlayerList, { view, names: {}, colors: {} })));
   expect(host.textContent).toContain("knight mobility L1");
   expect(host.textContent).not.toContain("Researching");
+  expect(host.textContent).toContain("Training worker · waiting for exit");
   await act(async () => root!.render(createElement(EventFeed, { names: {}, colors: {}, events: [
     { type: "upgrade_completed", tick: 150, owner: "p1", upgrade: "knight_mobility", level: 1 },
   ] })));

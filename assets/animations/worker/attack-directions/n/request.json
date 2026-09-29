@@ -1,0 +1,18 @@
+{
+  "space": "emersoftware/aoa-minimax-animation-worker",
+  "kind": "worker",
+  "action": "attack",
+  "stage": "attack",
+  "direction": "n",
+  "prompt": "Raises pickaxe then swings downward once. Feet planted. Preserve character, equipment and facing. Static isometric view. Solid magenta background stays unchanged.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 6,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": true,
+  "source": "assets/raw/worker_sheet.png",
+  "source_view": 4
+}

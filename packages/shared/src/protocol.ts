@@ -78,15 +78,37 @@ export interface EntityView {
   y: number;
   hp: number;
   maxHp: number;
+  /** Whether losing this entity eliminates its owner under this replay's rules. */
+  vital?: boolean;
+  /** Door visual state: an allied unit currently occupies the passage. */
+  open?: boolean;
   /** Effective stats (including upgrades), with timings quantized to the match tick. */
   stats?: { atk: number; def: number; range: number; attackMs: number; moveMs: number };
+  /** Visible work at a site; the building does not exist or function until completion. */
+  construction?: { kind: string; x: number; y: number; completesAtMs: number };
+  /** Private to owner (and omniscient spectators). Only the first entry is active. */
+  training?: { kind: string; completesAtMs?: number }[];
   /** Current order in words, e.g. "move 10,5", "gather d3". Absent = script/idle. */
   order?: string;
   /** What the unit did last tick, e.g. "→ 20,20", "attack e17", "gather d9", "hold". Only for your own units. */
   doing?: string;
   /** Direction of its last step (↑ ↗ → ↘ ↓ ↙ ← ↖) if it moved in the last second. Everyone sees it. */
   heading?: string;
+  /** Visible mining activity, facing the resource; no private order is exposed. */
+  gathering?: { x: number; y: number };
   carrying?: number;
+}
+
+/** A visible shot, in map coordinates; velocity is tiles/s, destination never tracks. */
+export interface ProjectileView {
+  id: string;
+  owner: PlayerId;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  endX: number;
+  endY: number;
 }
 
 export interface DepositView {
@@ -96,14 +118,17 @@ export interface DepositView {
   amount: number;
 }
 
+/** Economic stats are omitted for opponents behind fog; identity/team/alive stay public. */
 export interface PlayerStats {
   id: PlayerId;
   name: string;
-  capital: number;
-  pop: number;
+  capital?: number;
+  pop?: number;
   popCap: number;
-  score: number;
-  kills: number;
+  /** Paid training reservations; included when enforcing the population cap. */
+  queuedPop?: number;
+  score?: number;
+  kills?: number;
   /** Players with the same team are allies. In 1v1 each player is its own team. */
   team: number;
   alive: boolean;
@@ -113,9 +138,12 @@ export interface PlayerStats {
 }
 
 export type GameEvent =
+  | { tick: number; type: "training_queued"; owner: PlayerId; building: string; kind: string; position: number }
+  | { tick: number; type: "construction_started"; owner: PlayerId; builder: string; kind: string; x: number; y: number; completesAtMs: number }
   | { tick: number; type: "research_started"; owner: PlayerId; upgrade: string; level: number; completesAtMs: number; capital: CapitalChange }
   | { tick: number; type: "upgrade_completed"; owner: PlayerId; upgrade: string; level: number }
-  | { tick: number; type: "attack"; from: string; to: string; dmg: number }
+  | { tick: number; type: "attack"; from: string; to: string; dmg: number; projectile?: string }
+  | { tick: number; type: "projectile_end"; id: string; x: number; y: number; target?: string; dmg: number; reason: "hit" | "blocked" | "miss" }
   | { tick: number; type: "death"; id: string; kind: string; owner: PlayerId; x: number; y: number; by?: PlayerId }
   | { tick: number; type: "spawn"; id: string; kind: string; owner: PlayerId; x: number; y: number; builder?: string; capital?: CapitalChange }
   | { tick: number; type: "unload"; id: string; owner: PlayerId; amount: number }
@@ -139,10 +167,13 @@ export interface PlayerView {
   players: PlayerStats[];
   /** ASCII map, one string per row (y), one char per column (x). */
   grid: string[];
+  /** 0 = unexplored, 1 = explored, 2 = currently visible. */
+  visibility?: string[];
   mine: EntityView[];
   /** Your teammates' entities (team matches only). */
   allies: EntityView[];
   enemy: EntityView[];
+  projectiles?: ProjectileView[];
   deposits: DepositView[];
   scripts: Record<string, { custom: boolean; errors: string[] }>;
   events: GameEvent[];
@@ -159,6 +190,14 @@ export interface SpectatorView {
   status: MatchStatus;
   players: PlayerStats[];
   entities: EntityView[];
+  /** Complete observer conversation up to this frame; live overview contains public chat only. */
+  chat?: ChatMessage[];
+  /** Observer-only conversations, filtered exactly as each player may see them. */
+  playerChats?: Record<PlayerId, ChatMessage[]>;
+  /** Observer-only per-player perspectives, for watch/replay. Never sent by player tools. */
+  perspectives?: Record<PlayerId, { visibility: string[]; entities: EntityView[]; projectiles?: ProjectileView[]; deposits: DepositView[]; players: PlayerStats[]; events: GameEvent[] }>;
+  visibility?: string[];
+  projectiles?: ProjectileView[];
   deposits: DepositView[];
   /** Events produced by the last simulated tick. */
   events: GameEvent[];

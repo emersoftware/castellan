@@ -7,24 +7,24 @@
 export interface Ramp {
   /** Pure color the renderer tints with; identifies the ramp. */
   key: number;
-  /** Black → light, 4 steps. */
-  steps: [string, string, string, string];
+  /** Dark, middle, light; intermediate brightness is spatial dithering. */
+  steps: [string, string, string];
 }
 
 export const RAMPS = {
   /** Player 1: cold blue steel. */
-  teamA: { key: 0x0000ff, steps: ["#000000", "#10205a", "#2d63c8", "#b4dcff"] },
+  teamA: { key: 0x0000ff, steps: ["#000000", "#2d63c8", "#b4dcff"] },
   /** Player 2: embers. */
-  teamB: { key: 0xff0000, steps: ["#000000", "#5c1408", "#d24a1c", "#ffcaa0"] },
+  teamB: { key: 0xff0000, steps: ["#000000", "#d24a1c", "#ffcaa0"] },
   /** Player 3: verdigris. */
-  teamC: { key: 0x00ffff, steps: ["#000000", "#0b3b3a", "#23a19a", "#b0fff4"] },
+  teamC: { key: 0x00ffff, steps: ["#000000", "#23a19a", "#b0fff4"] },
   /** Player 4: amethyst. */
-  teamD: { key: 0xff00ff, steps: ["#000000", "#35104d", "#8e3fc4", "#eec4ff"] },
+  teamD: { key: 0xff00ff, steps: ["#000000", "#8e3fc4", "#eec4ff"] },
   /** Grass barely lit, the black shows through. */
-  terrain: { key: 0x00ff00, steps: ["#000000", "#1e4d20", "#3f8a33", "#8fcf5a"] },
-  gold: { key: 0xffff00, steps: ["#000000", "#3f2e00", "#b88a12", "#ffe98a"] },
+  terrain: { key: 0x00ff00, steps: ["#000000", "#3f8a33", "#8fcf5a"] },
+  gold: { key: 0xffff00, steps: ["#000000", "#b88a12", "#ffe98a"] },
   /** Rock, arrows, dust, text. */
-  neutral: { key: 0xffffff, steps: ["#000000", "#3a3a3a", "#8c8c8c", "#ffffff"] },
+  neutral: { key: 0xffffff, steps: ["#000000", "#8c8c8c", "#ffffff"] },
 } satisfies Record<string, Ramp>;
 
 /** One ramp per player, in list order (like AoE's player colours). */

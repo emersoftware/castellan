@@ -19,8 +19,8 @@ const reply = async (f: () => Promise<string>): Promise<Result> => {
 const order = z.object({
   type: z.enum(["move", "attack", "gather", "build", "train", "upgrade", "stop"]),
   unit: z.string().optional().describe("id of the unit (except train and upgrade)"),
-  building: z.string().optional().describe("train: id of your nexus"),
-  kind: z.string().optional().describe("train: worker|knight|ranger; build: turret|wall"),
+  building: z.string().optional().describe("train: id of any completed castle you own"),
+  kind: z.string().optional().describe("train: worker|knight|ranger; build: turret|wall|door|castle (see rules for availability and construction time)"),
   upgrade: z.string().optional().describe("upgrade: research id from rules, e.g. knight_damage; buys its next level"),
   target: z.string().optional().describe("attack: enemy id"),
   deposit: z.string().optional().describe("gather: deposit id (optional, nearest if omitted)"),
@@ -50,7 +50,7 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
   server.registerTool(
     "state",
     {
-      description: "Your current view: tick, status (waiting|prep|running|finished), capital, ASCII map, your units, visible enemies with owner ids, deposits, script errors, the last 5 chat messages visible to you, and events since your last call (or since tick `since`). Chat preview is independent of since. Use chat without text for the full visible history.",
+      description: "Your current view, filtered by the room's fog-of-war rules: tick, status (waiting|prep|running|finished), capital, ASCII map, your units, visible enemies with owner ids, deposits, script errors, the last 5 chat messages visible to you, and events since your last call (or since tick `since`). Chat preview is independent of since. Use chat without text for the full visible history.",
       inputSchema: { since: z.number().int().optional().describe("events from this tick (default: since your last call)") },
     },
     ({ since }) => reply(() => aoa.state(c, { since })),
@@ -61,9 +61,9 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
     {
       description:
         "Send a batch of orders (max 50), applied next tick; only while running. Shapes: " +
-        "{type:'train',building,kind:'worker'|'knight'|'ranger'} {type:'build',unit,kind:'turret'|'wall',x,y} {type:'move',unit,x,y} " +
+        "{type:'train',building,kind:'worker'|'knight'|'ranger'} {type:'build',unit,kind:'turret'|'wall'|'door'|'castle',x,y} {type:'move',unit,x,y} " +
         "{type:'attack',unit,target} {type:'gather',unit,deposit?} {type:'stop',unit} {type:'upgrade',upgrade:'<id from rules>'}. " +
-        "Returns ok/FAILED per order, capital spent and remaining for purchases, plus the new view. Research affects your existing and future units of one kind after its timer completes.",
+        "Returns ok/FAILED per order, capital spent and remaining for purchases, plus the new view. Training may be queued: rules defines durations/limits, and a queued train returns no unit id until spawn. Research affects your existing and future units of one kind after its timer completes.",
       inputSchema: { orders: z.array(order).min(1).max(50) },
     },
     ({ orders }) => reply(() => aoa.act(c, orders)),
@@ -73,10 +73,10 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
     "script",
     {
       description:
-        "Read (omit code) or replace the script every unit of `kind` (knight, ranger, turret, nexus) runs each tick when it has no order. " +
+        "Read (omit code) or replace the script every unit of `kind` (worker, king, knight, ranger, turret, castle; see rules) runs each tick when it has no order. " +
         "code = JS function body with `self` in scope (see rules), max 4 KB. Only once the match is running (not during prep). Uploading returns the result plus your view.",
       inputSchema: {
-        kind: z.string().describe("knight | ranger | turret | nexus"),
+        kind: z.string().describe("worker | king | knight | ranger | turret | castle (availability depends on rules)"),
         code: z.string().optional(),
         lang: z.enum(["js", "ts"]).optional().describe("default js; ts types are stripped"),
       },

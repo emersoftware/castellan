@@ -1,13 +1,13 @@
 {
  "scale": 3,
  "sprites": {
-  "nexus": {
-   "width": 56.333333333333336,
-   "height": 72.33333333333333,
-   "anchorX": 0.6113609467455622,
-   "anchorY": 0.7802764976958526
-  },
   "tower": {
+   "frame": {
+    "x": 45,
+    "y": 0,
+    "width": 83,
+    "height": 182
+   },
    "width": 42.666666666666664,
    "height": 60.666666666666664,
    "anchorX": 0.6171875,
@@ -25,11 +25,23 @@
    "anchorX": 0.48251748251748255,
    "anchorY": 0.7606060606060606
   },
-  "gold": {
-   "width": 41.666666666666664,
-   "height": 29,
-   "anchorX": 0.50208,
-   "anchorY": 0.6772413793103448
+  "minerals-full": {
+   "rasterWidth": 96,
+   "rasterHeight": 72,
+   "anchorX": 0.5,
+   "anchorY": 0.68
+  },
+  "minerals-half": {
+   "rasterWidth": 96,
+   "rasterHeight": 72,
+   "anchorX": 0.5,
+   "anchorY": 0.68
+  },
+  "minerals-low": {
+   "rasterWidth": 96,
+   "rasterHeight": 72,
+   "anchorX": 0.5,
+   "anchorY": 0.68
   },
   "rock": {
    "width": 44,
@@ -37,31 +49,31 @@
    "anchorX": 0.4767045454545455,
    "anchorY": 0.758452380952381
   },
-  "agent_0": {
+  "king_0": {
    "width": 17,
    "height": 28.333333333333332,
    "anchorX": 0.510523475445224,
    "anchorY": 0.9649217485159202
   },
-  "agent_1": {
+  "king_1": {
    "width": 16,
    "height": 29,
    "anchorX": 0.5579128440366973,
    "anchorY": 0.962670041126226
   },
-  "agent_2": {
+  "king_2": {
    "width": 13.666666666666666,
    "height": 28.666666666666668,
    "anchorX": 0.5383754754978742,
    "anchorY": 0.9623426498826542
   },
-  "agent_3": {
+  "king_3": {
    "width": 16.333333333333332,
    "height": 29,
    "anchorX": 0.526305935218124,
    "anchorY": 0.9598228408731415
   },
-  "agent_4": {
+  "king_4": {
    "width": 17.666666666666668,
    "height": 28.666666666666668,
    "anchorX": 0.48658473256015233,
@@ -156,6 +168,32 @@
    "height": 28,
    "anchorX": 0.45789577967109174,
    "anchorY": 0.9582755432269995
+  },
+  "gold": {
+   "width": 41.666666666666664,
+   "height": 29,
+   "anchorX": 0.50208,
+   "anchorY": 0.6772413793103448
+  },
+  "castle": {
+   "width": 56.333333333333336,
+   "height": 72.33333333333333,
+   "anchorX": 0.6113609467455622,
+   "anchorY": 0.7802764976958526
+  },
+  "door": {
+   "width": 32,
+   "height": 40,
+   "anchorX": 0.5,
+   "anchorY": 0.8,
+   "format": "svg"
+  },
+  "door-open": {
+   "width": 32,
+   "height": 40,
+   "anchorX": 0.5,
+   "anchorY": 0.8,
+   "format": "svg"
   }
  }
 }

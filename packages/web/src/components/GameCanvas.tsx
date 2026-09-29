@@ -8,6 +8,7 @@ interface Props {
   colors: Record<string, number>;
   frame: SpectatorView | null;
   tickMs: number;
+  paused?: boolean;
   /** Increment to snap to `frame` without animating (replay seeks). */
   jumpKey?: number;
   onHover?: (h: HoverInfo | null) => void;
@@ -17,7 +18,7 @@ interface Props {
 }
 
 /** Mounts the Pixi renderer and feeds it frames. */
-export function GameCanvas({ ruleset, colors, frame, tickMs, jumpKey = 0, onHover, sound, bare }: Props) {
+export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jumpKey = 0, onHover, sound, bare }: Props) {
   const host = useRef<HTMLDivElement>(null);
   // Clear synchronously on cleanup: a reconnect can replace the ruleset and
   // deliver a frame in the same render, before the next Pixi instance is ready.
@@ -48,6 +49,10 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, jumpKey = 0, onHove
   useEffect(() => {
     renderer.current?.onSound(sound ?? (() => {}));
   }, [rendererVersion, sound]);
+
+  useEffect(() => {
+    renderer.current?.setPaused(paused);
+  }, [rendererVersion, paused]);
 
   useEffect(() => {
     if (!renderer.current || !frame) return;

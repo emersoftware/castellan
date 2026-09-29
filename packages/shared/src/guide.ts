@@ -7,10 +7,17 @@ import type { SeriesProgress } from "./protocol";
  */
 export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean; series?: SeriesProgress; tickRate?: number } = {}): string {
   const k = r.kinds;
+  const vitalName = k.king ? "King" : "Agent";
+  const baseKind = k.castle ? "castle" : "nexus";
+  const baseName = k.castle ? "Castle" : "Nexus";
   const tickRate = room.tickRate ?? 10;
   const effectiveMs = (ms: number) => Math.round(Math.max(1, Math.round(ms * tickRate / 1000)) * 1000 / tickRate);
   const four = r.map.seats === 4;
   const teams = room.teams ?? four;
+  const timeoutGuide = r.timeoutOutcome === "draw"
+    ? `After ${r.matchMs / 60000} minutes, if multiple opposing sides survive, the game ends in a DRAW with no winner. Score is informational only: capital, kills, army size and buildings cannot win the game. Victory requires eliminating the opposing ${vitalName}s.`
+    : `After ${r.matchMs / 60000} minutes the ${teams ? "team with the higher total" : four ? "player with the highest individual" : "player with the higher"} score wins (score = units×${r.score.unit} + buildings×${r.score.building} + capital + kills×${r.score.kill} + building kills×${r.score.buildingKill}).`;
+  const vitalNames = Object.entries(k).filter(([, s]) => s.vital).map(([name]) => name).join(" or ");
   const unitRows = Object.entries(k)
     .map(([name, s]) => {
       const bits = [
@@ -23,6 +30,8 @@ export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean;
         s.scriptable ? "scriptable" : "",
         s.trains ? `trains ${s.trains.join("/")}` : "",
         s.builds ? `builds ${s.builds.join("/")}` : "",
+        s.buildMs ? `construction ${effectiveMs(s.buildMs) / 1000}s` : "",
+        s.trainMs ? `training ${effectiveMs(s.trainMs) / 1000}s` : "",
       ].filter(Boolean);
       return `- ${name} (${s.symbol}): ${bits.join(", ")}`;
     })
@@ -46,23 +55,36 @@ game runs on its own (${tickRate} ticks per second); it does not wait for you. S
 thinking loses tempo, so act in batches and let your unit scripts fight.
 
 ## Win
-${teams ? `You are OUT when any of your VITAL entities dies: your Agent (A) or your Nexus (N).
+${teams ? `You are OUT when any of your VITAL entities dies: ${vitalNames}.
 Everything you own disappears with it, but your ally plays on. Your team wins when
-both enemies are out. After ${r.matchMs / 60000} minutes the team with the higher total score wins
-(score = units×${r.score.unit} + buildings×${r.score.building} + capital + kills×${r.score.kill} + building kills×${r.score.buildingKill}).
+both enemies are out. ${timeoutGuide}
 
 Your ally is the other player with your team number (state marks it ALLY). You can't
 attack its entities or order them; its units show as + and its buildings as = on the
-map.${r.buildExclusion > 0 ? " The build exclusion only applies to enemy buildings." : ""}` : four ? `You are OUT when any of your VITAL entities dies: your Agent (A) or your Nexus (N).
+map.${r.buildExclusion > 0 ? " The build exclusion only applies to enemy buildings." : ""}` : four ? `You are OUT when any of your VITAL entities dies: ${vitalNames}.
 Everything you own disappears. The match continues until only one player remains.
-After ${r.matchMs / 60000} minutes the highest individual score wins (score = units×${r.score.unit} + buildings×${r.score.building} + capital + kills×${r.score.kill} + building kills×${r.score.buildingKill}).` : `You LOSE when any of your VITAL entities dies: your Agent (A) or your Nexus (N).
-After ${r.matchMs / 60000} minutes the higher score wins (score = units×${r.score.unit} + buildings×${r.score.building} + capital + kills×${r.score.kill} + building kills×${r.score.buildingKill}).`}
+${timeoutGuide}` : `You LOSE when any of your VITAL entities dies: ${vitalNames}.
+${timeoutGuide}`}
 
 ## Economy
 One resource: capital. You start with ${r.startCapital}. Workers gather it from
-deposits ($) automatically and carry it back to the Nexus (${r.gather.carry} per trip).
-Training is instant. Building is instant once the worker reaches a free adjacent tile;
-the worker must travel there first. Both cost capital. Max ${r.popCap} units.
+deposits ($) automatically and carry it to the nearest owned ${baseName} (${r.gather.carry} per trip).
+Every completed ${baseName} can train workers (${k.worker.cost} capital), knights and rangers.
+${r.trainingQueueLimit ? `Training uses a serial queue at each ${baseName}, up to ${r.trainingQueueLimit} units including the active one. Different ${baseName} queues run in parallel.
+Training times: ${Object.entries(k).filter(([, s]) => s.trainMs).map(([name, s]) => `${name} ${effectiveMs(s.trainMs!) / 1000}s`).join(", ")}.
+Capital is charged when accepted, and queued units reserve population. A successful train returns no unit id until the unit spawns.
+Your ${baseName} shows its training queue; only its first entry has a completion time. wait until=spawn can wait for a finished unit.
+If all adjacent exits are blocked, the ready unit waits without another charge; the next unit starts only after it exits.
+Queues cannot be cancelled; destroying the ${baseName} loses its queue with no refund and releases population reservations.` : "Training is instant, limited by capital, population and free adjacent spawn tiles."}
+${Object.values(k).some((s) => s.buildMs) ? `Building takes the listed construction time after the worker reaches a free adjacent tile; kinds without a construction time are instant.
+The worker stays busy and does not gather or fight while building. Once work starts, the site is reserved: units route around it and another builder cannot use it.
+There is no usable building before completion; the exposed worker can be killed to stop construction.
+Stopping/changing the worker's order or killing the worker cancels construction and frees the site. Reissuing the same build preserves progress.
+Capital is charged on completion, not reserved; spending below the cost stops construction without charge.
+Build costs and times include: ${Object.entries(k).filter(([, s]) => s.buildMs).map(([name, s]) => `${name} ${s.cost} capital, ${effectiveMs(s.buildMs!) / 1000}s`).join("; ")}.
+${baseName} expansions receive resources and train units, but do not increase the population cap.
+Only the ${vitalName} is vital. Losing any or all ${baseName} buildings does not eliminate you.` : `Building is instant once the worker reaches a free adjacent tile; the worker must travel there first.`}
+Both training and construction cost capital. Max ${r.popCap} units (including workers and ${vitalName}).
 Workers can melee with an attack order (atk ${k.worker.atk}, range ${k.worker.range}); attacking replaces gathering.
 ${r.buildExclusion > 0 ? `You cannot build within ${r.buildExclusion} tiles of an enemy building.` : "You may build next to enemy buildings, including offensive turrets (tower rushes)."}
 
@@ -70,26 +92,51 @@ ${r.buildExclusion > 0 ? `You cannot build within ${r.buildExclusion} tiles of a
 ${unitRows}
 
 ${r.upgrades ? `## Research
-Use {"type":"upgrade","upgrade":"<id>"} in act to buy the next level.
+Use act({"orders":[{"type":"upgrade","upgrade":"<id>"}]}) to buy the next level.
 One research at a time per player; other orders and training remain available.
 Capital is charged immediately, with spent and remaining in the response. No cancellation or refund.
 After the research time, the effect applies to every existing and future unit of that kind owned by you.
 Each entry below gives the absolute resulting stat, not an additive bonus. Levels must be bought in order.
 Existing movement/attack cooldowns finish normally; later cooldowns use the new stat.
 Your state shows completed levels, current research and remaining time; each entity shows effective stats.
-Research and completed levels are public. wait until=upgrade_completed can wait for completion.
-Upgrades reset for each new game. Workers remain manually controlled; their damage upgrade does not make them scriptable.
+${r.fogOfWar ? "Research and completed levels are shared with allies, hidden from enemies. Visible entities still expose their effective combat stats." : "Research and completed levels are public."} wait until=upgrade_completed can wait for completion.
+Upgrades reset for each new game. ${r.reactiveScripts ? "Worker and King scripts can choose combat, escape or hold; research never changes their scripts." : "Workers remain manually controlled; their damage upgrade does not make them scriptable."}
 ${Object.entries(r.upgrades).map(([id, u]) => `- ${id}: ${u.kind} ${u.stat}; ${u.levels.map((l, i) => `L${i + 1}: ${u.stat === "atk" ? l.value : effectiveMs(l.value)}${u.stat === "atk" ? " damage" : "ms"}, cost ${l.cost}, research ${effectiveMs(l.researchMs) / 1000}s`).join("; ")}`).join("\n")}
 ` : ""}
 
+${r.projectiles ? `Ranged attacks (range > 1) launch real projectiles at ${r.projectiles.speed} Euclidean tiles/s, aimed at the target's position at launch; they never home.
+Damage occurs only on collision with the first hostile entity along the path. Moving out of the trajectory can dodge; other enemies can intercept.
+Shots stop at their fixed destination on a miss, or on rock terrain. Allies and deposits do not block shots; there is no friendly fire.
+Collision radii: units ${r.projectiles.unitRadius}, buildings/rocks ${r.projectiles.buildingRadius} tiles. Attack is captured at launch; defense is evaluated at impact.
+Each tick: scripts decide, units move, then existing projectiles advance. New shots start travelling next tick. Shots survive their shooter's death.
+Melee (range <= 1) applies damage immediately in the attack tick.
+State.projectiles and self.projectiles() expose only projectiles currently in team vision: {id,owner,x,y,vx,vy,endX,endY}, with velocity in tiles/s.
+` : ""}
 Damage per hit = max(1, atk - target def). Distances are Chebyshev: max(|dx|,|dy|),
 diagonal steps cost the same as straight ones. Map "${r.map.name}" is ${r.map.width}x${r.map.height}, x→ right, y↓ down:
 ${r.map.description}${r.map.walls.length ? " Rock (^) is impassable and can't be built on." : ""}
 ${four ? "Every corner is the same layout rotated 90°." : "Each side mirrors the other (rotated 180°)."} Your corner is random: read the map to see where you are.
 
+${r.fogOfWar ? `## Fog of war
+Your team shares vision: a tile is visible when any allied entity is within its vision radius (Chebyshev distance). Walls and rocks do not block sight.${r.projectiles ? " Rocks and hostile buildings block projectiles." : " Walls and rocks do not block shots."}
+State shows only currently visible enemies and deposit quantities. Explored terrain is remembered; hidden enemies are not updated or shown as ghosts.
+Map symbols: ? unexplored, : explored ground outside vision; visibility rows use 0 unexplored, 1 explored, 2 visible.
+Map geometry and starting layouts are public in rules, but enemy positions, capital, population, score, kills, research and training queues are not revealed by state outside this policy.
+Player identity, team and elimination remain public. Chat delivery is independent of vision.
+Events are filtered by visibility when they happened; scouting later does not reveal past hidden events.
+Attack targets must be visible; an attack order ends when its target leaves team vision. Build sites must be visible when ordered.
+Workers automatically choose discovered deposits; explore to discover more. Scripts cannot target hidden enemies; enemyBase() returns a currently visible enemy base or null.
+` : ""}
+${k.door ? `## Walls and doors
+Walls and doors each occupy exactly one tile. Workers build doors with kind="door" for ${k.door.cost} capital, ${k.door.hp} HP and ${k.door.def} armor.
+Doors automatically allow their owner's and teammates' units through, one unit per tile. Enemies cannot enter even while the door is visually open; destroy it to pass.
+The passage opens while an allied unit occupies it and closes when it leaves. No manual open/close order is needed.
+Doors connect visually to neighbouring walls. Like other hostile buildings, they block and take projectile damage, even while open. Allied shots pass through.
+State lists both the door and any unit on its tile; the ASCII grid shows the unit when occupied. Doors expose open:true/false.
+` : ""}
 ## Orders (POST /act with {"orders":[...]}, many per call)
-- {"type":"train","building":"<nexus id>","kind":"worker"|"knight"|"ranger"}
-- {"type":"build","unit":"<worker id>","kind":"turret"|"wall","x":X,"y":Y}
+- {"type":"train","building":"<${baseKind} id>","kind":"worker"|"knight"|"ranger"}
+- {"type":"build","unit":"<worker id>","kind":${(k.worker.builds ?? []).map((kind) => JSON.stringify(kind)).join("|")},"x":X,"y":Y}
 - {"type":"move","unit":"<id>","x":X,"y":Y}
 - {"type":"attack","unit":"<id>","target":"<enemy id>"}   (chases until it dies)
 - {"type":"gather","unit":"<worker id>","deposit":"<d id, optional>"}
@@ -101,7 +148,7 @@ Training is charged immediately. A build's cost is pending until the worker comp
 it; the construction spawn event reports its actual capital spent and remaining.
 
 ## Scripts (the real fighting)
-Knights, rangers, turrets and the nexus run a JavaScript script every tick when they have
+${Object.entries(k).filter(([, spec]) => spec.scriptable).map(([kind]) => kind).join(", ")} run a JavaScript script every tick when they have
 no order. One script per kind, shared by all units of that kind. Upload with
 PUT /scripts/<kind> {"code":"…","lang":"js"|"ts"} (max ${r.script.maxBytes} bytes).
 The code is a function body with \`self\` in scope; call exactly one action.
@@ -111,7 +158,23 @@ perception: nearbyEnemies() nearbyAllies() nearestEnemy() nearestAlly()
   enemiesInRange() distanceTo(u) distanceToPos(x,y) enemyBase() myBase()
   (each seen unit: {id,type,owner,mine,${teams ? "ally," : ""}x,y,hp,maxHp,isBuilding}; only within vision${teams ? "; allies = yours and your ally's" : ""})
 actions: move("N"|"NE"|"E"|"SE"|"S"|"SW"|"W"|"NW") moveTo(x,y) attack(u) flee(u) hold()
-other: random() (seeded), log(msg) (shows up in your events)
+${r.reactiveScripts ? `reaction: lastAttackedTick (null until hit), lastAttacker() (visible living hostile who hit you in the last 5 seconds, or null).
+Damage is observed on the next tick; projectile launch alone is not damage. No hidden enemy location is exposed.
+worker economy: carrying, carryCapacity, deposits(), nearestDeposit(), gather(deposit?), unload().
+Deposits are known team resources {id,x,y,amount}, nearest first; hidden amounts may be stale.
+gather() walks to a known deposit, mines, returns to your nearest dropoff when full, and resumes mining.
+gather(deposit) selects a resource; unload() returns carried minerals early. First action per tick wins.
+Workers default to self.gather() even under attack. Upload a script to fight, flee, or keep mining.
+The King defaults to attacking a recent attacker within melee range; he never chases by default.
+Explicit orders override these reactions. stop clears an order and resumes the script; gathering orders last until stopped or exhausted.
+Example Worker reaction (optional):
+if (self.lastAttacker()) self.flee(self.lastAttacker()); else self.gather();
+Example King reaction (optional):
+const enemy = self.lastAttacker();
+if (enemy && self.hp < self.maxHp / 2) self.flee(enemy);
+else if (enemy && self.distanceTo(enemy) <= self.range) self.attack(enemy);
+else self.hold();
+` : ""}other: random() (seeded), log(msg) (shows up in your events)
 No Date, no I/O. CPU is metered: heavy loops run out of gas and the unit holds.
 
 Default knight script:

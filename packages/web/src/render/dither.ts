@@ -18,9 +18,9 @@ const vec = (c: string) => {
   const v = parseInt(c.slice(1), 16);
   return `vec3(${(((v >> 16) & 255) / 255).toFixed(4)}, ${(((v >> 8) & 255) / 255).toFixed(4)}, ${((v & 255) / 255).toFixed(4)})`;
 };
-/** GLSL: color `i` (0..3) of a ramp, written out (GLSL ES 1.0 has no array initializers). */
-const pick = (steps: readonly string[]) =>
-  `(i < 0.5 ? ${vec(steps[0])} : i < 1.5 ? ${vec(steps[1])} : i < 2.5 ? ${vec(steps[2])} : ${vec(steps[3])})`;
+/** Three discrete tones; semitones are a spatial mix of adjacent tones. */
+const pick = (steps: readonly [string, string, string]) =>
+  `(level < 0.5 ? ${vec(steps[0])} : level < 1.5 ? ${vec(steps[1])} : ${vec(steps[2])})`;
 
 // Classify the key channel mix, then ordered-dither brightness along that ramp.
 const fragment = `in vec2 vTextureCoord;
@@ -34,7 +34,8 @@ void main(void) {
   vec3 rgb = c.rgb / c.a;
   float L = max(rgb.r, max(rgb.g, rgb.b));
   vec3 n = rgb / max(L, 0.0001);
-  float i = clamp(floor(L * 3.0 + bayer4(gl_FragCoord.xy) + 0.0), 0.0, 3.0);
+  float scaled = clamp(L, 0.0, 1.0) * 2.0;
+  float level = min(2.0, floor(scaled) + step(bayer4(gl_FragCoord.xy) + 0.5 / 16.0, fract(scaled)));
   vec3 col;
   if (n.r > 0.6 && n.g > 0.6 && n.b > 0.6) col = ${pick(RAMPS.neutral.steps)};
   else if (n.r > 0.6 && n.g > 0.6) col = ${pick(RAMPS.gold.steps)};
