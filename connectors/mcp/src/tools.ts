@@ -50,7 +50,7 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
   server.registerTool(
     "state",
     {
-      description: "Your current view, filtered by the room's fog-of-war rules: tick, status (waiting|prep|running|finished), capital, ASCII map, your units, visible enemies with owner ids, deposits, script errors, the last 5 chat messages visible to you, and events since your last call (or since tick `since`). Chat preview is independent of since. Use chat without text for the full visible history.",
+      description: "Your current view, filtered by the room's fog-of-war rules: tick, status (waiting|prep|running|finished), time left and what happens at the time limit, capital, ASCII map, your units, visible enemies with owner ids, deposits, script errors, the last 5 chat messages visible to you, damage your units and buildings took (UNDER ATTACK), and events since your last call (or since tick `since`). Chat preview is independent of since. Use chat without text for the full visible history.",
       inputSchema: { since: z.number().int().optional().describe("events from this tick (default: since your last call)") },
     },
     ({ since }) => reply(() => aoa.state(c, { since })),

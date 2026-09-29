@@ -156,6 +156,19 @@ export type GameEvent =
   | { tick: number; type: "eliminated"; owner: PlayerId }
   | { tick: number; type: "match_end"; outcome: Outcome };
 
+export interface UnderAttack {
+  id: string;
+  kind: string;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  /** Damage taken in the window. */
+  damage: number;
+  attackers: { id: string; kind: string; owner: PlayerId }[];
+  unseenAttackers: number;
+}
+
 /** What one player sees. `tick` is the next tick to be simulated; use it as `since`. */
 export interface PlayerView {
   series?: SeriesProgress;
@@ -177,6 +190,13 @@ export interface PlayerView {
   deposits: DepositView[];
   scripts: Record<string, { custom: boolean; errors: string[] }>;
   events: GameEvent[];
+  /**
+   * Your entities that took damage in the same window as `events` (attack events themselves are not listed).
+   * Attackers are named only when you can see them now; the rest are counted as unseen.
+   */
+  underAttack?: UnderAttack[];
+  /** What the clock decides at `matchMs` if no side has been eliminated. */
+  timeoutOutcome?: "score" | "draw";
   /** Added by the room: last 5 visible messages, independent of the events cursor. Full history via /chat. */
   chat?: { enabled: boolean; messages: ChatMessage[] };
   outcome?: Outcome;

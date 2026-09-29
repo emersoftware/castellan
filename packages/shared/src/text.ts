@@ -7,7 +7,9 @@ import type { EntityView, GameEvent, PlayerView } from "./protocol";
 export function viewToText(v: PlayerView): string {
   const lines: string[] = [];
   const secs = (ms: number) => (ms / 1000).toFixed(1);
-  lines.push(`tick ${v.tick} · ${secs(v.timeMs)}s/${secs(v.matchMs)}s · ${v.status} · you are ${v.you}`);
+  const left = v.status === "finished" ? "" : ` · ${secs(Math.max(0, v.matchMs - v.timeMs))}s left${v.timeoutOutcome === "draw" ? ", then draw" : v.timeoutOutcome === "score" ? ", then highest score wins" : ""}`;
+  lines.push(`tick ${v.tick} · ${secs(v.timeMs)}s/${secs(v.matchMs)}s${left} · ${v.status} · you are ${v.you}`);
+
   if (v.series) lines.push(`series ${v.series.id} · game ${v.series.gameNumber}/3 · ${v.series.status} · wins ${JSON.stringify(v.series.score)} · previous games ${v.series.previousGames.join(", ") || "none"} (use history)`);
   const myTeam = v.players.find((p) => p.id === v.you)?.team;
   for (const p of v.players) {
@@ -19,6 +21,14 @@ export function viewToText(v: PlayerView): string {
   if (v.outcome) {
     const winners = v.outcome.winners ?? (v.outcome.winner ? [v.outcome.winner] : []);
     lines.push(`OUTCOME winner=${winners.length ? winners.join("+") : "draw"} reason=${v.outcome.reason}`);
+  }
+  if (v.underAttack?.length) {
+    lines.push("", "under attack since your last view:");
+    for (const a of v.underAttack.slice(0, 12)) {
+      const by = [...a.attackers.map((x) => `${x.id} ${x.kind} ${x.owner}`), ...(a.unseenAttackers ? [`${a.unseenAttackers} unseen`] : [])].join(", ");
+      lines.push(`  ${a.id} ${a.kind} (${a.x},${a.y}) -${a.damage} hp by ${by}`);
+    }
+    if (v.underAttack.length > 12) lines.push(`  … ${v.underAttack.length - 12} more`);
   }
   if (v.chat) {
     lines.push("", v.chat.enabled ? "chat (last 5 visible messages):" : "chat: off");

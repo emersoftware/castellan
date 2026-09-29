@@ -1,6 +1,6 @@
 import type {
   DepositView, EntityView, GameEvent, KindSpec, MatchStatus, Order, OrderResult, Outcome, PlayerId, PlayerStats,
-  PlayerView, ProjectileView, Ruleset, SpectatorView,
+  PlayerView, ProjectileView, Ruleset, SpectatorView, UnderAttack,
 } from "@aoa/shared";
 import { createScriptHost, type ScriptAction, type ScriptHost, type ScriptWorld } from "@aoa/sandbox";
 import { DIRS, DIR_LIST, SEAT_DIRS, canCross, cheb, findPath, inBounds, mapToSeat, seatToMap, type Grid } from "./grid";
@@ -370,9 +370,35 @@ export class Match {
       ...(this.ruleset.projectiles ? { projectiles: this.projectileViews(player) } : {}),
       scripts,
       events,
+      underAttack: this.underAttack(player, since ?? this._tick - this.ticks(10_000)),
+      timeoutOutcome: this.ruleset.timeoutOutcome ?? "score",
       outcome: this._outcome ?? undefined,
     };
   }
+
+  /** Damage to `player`'s living entities since `since`, grouped by target, from hits and landed projectiles. */
+  private underAttack(player: PlayerId, since: number): UnderAttack[] {
+    const shooters = new Map<string, string>();
+    const hits = new Map<string, { damage: number; attackers: Set<string> }>();
+    for (const e of this.log) {
+      if (e.type === "attack" && e.projectile) shooters.set(e.projectile, e.from);
+      if (e.tick < since) continue;
+      const hit = e.type === "attack" && !e.projectile ? { target: e.to, from: e.from, dmg: e.dmg }
+        : e.type === "projectile_end" && e.reason === "hit" && e.target ? { target: e.target, from: shooters.get(e.id), dmg: e.dmg } : null;
+      if (!hit || this.ents.get(hit.target)?.owner !== player) continue;
+      const h = hits.get(hit.target) ?? { damage: 0, attackers: new Set<string>() };
+      h.damage += hit.dmg;
+      h.attackers.add(hit.from ?? "?");
+      hits.set(hit.target, h);
+    }
+    return [...hits].map(([id, h]) => {
+      const t = this.ents.get(id)!;
+      const seen = [...h.attackers].map((a) => this.ents.get(a)).filter((a): a is Entity => !!a && this.canSee(player, a.x, a.y));
+      return { id, kind: t.kind, x: t.x, y: t.y, hp: t.hp, maxHp: t.spec.hp, damage: h.damage,
+        attackers: seen.map((a) => ({ id: a.id, kind: a.kind, owner: a.owner })), unseenAttackers: h.attackers.size - seen.length };
+    }).sort((a, b) => b.damage - a.damage);
+  }
+
 
   /** Events default to the last tick's. Only finished-match replays opt into private chat. */
   spectate(since?: number, options: { includePrivateChat?: boolean; includeTeamChat?: boolean } = {}): SpectatorView {

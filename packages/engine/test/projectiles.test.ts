@@ -155,3 +155,22 @@ it.each([10, 20, 40].flatMap(rate => [v5, v6].map(rules => [rate, rules.projecti
   expect(end.tick / rate).toBeGreaterThanOrEqual(3.65 / speed);
   expect(end.tick / rate).toBeLessThan(3.65 / speed + 1 / rate);
 });
+
+it("tells the victim what hit its units, from landed shots and instant hits, but not the attacker", async () => {
+  const { m, a, b, fire } = await setup();
+  const since = m.view("b").tick;
+  m.step(fire);
+  advance(m, 4);
+  expect(m.view("b", since).underAttack).toEqual([{ id: b.id, kind: "ranger", x: b.x, y: b.y, hp: b.hp - 12, maxHp: b.hp, damage: 12,
+    attackers: [{ id: a.id, kind: "ranger", owner: "a" }], unseenAttackers: 0 }]);
+  expect(m.view("a", since).underAttack).toEqual([]);
+  const text = viewToText(m.view("b", since));
+  expect(text).toContain(`under attack since your last view:\n  ${b.id} ranger (${b.x},${b.y}) -12 hp by ${a.id} ranger a`);
+  expect(text).toContain("4.5s left, then draw · running");
+  // Later views only report new damage.
+  expect(m.view("b", m.view("b").tick).underAttack).toEqual([]);
+
+  const legacy = await setup({ legacy: true });
+  legacy.m.step(legacy.fire);
+  expect(legacy.m.view("b", 0).underAttack).toMatchObject([{ id: legacy.b.id, damage: legacy.b.hp - hp(legacy.m, legacy.b.id)!, unseenAttackers: 0 }]);
+});
