@@ -56,13 +56,13 @@ thinking loses tempo, so act in batches and let your unit scripts fight.
 
 ## Win
 ${teams ? `You are OUT when any of your VITAL entities dies: ${vitalNames}.
-Everything you own disappears with it, but your ally plays on. Your team wins when
+${r.ruins ? "Your units die with it" : "Everything you own disappears with it"}, but your ally plays on.${r.ruins ? " Your buildings stay behind as inert RUINS (the same happens to any eliminated player): they never act or see, still block movement, their doors only let the owner's teammates through, and anyone can destroy them for no kills or score." : ""} Your team wins when
 both enemies are out. ${timeoutGuide}
 
 Your ally is the other player with your team number (state marks it ALLY). You can't
 attack its entities or order them; its units show as + and its buildings as = on the
 map.${r.buildExclusion > 0 ? " The build exclusion only applies to enemy buildings." : ""}` : four ? `You are OUT when any of your VITAL entities dies: ${vitalNames}.
-Everything you own disappears. The match continues until only one player remains.
+${r.ruins ? "Your units die with it." : "Everything you own disappears."}${r.ruins ? " Your buildings stay behind as inert RUINS (the same happens to any eliminated player): they never act or see, still block movement, their doors only let the owner's teammates through, and anyone can destroy them for no kills or score." : ""} The match continues until only one player remains.
 ${timeoutGuide}` : `You LOSE when any of your VITAL entities dies: ${vitalNames}.
 ${timeoutGuide}`}
 
@@ -119,7 +119,7 @@ ${four ? "Every corner is the same layout rotated 90°." : "Each side mirrors th
 
 ${r.fogOfWar ? `## Fog of war
 Your team shares vision: a tile is visible when any allied entity is within its vision radius (Chebyshev distance). Walls and rocks do not block sight.${r.projectiles ? " Rocks and hostile buildings block projectiles." : " Walls and rocks do not block shots."}
-State shows only currently visible enemies and deposit quantities. Explored terrain is remembered; hidden enemies are not updated or shown as ghosts.
+State shows only currently visible enemy units. Explored terrain is remembered, and so are enemy buildings and deposits as you last saw them: outside vision they stay on the map and are listed under "last seen" with their age, until you see the tile again without them. They may have changed since (damaged, destroyed, mined). Scripts do not see this memory.
 Map symbols: ? unexplored, : explored ground outside vision; visibility rows use 0 unexplored, 1 explored, 2 visible.
 Map geometry and starting layouts are public in rules, but enemy positions, capital, population, score, kills, research and training queues are not revealed by state outside this policy.
 Player identity, team and elimination remain public. Chat delivery is independent of vision.

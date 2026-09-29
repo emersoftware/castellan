@@ -34,6 +34,12 @@ export interface Ruleset {
   projectiles?: { speed: number; unitRadius: number; buildingRadius: number };
   /** Expose recent damage and economy controls to scripts; preserve older VM views. */
   reactiveScripts?: boolean;
+  /**
+   * An eliminated player's buildings stay as inert ruins: they block, can be destroyed
+   * (no kills or score), let only the owner's teammates through doors, and never act or see.
+   * Absent: everything the player had is removed.
+   */
+  ruins?: boolean;
   map: MapSpec;
   script: ScriptLimits;
   score: { unit: number; building: number; capital: number; kill: number; buildingKill: number };

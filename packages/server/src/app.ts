@@ -12,7 +12,7 @@ import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { transform } from "esbuild";
 import { validateScript } from "@aoa/sandbox";
-import { mapsForRuleset, playerGuide, v9, viewToText, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { mapsForRuleset, playerGuide, v10, viewToText, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
 import { BOTS } from "@aoa/sim";
 import { Room } from "./room";
 import { SeriesStore, type HistorySection } from "./series";
@@ -28,7 +28,7 @@ export interface ServerOptions {
 }
 
 export async function buildServer(opts: ServerOptions): Promise<FastifyInstance> {
-  const ruleset = opts.ruleset ?? v9;
+  const ruleset = opts.ruleset ?? v10;
   const maps = mapsForRuleset(ruleset);
   const rooms = new Map<string, Room>();
   const tokens = new Map<string, { room: Room; player: string }>();

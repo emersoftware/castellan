@@ -1,6 +1,6 @@
 import type {
   DepositView, EntityView, GameEvent, KindSpec, MatchStatus, Order, OrderResult, Outcome, PlayerId, PlayerStats,
-  PlayerView, ProjectileView, Ruleset, SpectatorView, UnderAttack,
+  LastSeen, PlayerView, ProjectileView, Ruleset, SpectatorView, UnderAttack,
 } from "@aoa/shared";
 import { createScriptHost, type ScriptAction, type ScriptHost, type ScriptWorld } from "@aoa/sandbox";
 import { DIRS, DIR_LIST, SEAT_DIRS, canCross, cheb, findPath, inBounds, mapToSeat, seatToMap, type Grid } from "./grid";
@@ -129,6 +129,11 @@ export class Match {
   private visible = new Map<PlayerId, Set<number>>();
   private explored = new Map<PlayerId, Set<number>>();
   private knownDeposits = new Map<PlayerId, Map<string, Deposit>>();
+  /** View-only fog memory (not hashed, never shown to scripts): enemy buildings as last seen, and when each deposit was seen. */
+  private seenBuildings = new Map<PlayerId, Map<string, Extract<LastSeen, { owner: PlayerId }> & { tick: number }>>();
+  private seenDeposits = new Map<PlayerId, Map<string, number>>();
+  /** Players eliminated under `ruleset.ruins`: their remaining buildings are ruins. Empty under older rules. */
+  private ruined = new Set<PlayerId>();
   private eventAudience = new WeakMap<GameEvent, Set<PlayerId>>();
   private nextId = 1;
   private nextProjectileId = 1;
@@ -227,6 +232,7 @@ export class Match {
     const scripted: Entity[] = [];
     for (const e of this.ents.values()) {
       if (!e.spec.moveMs && !e.spec.atk) continue;
+      if (this.ruined.has(e.owner)) continue; // ruins never act
       const intent = e.order ? this.orderIntent(e, emit) : null;
       if (intent) intents.set(e.id, intent);
       else if (e.spec.scriptable) scripted.push(e);
@@ -305,7 +311,7 @@ export class Match {
       if (e.hp > 0) continue;
       const by = lastHit.get(id);
       const killer = this.players.find((p) => p.id === by);
-      if (killer) e.spec.building ? killer.buildingKills++ : killer.kills++;
+      if (killer && !this.ruined.has(e.owner)) e.spec.building ? killer.buildingKills++ : killer.kills++;
       this.remove(e);
       emit({ tick: T, type: "death", id, kind: e.kind, owner: e.owner, x: e.x, y: e.y, by });
       const owner = this.player(e.owner);
@@ -371,9 +377,22 @@ export class Match {
       scripts,
       events,
       underAttack: this.underAttack(player, since ?? this._tick - this.ticks(10_000)),
+      ...(this.ruleset.fogOfWar ? { lastSeen: this.lastSeen(player) } : {}),
       timeoutOutcome: this.ruleset.timeoutOutcome ?? "score",
       outcome: this._outcome ?? undefined,
     };
+  }
+
+  /** Remembered enemy buildings and deposits that are outside `player`'s vision now, most recent first. */
+  private lastSeen(player: PlayerId): LastSeen[] {
+    const out: (LastSeen & { tick: number })[] = [];
+    for (const b of this.seenBuildings.get(player)?.values() ?? []) if (!this.canSee(player, b.x, b.y)) out.push({ ...b });
+    const known = this.knownDeposits.get(player);
+    for (const [id, tick] of this.seenDeposits.get(player) ?? []) {
+      const d = known?.get(id);
+      if (d && !this.canSee(player, d.x, d.y)) out.push({ id, kind: "deposit", x: d.x, y: d.y, amount: d.amount, seenMs: 0, tick });
+    }
+    return out.sort((a, b) => b.tick - a.tick).map(({ tick, ...rest }) => ({ ...rest, seenMs: this.ms(tick) }));
   }
 
   /** Damage to `player`'s living entities since `since`, grouped by target, from hits and landed projectiles. */
@@ -398,7 +417,6 @@ export class Match {
         attackers: seen.map((a) => ({ id: a.id, kind: a.kind, owner: a.owner })), unseenAttackers: h.attackers.size - seen.length };
     }).sort((a, b) => b.damage - a.damage);
   }
-
 
   /** Events default to the last tick's. Only finished-match replays opt into private chat. */
   spectate(since?: number, options: { includePrivateChat?: boolean; includeTeamChat?: boolean } = {}): SpectatorView {
@@ -710,6 +728,7 @@ export class Match {
 
   private finishTraining(emit: (e: GameEvent) => void) {
     for (const b of this.interleaved(this.priority())) {
+      if (this.ruined.has(b.owner)) continue;
       const job = b.training?.[0];
       if (!job || job.completesAtTick === undefined || this._tick < job.completesAtTick) continue;
       const tile = this.freeNeighbor(b.x, b.y, b.owner);
@@ -1129,10 +1148,12 @@ export class Match {
     return this.player(a).team !== this.player(b).team;
   }
 
-  /** A player whose vital entity died in a match that goes on: its entities are removed. */
+  /** A player whose vital entity died in a match that goes on: its entities are removed, or its buildings left as ruins. */
   private eliminate(p: Player, emit: (e: GameEvent) => void) {
+    if (this.ruleset.ruins) this.ruined.add(p.id);
     for (const e of [...this.ents.values()]) {
       if (e.owner !== p.id) continue;
+      if (this.ruleset.ruins && e.spec.building) { e.training = e.training && []; e.order = null; continue; }
       this.remove(e);
       emit({ tick: this._tick, type: "death", id: e.id, kind: e.kind, owner: e.owner, x: e.x, y: e.y });
     }
@@ -1149,7 +1170,7 @@ export class Match {
 
   private enemyBuildingNear(owner: PlayerId, x: number, y: number): Entity | undefined {
     for (const b of this.ents.values()) {
-      if (b.spec.building && this.hostile(b.owner, owner) && cheb(x, y, b.x, b.y) < this.ruleset.buildExclusion) return b;
+      if (b.spec.building && this.hostile(b.owner, owner) && !this.ruined.has(b.owner) && cheb(x, y, b.x, b.y) < this.ruleset.buildExclusion) return b;
     }
     return undefined;
   }
@@ -1223,7 +1244,7 @@ export class Match {
     for (const p of this.players) {
       const visible = new Set<number>();
       for (const e of this.ents.values()) {
-        if (this.hostile(p.id, e.owner)) continue;
+        if (this.hostile(p.id, e.owner) || this.ruined.has(e.owner)) continue;
         for (let y = Math.max(0, e.y - e.spec.vision); y <= Math.min(height - 1, e.y + e.spec.vision); y++)
           for (let x = Math.max(0, e.x - e.spec.vision); x <= Math.min(width - 1, e.x + e.spec.vision); x++) visible.add(y * width + x);
       }
@@ -1235,6 +1256,17 @@ export class Match {
       for (const [id, d] of known) if (visible.has(d.y * width + d.x) && !this.deps.has(id)) known.delete(id);
       for (const d of this.deps.values()) if (visible.has(d.y * width + d.x)) known.set(d.id, { ...d });
       this.knownDeposits.set(p.id, known);
+      const depositSeen = this.seenDeposits.get(p.id) ?? new Map<string, number>();
+      for (const id of depositSeen.keys()) if (!known.has(id)) depositSeen.delete(id);
+      for (const d of known.values()) if (visible.has(d.y * width + d.x)) depositSeen.set(d.id, this._tick);
+      this.seenDeposits.set(p.id, depositSeen);
+      const buildings = this.seenBuildings.get(p.id) ?? new Map();
+      for (const [id, b] of buildings) if (visible.has(b.y * width + b.x) && !this.ents.has(id)) buildings.delete(id);
+      for (const e of this.ents.values()) if (e.spec.building && this.hostile(p.id, e.owner) && visible.has(e.y * width + e.x)) {
+        buildings.set(e.id, { id: e.id, kind: e.kind, owner: e.owner, x: e.x, y: e.y, hp: e.hp, maxHp: e.spec.hp,
+          ...(this.ruined.has(e.owner) ? { ruin: true } : {}), seenMs: 0, tick: this._tick });
+      }
+      this.seenBuildings.set(p.id, buildings);
     }
   }
 
@@ -1284,6 +1316,9 @@ export class Match {
       if (!this.canSee(player, e.x, e.y)) continue;
       rows[e.y][e.x] = e.owner === player ? e.spec.symbol : this.hostile(e.owner, player) ? e.spec.enemySymbol : e.spec.building ? "=" : "+";
     }
+    if (this.ruleset.fogOfWar) for (const b of this.seenBuildings.get(player)?.values() ?? []) {
+      if (!this.canSee(player, b.x, b.y)) rows[b.y][b.x] = this.ruleset.kinds[b.kind]?.enemySymbol ?? "?";
+    }
     if (this.ruleset.fogOfWar) for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
       if (this.canSee(player, x, y)) continue;
       if (!this.explored.get(player)?.has(y * width + x)) rows[y][x] = "?";
@@ -1296,6 +1331,7 @@ export class Match {
   private entityView(e: Entity, viewer: PlayerId | null = null): EntityView {
     const v: EntityView = { id: e.id, kind: e.kind, owner: e.owner, x: e.x, y: e.y, hp: e.hp, maxHp: e.spec.hp };
     v.vital = !!e.spec.vital;
+    if (this.ruined.has(e.owner)) v.ruin = true;
     if (e.spec.alliedPassage) v.open = this.occ[e.y * this.grid.width + e.x] !== null;
     if (e.construction) v.construction = { kind: e.construction.kind, x: e.construction.x, y: e.construction.y,
       completesAtMs: this.ms(e.construction.completesAtTick) };

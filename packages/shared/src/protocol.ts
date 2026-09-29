@@ -94,6 +94,8 @@ export interface EntityView {
   doing?: string;
   /** Direction of its last step (↑ ↗ → ↘ ↓ ↙ ← ↖) if it moved in the last second. Everyone sees it. */
   heading?: string;
+  /** Its owner was eliminated: an inert ruin that blocks and can be destroyed. */
+  ruin?: boolean;
   /** Visible mining activity, facing the resource; no private order is exposed. */
   gathering?: { x: number; y: number };
   carrying?: number;
@@ -152,9 +154,13 @@ export type GameEvent =
   | { tick: number; type: "script_error"; owner: PlayerId; kind: string; unit?: string; message: string }
   | { tick: number; type: "log"; owner: PlayerId; unit: string; message: string }
   | { tick: number; type: "chat"; owner: PlayerId; text: string; channel?: ChatChannel; to?: PlayerId }
-  /** A player lost its vital entity while its team plays on: all it had is gone. */
+  /** A player lost its vital entity while its team plays on: its units are gone (and its buildings, unless the rules keep ruins). */
   | { tick: number; type: "eliminated"; owner: PlayerId }
   | { tick: number; type: "match_end"; outcome: Outcome };
+
+export type LastSeen =
+  | { id: string; kind: string; owner: PlayerId; x: number; y: number; hp: number; maxHp: number; ruin?: boolean; seenMs: number }
+  | { id: string; kind: "deposit"; x: number; y: number; amount: number; seenMs: number };
 
 export interface UnderAttack {
   id: string;
@@ -195,6 +201,11 @@ export interface PlayerView {
    * Attackers are named only when you can see them now; the rest are counted as unseen.
    */
   underAttack?: UnderAttack[];
+  /**
+   * Fog of war memory: enemy buildings and deposits as you last saw them, for those outside your vision now.
+   * Cleared when you see the tile again and the thing is gone. Buildings may since have changed or fallen.
+   */
+  lastSeen?: LastSeen[];
   /** What the clock decides at `matchMs` if no side has been eliminated. */
   timeoutOutcome?: "score" | "draw";
   /** Added by the room: last 5 visible messages, independent of the events cursor. Full history via /chat. */

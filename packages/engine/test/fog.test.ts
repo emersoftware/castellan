@@ -53,7 +53,10 @@ describe("fog of war", () => {
       next(m, "p1", [{ type: "move", unit: scout.id, x: 2, y: 2 }]); advance(m, 100);
       expect(m.view("p1").enemy).toHaveLength(0);
       expect(m.view("p1").visibility?.[16][17]).toBe("1");
-      expect(m.view("p1").grid[16][17]).toBe(":");
+      // Explored terrain stays ":"; the enemy building there is drawn as last seen.
+      expect(m.view("p1").grid[16][17]).toBe("n");
+      expect(m.view("p1").lastSeen).toContainEqual(expect.objectContaining({ id: nexus.id, kind: "nexus", owner: "p2" }));
+      expect(m.view("p1").grid[16].split("").some((c, x) => x !== 17 && c === ":")).toBe(true);
     } finally { m.dispose(); }
   });
 
