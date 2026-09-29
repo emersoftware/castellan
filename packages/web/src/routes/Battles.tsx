@@ -3,13 +3,22 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api, fmtTime, readReplayFile, setDroppedReplay, setDroppedSeries } from "../api";
 import { Versus, wonText } from "../components/Versus";
+import { hasScriptedBot, replayFileDate } from "../replayCatalog";
 
 export function Battles() {
-  const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays });
+  const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays, refetchInterval: 3000 });
   const series = useQuery({ queryKey: ["series"], queryFn: api.series, refetchInterval: 3000 });
   const nav = useNavigate();
   const [over, setOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dates = new Map((replays.data ?? []).map((replay) => [replay.id, replayFileDate(replay)]));
+  const battles = [
+    ...(replays.data ?? []).map((replay) => ({ kind: "replay" as const, replay, date: replayFileDate(replay) })),
+    ...(series.data ?? []).filter((series) => !hasScriptedBot(series.players)).map((series) => ({
+      kind: "series" as const, series,
+      date: series.games.map((game) => dates.get(game.roomId) ?? series.createdAt).sort().at(-1) ?? series.createdAt,
+    })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
 
   const open = async (file: File | undefined) => {
     if (!file) return;
@@ -54,12 +63,17 @@ export function Battles() {
       </label>
 
       <div className="battle-list">
-        {(series.data ?? []).map((s) => <Link key={s.id} to={s.status === "finished" ? "/series/$id/replay" : "/series/$id/watch"} params={{ id: s.id }} className="battle">
-          <div className="title">Three-game series <span className="tag">{s.status === "finished" ? "replay" : "live"}</span></div>
-          <Versus players={s.players} />
-          <div className="meta">{s.players.map((p) => `${p.name}: ${s.score[p.id]}`).join(" · ")} · {s.status === "finished" ? "3 games completed" : `Game ${s.currentGame} of 3`}</div>
-        </Link>)}
-        {(replays.data ?? []).map((r) => (
+        {battles.map((battle) => {
+          if (battle.kind === "series") {
+            const s = battle.series;
+            return <Link key={`series-${s.id}`} to={s.status === "finished" ? "/series/$id/replay" : "/series/$id/watch"} params={{ id: s.id }} className="battle">
+              <div className="title">Three-game series <span className="tag">{s.status === "finished" ? "replay" : "live"}</span></div>
+              <Versus players={s.players} />
+              <div className="meta">{s.players.map((p) => `${p.name}: ${s.score[p.id]}`).join(" · ")} · {s.status === "finished" ? "3 games completed" : `Game ${s.currentGame} of 3`}</div>
+            </Link>;
+          }
+          const r = battle.replay;
+          return (
           <Link key={r.id} to="/replay/$id" params={{ id: r.id }} className="battle">
             <div className="title">
               {r.title ?? "A battle from your server"} {r.source === "local" && <span className="tag">local</span>}
@@ -74,7 +88,8 @@ export function Battles() {
               {r.map ? ` · ${r.map}` : ""}
             </div>
           </Link>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

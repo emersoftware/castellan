@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { expect, it, vi } from "vitest";
-import { Container, Graphics, Sprite, Texture } from "pixi.js";
+import { Container, FilterSystem, Graphics, Rectangle, RenderTexture, Sprite, Texture } from "pixi.js";
 import { v4, MAPS, type EntityView, type SpectatorView } from "@aoa/shared";
 import { GameRenderer } from "../src/render/renderer";
 import { TILE_H, TILE_W, type SpriteSet } from "../src/render/sprites";
@@ -14,6 +14,44 @@ interface RendererInternals {
   fx: Container;
   effects: Array<{ update: (now: number) => boolean }>;
 }
+
+it("falls back to the screen resolution after a pooled filter texture is pruned", () => {
+  const texture = RenderTexture.create({ width: 800, height: 600 });
+  const system = Object.create(FilterSystem.prototype) as {
+    _filterStackIndex: number;
+    _filterStack: Array<{ skip: boolean; inputTexture: Texture }>;
+    _findFilterResolution(resolution: number): number;
+  };
+  system._filterStackIndex = 2;
+  system._filterStack = [{ skip: false, inputTexture: texture }, { skip: false, inputTexture: texture }];
+  texture.destroy(true);
+  expect(system._findFilterResolution(1)).toBe(1);
+});
+
+it("keeps the depth source held by filters alive when the viewport changes", () => {
+  const host = document.createElement("div");
+  Object.defineProperties(host, { clientWidth: { value: 390 }, clientHeight: { value: 600 } });
+  const renderer = Reflect.construct(GameRenderer, [host, v4, {}]) as GameRenderer;
+  const depth = RenderTexture.create({ width: 800, height: 600 });
+  const source = depth.source;
+  const filter = () => ({ resources: { uDepth: source, xrayUniforms: { uniforms: { uScreen: new Float32Array([800, 600]) } } } });
+  const internal = renderer as unknown as {
+    app: { renderer: { resize: (w: number, h: number) => void }; screen: Rectangle };
+    depthRT: RenderTexture; xrayFilter: ReturnType<typeof filter>; outlineFilter: ReturnType<typeof filter>;
+    fit(recenter: boolean): void;
+  };
+  internal.app = { renderer: { resize: vi.fn() }, screen: new Rectangle(0, 0, 390, 600) };
+  internal.depthRT = depth;
+  internal.xrayFilter = filter();
+  internal.outlineFilter = filter();
+  internal.fit(false);
+  expect(internal.depthRT.source).toBe(source);
+  expect(source.destroyed).toBe(false);
+  expect(source.width).toBe(390);
+  expect(internal.xrayFilter.resources.uDepth).toBe(source);
+  expect(internal.outlineFilter.resources.uDepth).toBe(source);
+  depth.destroy(true);
+});
 
 it("keeps ordinary outlines separate from building-only x-ray masks", () => {
   const renderer = Reflect.construct(GameRenderer, [document.createElement("div"), v4, { p1: 0, p2: 1 }]) as GameRenderer;

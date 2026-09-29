@@ -1,13 +1,6 @@
 /* Age of Agents: black like the unexplored map of Age of Empires, plain
-   Arial for the interface and Aktura (Fontshare, self-hosted) for titles, and the whole
+   Arial for the interface and Times New Roman for titles, and the whole
    interface run through the same ordered dither as the game (see DitherDefs). */
-@font-face {
-  font-family: Aktura;
-  src: url("/fonts/aktura.woff2") format("woff2");
-  font-weight: 400;
-  font-display: swap;
-}
-
 :root {
   /* Text colours come from the EGA palette (0, 55, aa, ff per channel), the
      dither's 4 levels; the filter mixes each one with the level below. */
@@ -26,7 +19,7 @@
   --b-light: #ffaa55;
   --green: #55aa55;
   --sans: Arial, Helvetica, sans-serif;
-  --title: Aktura, "Times New Roman", serif;
+  --title: "Times New Roman", Times, serif;
   --serif: "Times New Roman", Times, serif;
   font-family: var(--sans);
   font-size: 16px;
@@ -61,25 +54,26 @@ button.on { color: var(--black); background: var(--light-grey); border-color: va
 
 /* ─────────── landing ─────────── */
 .landing { background: var(--black); }
-.hero { position: relative; height: 100vh; min-height: 560px; overflow: hidden; }
-.hero-bg { position: absolute; inset: 0; opacity: 0.55; }
-.hero-bg .canvas-host { cursor: default; }
-.hero-shade {
-  position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.85) 70%), linear-gradient(to bottom, transparent 60%, #000 100%);
-}
+.hero { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100svh; padding: 24px 24px 48px; }
 .hero-content {
-  position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  text-align: center; padding: 0 24px; pointer-events: none;
+  min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; width: 100%; max-width: 720px;
 }
-.hero-content > * { pointer-events: auto; }
+.hero-copy { width: 100%; }
+.hero-field { position: relative; width: min(100%, 900px); height: clamp(280px, 48svh, 520px); flex: none; overflow: hidden; }
+.hero-field .canvas-host { cursor: default; }
 .hero h1 {
-  font-size: clamp(44px, 8vw, 104px); font-weight: 400; color: var(--white); margin: 12px 0 4px; letter-spacing: 0.14em;
+  font-size: clamp(44px, 5.5vw, 80px); font-weight: 400; color: var(--white); margin: 16px 0 12px; letter-spacing: 0.14em;
   text-transform: uppercase; text-shadow: 0 2px 0 #000, 0 0 24px #000;
 }
 .tagline { font-family: var(--sans); color: var(--light-grey); font-size: 18px; letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 16px; }
 .lede { max-width: 620px; font-size: 20px; line-height: 1.5; color: var(--light-grey); margin: 0 0 28px; }
 .cta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.hero .lede { font-size: 18px; max-width: 620px; margin-left: auto; margin-right: auto; }
+@media (max-width: 760px) {
+  .hero { padding: 16px 24px 40px; }
+  .hero-field { height: clamp(220px, 36svh, 340px); }
+}
 .portrait { image-rendering: pixelated; display: block; }
 
 .pillars, .units, .recent, .host {
@@ -225,22 +219,21 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
 
 /* ─────────── dither + titles ─────────── */
 /* Every piece of interface goes through the dither filter; the game canvas never does. */
-.hero-content, .pillars, .unit h4, .unit p, .unit .stat, .units h2, .recent, .host, footer, .page,
+.hero-copy, .pillars, .unit h4, .unit p, .unit .stat, .units h2, .recent, .host, footer, .page,
 .scores, .feed, .tooltip, .corner, .banner, .controls, .zoom { filter: url(#aoa-dither); }
 
-/* Aktura is blackletter: only large titles, never all caps; small titles stay in Times. */
+/* Times New Roman for titles at every size. */
 .hero h1, .banner .big, .page-head h1, .units h2, .recent h2, .host h2 {
   font-family: var(--title); text-transform: none; letter-spacing: 0.02em;
 }
 .corner.brandmark, .pillars h3, .battle .title, .tagline { font-family: var(--serif); }
 .hero h1 {
   font-weight: 400;
-  background: linear-gradient(to bottom, #ffffff 0%, #d8d8d8 45%, #6c6c6c 100%);
-  -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none;
+  color: var(--white); text-shadow: none;
 }
 .tagline { text-transform: none; letter-spacing: 0.02em; font-size: 22px; font-style: italic; }
 .banner .big {
-  background: linear-gradient(to bottom, #ffffff, #8c8c8c); -webkit-background-clip: text; background-clip: text; color: transparent;
+  color: var(--white);
 }
 .banner { background: linear-gradient(to bottom, rgba(26,26,26,0.95), rgba(0,0,0,0.85)); }
 

@@ -1,4 +1,5 @@
 import type { Outcome, PlayerTiming, ReplayFile, SeriesReplay, SeriesSummary } from "@aoa/shared";
+import { hasScriptedBot, replayFileDate } from "./replayCatalog";
 
 export interface RoomSummary {
   id: string;
@@ -19,7 +20,9 @@ export interface ReplaySummary {
   id: string;
   title?: string;
   createdAt: string;
-  players: { id: string; name: string; team?: number }[];
+  /** Modification time of the original replay file, captured before bundling. */
+  savedAt?: string;
+  players: { id: string; name: string; team?: number; bot?: string }[];
   outcome: Outcome;
   finalTick: number;
   tickRate: number;
@@ -58,7 +61,9 @@ export const api = {
       .then((l) => l.map((x) => ({ ...x, source: "local" as const })))
       .catch(() => []);
     const seen = new Set(featured.map((f) => f.id));
-    return [...featured, ...local.filter((l) => !seen.has(l.id))];
+    return [...featured, ...local.filter((l) => !seen.has(l.id))]
+      .filter((replay) => !hasScriptedBot(replay.players))
+      .sort((a, b) => replayFileDate(b).localeCompare(replayFileDate(a)) || a.id.localeCompare(b.id));
   },
 
   async replay(id: string): Promise<ReplayFile> {

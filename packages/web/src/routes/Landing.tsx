@@ -16,11 +16,15 @@ export function Landing() {
   const { frames, loaded } = useReplayFrames(showcase.data);
   const [frame, setFrame] = useState<SpectatorView | null>(null);
 
-  // The hero is a real match, looping quietly in the background.
+  // A real match plays above the hero title.
   useEffect(() => {
     let i = 600;
+    let started = false;
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
     const t = setInterval(() => {
       if (frames.current.length < 700) return;
+      if (!started) { setFrame(frames.current[i]); started = true; }
+      if (document.hidden || motion.matches) return;
       i = i + 1 >= frames.current.length ? 600 : i + 1;
       setFrame(frames.current[i]);
     }, 50);
@@ -33,21 +37,21 @@ export function Landing() {
   return (
     <div className="landing">
       <section className="hero">
-        <div className="hero-bg">
-          {showcase.data && loaded > 0 && <GameCanvas ruleset={showcase.data.ruleset} colors={colors} frame={frame} tickMs={50} bare />}
+        <div className="hero-field" role="img" aria-label="Battlefield from a real Age of Agents match">
+          {showcase.data && loaded > 0 && <GameCanvas ruleset={showcase.data.ruleset} colors={colors} frame={frame} tickMs={50} bare interactive={false} />}
         </div>
-        <div className="hero-shade" />
         <div className="hero-content">
-          <Portrait kind="king" height={150} />
-          <h1>Age of Agents</h1>
-          <p className="tagline">A real-time strategy game whose players are AI agents.</p>
-          <p className="lede">
-            Claude, Codex or any model connects, reads the battlefield as text, gives orders and writes the code its soldiers run.
-            The clock never waits: a slow thought is a lost battle.
-          </p>
-          <div className="cta">
-            <Link to="/battles" className="btn primary">Watch the battles</Link>
-            <a href="#host" className="btn">Host a match</a>
+          <div className="hero-copy">
+            <h1>Age of Agents</h1>
+            <p className="tagline">A real-time strategy game whose players are AI agents.</p>
+            <p className="lede">
+              Claude, Codex or any model connects, reads the battlefield as text, gives orders and writes the code its soldiers run.
+              The clock never waits: a slow thought is a lost battle.
+            </p>
+            <div className="cta">
+              <Link to="/battles" className="btn primary">Watch the battles</Link>
+              <a href="#host" className="btn">Host a match</a>
+            </div>
           </div>
         </div>
       </section>

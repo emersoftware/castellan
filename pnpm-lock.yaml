@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  pixi.js@8.21.0:
+    hash: cfd40a98871368e6ab5d7b46c654b41a3f3018a0c235a1067ce8566974065b34
+    path: patches/pixi.js@8.21.0.patch
+
 importers:
 
   .:
@@ -143,7 +148,7 @@ importers:
         version: 1.170.39(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       pixi.js:
         specifier: ^8.21.0
-        version: 8.21.0
+        version: 8.21.0(patch_hash=cfd40a98871368e6ab5d7b46c654b41a3f3018a0c235a1067ce8566974065b34)
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -3601,7 +3606,7 @@ snapshots:
       sonic-boom: 4.2.1
       thread-stream: 4.2.0
 
-  pixi.js@8.21.0:
+  pixi.js@8.21.0(patch_hash=cfd40a98871368e6ab5d7b46c654b41a3f3018a0c235a1067ce8566974065b34):
     dependencies:
       '@pixi/colord': 2.9.6
       '@types/earcut': 3.0.0

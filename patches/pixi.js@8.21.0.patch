@@ -1,0 +1,28 @@
+diff --git a/lib/filters/FilterSystem.js b/lib/filters/FilterSystem.js
+index 0cbe11c3343326a330d8b5a1bdf472a9a0de45a7..45c9d6fc1a57b70d1f249034df82864ac6797679 100644
+--- a/lib/filters/FilterSystem.js
++++ b/lib/filters/FilterSystem.js
+@@ -463,7 +463,8 @@ class FilterSystem {
+     while (currentIndex > 0 && this._filterStack[currentIndex].skip) {
+       --currentIndex;
+     }
+-    return currentIndex > 0 && this._filterStack[currentIndex].inputTexture ? this._filterStack[currentIndex].inputTexture.source._resolution : rootResolution;
++    // A viewport resize may prune an idle texture retained by this reusable stack entry.
++    return currentIndex > 0 ? this._filterStack[currentIndex].inputTexture?.source?._resolution ?? rootResolution : rootResolution;
+   }
+   /**
+    * Finds the offset from the previous non-skipped filter in the stack.
+diff --git a/lib/filters/FilterSystem.mjs b/lib/filters/FilterSystem.mjs
+index fde021a3ac1495080565f13ba0bac12a42f305b0..5488662f6a93b08e57f718b7f4b248abc6cf7ddb 100644
+--- a/lib/filters/FilterSystem.mjs
++++ b/lib/filters/FilterSystem.mjs
+@@ -461,7 +461,8 @@ class FilterSystem {
+     while (currentIndex > 0 && this._filterStack[currentIndex].skip) {
+       --currentIndex;
+     }
+-    return currentIndex > 0 && this._filterStack[currentIndex].inputTexture ? this._filterStack[currentIndex].inputTexture.source._resolution : rootResolution;
++    // A viewport resize may prune an idle texture retained by this reusable stack entry.
++    return currentIndex > 0 ? this._filterStack[currentIndex].inputTexture?.source?._resolution ?? rootResolution : rootResolution;
+   }
+   /**
+    * Finds the offset from the previous non-skipped filter in the stack.

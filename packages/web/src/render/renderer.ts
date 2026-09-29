@@ -111,14 +111,14 @@ export class GameRenderer {
   /** Wall clock by default; a virtual one while recording video. */
   private now: () => number = () => performance.now();
 
-  private constructor(private host: HTMLElement, private ruleset: Ruleset, private colors: Record<string, number>) {
+  private constructor(private host: HTMLElement, private ruleset: Ruleset, private colors: Record<string, number>, private fitOnResize = false, private interactive = true) {
     this.width = ruleset.map.width;
     this.height = ruleset.map.height;
   }
 
   /** `colors`: each player's colour index (0..3). */
-  static async create(host: HTMLElement, ruleset: Ruleset, colors: Record<string, number>): Promise<GameRenderer> {
-    const r = new GameRenderer(host, ruleset, colors);
+  static async create(host: HTMLElement, ruleset: Ruleset, colors: Record<string, number>, options: { fitOnResize?: boolean; interactive?: boolean } = {}): Promise<GameRenderer> {
+    const r = new GameRenderer(host, ruleset, colors, options.fitOnResize, options.interactive);
     await r.init();
     return r;
   }
@@ -143,9 +143,9 @@ export class GameRenderer {
 
     this.buildGround();
     this.fit();
-    this.resize = new ResizeObserver(() => this.fit(false));
+    this.resize = new ResizeObserver(() => this.fit(this.fitOnResize));
     this.resize.observe(this.host);
-    this.bindInput();
+    if (this.interactive) this.bindInput();
     this.app.ticker.add(() => this.animate());
   }
 
@@ -416,8 +416,10 @@ export class GameRenderer {
     // layer lives inside the panned/zoomed world: a screen rectangle here clips
     // everything left of the world's origin. Let Pixi project the unit bounds.
     this.xrayLayer.filterArea = undefined;
-    this.depthRT?.destroy(true);
-    this.depthRT = RenderTexture.create({ width: w, height: h, scaleMode: "nearest" });
+    // Keep the depth source alive across resizes: the filters retain references
+    // to it while Pixi rebuilds their render instructions for the new viewport.
+    if (this.depthRT) this.depthRT.resize(w, h);
+    else this.depthRT = RenderTexture.create({ width: w, height: h, scaleMode: "nearest" });
     if (!this.xrayFilter) {
       this.xrayFilter = createXrayFilter(this.depthRT);
       this.xrayLayer.filters = [this.xrayFilter];

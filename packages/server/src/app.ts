@@ -3,7 +3,7 @@
  * (MCP, CLI, anything else) are thin clients of these routes.
  */
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rename, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
@@ -132,7 +132,10 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return room ? room.summary() : reply.code(404).send({ error: "no such room" });
   });
 
-  app.get("/replays", async () => readIndex(opts.replayDir));
+  app.get("/replays", async () => Promise.all((await readIndex(opts.replayDir)).map(async (entry) => ({
+    ...entry,
+    savedAt: await stat(join(opts.replayDir, `${entry.id}.json.gz`)).then((file) => file.mtime.toISOString()).catch(() => entry.createdAt),
+  }))));
 
   app.get("/replays/:id", async (req, reply) => {
     const id = (req.params as { id: string }).id;

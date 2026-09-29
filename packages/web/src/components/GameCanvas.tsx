@@ -15,10 +15,12 @@ interface Props {
   sound?: SoundSink;
   /** Hide the zoom buttons (e.g. the landing's background battle). */
   bare?: boolean;
+  /** Decorative previews should not consume wheel or drag gestures. */
+  interactive?: boolean;
 }
 
 /** Mounts the Pixi renderer and feeds it frames. */
-export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jumpKey = 0, onHover, sound, bare }: Props) {
+export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jumpKey = 0, onHover, sound, bare, interactive = true }: Props) {
   const host = useRef<HTMLDivElement>(null);
   // Clear synchronously on cleanup: a reconnect can replace the ruleset and
   // deliver a frame in the same render, before the next Pixi instance is ready.
@@ -29,7 +31,7 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
   useEffect(() => {
     let r: GameRenderer | null = null;
     let cancelled = false;
-    GameRenderer.create(host.current!, ruleset, colors).then((x) => {
+    GameRenderer.create(host.current!, ruleset, colors, { fitOnResize: bare, interactive }).then((x) => {
       if (cancelled) return x.destroy();
       r = x;
       renderer.current = x;
@@ -40,7 +42,7 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
       renderer.current = null;
       r?.destroy();
     };
-  }, [ruleset, JSON.stringify(colors)]);
+  }, [ruleset, JSON.stringify(colors), bare, interactive]);
 
   useEffect(() => {
     if (onHover) renderer.current?.onHover(onHover);
@@ -63,7 +65,7 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
 
   return (
     <div className="canvas-host" ref={host}>
-      {!bare && (
+      {!bare && interactive && (
         <div className="zoom">
           <button onClick={() => renderer.current?.zoom(1.25)} title="zoom in">+</button>
           <button onClick={() => renderer.current?.zoom(0.8)} title="zoom out">−</button>

@@ -1,5 +1,9 @@
 packages:
   - packages/*
   - connectors/*
+
 onlyBuiltDependencies:
   - esbuild
+
+patchedDependencies:
+  pixi.js@8.21.0: patches/pixi.js@8.21.0.patch
