@@ -1,5 +1,7 @@
 import type { Outcome } from "@aoa/shared";
+import type { ReactNode } from "react";
 import { playerColors, winnersOf } from "../api";
+import { Agent, Agents } from "./Agent";
 
 type P = { id: string; name: string; team?: number };
 
@@ -15,7 +17,7 @@ export function Versus({ players }: { players: P[] }) {
           {players.filter((p, j) => (p.team ?? j) === t).map((p, j) => (
             <span key={p.id}>
               {j > 0 && " & "}
-              <b className={`pc${colors[p.id]}`}>{p.name}</b>
+              <Agent id={p.id} name={p.name} color={colors[p.id]} />
             </span>
           ))}
         </span>
@@ -25,7 +27,7 @@ export function Versus({ players }: { players: P[] }) {
 }
 
 /** "a won", "a & b won" or "draw". */
-export function wonText(players: P[], o: Outcome): string {
-  const w = winnersOf(o).map((id) => players.find((p) => p.id === id)?.name ?? id);
-  return w.length ? `${w.join(" & ")} won` : "draw";
+export function wonText(players: P[], o: Outcome): ReactNode {
+  const w = winnersOf(o);
+  return w.length ? <><Agents ids={w} names={Object.fromEntries(players.map((p) => [p.id, p.name]))} colors={playerColors(players)} /> won</> : "draw";
 }

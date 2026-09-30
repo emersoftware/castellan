@@ -1,7 +1,8 @@
 import { useCallback, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../api";
+import { api, playerColors } from "../api";
+import { Agent, Agents } from "../components/Agent";
 import { ReplayPlayer } from "./Replay";
 import { WatchPlayer } from "./Watch";
 
@@ -43,12 +44,12 @@ export function SeriesViewer({ id, live }: { id: string; live: boolean }) {
   if (summary.isError) return <div className="page"><p>This series isn't here. <Link to="/battles">Back to battles</Link></p></div>;
   if (!series || !game) return <div className="page"><p>Loading series…</p></div>;
   const completed = series.status === "finished";
-  const result = completed ? (series.winners?.length ? `${series.players.filter((p) => series.winners!.includes(p.id)).map((p) => p.name).join(" + ")} wins the series` : "Series drawn") : series.status === "error" ? "Series paused: unable to save progress" : `Game ${series.currentGame} of 3`;
+  const result = completed ? (series.winners?.length ? <><Agents ids={series.winners} sep=" + " names={Object.fromEntries(series.players.map((p) => [p.id, p.name]))} colors={playerColors(series.players)} /> wins the series</> : "Series drawn") : series.status === "error" ? "Series paused: unable to save progress" : `Game ${series.currentGame} of 3`;
 
   return <div className="series-view">
     {game.status === "finished" ? <ReplayPlayer key={game.roomId} id={game.roomId} initialSpeed={speed} onSpeedChange={setSpeed} onEnded={number < 3 ? next : undefined} /> : live ? <WatchPlayer key={game.roomId} id={game.roomId} /> : <div className="page"><p>This game has not finished. <Link to="/series/$id/watch" params={{ id }}>Watch the series live</Link></p></div>}
     <nav className="series-strip" aria-label="Series games">
-      <div className="series-score">{series.players.map((p) => <span key={p.id}>{p.name} <strong>{series.score[p.id]}</strong></span>)}</div>
+      <div className="series-score">{series.players.map((p) => <span key={p.id}><Agent id={p.id} name={p.name} color={playerColors(series.players)[p.id]} /> <strong>{series.score[p.id]}</strong></span>)}</div>
       <div className="series-games">
         {[1, 2, 3].map((n) => {
           const g = series.games.find((g) => g.number === n);

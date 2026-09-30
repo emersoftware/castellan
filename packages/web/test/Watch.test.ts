@@ -12,10 +12,10 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 vi.mock("../src/components/GameCanvas", () => ({ GameCanvas: () => null }));
 vi.mock("../src/components/Hud", () => ({
-  ChatPanel: () => null, EventFeed: () => null, OutcomeBanner: () => null, SoundToggle: () => null,
-  Tooltip: () => null, PlayerList: () => null,
+  SidePanel: () => null, OutcomeBanner: () => null, SoundToggle: () => null,
+  Tooltip: () => null, PlayerList: () => null, notableEvents: (events: unknown[]) => events,
 }));
-vi.mock("../src/routes/Replay", () => ({ ReplayPlayer: ({ id }: { id: string }) => createElement("div", null, `Saved replay ${id}`) }));
+vi.mock("../src/routes/Replay", () => ({ ReplayPlayer: ({ id }: { id: string }) => createElement("div", null, `Saved replay ${id}`), writeUrl: () => {} }));
 vi.mock("../src/audio/sfx", () => ({ sfx: { muted: true } }));
 
 let root: Root;

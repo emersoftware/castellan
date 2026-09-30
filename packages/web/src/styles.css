@@ -2,6 +2,7 @@
    Arial for the interface and Times New Roman for titles, and the whole
    interface run through the same ordered dither as the game (see DitherDefs). */
 :root {
+  --side-w: 400px;
   /* Text colours come from the EGA palette (0, 55, aa, ff per channel), the
      dither's 4 levels; the filter mixes each one with the level below. */
   --black: #000000;
@@ -124,7 +125,9 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
 .series-score strong { color: var(--white); margin-left: 6px; }
 .series-result { font-size: 12px; margin-top: 6px; color: var(--light-grey); }
 .series-games button:disabled { opacity: .4; cursor: default; }
-@media (max-width: 900px) { .series-strip { top: 40px; width: calc(100vw - 32px); } .series-view .scores { top: 175px; } }
+/* Centred over the map, not the side panel. */
+.series-view .series-strip { left: calc((100vw - var(--side-w)) / 2); max-width: calc(100vw - var(--side-w) - 32px); }
+@media (max-width: 900px) { .series-strip { top: 40px; width: calc(100vw - 32px); } .series-view .series-strip { width: calc(100vw - var(--side-w) - 32px); } }
 .canvas-host { position: absolute; inset: 0; cursor: grab; }
 .canvas-host:active { cursor: grabbing; }
 .zoom { position: absolute; right: 14px; bottom: 70px; display: flex; flex-direction: column; gap: 4px; z-index: 3; }
@@ -189,7 +192,7 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
   background: linear-gradient(90deg, var(--dark-grey) var(--loaded, 0%), #151515 var(--loaded, 0%));
 }
 .controls input[type="range"]::-webkit-slider-thumb { appearance: none; width: 10px; height: 18px; background: var(--white); }
-.controls .time { font-family: var(--sans); font-size: 12px; min-width: 104px; text-align: center; }
+.controls .time { font-family: var(--sans); font-size: 12px; min-width: 90px; text-align: center; }
 .controls .speeds { display: flex; gap: 2px; }
 .controls .speeds button { padding: 6px 8px; }
 .controls .check { font-family: var(--sans); font-size: 11px; color: var(--grey); min-width: 130px; text-align: right; }
@@ -222,7 +225,7 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
 /* ─────────── dither + titles ─────────── */
 /* Every piece of interface goes through the dither filter; the game canvas never does. */
 .hero-copy, .pillars, .unit h4, .unit p, .unit .stat, .units h2, .recent, .host, footer, .page,
-.scores, .feed, .tooltip, .corner, .banner, .controls, .zoom { filter: url(#aoa-dither); }
+.scores, .feed, .tooltip, .corner, .banner, .banner-mini, .controls, .zoom, .side .tabs, .log-body { filter: url(#aoa-dither); }
 
 /* Times New Roman for titles at every size. */
 .hero h1, .banner .big, .page-head h1, .units h2, .recent h2, .host h2 {
@@ -256,7 +259,148 @@ button.on { background: linear-gradient(to bottom, #ffffff, #8c8c8c); }
 .scores .player-perspective { font: inherit; color: inherit; background: transparent; border: 0; padding: 0; cursor: pointer; }
 .scores .player-perspective:hover, .scores .player-perspective[aria-pressed="true"] { text-decoration: underline; text-underline-offset: 3px; }
 
-.chat-panel { position: absolute; left: 14px; bottom: 108px; z-index: 4; width: min(370px, calc(100vw - 28px)); background: rgba(0,0,0,.88); border: 1px solid var(--line); padding: 8px 10px; font-size: 12px; }
-.chat-panel summary { cursor: pointer; color: var(--light-grey); }
-.chat-messages { max-height: 160px; overflow-y: auto; margin-top: 6px; overflow-wrap: anywhere; }
-.chat-message + .chat-message { margin-top: 6px; }
+/* ─────────── watch + replay: map, controls under it, side panel on the right ─────────── */
+.viewer {
+  display: grid; grid-template-columns: minmax(0, 1fr) var(--side-w); grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "stage side" "controls controls";
+}
+.viewer .stage { grid-area: stage; position: relative; overflow: hidden; min-width: 0; min-height: 0; }
+.viewer .zoom { bottom: 14px; }
+.viewer .tooltip { bottom: 14px; max-width: calc(100% - 90px); }
+.viewer .banner { width: max-content; max-width: calc(100% - 28px); }
+/* The controls float across the whole width, framed like the side boxes. */
+.viewer .controls {
+  grid-area: controls; position: static; min-width: 0; flex-wrap: wrap; row-gap: 6px;
+  margin: 0 14px 14px; border: 1px solid var(--line); background: linear-gradient(to bottom, rgba(24,24,24,0.94), rgba(0,0,0,0.8));
+}
+.viewer .controls .check { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewer .controls .live { margin: 0 4px; color: var(--b-light); font-size: 13px; white-space: nowrap; }
+.viewer .controls .live.lost { color: var(--dark-grey); }
+.viewer .controls .reconnecting { color: var(--yellow); font-size: 12px; }
+.viewer .controls .spacer { flex: 1; }
+
+.banner-close { position: absolute; top: 4px; right: 4px; padding: 2px 8px; border: 0; background: transparent; font-size: 18px; }
+.banner-actions { margin-top: 14px; font-size: 14px; }
+.banner-mini {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 4; max-width: calc(100% - 180px);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--white);
+}
+
+/* The timeline: marks for fights, eliminations and chat above the track. */
+.timeline { order: -1; flex: 1 1 100%; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.timeline input[type="range"] { flex: none; width: 100%; margin: 0; order: 0; }
+.marks { position: relative; height: 9px; margin: 0 5px; }
+.mark { position: absolute; bottom: 0; width: 2px; height: 5px; padding: 0; border: 0; transform: translateX(-1px); cursor: pointer; }
+.mark:hover { height: 9px; }
+.mark.eliminated { width: 3px; height: 9px; }
+.mark.chat { background: var(--white); height: 3px; bottom: 6px; }
+.mark.chat:hover { height: 3px; width: 4px; }
+.mark.end { background: var(--yellow); height: 9px; }
+
+.side {
+  grid-area: side; display: grid; grid-template-rows: minmax(0, 45%) minmax(0, 1fr); min-height: 0; min-width: 0;
+  gap: 14px; padding: 14px;
+}
+/* Laptop and desktop: the map runs under the whole screen and the UI floats on it,
+   so the gaps between boxes show the field; only the boxes take the pointer. */
+@media (min-width: 721px) {
+  .viewer .stage .canvas-host { position: fixed; inset: 0; z-index: 0; }
+  .viewer .side, .viewer .controls { position: relative; z-index: 3; }
+  .viewer .side { pointer-events: none; }
+  .viewer .side > * { pointer-events: auto; }
+}
+/* Each box floats on the engine's black with its own frame, like the old overlays. */
+.side-players, .side-log { position: relative; isolation: isolate; border: 1px solid transparent; }
+/* The box behind is dithered like the timeline's (which goes through the filter whole). */
+.side-players::after, .side-log::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(24,24,24,0.94), rgba(0,0,0,0.8)); filter: url(#aoa-dither);
+}
+/* The frame alone goes through the dither (like the buttons and the ground); the box behind stays as is. */
+.side-players::before, .side-log::before {
+  content: ""; position: absolute; inset: -1px; border: 1px solid var(--dark-grey); pointer-events: none; z-index: 1; filter: url(#aoa-dither);
+}
+/* The split is set once per match, never by the content: builder rows come and go every tick. */
+.side.seats4 { grid-template-rows: minmax(0, 60%) minmax(0, 1fr); }
+.side-players { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.side-players > .scores { flex: 1; min-height: 0; overflow: auto; }
+.side .scores { position: static; min-width: 0; background: none; border: 0; padding: 10px 12px; }
+/* Long names are clipped, the id always shows: chat talks about players by id. */
+.scores .who { display: flex; align-items: baseline; min-width: 0; }
+.scores .who .swatch { flex: none; }
+.scores .who .player-perspective, .scores .who .pname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scores .who .pid { flex: none; margin-left: 5px; font-size: 11px; }
+/* An agent is always "name (pN)" in its colour, whatever styles the text around it. */
+.agent b { color: inherit; font: inherit; }
+.agent .pid { font-size: 0.8em; }
+.side .scores td.name { font-size: 13px; }
+.scores .who .player-perspective { letter-spacing: normal; }
+.log-body .mention, .feed .mention { font-style: normal; font-weight: 400; }
+.side .scores tr.timing td { white-space: normal; }
+/* One line even before the first upgrade, clipped if long: the list never resizes. */
+.scores tr.upgrades td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 14px; height: 18px; }
+.side .scores tr.upgrades td { white-space: nowrap; }
+/* Fixed columns: long names and the timing line are clipped instead of widening the panel. */
+.side .scores table { table-layout: fixed; }
+.side .scores th, .side .scores td { padding-left: 8px; }
+.side .scores td.name, .side .scores tr.timing td, .side .scores tr.team td { padding-left: 0; }
+.side .scores th:nth-child(2) { width: 40px; } .side .scores th:nth-child(3) { width: 74px; }
+.side .scores th:nth-child(4) { width: 36px; } .side .scores th:nth-child(5) { width: 44px; }
+.side .scores th.view { width: 30px; }
+/* Whose view the map shows: an eye in a bordered square per player, "all" at the bottom. */
+.scores .clock:has(.brand-head) { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.scores .brand-head { font-family: var(--title); font-size: 22px; color: var(--white); }
+.scores td.view, .scores th.view { text-align: center; }
+.view-eye {
+  display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0;
+  border: 1px solid var(--dark-grey); color: var(--grey); vertical-align: middle;
+}
+.view-eye:hover { color: var(--white); border-color: var(--light-grey); }
+.view-eye.on { color: var(--black); }
+.scores .view-all td { padding-top: 8px; border-top: 1px solid var(--line); font-size: 11px; color: var(--grey); }
+.side .scores .timing { gap: 8px; white-space: nowrap; overflow: hidden; }
+/* `.scores .timing` is also the row's class: keep the row a table row. */
+.side .scores tr.timing { display: table-row; }
+.side-log { display: flex; flex-direction: column; min-height: 0; }
+.tabs { display: flex; flex: none; border-bottom: 1px solid var(--line); }
+.tabs button { flex: 1; border: 0; border-right: 1px solid var(--line); padding: 9px 6px; background: transparent; color: var(--grey); }
+.tabs button:last-child { border-right: 0; }
+.tabs button:hover { color: var(--white); background: #151515; }
+.tabs button.on { color: var(--white); background: linear-gradient(to bottom, #2a2a2a, #0b0b0b); box-shadow: inset 0 -2px 0 var(--white); }
+.tabs .unread { display: inline-block; margin-left: 6px; min-width: 16px; padding: 0 4px; background: var(--white); color: var(--black); font-size: 10px; line-height: 16px; }
+.log-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 6px 0; font-size: 14px; overflow-wrap: anywhere; }
+.log-body .empty { padding: 6px 12px; font-size: 13px; }
+.log-body .line { padding: 3px 12px 3px 10px; border-left: 2px solid transparent; line-height: 1.35; }
+.log-body .line + .line { margin-top: 1px; }
+.log-body .line.chat { border-left-color: var(--dark-grey); }
+.log-body .line.seekable { cursor: pointer; }
+.log-body .line.seekable:hover, .log-body .line.seekable:focus-visible { background: #151515; border-left-color: var(--white); outline: none; }
+.log-body .t, .feed .t { font-family: var(--sans); font-size: 11px; color: var(--grey); }
+.log-body q { font-style: italic; color: var(--white); }
+.log-body .channel, .feed .channel { color: var(--grey); font-size: 12px; }
+
+/* Scrollbars like the timeline: a thin dark track and a fat white block. */
+.viewer ::-webkit-scrollbar { width: 10px; height: 10px; }
+.viewer ::-webkit-scrollbar-track { background: linear-gradient(90deg, transparent 3px, #151515 3px, #151515 7px, transparent 7px); }
+.viewer ::-webkit-scrollbar-thumb { background: var(--white); min-height: 18px; }
+.viewer ::-webkit-scrollbar-thumb:hover { background: var(--yellow); }
+.viewer ::-webkit-scrollbar-corner { background: transparent; }
+@supports not selector(::-webkit-scrollbar) { .viewer * { scrollbar-color: var(--white) #151515; } }
+
+/* Phones: map on top, the controls, then the tabs. */
+@media (max-width: 720px) {
+  .viewer { grid-template-columns: minmax(0, 1fr); grid-template-rows: 50svh auto minmax(0, 1fr); grid-template-areas: "stage" "controls" "side"; }
+  .viewer .zoom { bottom: 10px; left: auto; right: 6px; }
+  .viewer .controls { gap: 4px; padding: 6px 8px; margin: 0; border-width: 1px 0 0; }
+  .viewer .controls .check { flex: 1 1 auto; flex-basis: auto; text-align: right; }
+  .viewer .controls .speeds button { padding: 6px; }
+  .viewer .controls .time { font-size: 11px; }
+  .side, .side.seats4 { grid-template-rows: minmax(0, 1fr); gap: 0; padding: 0; }
+  .side-log { border-width: 1px 0 0; }
+  /* The Players tab has the whole panel: show what the overlay hides on phones. */
+  .side .scores th:nth-child(3), .side .scores td:nth-child(3) { display: table-cell; }
+  .side .scores .clock .time { font-size: 20px; }
+  .side .scores { padding: 8px 10px; }
+  .log-body { font-size: 13px; }
+  .series-view .series-strip { left: 50%; width: calc(100vw - 16px); max-width: none; top: 36px; padding: 6px 10px; }
+}

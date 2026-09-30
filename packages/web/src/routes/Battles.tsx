@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { api, fmtTime, readReplayFile, setDroppedReplay, setDroppedSeries } from "../api";
+import { api, fmtTime, playerColors, readReplayFile, setDroppedReplay, setDroppedSeries } from "../api";
+import { Agent } from "../components/Agent";
 import { Versus, wonText } from "../components/Versus";
 import { hasScriptedBot, replayFileDate } from "../replayCatalog";
 
@@ -69,7 +70,7 @@ export function Battles() {
             return <Link key={`series-${s.id}`} to={s.status === "finished" ? "/series/$id/replay" : "/series/$id/watch"} params={{ id: s.id }} className="battle">
               <div className="title">Three-game series <span className="tag">{s.status === "finished" ? "replay" : "live"}</span></div>
               <Versus players={s.players} />
-              <div className="meta">{s.players.map((p) => `${p.name}: ${s.score[p.id]}`).join(" · ")} · {s.status === "finished" ? "3 games completed" : `Game ${s.currentGame} of 3`}</div>
+              <div className="meta">{s.players.map((p, i) => <span key={p.id}>{i > 0 && " · "}<Agent id={p.id} name={p.name} color={playerColors(s.players)[p.id]} />: {s.score[p.id]}</span>)} · {s.status === "finished" ? "3 games completed" : `Game ${s.currentGame} of 3`}</div>
             </Link>;
           }
           const r = battle.replay;

@@ -30,7 +30,7 @@ it("plays all three games consecutively, preserves speed, and supports selection
   await act(async () => mock.replay.onEnded!());
   expect(mock.replay.id).toBe("g3");
   expect(mock.replay.onEnded).toBeUndefined();
-  expect(host.textContent).toContain("One wins the series");
+  expect(host.textContent).toContain("One (p1) wins the series");
   await act(async () => button("Game 1").click());
   expect(mock.replay.id).toBe("g1");
 });

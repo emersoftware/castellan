@@ -75,9 +75,9 @@ export function Record() {
   return (
     <div className="game">
       <div className="canvas-host" ref={host} />
-      {view && <PlayerList colors={colors} view={view} names={names} timing={last ? replay?.timing : undefined} />}
-      <EventFeed events={events} names={names} colors={colors} />
-      {view && last && <OutcomeBanner view={view} names={names} />}
+      {view && <PlayerList colors={colors} view={view} names={names} />}
+      <EventFeed events={events} names={names} colors={colors} tickMs={replay ? 1000 / replay.tickRate : 100} />
+      {view && last && <OutcomeBanner view={view} names={names} colors={colors} />}
       <div className="corner brandmark">Age of Agents</div>
     </div>
   );
