@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { GameEvent, Ruleset, SpectatorMessage, SpectatorView } from "@aoa/shared";
@@ -17,7 +17,11 @@ export function Watch() {
   return <WatchPlayer key={id} id={id} syncUrl initialPlayer={new URLSearchParams(location.search).get("pov")} />;
 }
 
-export function WatchPlayer({ id, initialPlayer = null, syncUrl = false }: { id: string; initialPlayer?: string | null; syncUrl?: boolean }) {
+export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series }: {
+  id: string; initialPlayer?: string | null; syncUrl?: boolean;
+  /** The series line, under the title of the player list. */
+  series?: ReactNode;
+}) {
   const [archived, setArchived] = useState(false);
   const room = useQuery({ queryKey: ["room", id], queryFn: () => api.room(id), retry: false, refetchInterval: archived ? false : 1000, refetchIntervalInBackground: true });
   const [ruleset, setRuleset] = useState<Ruleset | null>(null);
@@ -76,10 +80,10 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false }: { id:
 
   useEffect(() => { if (syncUrl) writeUrl({ pov: selectedPlayer }); }, [syncUrl, selectedPlayer]);
 
-  if (archived) return <ReplayPlayer key={id} id={id} initialPlaying={false} initialPlayer={selectedPlayer} />;
+  if (archived) return <ReplayPlayer key={id} id={id} initialPlaying={false} initialPlayer={selectedPlayer} series={series} />;
 
   const shownEvents = selectedPlayer ? playerEvents[selectedPlayer] ?? notable(playerPerspective(frame ? { ...frame, events } : null, selectedPlayer)?.events ?? []) : events;
-  const players = display?.players && <PlayerList selectedPlayer={selectedPlayer} onSelectPlayer={(id) => { setSelectedPlayer(id); setHover(null); }} colors={colors} view={display} names={names} />;
+  const players = display?.players && <PlayerList selectedPlayer={selectedPlayer} onSelectPlayer={(id) => { setSelectedPlayer(id); setHover(null); }} colors={colors} view={display} names={names} subtitle={series} />;
   return (
     <div className="game viewer" onPointerDown={() => !sfx.muted && sfx.unlock()}>
       <div className="stage">

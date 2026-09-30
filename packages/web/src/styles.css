@@ -119,15 +119,19 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
 
 /* ─────────── game ─────────── */
 .game { position: fixed; inset: 0; overflow: hidden; background: var(--black); }
-.series-strip { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6; background: rgba(0,0,0,.93); border: 1px solid var(--grey); padding: 10px 16px; max-width: calc(100vw - 32px); text-align: center; }
-.series-score, .series-games { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 16px; }
-.series-score { margin-bottom: 8px; }
-.series-score strong { color: var(--white); margin-left: 6px; }
-.series-result { font-size: 12px; margin-top: 6px; color: var(--light-grey); }
-.series-games button:disabled { opacity: .4; cursor: default; }
-/* Centred over the map, not the side panel. */
-.series-view .series-strip { left: calc((100vw - var(--side-w)) / 2); max-width: calc(100vw - var(--side-w) - 32px); }
-@media (max-width: 900px) { .series-strip { top: 40px; width: calc(100vw - 32px); } .series-view .series-strip { width: calc(100vw - var(--side-w) - 32px); } }
+/* The series in one line under the title of the player list: "SERIES 2–1 [1][2][3]". */
+.series-badge { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.series-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--grey); margin-right: 3px; }
+.series-score { font-size: 13px; color: var(--grey); margin-right: 5px; }
+.series-game {
+  display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0;
+  border: 1px solid var(--dark-grey); font-size: 11px; letter-spacing: 0; color: var(--grey);
+}
+.series-game:disabled { opacity: 0.35; cursor: default; }
+.series-game.running:not(.on) { color: var(--b-light); }
+.series-live { color: var(--b-light); }
+.page .series-badge { margin-top: 16px; }
+.scores-subtitle { display: flex; justify-content: flex-end; margin: 2px 0 8px; }
 .canvas-host { position: absolute; inset: 0; cursor: grab; }
 .canvas-host:active { cursor: grabbing; }
 .zoom { position: absolute; right: 14px; bottom: 70px; display: flex; flex-direction: column; gap: 4px; z-index: 3; }
@@ -413,5 +417,4 @@ button.on { background: linear-gradient(to bottom, #ffffff, #8c8c8c); }
   .side .scores .clock .time { font-size: 20px; }
   .side .scores { padding: 8px 10px; }
   .log-body { font-size: 13px; }
-  .series-view .series-strip { left: 50%; width: calc(100vw - 16px); max-width: none; top: 36px; padding: 6px 10px; }
 }

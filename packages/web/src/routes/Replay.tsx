@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { ChatMessage, GameEvent, SpectatorView } from "@aoa/shared";
@@ -73,8 +73,10 @@ function marksOf(events: GameEvent[], chat: ChatMessage[], total: number, colors
   return [...buckets.values()];
 }
 
-export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, initialPlaying = true, initialSeconds, initialPlayer = null, syncUrl = false }: {
+export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, initialPlaying = true, initialSeconds, initialPlayer = null, syncUrl = false, series }: {
   id: string; onEnded?: () => void; initialSpeed?: number; onSpeedChange?: (speed: number) => void; initialPlaying?: boolean;
+  /** The series line, under the title of the player list. */
+  series?: ReactNode;
   /** Open at this moment of the match (`?t=` in the address bar). */
   initialSeconds?: number;
   initialPlayer?: string | null;
@@ -189,7 +191,7 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
     );
 
   const pct = (tick: number) => `${(100 * tick) / Math.max(1, total - 1)}%`;
-  const players = display && <PlayerList selectedPlayer={selectedPlayer} onSelectPlayer={(id) => { setSelectedPlayer(id); setHover(null); }} colors={colors} view={display} names={names} />;
+  const players = display && <PlayerList selectedPlayer={selectedPlayer} onSelectPlayer={(id) => { setSelectedPlayer(id); setHover(null); }} colors={colors} view={display} names={names} subtitle={series} />;
 
   return (
     <div className="game viewer" onPointerDown={() => !sfx.muted && sfx.unlock()}>

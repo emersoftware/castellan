@@ -2,14 +2,16 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import type { ReactNode } from "react";
 import { SeriesViewer } from "../src/routes/Series";
 import type { SeriesSummary } from "@aoa/shared";
 
-const mock = vi.hoisted(() => ({ series: {} as SeriesSummary, replay: {} as { id: string; initialSpeed: number; onEnded?: () => void; onSpeedChange: (speed: number) => void }, watch: "" }));
+const mock = vi.hoisted(() => ({ series: {} as SeriesSummary, replay: {} as { id: string; initialSpeed: number; onEnded?: () => void; onSpeedChange: (speed: number) => void; series?: ReactNode }, watch: "" }));
 vi.mock("@tanstack/react-router", () => ({ Link: () => null }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: mock.series }) }));
-vi.mock("../src/routes/Replay", () => ({ ReplayPlayer: (props: typeof mock.replay) => { mock.replay = props; return null; } }));
-vi.mock("../src/routes/Watch", () => ({ WatchPlayer: ({ id }: { id: string }) => { mock.watch = id; return null; } }));
+// The players render the series line under their title.
+vi.mock("../src/routes/Replay", () => ({ ReplayPlayer: (props: typeof mock.replay) => { mock.replay = props; return props.series ?? null; } }));
+vi.mock("../src/routes/Watch", () => ({ WatchPlayer: ({ id, series }: { id: string; series?: ReactNode }) => { mock.watch = id; return series ?? null; } }));
 let root: Root, host: HTMLDivElement;
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -18,7 +20,7 @@ beforeEach(() => {
 });
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 const render = (live = false) => act(async () => root.render(createElement(SeriesViewer, { id: "test", live })));
-const button = (text: string) => [...host.querySelectorAll("button")].find((b) => b.textContent?.startsWith(text))!;
+const button = (label: string) => host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
 
 it("plays all three games consecutively, preserves speed, and supports selection", async () => {
   await render();
@@ -30,7 +32,8 @@ it("plays all three games consecutively, preserves speed, and supports selection
   await act(async () => mock.replay.onEnded!());
   expect(mock.replay.id).toBe("g3");
   expect(mock.replay.onEnded).toBeUndefined();
-  expect(host.textContent).toContain("One (p1) wins the series");
+  expect(host.querySelector(".series-badge")?.getAttribute("title")).toBe("One (p1) wins the series");
+  expect(host.querySelector(".series-score")?.textContent).toBe("2–1");
   await act(async () => button("Game 1").click());
   expect(mock.replay.id).toBe("g1");
 });
@@ -47,5 +50,5 @@ it("follows the live game, disables future games, and does not reset auto-advanc
   await render(true);
   expect(mock.replay.onEnded).toBe(ended);
   await act(async () => mock.replay.onEnded!());
-  expect(button("Follow live").className).toBe("on");
+  expect(button("Follow live").getAttribute("aria-pressed")).toBe("true");
 });

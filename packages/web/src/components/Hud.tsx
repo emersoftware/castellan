@@ -13,9 +13,11 @@ import { sfx } from "../audio/sfx";
  * population, kills and score, grouped by team in 2v2. With `onSelectPlayer`
  * a last column of eye buttons picks whose view the map shows, "all" at the bottom.
  */
-export function PlayerList({ view, names, colors, selectedPlayer, onSelectPlayer }: {
+export function PlayerList({ view, names, colors, selectedPlayer, onSelectPlayer, subtitle }: {
   view: SpectatorView; names: Record<string, string>; colors: Record<string, number>;
   selectedPlayer?: string | null; onSelectPlayer?: (player: string | null) => void;
+  /** A line under the title (the series). */
+  subtitle?: ReactNode;
 }) {
   const teams = [...new Set(view.players.map((p) => p.team))];
   const grouped = teams.length < view.players.length;
@@ -26,6 +28,7 @@ export function PlayerList({ view, names, colors, selectedPlayer, onSelectPlayer
         {onSelectPlayer && <span className="brand-head">Age of Agents</span>}
         <span><span className="time">{fmtTime(view.timeMs)}</span> <span className="sub">/ {fmtTime(view.matchMs)}</span></span>
       </div>
+      {subtitle && <div className="scores-subtitle">{subtitle}</div>}
       <table>
         <thead>
           <tr><th /><th>gold</th><th>pop</th><th>kills</th><th>score</th>{onSelectPlayer && <th className="view">view</th>}</tr>
