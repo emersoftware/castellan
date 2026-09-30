@@ -36,6 +36,7 @@ it("starts both players in symmetric, sealed corner fortresses with two allied e
 it("rotates four sealed fortresses without overlaps and lets each player exit its own gates", async () => {
   const { seatToMap } = await import("../src/grid");
   const map = MAPS["fortress-quad"];
+  const W = map.width;
   const players = Array.from({length:4},(_,side)=>({id:`p${side}`,name:`P${side}`,side,team:side}));
   const m = await createMatch({ruleset:{...v7,map},players,seed:1,tickRate:10});
   try {
@@ -48,19 +49,19 @@ it("rotates four sealed fortresses without overlaps and lets each player exit it
       expect(mine.filter(e=>e.kind==="door")).toHaveLength(2);
       expect(mine.filter(e=>e.kind==="wall")).toHaveLength(25);
       for(const s of MAPS.fortress.start) {
-        const [x,y]=seatToMap(s.x,s.y,p.side,64,64);
+        const [x,y]=seatToMap(s.x,s.y,p.side,W,W);
         expect(mine).toContainEqual(expect.objectContaining({kind:s.kind,x,y}));
       }
-      const [bx,by]=seatToMap(4,4,p.side,64,64);
+      const [bx,by]=seatToMap(4,4,p.side,W,W);
       const barriers=mine.filter(e=>e.kind==="wall"||e.kind==="door");
-      const grid:Grid={width:64,height:64,isStatic:(x,y)=>barriers.some(e=>e.x===x&&e.y===y)};
-      expect(findPath(grid,bx,by,30,30,0)).toBeNull();
+      const grid:Grid={width:W,height:W,isStatic:(x,y)=>barriers.some(e=>e.x===x&&e.y===y)};
+      expect(findPath(grid,bx,by,W/2,W/2,0)).toBeNull();
       for(const door of barriers.filter(e=>e.kind==="door")) {
         const passage:Grid={...grid,isStatic:(x,y)=>grid.isStatic(x,y)&&!(x===door.x&&y===door.y)};
-        expect(findPath(passage,bx,by,30,30,0)).not.toBeNull();
+        expect(findPath(passage,bx,by,W/2,W/2,0)).not.toBeNull();
       }
       expect(m.view(p.id).allies).toEqual([]);
-      const [x,y]=seatToMap(14,7,p.side,64,64);
+      const [x,y]=seatToMap(14,7,p.side,W,W);
       orders.push({player:p.id,order:{type:"move" as const,unit:mine.find(e=>e.kind==="worker")!.id,x,y}});
     }
     m.step(orders);for(let i=0;i<100;i++)m.step([]);

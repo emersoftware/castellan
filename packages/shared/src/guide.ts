@@ -1,4 +1,4 @@
-import type { Ruleset } from "./ruleset";
+import { matchLengthMs, type Ruleset } from "./ruleset";
 import type { SeriesProgress } from "./protocol";
 
 /**
@@ -15,11 +15,12 @@ export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean;
   const four = r.map.seats === 4;
   const teams = room.teams ?? four;
   const scoreFormula = `score = units×${r.score.unit} + buildings×${r.score.building} + capital + kills×${r.score.kill} + building kills×${r.score.buildingKill}`;
+  const minutes = matchLengthMs(r) / 60000;
   const timeoutGuide = four && !teams && r.ffaTimeoutOutcome === "survivorScore"
-    ? `After ${r.matchMs / 60000} minutes, if more than one player survives, the SURVIVING player with the highest score wins; eliminated players cannot win and a tie at the top is a draw (${scoreFormula}). Surviving is not enough: kills, army, buildings and capital decide the winner.`
+    ? `After ${minutes} minutes, if more than one player survives, the SURVIVING player with the highest score wins; eliminated players cannot win and a tie at the top is a draw (${scoreFormula}). Surviving is not enough: kills, army, buildings and capital decide the winner.`
     : r.timeoutOutcome === "draw"
-    ? `After ${r.matchMs / 60000} minutes, if multiple opposing sides survive, the game ends in a DRAW with no winner. Score is informational only: capital, kills, army size and buildings cannot win the game. Victory requires eliminating the opposing ${vitalName}s.`
-    : `After ${r.matchMs / 60000} minutes the ${teams ? "team with the higher total" : four ? "player with the highest individual" : "player with the higher"} score wins (score = units×${r.score.unit} + buildings×${r.score.building} + capital + kills×${r.score.kill} + building kills×${r.score.buildingKill}).`;
+    ? `After ${minutes} minutes, if multiple opposing sides survive, the game ends in a DRAW with no winner. Score is informational only: capital, kills, army size and buildings cannot win the game. Victory requires eliminating the opposing ${vitalName}s.`
+    : `After ${minutes} minutes the ${teams ? "team with the higher total" : four ? "player with the highest individual" : "player with the higher"} score wins (score = units×${r.score.unit} + buildings×${r.score.building} + capital + kills×${r.score.kill} + building kills×${r.score.buildingKill}).`;
   const vitalNames = Object.entries(k).filter(([, s]) => s.vital).map(([name]) => name).join(" or ");
   const unitRows = Object.entries(k)
     .map(([name, s]) => {

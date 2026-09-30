@@ -38,8 +38,10 @@ const base = {
   ],
 };
 
-/** 4-seat maps: twice the side of the 1v1 maps, one base per corner. */
-const W4 = 64;
+/** 4-seat maps: one base per corner and about the 1v1 area per player (484 tiles against 512). */
+const W4 = 44;
+/** The top-left of the four center tiles. */
+const C4 = W4 / 2 - 1;
 /** A tile and its 90°, 180° and 270° rotations on the W4 map. */
 const quarters = (t: { x: number; y: number; amount: number }) => [
   t,
@@ -94,22 +96,22 @@ export const MAPS: Record<string, MapSpec> = {
     walls: [],
     start: fortressStart,
     sharedDeposits: [
-      ...quarters({ x: 31, y: 31, amount: 800 }),
-      ...quarters({ x: 31, y: 5, amount: 600 }),
+      ...quarters({ x: C4, y: C4, amount: 800 }),
+      ...quarters({ x: C4, y: 5, amount: 600 }),
     ],
   },
   quad: {
     ...base,
     name: "quad",
-    description: "Four corners on open ground, twice the size of the 1v1 maps. A deposit between each pair of neighbouring corners and four rich ones in the center.",
+    description: "Four corners on open ground. A deposit between each pair of neighbouring corners and four rich ones in the center.",
     width: W4,
     height: W4,
     seats: 4,
     walls: [],
-    deposits: [...base.deposits, { x: 18, y: 17, amount: 600 }, { x: 17, y: 18, amount: 600 }],
+    deposits: [...base.deposits, { x: 14, y: 13, amount: 600 }, { x: 13, y: 14, amount: 600 }],
     sharedDeposits: [
-      ...quarters({ x: 31, y: 31, amount: 800 }),
-      ...quarters({ x: 31, y: 5, amount: 600 }),
+      ...quarters({ x: C4, y: C4, amount: 800 }),
+      ...quarters({ x: C4, y: 5, amount: 600 }),
     ],
   },
 };

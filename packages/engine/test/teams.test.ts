@@ -45,14 +45,14 @@ describe("2v2", () => {
     const m = await createMatch({ ruleset: quad, players, seed: 1, tickRate: 10 });
     const nexus = (p: string) => m.view(p).mine.find((e) => e.kind === "nexus")!;
     expect([nexus("p1").x, nexus("p1").y]).toEqual([4, 4]);
-    expect([nexus("p2").x, nexus("p2").y]).toEqual([59, 59]);
-    expect([nexus("p3").x, nexus("p3").y]).toEqual([59, 4]);
-    expect([nexus("p4").x, nexus("p4").y]).toEqual([4, 59]);
+    expect([nexus("p2").x, nexus("p2").y]).toEqual([39, 39]);
+    expect([nexus("p3").x, nexus("p3").y]).toEqual([39, 4]);
+    expect([nexus("p4").x, nexus("p4").y]).toEqual([4, 39]);
     const v = m.view("p1");
     expect(v.allies.every((e) => e.owner === "p2")).toBe(true);
     expect(v.enemy.every((e) => e.owner === "p3" || e.owner === "p4")).toBe(true);
-    expect(v.grid[59][59]).toBe("=");
-    expect(v.grid[4][59]).toBe("n");
+    expect(v.grid[39][39]).toBe("=");
+    expect(v.grid[4][39]).toBe("n");
     m.dispose();
   });
 

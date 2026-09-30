@@ -10,6 +10,8 @@ export interface Ruleset {
   version: string;
   /** Match length before the timeout rule decides. */
   matchMs: number;
+  /** Match length on four-seat maps. Omitted: `matchMs`. Read both through `matchLengthMs`. */
+  fourSeatMatchMs?: number;
   /** Omitted in legacy replays: highest score wins. New matches may draw at the limit. */
   timeoutOutcome?: "score" | "draw";
   /**
@@ -134,3 +136,6 @@ export interface ScriptLimits {
   gasPerPlayer: number;
   heapBytes: number;
 }
+
+/** How long this ruleset's match lasts on its map. */
+export const matchLengthMs = (r: Ruleset): number => (r.map.seats === 4 ? r.fourSeatMatchMs ?? r.matchMs : r.matchMs);

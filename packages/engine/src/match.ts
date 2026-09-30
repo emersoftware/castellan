@@ -2,6 +2,7 @@ import type {
   DepositView, EntityView, GameEvent, KindSpec, MatchStatus, Order, OrderResult, Outcome, PlayerId, PlayerStats,
   LastSeen, PlayerView, ProjectileView, Ruleset, SpectatorView, UnderAttack,
 } from "@aoa/shared";
+import { matchLengthMs } from "@aoa/shared";
 import { createScriptHost, type ScriptAction, type ScriptHost, type ScriptWorld } from "@aoa/sandbox";
 import { DIRS, DIR_LIST, SEAT_DIRS, canCross, cheb, findPath, inBounds, mapToSeat, seatToMap, type Grid } from "./grid";
 import { segmentCircleHit } from "./projectiles";
@@ -146,7 +147,7 @@ export class Match {
     this.ruleset = cfg.ruleset;
     this.tickRate = cfg.tickRate;
     this.seed = cfg.seed;
-    this.maxTicks = this.ticks(cfg.ruleset.matchMs);
+    this.maxTicks = this.ticks(matchLengthMs(cfg.ruleset));
     const { width, height } = cfg.ruleset.map;
     this.occ = new Array(width * height).fill(null);
     this.grid = {
@@ -363,7 +364,7 @@ export class Match {
     return {
       tick: this._tick,
       timeMs: this.ms(this._tick),
-      matchMs: this.ruleset.matchMs,
+      matchMs: matchLengthMs(this.ruleset),
       status: this.status(),
       you: player,
       players: this.stats(player),
@@ -429,7 +430,7 @@ export class Match {
         ? e.owner === p.id || e.to === p.id : e.channel !== "team" || !this.hostile(e.owner, p.id)).map(message)])),
       tick: this._tick,
       timeMs: this.ms(this._tick),
-      matchMs: this.ruleset.matchMs,
+      matchMs: matchLengthMs(this.ruleset),
       status: this.status(),
       players: this.stats(),
       entities: [...this.ents.values()].map((e) => this.entityView(e)),

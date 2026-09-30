@@ -100,8 +100,9 @@ it("switches mineral art and occlusion at fixed scale, including when seeking ba
 
 it("uses each deposit's capacity across every rotated quad seat and shared deposits", () => {
   const map = MAPS.quad;
+  const last = map.width - 1;
   for (const d of map.deposits) {
-    for (const [x, y] of [[d.x, d.y], [63 - d.x, 63 - d.y], [63 - d.y, d.x], [d.y, 63 - d.x]]) {
+    for (const [x, y] of [[d.x, d.y], [last - d.x, last - d.y], [last - d.y, d.x], [d.y, last - d.x]]) {
       expect(initialDepositAmount(map, { id: "test", x, y, amount: 1 })).toBe(d.amount);
     }
   }
