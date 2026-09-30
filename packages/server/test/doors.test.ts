@@ -8,7 +8,7 @@ it("serves consistent castle/door rules and default maps for duels and FFA", asy
   const app = await buildServer({ replayDir: await mkdtemp(join(tmpdir(), "aoa-doors-")), prepMs: 0 });
   try {
     const { ruleset, guide } = (await app.inject({ method: "GET", url: "/rules" })).json();
-    expect(ruleset.version).toBe("v10-ruins");
+    expect(ruleset.version).toBe("v11-range");
     expect(ruleset.kinds.worker.builds).toEqual(["turret", "wall", "door", "castle"]);
     expect(JSON.stringify({ruleset,guide})).not.toMatch(/nexus/i);
     for (const map of ["open","quad","fortress","fortress-quad"]) {

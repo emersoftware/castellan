@@ -101,7 +101,7 @@ Existing movement/attack cooldowns finish normally; later cooldowns use the new 
 Your state shows completed levels, current research and remaining time; each entity shows effective stats.
 ${r.fogOfWar ? "Research and completed levels are shared with allies, hidden from enemies. Visible entities still expose their effective combat stats." : "Research and completed levels are public."} wait until=upgrade_completed can wait for completion.
 Upgrades reset for each new game. ${r.reactiveScripts ? "Worker and King scripts can choose combat, escape or hold; research never changes their scripts." : "Workers remain manually controlled; their damage upgrade does not make them scriptable."}
-${Object.entries(r.upgrades).map(([id, u]) => `- ${id}: ${u.kind} ${u.stat}; ${u.levels.map((l, i) => `L${i + 1}: ${u.stat === "atk" ? l.value : effectiveMs(l.value)}${u.stat === "atk" ? " damage" : "ms"}, cost ${l.cost}, research ${effectiveMs(l.researchMs) / 1000}s`).join("; ")}`).join("\n")}
+${Object.entries(r.upgrades).map(([id, u]) => `- ${id}: ${u.kind} ${u.stat}; ${u.levels.map((l, i) => `L${i + 1}: ${u.stat === "atk" ? `${l.value} damage` : u.stat === "range" ? `range ${l.value}` : `${effectiveMs(l.value)}ms`}${l.vision !== undefined ? `, vision ${l.vision}` : ""}, cost ${l.cost}, research ${effectiveMs(l.researchMs) / 1000}s`).join("; ")}`).join("\n")}
 ` : ""}
 
 ${r.projectiles ? `Ranged attacks (range > 1) launch real projectiles at ${r.projectiles.speed} Euclidean tiles/s, aimed at the target's position at launch; they never home.

@@ -51,9 +51,12 @@ export interface Ruleset {
 
 export interface UpgradeSpec {
   kind: string;
-  stat: "atk" | "attackMs" | "moveMs";
-  /** Absolute resulting stat values, bought in order. One research at a time per player. */
-  levels: { cost: number; researchMs: number; value: number }[];
+  stat: "atk" | "attackMs" | "moveMs" | "range";
+  /**
+   * Absolute resulting stat values, bought in order. One research at a time per player.
+   * `vision` optionally raises sight with the same level (a longer range needs it to see targets).
+   */
+  levels: { cost: number; researchMs: number; value: number; vision?: number }[];
 }
 
 /**

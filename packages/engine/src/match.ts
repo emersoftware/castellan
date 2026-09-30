@@ -682,7 +682,10 @@ export class Match {
     const spec = { ...base };
     for (const [id, level] of Object.entries(p.upgrades)) {
       const upgrade = this.ruleset.upgrades[id];
-      if (upgrade.kind === kind) spec[upgrade.stat] = upgrade.levels[level - 1].value;
+      if (upgrade.kind !== kind) continue;
+      const bought = upgrade.levels[level - 1];
+      spec[upgrade.stat] = bought.value;
+      if (bought.vision !== undefined) spec.vision = bought.vision;
     }
     return spec;
   }

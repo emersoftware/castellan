@@ -14,3 +14,4 @@ export { v7 } from "./rulesets/v7";
 export { v8 } from "./rulesets/v8";
 export { v9 } from "./rulesets/v9";
 export { v10 } from "./rulesets/v10";
+export { v11 } from "./rulesets/v11";
