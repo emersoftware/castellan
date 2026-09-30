@@ -436,9 +436,14 @@ export class Match {
       ...(this.ruleset.projectiles ? { projectiles: this.projectileViews() } : {}),
       ...(this.ruleset.fogOfWar ? { perspectives: Object.fromEntries(this.players.map((p) => {
         const view = this.view(p.id, from);
-        return [p.id, { visibility: view.visibility!, entities: [...view.mine, ...view.allies, ...view.enemy],
+        // The player's fog memory, so an observer sees explored ground as that player remembers it.
+        const remembered = view.lastSeen ?? [];
+        const buildings: EntityView[] = remembered.flatMap((l) => "owner" in l ? [{ id: l.id, kind: l.kind, owner: l.owner, x: l.x, y: l.y, hp: l.hp, maxHp: l.maxHp,
+          vital: !!this.ruleset.kinds[l.kind]?.vital, ...(l.ruin ? { ruin: true } : {}), lastSeenMs: l.seenMs }] : []);
+        const deposits: DepositView[] = remembered.flatMap((l) => "amount" in l ? [{ id: l.id, x: l.x, y: l.y, amount: l.amount, lastSeenMs: l.seenMs }] : []);
+        return [p.id, { visibility: view.visibility!, entities: [...view.mine, ...view.allies, ...view.enemy, ...buildings],
           ...(this.ruleset.projectiles ? { projectiles: view.projectiles } : {}),
-          deposits: view.deposits, players: view.players, events: [...view.events.filter((e) => e.type !== "log" && e.type !== "script_error"
+          deposits: [...view.deposits, ...deposits], players: view.players, events: [...view.events.filter((e) => e.type !== "log" && e.type !== "script_error"
             && (e.type !== "chat" || (e.channel === "private" ? options.includePrivateChat : e.channel !== "team" || options.includePrivateChat || options.includeTeamChat))),
             ...this.log.filter((e) => e.tick >= from && (e.type === "attack" || e.type === "projectile_end") && this.eventAudience.get(e)?.has(p.id))] }];
       })) } : {}),

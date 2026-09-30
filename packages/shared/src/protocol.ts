@@ -96,6 +96,8 @@ export interface EntityView {
   heading?: string;
   /** Its owner was eliminated: an inert ruin that blocks and can be destroyed. */
   ruin?: boolean;
+  /** Observer perspectives only: a remembered building outside this player's vision, as last seen at this time. */
+  lastSeenMs?: number;
   /** Visible mining activity, facing the resource; no private order is exposed. */
   gathering?: { x: number; y: number };
   carrying?: number;
@@ -118,6 +120,8 @@ export interface DepositView {
   x: number;
   y: number;
   amount: number;
+  /** Observer perspectives only: remembered outside this player's vision, as last seen at this time. */
+  lastSeenMs?: number;
 }
 
 /** Economic stats are omitted for opponents behind fog; identity/team/alive stay public. */

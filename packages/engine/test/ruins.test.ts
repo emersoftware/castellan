@@ -63,6 +63,11 @@ describe("fog memory", () => {
     const text = viewToText(v);
     expect(text).toContain("last seen (outside your vision now; may have changed):");
     expect(text).toMatch(new RegExp(`${enemyCastle.id} castle \\(${enemyCastle.x},${enemyCastle.y}\\) hp \\d+/\\d+ · owner p2 · seen [\\d.]+s ago`));
+    // Observers viewing as p1 see the same memory: the castle stays on explored ground.
+    const pov = m.spectate().perspectives!.p1;
+    expect(pov.entities.find((e) => e.id === enemyCastle.id)).toMatchObject({ kind: "castle", owner: "p2", lastSeenMs: memory.seenMs });
+    expect(pov.deposits.some((d) => d.lastSeenMs !== undefined)).toBe(true);
+    expect(m.spectate().perspectives!.p2.entities.some((e) => e.lastSeenMs !== undefined && e.owner === "p1")).toBe(false);
     // The enemy never saw p1's base: nothing remembered, and memory is per player.
     expect(m.view("p2").lastSeen!.some((l) => l.kind === "castle")).toBe(false);
   });
