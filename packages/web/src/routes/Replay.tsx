@@ -9,6 +9,7 @@ import { GameCanvas } from "../components/GameCanvas";
 import { OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, notableEvents } from "../components/Hud";
 import type { HoverInfo, SoundSink } from "../render/renderer";
 import { useReplayFrames } from "../useReplay";
+import { Arrow } from "../components/Arrow";
 import { agentText } from "../components/Agent";
 
 const SPEEDS = [0.5, 1, 2, 4, 8, 16];
@@ -196,7 +197,7 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
         {replay.data && <GameCanvas key={selectedPlayer ?? "all"} ruleset={replay.data.ruleset} colors={colors} frame={display} tickMs={tickMs / speed} paused={!playing} jumpKey={jumpKey} onHover={setHover} sound={sound} />}
         <Tooltip hover={hover} names={names} colors={colors} />
         <div className="corner">
-          <Link to="/battles">← Battles</Link>
+          <Link to="/battles"><Arrow dir="left" /> Battles</Link>
         </div>
         {frame && atEnd && <OutcomeBanner view={frame} names={names} colors={colors} dismissible />}
       </div>

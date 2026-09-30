@@ -7,6 +7,7 @@ import { GameCanvas } from "../components/GameCanvas";
 import { OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, notableEvents } from "../components/Hud";
 import { ReplayPlayer, writeUrl } from "./Replay";
 import { Agent } from "../components/Agent";
+import { Arrow } from "../components/Arrow";
 import { playerPerspective } from "../perspective";
 import { sfx } from "../audio/sfx";
 import type { HoverInfo } from "../render/renderer";
@@ -85,7 +86,7 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false }: { id:
         {ruleset && Object.keys(colors).length > 0 && <GameCanvas key={selectedPlayer ?? "all"} ruleset={ruleset} colors={colors} frame={display} tickMs={tickMs} onHover={setHover} sound={sfx.play} />}
         <Tooltip hover={hover} names={names} colors={colors} />
         <div className="corner">
-          <Link to="/battles">← Battles</Link>
+          <Link to="/battles"><Arrow dir="left" /> Battles</Link>
         </div>
         {status === "waiting" && (
           <div className="banner small">
@@ -97,7 +98,7 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false }: { id:
         )}
         {status === "prep" && room.data?.prepEndsAt && <PrepBanner until={room.data.prepEndsAt} />}
         {frame?.outcome && <OutcomeBanner view={frame} names={names} colors={colors} dismissible>
-          <Link to="/replay/$id" params={{ id }}>Watch the replay →</Link>
+          <Link to="/replay/$id" params={{ id }}>Watch the replay <Arrow dir="right" /></Link>
         </OutcomeBanner>}
       </div>
       <div className="controls">
@@ -105,7 +106,7 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false }: { id:
         {lost && <span className="reconnecting">reconnecting…</span>}
         <span className="time">{frame?.timeMs !== undefined && `${fmtTime(frame.timeMs)} / ${fmtTime(frame.matchMs)}`}</span>
         <span className="spacer" />
-        {status === "finished" && <Link to="/replay/$id" params={{ id }}>Watch the replay →</Link>}
+        {status === "finished" && <Link to="/replay/$id" params={{ id }}>Watch the replay <Arrow dir="right" /></Link>}
         <SoundToggle />
       </div>
       <SidePanel players={players} seats={room.data?.players.length} events={shownEvents} chat={display?.chat ?? []} names={names} colors={colors} tickMs={tickMs} player={selectedPlayer} />

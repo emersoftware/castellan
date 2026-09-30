@@ -4,6 +4,7 @@ import type { ChatMessage, GameEvent, PlayerStats, SpectatorView } from "@aoa/sh
 import type { HoverInfo } from "../render/renderer";
 import { fmtTime, winnersOf } from "../api";
 import { Agent, Agents, agentText } from "./Agent";
+import { Arrow } from "./Arrow";
 import { sfx } from "../audio/sfx";
 
 /**
@@ -120,7 +121,7 @@ function EventText({ e, names, colors }: { e: GameEvent; names: Names; colors: C
 function ChatText({ from, text, channel, to, names, colors }: { from: string; text: string; channel?: string; to?: string; names: Names; colors: Colors }) {
   return <>
     <Who id={from} names={names} colors={colors} />
-    {channel === "private" ? <span className="channel"> [private → {to ? <Agent id={to} name={names[to]} color={colors[to]} /> : "?"}]</span> : channel === "team" && <span className="channel"> [team]</span>}: <q><Mentions text={text} names={names} colors={colors} /></q>
+    {channel === "private" ? <span className="channel"> [private <Arrow dir="right" /> {to ? <Agent id={to} name={names[to]} color={colors[to]} /> : "?"}]</span> : channel === "team" && <span className="channel"> [team]</span>}: <q><Mentions text={text} names={names} colors={colors} /></q>
   </>;
 }
 

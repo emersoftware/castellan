@@ -2,10 +2,10 @@
  * An SVG filter that gives HTML the same ordered dither as the game canvas:
  * each channel (alpha included) is quantized to 4 levels with a 4×4 Bayer
  * threshold, so gradients, soft edges and translucent panels come out as
- * dot patterns. Colours are dimmed to 90% before the threshold so that no
- * colour sits exactly on a level: white text comes out white with light-grey
- * dots, and the letters themselves carry the dither. Use it through the CSS
- * rule in styles.css; never on the game canvas (it already has its own dither).
+ * dot patterns. Colours exactly on a level (the EGA palette of the interface)
+ * pass untouched, and text is drawn without anti-aliasing (styles.css): each
+ * letter pixel is its colour or the background, never a mix. Use it through
+ * the CSS rule in styles.css; never on the game canvas (it has its own dither).
  *
  * The game canvas renders one pixel per CSS pixel. On high-density screens the
  * filter first pixelates the HTML to that same CSS-pixel grid (each device
@@ -69,31 +69,46 @@ function useDevicePixels(): number {
   return d;
 }
 
-export function DitherDefs() {
-  const d = useDevicePixels();
+/**
+ * `soft` is the original look, kept for the Times New Roman titles: colours
+ * dimmed to 90% so no colour sits on a level and the anti-aliased letters
+ * themselves carry the dither.
+ */
+function DitherFilter({ id, d, soft }: { id: string; d: number; soft?: boolean }) {
+  const source = d > 1 ? "source" : "SourceGraphic";
   return (
-    <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
-      <filter id="aoa-dither" x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse">
-        {d > 1 && pixelTile(d)}
-        {d > 1 && <feTile in="pcell" x="0" y="0" width="100%" height="100%" result="pmap" />}
-        {d > 1 && <feDisplacementMap in="SourceGraphic" in2="pmap" scale={SHIFT} xChannelSelector="R" yChannelSelector="G" result="source" />}
-        {bayerTile()}
-        <feTile in="cell" x="0" y="0" width="100%" height="100%" result="bayer" />
-        <feComponentTransfer in={d > 1 ? "source" : "SourceGraphic"} result="dim">
+    <filter id={id} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse">
+      {d > 1 && pixelTile(d)}
+      {d > 1 && <feTile in="pcell" x="0" y="0" width="100%" height="100%" result="pmap" />}
+      {d > 1 && <feDisplacementMap in="SourceGraphic" in2="pmap" scale={SHIFT} xChannelSelector="R" yChannelSelector="G" result="source" />}
+      {bayerTile()}
+      <feTile in="cell" x="0" y="0" width="100%" height="100%" result="bayer" />
+      {soft && (
+        <feComponentTransfer in={source} result="dim">
           <feFuncR type="linear" slope="0.9" />
           <feFuncG type="linear" slope="0.9" />
           <feFuncB type="linear" slope="0.9" />
         </feComponentTransfer>
-        {/* v = (3·c + t) / 4, so floor(4v) = floor(3c + t): the ordered-dither level.
-            Arithmetic works on premultiplied colour; k2 + k3 = 1 keeps opaque pixels opaque. */}
-        <feComposite in="dim" in2="bayer" operator="arithmetic" k1="0" k2="0.75" k3="0.25" k4="0" />
-        <feComponentTransfer>
-          <feFuncR type="discrete" tableValues="0 0.33 0.66 1" />
-          <feFuncG type="discrete" tableValues="0 0.33 0.66 1" />
-          <feFuncB type="discrete" tableValues="0 0.33 0.66 1" />
-          <feFuncA type="discrete" tableValues="0 0 1 1" />
-        </feComponentTransfer>
-      </filter>
+      )}
+      {/* v = (3·c + t) / 4, so floor(4v) = floor(3c + t): the ordered-dither level.
+          Arithmetic works on premultiplied colour; k2 + k3 = 1 keeps opaque pixels opaque. */}
+      <feComposite in={soft ? "dim" : source} in2="bayer" operator="arithmetic" k1="0" k2="0.75" k3="0.25" k4="0" />
+      <feComponentTransfer>
+        <feFuncR type="discrete" tableValues="0 0.33 0.66 1" />
+        <feFuncG type="discrete" tableValues="0 0.33 0.66 1" />
+        <feFuncB type="discrete" tableValues="0 0.33 0.66 1" />
+        <feFuncA type="discrete" tableValues="0 0 1 1" />
+      </feComponentTransfer>
+    </filter>
+  );
+}
+
+export function DitherDefs() {
+  const d = useDevicePixels();
+  return (
+    <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
+      <DitherFilter id="aoa-dither" d={d} />
+      <DitherFilter id="aoa-dither-soft" d={d} soft />
     </svg>
   );
 }

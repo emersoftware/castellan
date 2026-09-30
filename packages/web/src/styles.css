@@ -226,6 +226,17 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
 /* Every piece of interface goes through the dither filter; the game canvas never does. */
 .hero-copy, .pillars, .unit h4, .unit p, .unit .stat, .units h2, .recent, .host, footer, .page,
 .scores, .feed, .tooltip, .corner, .banner, .banner-mini, .controls, .zoom, .side .tabs, .log-body { filter: url(#aoa-dither); }
+/* Letters without anti-aliasing: each pixel is the text colour or the background, so the dither never mixes greys into them. */
+body { -webkit-font-smoothing: none; font-smooth: never; }
+.arrow { display: inline-block; vertical-align: 0.1em; }
+/* Times New Roman titles keep their original look: anti-aliased, dithered softly
+   (a dithered title inside a dithered box passes the box's filter unchanged). */
+h1, h2, h3, h4, .brand, .scores .clock .time, .scores .brand-head, .banner .big, .corner.brandmark, .battle .title, .tagline {
+  -webkit-font-smoothing: auto; font-smooth: auto; filter: url(#aoa-dither-soft);
+}
+/* Dark letters on a light fill (selected buttons, the primary call to action):
+   aliased they break into hairlines, so they keep the original soft look too. */
+button.on, .btn.primary { -webkit-font-smoothing: auto; font-smooth: auto; filter: url(#aoa-dither-soft); }
 
 /* Times New Roman for titles at every size. */
 .hero h1, .banner .big, .page-head h1, .units h2, .recent h2, .host h2 {

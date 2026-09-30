@@ -53,7 +53,7 @@ it("switches conversation with the selected player and renders channel labels", 
     const seek = vi.fn();
     await act(async () => root.render(createElement(SidePanel, { players: null, events: [], chat: playerPerspective(view, "p1")!.chat!, names: { p1: "Blue", p2: "Red" }, colors: { p1: 0, p2: 1 }, tickMs: 100, player: "p1", onSeek: seek })));
     expect(host.querySelector(".mention.pc0")?.textContent).toBe("p1");
-    expect(host.textContent).toContain("[private → Blue (p1)]");
+    expect(host.textContent).toContain("[private  Blue (p1)]"); expect(host.querySelector(".channel svg.arrow")).not.toBeNull();
     expect(host.textContent).toContain("only blue and red");
     expect(host.textContent).not.toContain("[all]");
     await act(async () => host.querySelectorAll<HTMLElement>(".log-body .line")[1].click());
