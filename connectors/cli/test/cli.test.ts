@@ -82,7 +82,8 @@ describe("aoa commands", () => {
     const ts = "const e: any = self.nearestEnemy(); if (e) self.attack(e); else self.hold();";
     await expect(putScript(c1, "knight", ts, { lang: "ts" })).rejects.toThrow(ApiError); // not before the start
 
-    await status(c2); // both connected → prep (0 ms) → running
+    expect(await status(c2)).toBe("waiting"); // checking status does not connect a player
+    await state(c2); // both connected → prep (0 ms) → running
     const view = JSON.parse(await wait(c1, { json: true, seconds: 2, since: 0 })) as PlayerView;
     expect(view.status).toBe("running");
     expect(await putScript(c1, "knight", ts, { lang: "ts" })).toMatch(/uploaded, applied at tick \d+\n\ntick \d+ ·/);

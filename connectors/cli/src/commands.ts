@@ -75,7 +75,8 @@ export async function wait(c: Client, o: Fmt & { seconds?: number; since?: numbe
 
 /** Note: like every authenticated call, this counts as the player connecting. */
 export async function status(c: Client): Promise<MatchStatus> {
-  return (await c.get<PlayerView>("/state?since=999999999")).status;
+  // /status neither counts as a player call nor moves the player's event cursor.
+  return (await c.get<{ status: MatchStatus }>("/status")).status;
 }
 
 /**
