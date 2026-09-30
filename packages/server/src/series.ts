@@ -158,7 +158,8 @@ export class SeriesStore {
     const summary = this.summary(entry.id)!;
     const room = entry.games[entry.readyGames - 1];
     if (!room) return;
-    return { series: summary, player, game: { id: room.id, number: entry.readyGames,
+    // Series tokens are handed to player harnesses: name players by id, as in their game views.
+    return { series: { ...summary, players: summary.players.map((p) => ({ ...p, name: p.id })) }, player, game: { id: room.id, number: entry.readyGames,
       token: room.players.find((p) => p.id === player)!.token, status: room.state } };
   }
 
@@ -177,7 +178,7 @@ export class SeriesStore {
     if (!progress.previousGames.includes(game)) throw new Error("only completed previous games in your series are available");
     const replay = available[game - 1].replay()!;
     if (section === "summary") return { game, roomId: replay.id, outcome: replay.outcome, durationMs: replay.finalTick * 1000 / replay.tickRate,
-      players: replay.players, ordersSent: replay.orders.filter((o) => o.player === player).length };
+      players: replay.players.map(({ id, side, team }) => ({ id, side, team })), ordersSent: replay.orders.filter((o) => o.player === player).length };
     const key = `${replay.id}:${player}`;
     let cached = this.historyCache.get(key);
     if (!cached) {

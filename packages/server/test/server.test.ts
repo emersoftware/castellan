@@ -120,7 +120,11 @@ describe("chat and timing", () => {
     expect((await call("/status", a)).body).toMatchObject({ room: on.id, player: "p1", status: "running" });
     expect((await call(`/rooms/${on.id}`)).body.timing.p1.calls).toBe(summary.timing.p1.calls);
     expect((await call("/rules?format=text", a)).body).toContain("## Chat");
-    expect((await call("/chat?format=text", b)).body).toContain("p1 a: gg, your nexus is mine");
+    expect((await call("/chat?format=text", b)).body).toContain("p1: gg, your nexus is mine");
+    // Players read ids, never display names (they often name the model); observers keep them.
+    expect((await call("/chat", b)).body.messages.map((m: { name: string }) => m.name)).toEqual(["p1"]);
+    expect((seen.players as { name: string }[]).map((p) => p.name)).toEqual(["p1", "p2"]);
+    expect(summary.players.map((p: { name: string }) => p.name)).toEqual(["a", "b"]);
 
     const off = await make(false);
     const c = off.players[0].token;

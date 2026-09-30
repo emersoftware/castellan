@@ -20,7 +20,10 @@ describe("fog of war", () => {
       const v = m.view("p1");
       expect(v.enemy).toHaveLength(0); expect(v.deposits).toHaveLength(0);
       expect(v.grid[17][17]).toBe("?");
-      expect(v.players[1]).toEqual({ id: "p2", name: "two", team: 1, alive: true, popCap: 30 });
+      // Named by id: display names (often the model) are for observers only.
+      expect(v.players[1]).toEqual({ id: "p2", name: "p2", team: 1, alive: true, popCap: 30 });
+      expect(m.spectate().players[1].name).toBe("two");
+      expect(m.spectate().perspectives!.p1.players[1].name).toBe("two");
       expect(viewToText(v)).toContain("capital hidden");
       const enemy = own(m, "p2", "agent");
       expect(next(m, "p1", [{ type: "attack", unit: own(m, "p1", "worker").id, target: enemy.id }]).results[0].ok).toBe(false);

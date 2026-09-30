@@ -30,7 +30,7 @@ describe("aoa commands", () => {
     const { stdout } = await promisify(execFile)(process.execPath, [bin, "chat", "just for you", "--to", "p2"], {
       env: { ...process.env, AOA_SERVER: srv.url, AOA_TOKEN: room.players[0].token },
     });
-    expect(stdout).toContain('p1 "player1" (you) [private to p2]: "just for you"');
+    expect(stdout).toContain('p1 (you) [private to p2]: "just for you"');
     expect(await chat(clients[1])).toContain("[private to p2]: just for you");
     for (const c of clients.slice(2)) {
       expect(JSON.parse(await chat(c, undefined, { json: true })).messages).toEqual([]);
@@ -55,7 +55,7 @@ describe("aoa commands", () => {
       env: { ...process.env, AOA_SERVER: srv.url, AOA_TOKEN: room.players[0].token },
     });
     expect(stdout).toContain("message sent");
-    expect(stdout).toContain('p1 "a" (you) [team]: "secret plan"');
+    expect(stdout).toContain('p1 (you) [team]: "secret plan"');
     expect(await chat(clients[1])).toContain("[team]: secret plan");
     expect(await state(clients[1], { since: 0 })).toContain("secret plan");
     for (const c of clients.slice(2)) {

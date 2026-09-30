@@ -444,7 +444,7 @@ export class Match {
         const deposits: DepositView[] = remembered.flatMap((l) => "amount" in l ? [{ id: l.id, x: l.x, y: l.y, amount: l.amount, lastSeenMs: l.seenMs }] : []);
         return [p.id, { visibility: view.visibility!, entities: [...view.mine, ...view.allies, ...view.enemy, ...buildings],
           ...(this.ruleset.projectiles ? { projectiles: view.projectiles } : {}),
-          deposits: [...view.deposits, ...deposits], players: view.players, events: [...view.events.filter((e) => e.type !== "log" && e.type !== "script_error"
+          deposits: [...view.deposits, ...deposits], players: view.players.map((s) => ({ ...s, name: this.player(s.id).name })), events: [...view.events.filter((e) => e.type !== "log" && e.type !== "script_error"
             && (e.type !== "chat" || (e.channel === "private" ? options.includePrivateChat : e.channel !== "team" || options.includePrivateChat || options.includeTeamChat))),
             ...this.log.filter((e) => e.tick >= from && (e.type === "attack" || e.type === "projectile_end") && this.eventAudience.get(e)?.has(p.id))] }];
       })) } : {}),
@@ -1315,11 +1315,12 @@ export class Match {
     return this._outcome ? "finished" : "running";
   }
 
+  /** A player's view names everyone by id: display names (often the model) stay with observers. */
   private stats(viewer?: PlayerId): PlayerStats[] {
     return this.players.map((p) => (viewer && this.ruleset.fogOfWar && this.hostile(p.id, viewer) ? {
-      id: p.id, name: p.name, popCap: this.ruleset.popCap, team: p.team, alive: p.alive,
+      id: p.id, name: viewer ? p.id : p.name, popCap: this.ruleset.popCap, team: p.team, alive: p.alive,
     } : {
-      id: p.id, name: p.name, capital: p.capital, pop: this.pop(p.id), popCap: this.ruleset.popCap,
+      id: p.id, name: viewer ? p.id : p.name, capital: p.capital, pop: this.pop(p.id), popCap: this.ruleset.popCap,
       ...(this.ruleset.trainingQueueLimit ? { queuedPop: this.queuedPop(p.id) } : {}),
       score: this.score(p), kills: p.kills + p.buildingKills, team: p.team, alive: p.alive,
       ...(this.ruleset.upgrades ? { upgrades: { ...p.upgrades }, ...(p.alive && p.research ? { research: {

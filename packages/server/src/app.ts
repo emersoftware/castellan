@@ -248,7 +248,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const log = who.room.conversation(who.player);
     if (!wantsText(req)) return { chat: who.room.chat, messages: log };
     if (!who.room.chat) return "chat is off in this room";
-    return log.length ? log.map((m) => `[${m.tick}] ${m.from} ${m.name}${m.from === who.player ? " (you)" : ""}${m.channel === "private" ? ` [private to ${m.to}]` : m.channel === "team" ? " [team]" : ""}: ${m.text}`).join("\n") : "no messages yet";
+    return log.length ? log.map((m) => `[${m.tick}] ${m.from}${m.name === m.from ? "" : ` ${m.name}`}${m.from === who.player ? " (you)" : ""}${m.channel === "private" ? ` [private to ${m.to}]` : m.channel === "team" ? " [team]" : ""}: ${m.text}`).join("\n") : "no messages yet";
   });
 
   app.post("/chat", async (req, reply) => {

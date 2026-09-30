@@ -230,11 +230,11 @@ export class Room {
     if (this.status === "running") t.waitMs += waitedMs;
   }
 
-  /** Only messages visible to this authenticated player, oldest first. */
+  /** Only messages visible to this authenticated player, oldest first, senders named by id. */
   conversation(player: PlayerId) {
     const team = this.player(player).team;
     return this.chatLog.filter((m) => m.channel === "private" ? m.from === player || m.to === player
-      : m.channel !== "team" || this.player(m.from).team === team);
+      : m.channel !== "team" || this.player(m.from).team === team).map((m) => ({ ...m, name: m.from }));
   }
 
   timingStats(): Record<PlayerId, PlayerTiming> {

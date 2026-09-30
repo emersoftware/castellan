@@ -46,6 +46,9 @@ describe("three-game series", () => {
     const first = await Promise.all(invites.map(current));
     const tokens = first.map((j) => j.game.token);
     expect(new Set([...invites, ...tokens]).size).toBe(8);
+    // Player harnesses hold these tokens: they see ids, observers see names.
+    expect(first[0].series.players.map((p) => p.name)).toEqual(["p1", "p2", "p3", "p4"]);
+    expect((await request(`/series/${id}`)).body.players.map((p: { name: string }) => p.name)).toEqual(["player1", "player2", "player3", "player4"]);
     expect((await request("/history", tokens[0])).body.games).toEqual([]);
     expect((await request("/history?game=1", tokens[0])).status).toBe(403);
     expect((await request("/rules", tokens[0])).body.guide).toContain("game 1 of 3");

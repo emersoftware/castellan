@@ -13,7 +13,7 @@ export function viewToText(v: PlayerView): string {
   const myTeam = v.players.find((p) => p.id === v.you)?.team;
   for (const p of v.players) {
     const tag = p.id === v.you ? "YOU  " : p.team === myTeam ? "ALLY " : "ENEMY";
-    lines.push(`${tag} ${p.id} ${p.name}: capital ${p.capital ?? "hidden"} · pop ${p.pop ?? "hidden"}/${p.popCap}${p.queuedPop ? ` (+${p.queuedPop} queued)` : ""} · score ${p.score ?? "hidden"} · kills ${p.kills ?? "hidden"}${p.alive ? "" : " · OUT"}`);
+    lines.push(`${tag} ${p.id}${p.name === p.id ? "" : ` ${p.name}`}: capital ${p.capital ?? "hidden"} · pop ${p.pop ?? "hidden"}/${p.popCap}${p.queuedPop ? ` (+${p.queuedPop} queued)` : ""} · score ${p.score ?? "hidden"} · kills ${p.kills ?? "hidden"}${p.alive ? "" : " · OUT"}`);
     if (p.upgrades) lines.push(`  upgrades: ${Object.entries(p.upgrades).map(([id, level]) => `${id} L${level}`).join(", ") || "none"}`);
     if (p.research) lines.push(`  researching ${p.research.upgrade} L${p.research.level}: ${secs(Math.max(0, p.research.completesAtMs - v.timeMs))}s remaining`);
   }
@@ -34,7 +34,7 @@ export function viewToText(v: PlayerView): string {
     if (v.chat.enabled) {
       if (!v.chat.messages.length) lines.push("  no messages yet");
       for (const m of v.chat.messages) {
-        lines.push(`  [${m.tick}] ${m.from} ${JSON.stringify(m.name)}${m.from === v.you ? " (you)" : ""}${m.channel === "private" ? ` [private to ${m.to}]` : m.channel === "team" ? " [team]" : " [all]"}: ${JSON.stringify(m.text)}`);
+        lines.push(`  [${m.tick}] ${m.from}${m.name === m.from ? "" : ` ${JSON.stringify(m.name)}`}${m.from === v.you ? " (you)" : ""}${m.channel === "private" ? ` [private to ${m.to}]` : m.channel === "team" ? " [team]" : " [all]"}: ${JSON.stringify(m.text)}`);
       }
       lines.push("  Use chat without text to read the full visible history.");
     }
