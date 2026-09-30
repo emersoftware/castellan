@@ -17,16 +17,21 @@ interface Props {
   bare?: boolean;
   /** Decorative previews should not consume wheel or drag gestures. */
   interactive?: boolean;
+  /** Called once the first frame is on screen. */
+  onReady?: () => void;
 }
 
 /** Mounts the Pixi renderer and feeds it frames. */
-export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jumpKey = 0, onHover, sound, bare, interactive = true }: Props) {
+export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jumpKey = 0, onHover, sound, bare, interactive = true, onReady }: Props) {
   const host = useRef<HTMLDivElement>(null);
   // Clear synchronously on cleanup: a reconnect can replace the ruleset and
   // deliver a frame in the same render, before the next Pixi instance is ready.
   const renderer = useRef<GameRenderer | null>(null);
   const [rendererVersion, setRendererVersion] = useState(0);
   const lastJump = useRef(jumpKey);
+  const readyCb = useRef(onReady);
+  readyCb.current = onReady;
+  const shown = useRef(false);
 
   useEffect(() => {
     let r: GameRenderer | null = null;
@@ -61,6 +66,10 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
     const jump = lastJump.current !== jumpKey;
     lastJump.current = jumpKey;
     renderer.current.setFrame(frame, tickMs, jump);
+    if (shown.current) return;
+    shown.current = true;
+    // Pixi draws on the next animation frame; report after it is painted.
+    requestAnimationFrame(() => requestAnimationFrame(() => readyCb.current?.()));
   }, [rendererVersion, frame, tickMs, jumpKey]);
 
   return (

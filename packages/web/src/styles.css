@@ -53,7 +53,9 @@ button.on { color: var(--black); background: var(--light-grey); border-color: va
 .btn.primary:hover { background: var(--yellow); border-color: var(--yellow); color: var(--black); }
 
 /* ─────────── landing ─────────── */
-.landing { background: var(--black); }
+.landing { background: var(--black); transition: opacity 0.3s; }
+/* Hidden until the hero battle is on screen. */
+.landing.pending { opacity: 0; pointer-events: none; }
 .hero { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100svh; padding: 24px 24px 48px; }
 .hero-content {
   min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;

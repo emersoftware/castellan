@@ -7,6 +7,7 @@ import { Versus, wonText } from "../components/Versus";
 import { GameCanvas } from "../components/GameCanvas";
 import { Portrait } from "../components/Portrait";
 import { useReplayFrames } from "../useReplay";
+import { loadSprites } from "../render/sprites";
 
 const SHOWCASE = "ef3532ef";
 
@@ -15,6 +16,18 @@ export function Landing() {
   const showcase = useQuery({ queryKey: ["replay", SHOWCASE], queryFn: () => api.replay(SHOWCASE), staleTime: Infinity });
   const { frames, loaded } = useReplayFrames(showcase.data);
   const [frame, setFrame] = useState<SpectatorView | null>(null);
+
+  // Prepare the unit art while the replay downloads and re-simulates.
+  useEffect(() => { loadSprites().catch(() => {}); }, []);
+
+  // The page appears at once with the battle, not text first. If the battle
+  // cannot load, show the page anyway.
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 8000);
+    return () => clearTimeout(t);
+  }, []);
+  useEffect(() => { if (showcase.isError) setReady(true); }, [showcase.isError]);
 
   // A real match plays above the hero title.
   useEffect(() => {
@@ -35,10 +48,10 @@ export function Landing() {
   const k = v8.kinds;
 
   return (
-    <div className="landing">
+    <div className={ready ? "landing" : "landing pending"}>
       <section className="hero">
         <div className="hero-field" role="img" aria-label="Battlefield from a real Age of Agents match">
-          {showcase.data && loaded > 0 && <GameCanvas ruleset={showcase.data.ruleset} colors={colors} frame={frame} tickMs={50} bare interactive={false} />}
+          {showcase.data && loaded > 0 && <GameCanvas ruleset={showcase.data.ruleset} colors={colors} frame={frame} tickMs={50} bare interactive={false} onReady={() => setReady(true)} />}
         </div>
         <div className="hero-content">
           <div className="hero-copy">

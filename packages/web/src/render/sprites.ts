@@ -149,7 +149,8 @@ function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHei
   const base = document.createElement("canvas");
   base.width = w;
   base.height = h;
-  const ctx = base.getContext("2d")!;
+  // CPU-backed: reading back a GPU canvas costs ~100 ms per atlas.
+  const ctx = base.getContext("2d", { willReadFrequently: true })!;
   ctx.drawImage(img, 0, 0, w, h);
   const imageData = ctx.getImageData(0, 0, w, h);
   const src = imageData.data;
@@ -157,29 +158,12 @@ function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHei
     normalizeCharacterContrast(src);
     ctx.putImageData(imageData, 0, 0);
   }
-  const solid = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && src[(y * w + x) * 4 + 3] > 127;
-  const make = (fill: (x: number, y: number, ring: boolean) => [number, number, number] | null, exterior = false) => {
+  const masks = spriteMasks(src, w, h);
+  const make = (pixels: Uint8ClampedArray<ArrayBuffer>) => {
     const cv = document.createElement("canvas");
     cv.width = w;
     cv.height = h;
-    const c = cv.getContext("2d")!;
-    const out = c.createImageData(w, h);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        if (exterior ? solid(x, y) : !solid(x, y)) continue;
-        // The ring: solid pixels within 3 stored px (1 screen px) of the edge.
-        let ring = false;
-        for (let d = 1; d <= 3 && !ring; d++) ring = exterior
-          ? solid(x - d, y) || solid(x + d, y) || solid(x, y - d) || solid(x, y + d)
-          : !solid(x - d, y) || !solid(x + d, y) || !solid(x, y - d) || !solid(x, y + d);
-        if (exterior && !ring) continue;
-        const col = fill(x, y, ring);
-        if (!col) continue;
-        const i = (y * w + x) * 4;
-        [out.data[i], out.data[i + 1], out.data[i + 2], out.data[i + 3]] = [...col, 255];
-      }
-    }
-    c.putImageData(out, 0, 0);
+    cv.getContext("2d")!.putImageData(new ImageData(pixels, w, h), 0, 0);
     const t = Texture.from(cv);
     t.source.scaleMode = "nearest";
     return t;
@@ -188,10 +172,57 @@ function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHei
   texture.source.scaleMode = "linear";
   return {
     texture,
-    silhouette: make(() => [255, 255, 255]),
-    xray: [0, 1, 2, 3].map((colour) => make((_x, _y, ring) => [255, 255, xrayMark(colour, ring)])),
-    outline: [0, 1, 2, 3].map((colour) => make(() => [255, 255, xrayMark(colour, true)], true)),
+    silhouette: make(masks.silhouette),
+    xray: masks.xray.map(make),
+    outline: masks.outline.map(make),
   };
+}
+
+/**
+ * RGBA mask pixels of a sprite: a white silhouette, per-colour x-ray codes
+ * (ring or interior) and per-colour exterior rings. The ring holds pixels
+ * within 3 stored px (1 screen px) of the edge along either axis.
+ */
+export function spriteMasks(src: Uint8ClampedArray, w: number, h: number) {
+  const n = w * h;
+  const solid = new Uint8Array(n);
+  for (let i = 0; i < n; i++) solid[i] = src[i * 4 + 3] > 127 ? 1 : 0;
+  // Filled through 32-bit views: bytes R, G, B, A on little-endian hosts.
+  const pixel = (b: number) => (0xff000000 | (b << 16) | 0xffff) >>> 0;
+  const colours = [0, 1, 2, 3];
+  const core = colours.map((c) => pixel(xrayMark(c, false)));
+  const ring = colours.map((c) => pixel(xrayMark(c, true)));
+  const silhouette = new Uint32Array(n);
+  const xray = colours.map(() => new Uint32Array(n));
+  const outline = colours.map(() => new Uint32Array(n));
+  const [x0, x1, x2, x3] = xray;
+  const [o0, o1, o2, o3] = outline;
+  // Solid pixels in the 7-px row and column windows around each pixel; outside
+  // the image counts as empty. A full window means no edge within 3 px.
+  const column = new Uint8Array(w);
+  for (let y = 0; y < Math.min(3, h); y++) for (let x = 0; x < w; x++) column[x] += solid[y * w + x];
+  for (let y = 0; y < h; y++) {
+    let row = 0;
+    for (let x = 0; x < Math.min(3, w); x++) row += solid[y * w + x];
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      const s = solid[i];
+      if (x + 3 < w) row += solid[i + 3];
+      if (y + 3 < h) column[x] += solid[i + 3 * w];
+      const edge = s ? row < 7 || column[x] < 7 : row > 0 || column[x] > 0;
+      if (x >= 3) row -= solid[i - 3];
+      if (y >= 3) column[x] -= solid[i - 3 * w];
+      if (s) {
+        silhouette[i] = 0xffffffff;
+        const mark = edge ? ring : core;
+        x0[i] = mark[0]; x1[i] = mark[1]; x2[i] = mark[2]; x3[i] = mark[3];
+      } else if (edge) {
+        o0[i] = ring[0]; o1[i] = ring[1]; o2[i] = ring[2]; o3[i] = ring[3];
+      }
+    }
+  }
+  const bytes = (a: Uint32Array<ArrayBuffer>) => new Uint8ClampedArray(a.buffer);
+  return { silhouette: bytes(silhouette), xray: xray.map(bytes), outline: outline.map(bytes) };
 }
 
 /** Smooth value noise in [0,1]. */
