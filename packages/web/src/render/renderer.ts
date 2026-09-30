@@ -222,7 +222,11 @@ export class GameRenderer {
       const visibility = v.visibility[y]?.[x];
       if (visibility === "2") continue;
       const { sx, sy } = iso(x, y);
-      this.fog.poly([sx, sy - TILE_H / 2, sx + TILE_W / 2, sy, sx, sy + TILE_H / 2, sx - TILE_W / 2, sy]).fill({ color: 0x000000, alpha: visibility === "1" ? 0.8 : 1 });
+      // Unexplored tiles are opaque, so they can overlap: grow them a pixel so the
+      // ground's edge never peeks out as a dotted line along the map border.
+      const grow = visibility === "1" ? 0 : 1;
+      const hw = TILE_W / 2 + grow * 2, hh = TILE_H / 2 + grow;
+      this.fog.poly([sx, sy - hh, sx + hw, sy, sx, sy + hh, sx - hw, sy]).fill({ color: 0x000000, alpha: visibility === "1" ? 0.8 : 1 });
     }
     const seen = new Set<string>();
 
