@@ -7,7 +7,7 @@ import type { EntityView, GameEvent, PlayerView } from "./protocol";
 export function viewToText(v: PlayerView): string {
   const lines: string[] = [];
   const secs = (ms: number) => (ms / 1000).toFixed(1);
-  const left = v.status === "finished" ? "" : ` · ${secs(Math.max(0, v.matchMs - v.timeMs))}s left${v.timeoutOutcome === "draw" ? ", then draw" : v.timeoutOutcome === "score" ? ", then highest score wins" : ""}`;
+  const left = v.status === "finished" ? "" : ` · ${secs(Math.max(0, v.matchMs - v.timeMs))}s left${v.timeoutOutcome === "draw" ? ", then draw" : v.timeoutOutcome === "score" ? ", then highest score wins" : v.timeoutOutcome === "survivorScore" ? ", then the surviving player with the highest score wins" : ""}`;
   lines.push(`tick ${v.tick} · ${secs(v.timeMs)}s/${secs(v.matchMs)}s${left} · ${v.status} · you are ${v.you}`);
   if (v.series) lines.push(`series ${v.series.id} · game ${v.series.gameNumber}/3 · ${v.series.status} · wins ${JSON.stringify(v.series.score)} · previous games ${v.series.previousGames.join(", ") || "none"} (use history)`);
   const myTeam = v.players.find((p) => p.id === v.you)?.team;

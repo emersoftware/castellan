@@ -378,7 +378,7 @@ export class Match {
       events,
       underAttack: this.underAttack(player, since ?? this._tick - this.ticks(10_000)),
       ...(this.ruleset.fogOfWar ? { lastSeen: this.lastSeen(player) } : {}),
-      timeoutOutcome: this.ruleset.timeoutOutcome ?? "score",
+      timeoutOutcome: this.timeoutRule(),
       outcome: this._outcome ?? undefined,
     };
   }
@@ -1100,6 +1100,13 @@ export class Match {
     if (teams.size <= 1 && this.players.some((p) => !p.alive)) {
       this.finish(this.teamOf([...teams][0]), "vital_lost", T, emit);
     } else if (T + 1 >= this.maxTicks) {
+      if (this.timeoutRule() === "survivorScore") {
+        const alive = this.players.filter((p) => p.alive);
+        const top = Math.max(...alive.map((p) => this.score(p)));
+        const leaders = alive.filter((p) => this.score(p) === top);
+        this.finish(leaders.length === 1 ? [leaders[0].id] : [], "timeout", T, emit);
+        return;
+      }
       if (this.ruleset.timeoutOutcome === "draw") {
         this.finish([], "timeout", T, emit);
         return;
@@ -1110,6 +1117,13 @@ export class Match {
       const leaders = [...score].filter(([, s]) => s === top);
       this.finish(leaders.length === 1 ? this.teamOf(leaders[0][0]) : [], "timeout", T, emit);
     }
+  }
+
+  /** What the clock decides at the limit for this match. */
+  private timeoutRule(): "score" | "draw" | "survivorScore" {
+    const ffa = this.players.length > 2 && new Set(this.players.map((p) => p.team)).size === this.players.length;
+    if (ffa && this.ruleset.ffaTimeoutOutcome) return this.ruleset.ffaTimeoutOutcome;
+    return this.ruleset.timeoutOutcome ?? "score";
   }
 
   private aliveTeams(): Set<number> {

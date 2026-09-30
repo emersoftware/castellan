@@ -211,7 +211,7 @@ export interface PlayerView {
    */
   lastSeen?: LastSeen[];
   /** What the clock decides at `matchMs` if no side has been eliminated. */
-  timeoutOutcome?: "score" | "draw";
+  timeoutOutcome?: "score" | "draw" | "survivorScore";
   /** Added by the room: last 5 visible messages, independent of the events cursor. Full history via /chat. */
   chat?: { enabled: boolean; messages: ChatMessage[] };
   outcome?: Outcome;

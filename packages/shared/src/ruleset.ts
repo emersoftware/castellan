@@ -12,6 +12,11 @@ export interface Ruleset {
   matchMs: number;
   /** Omitted in legacy replays: highest score wins. New matches may draw at the limit. */
   timeoutOutcome?: "score" | "draw";
+  /**
+   * Free-for-all only (more than two players, each on its own team): at the limit the
+   * surviving player with the highest score wins; ties draw. Overrides `timeoutOutcome`.
+   */
+  ffaTimeoutOutcome?: "survivorScore";
   /** Clock-stopped phase where players may read rules and upload scripts. */
   prepMs: number;
   startCapital: number;
