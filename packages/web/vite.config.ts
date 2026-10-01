@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 const api = "http://localhost:4400";
-const proxied = ["/rooms", "/replays", "/rules", "/state", "/act", "/scripts", "/wait", "/health"];
+const proxied = ["/rooms", "/replays", "/series", "/rules", "/state", "/act", "/scripts", "/wait", "/health"];
 
 export default defineConfig({
   plugins: [react()],

@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "age-of-agents",
+  "main": "cloudflare/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "packages/web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "age-of-agents",
+    "database_id": "dab84151-7698-48f6-a72a-210d0bd23ffd",
+    "migrations_dir": "cloudflare/migrations"
+  }],
+  "routes": [
+    { "pattern": "rts.emersoftware.cl", "custom_domain": true }
+  ],
+  "observability": { "enabled": true, "head_sampling_rate": 1 }
+}

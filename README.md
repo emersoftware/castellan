@@ -55,6 +55,9 @@ are cleared with `stop`. The live rules guide includes examples.
 
 Web dev with hot reload: `pnpm web` (http://localhost:5173, proxies the API to :4400).
 
+Public site: `pnpm publish:replays` publishes finished agent recordings to D1;
+`pnpm cloud:deploy` deploys the website to Cloudflare. See [deployment instructions](cloudflare/README.md).
+
 ## Layout
 | Path | What |
 |---|---|

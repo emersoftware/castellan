@@ -10,16 +10,26 @@
     "sim": "pnpm --filter @aoa/sim sim",
     "aoa": "aoa",
     "seed-replays": "pnpm --filter @aoa/server seed-replays",
-    "build": "pnpm --filter @aoa/web build"
+    "build": "pnpm --filter @aoa/web build",
+    "build:cloudflare": "pnpm --filter @aoa/web build --mode cloudflare",
+    "cloud:types": "wrangler types cloudflare/worker-configuration.d.ts",
+    "cloud:typecheck": "pnpm cloud:types && tsc -p cloudflare/tsconfig.json && tsc -p cloudflare/tsconfig.tools.json",
+    "cloud:dev": "pnpm build:cloudflare && wrangler dev",
+    "cloud:migrate": "wrangler d1 migrations apply DB --remote",
+    "publish:replays": "tsx cloudflare/publish.ts",
+    "cloud:verify": "tsx cloudflare/verify.ts",
+    "cloud:deploy": "pnpm build:cloudflare && pnpm cloud:typecheck && wrangler deploy"
   },
   "devDependencies": {
     "@aoa/cli": "workspace:*",
     "@aoa/mcp": "workspace:*",
+    "@cloudflare/workers-types": "^5.20261001.1",
     "@types/node": "^24.0.0",
     "jsdom": "^30.1.1",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
-    "vitest": "^3.2.0"
+    "vitest": "^3.2.0",
+    "wrangler": "^4.145.0"
   },
   "packageManager": "pnpm@10.20.0"
 }

@@ -1,6 +1,9 @@
 import type { Outcome, PlayerTiming, ReplayFile, SeriesReplay, SeriesSummary } from "@aoa/shared";
 import { hasScriptedBot, replayFileDate } from "./replayCatalog";
 
+const published = () => import.meta.env.VITE_PUBLIC_REPLAYS === "true";
+const seriesPath = () => published() ? "/api/series" : "/series";
+
 export interface RoomSummary {
   id: string;
   status: "waiting" | "prep" | "running" | "finished";
@@ -27,8 +30,8 @@ export interface ReplaySummary {
   finalTick: number;
   tickRate: number;
   map?: string;
-  /** Where it comes from: bundled with the site, or your local server. */
-  source: "featured" | "local";
+  /** Bundled locally, recorded by the local server, or published to D1. */
+  source: "featured" | "local" | "published";
 }
 
 async function json<T>(res: Response): Promise<T> {
@@ -45,13 +48,17 @@ export function setDroppedReplay(r: ReplayFile) {
 export function setDroppedSeries(r: SeriesReplay) { droppedSeries = r; }
 
 export const api = {
-  series: () => fetch("/series").then((r) => json<SeriesSummary[]>(r)),
-  seriesSummary: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries.series) : fetch(`/series/${id}`).then((r) => json<SeriesSummary>(r)),
-  seriesReplay: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries) : fetch(`/series/${id}/replay.json`).then((r) => json<SeriesReplay>(r)),
+  series: () => fetch(seriesPath()).then((r) => json<SeriesSummary[]>(r)),
+  seriesSummary: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries.series) : fetch(`${seriesPath()}/${id}`).then((r) => json<SeriesSummary>(r)),
+  seriesReplay: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries) : fetch(`${seriesPath()}/${id}/replay.json`).then((r) => json<SeriesReplay>(r)),
   room: (id: string) => fetch(`/rooms/${id}`).then((r) => json<RoomSummary>(r)),
 
   /** Featured replays ship with the site; a local server adds yours. */
   async replays(): Promise<ReplaySummary[]> {
+    if (published()) {
+      const entries = await fetch("/api/replays").then((r) => json<Omit<ReplaySummary, "source">[]>(r));
+      return entries.map((entry) => ({ ...entry, source: "published" as const }));
+    }
     const featured = await fetch("/featured/index.json")
       .then((r) => json<Omit<ReplaySummary, "source">[]>(r))
       .then((l) => l.map((x) => ({ ...x, source: "featured" as const })))
@@ -73,6 +80,7 @@ export const api = {
       if (!dropped) throw new Error("no replay file loaded");
       return dropped;
     }
+    if (published()) return fetch(`/api/replays/${id}`).then((r) => json<ReplayFile>(r));
     try {
       return await fetch(`/featured/${id}.json`).then((r) => json<ReplayFile>(r));
     } catch {

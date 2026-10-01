@@ -1,0 +1,84 @@
+import { afterEach, expect, it } from "vitest";
+import { DatabaseSync } from "node:sqlite";
+import { readFile, mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { gzipSync } from "node:zlib";
+import type { ReplayFile } from "../../packages/shared/src/protocol";
+import { collectPublication, completeSeries, publicationSQL, publicReplay, type Publication } from "../catalog";
+
+const fixture: ReplayFile = JSON.parse(await readFile(new URL("../../packages/web/public/featured/ef3532ef.json", import.meta.url), "utf8"));
+const directories: string[] = [];
+afterEach(async () => { await Promise.all(directories.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))); });
+const entry = (replay: ReplayFile): Publication["replays"][number] => ({ replay, summary: {
+  id: replay.id, title: "Agent's battle; SELECT 'hello'", createdAt: replay.createdAt, savedAt: replay.createdAt,
+  players: replay.players, outcome: replay.outcome, finalTick: replay.finalTick, tickRate: replay.tickRate,
+} });
+
+it("imports exact JSON into SQLite, safely quotes scripts, and writes nothing on a repeat publication", async () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    db.exec(await readFile(new URL("../migrations/0001_catalog.sql", import.meta.url), "utf8"));
+    const replay = structuredClone(fixture);
+    replay.players[0].name = "O'Brien\nこんにちは";
+    const sql = publicationSQL({ replays: [entry(replay)], series: [], excluded: 0 });
+    db.exec(sql);
+    const row = db.prepare("SELECT replay_json, summary_json FROM replays").get()!;
+    expect(JSON.parse(row.replay_json as string)).toEqual(replay);
+    expect(JSON.parse(row.summary_json as string).title).toBe("Agent's battle; SELECT 'hello'");
+    const changes = db.prepare("SELECT total_changes() AS n").get()!.n;
+    db.exec(sql);
+    expect(db.prepare("SELECT total_changes() AS n").get()!.n).toBe(changes);
+    replay.players[0].name = "Updated";
+    db.exec(publicationSQL({ replays: [entry(replay)], series: [], excluded: 0 }));
+    expect(db.prepare("SELECT count(*) AS n FROM replays").get()!.n).toBe(1);
+    expect(JSON.parse(db.prepare("SELECT replay_json FROM replays").get()!.replay_json as string).players[0].name).toBe("Updated");
+  } finally { db.close(); }
+});
+
+it("publishes only complete, correctly ordered series and computes the team score", () => {
+  const entries = [3, 1, 2].map((n) => {
+    const replay = structuredClone(fixture);
+    replay.id = `game${n}`;
+    replay.series = { id: "series1", gameNumber: n, totalGames: 3 };
+    replay.players = [{ id: "p1", name: "One", team: 0 }, { id: "p2", name: "Two", team: 1 }];
+    replay.outcome = { winner: n === 3 ? "p2" : "p1", reason: "vital_lost", scores: {} };
+    return entry(replay);
+  });
+  expect(completeSeries(entries.slice(0, 2))).toEqual([]);
+  const summary = completeSeries(entries)[0].summary;
+  expect(summary.games.map((g) => g.roomId)).toEqual(["game1", "game2", "game3"]);
+  expect(summary.score).toEqual({ p1: 2, p2: 1 });
+  expect(summary.winners).toEqual(["p1"]);
+  expect(completeSeries([entries[0], entries[0], entries[1]])).toEqual([]);
+});
+
+it("reads fresh local payloads, keeps editorial metadata, excludes bots/demos and does not copy credentials", async () => {
+  const root = await mkdtemp(join(tmpdir(), "aoa-catalog-test-")); directories.push(root);
+  const featured = join(root, "packages/web/public/featured");
+  await mkdir(featured, { recursive: true }); await mkdir(join(root, "replays"));
+  const old = entry(fixture).summary;
+  old.savedAt = "2026-09-01T00:00:00.000Z";
+  await writeFile(join(featured, "index.json"), JSON.stringify([old]));
+  await writeFile(join(featured, `${fixture.id}.json`), JSON.stringify(fixture));
+  const fresh = { ...structuredClone(fixture), token: "PRIVATE-TOP-LEVEL", players: fixture.players.map((p) => ({ ...p, token: "PRIVATE-PLAYER" })) };
+  fresh.players[0].name = "Fresh agent";
+  await writeFile(join(root, "replays", `${fixture.id}.json.gz`), gzipSync(JSON.stringify(fresh)));
+  for (const [id, name] of [["bot-game", "bot:rush"], ["demo-game", "demo:mixed"]]) {
+    const replay = structuredClone(fixture); replay.id = id; replay.players[0].name = name;
+    await writeFile(join(root, "replays", `${id}.json.gz`), gzipSync(JSON.stringify(replay)));
+  }
+  const publication = await collectPublication(root);
+  expect(publication.replays).toHaveLength(1);
+  expect(publication.excluded).toBe(2);
+  expect(publication.replays[0].summary.savedAt).toBe(old.savedAt);
+  expect(publication.replays[0].summary.title).toBe(old.title);
+  expect(publication.replays[0].replay.players[0].name).toBe("Fresh agent");
+  expect(JSON.stringify(publication)).not.toContain("PRIVATE-");
+});
+
+it("rejects unfinished recordings and oversized import statements before publication", () => {
+  expect(() => publicReplay({ ...fixture, outcome: undefined! })).toThrow("Invalid finished replay");
+  const replay = structuredClone(fixture); replay.players[0].name = "x".repeat(100_000);
+  expect(() => publicationSQL({ replays: [entry(replay)], series: [], excluded: 0 })).toThrow("Nothing was uploaded");
+});

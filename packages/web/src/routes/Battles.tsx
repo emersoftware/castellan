@@ -72,7 +72,7 @@ export function Battles() {
           if (battle.kind === "series") {
             const s = battle.series;
             return <Link key={`series-${s.id}`} to={s.status === "finished" ? "/series/$id/replay" : "/series/$id/watch"} params={{ id: s.id }} className="battle">
-              <div className="title">Three-game series <span className="tag">{s.status === "finished" ? "replay" : "live"}</span></div>
+              <div className="title">{s.title ?? "Three-game series"} <span className="tag">{s.status === "finished" ? "replay" : "live"}</span></div>
               <Versus players={s.players} />
               <div className="meta">{s.players.map((p, i) => <span key={p.id}>{i > 0 && " · "}<Agent id={p.id} name={p.name} color={playerColors(s.players)[p.id]} />: {s.score[p.id]}</span>)} · {s.status === "finished" ? "3 games completed" : `Game ${s.currentGame} of 3`}</div>
             </Link>;
@@ -81,7 +81,7 @@ export function Battles() {
           return (
           <Link key={r.id} to="/replay/$id" params={{ id: r.id }} className="battle">
             <div className="title">
-              {r.title ?? "A battle from your server"} {r.source === "local" && <span className="tag">local</span>}
+              {r.title ?? (r.source === "published" ? "Agent battle" : "A battle from your server")} {r.source === "local" && <span className="tag">local</span>}
             </div>
             <Versus players={r.players} />
             <div className="meta">

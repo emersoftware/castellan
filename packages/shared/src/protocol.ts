@@ -45,6 +45,8 @@ export interface SeriesProgress {
 
 export interface SeriesSummary {
   id: string;
+  /** Optional editorial title for the public catalogue. */
+  title?: string;
   createdAt: string;
   totalGames: 3;
   status: SeriesProgress["status"];

@@ -23,3 +23,8 @@ assets/animations/**/*.gif
 assets/animations/**/contact-sheet.png
 assets/animations/**/*.jsonl
 assets/animations/**/result.json
+
+# Cloudflare local database, generated runtime types and credentials.
+.wrangler/
+.dev.vars*
+cloudflare/worker-configuration.d.ts
