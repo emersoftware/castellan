@@ -86,6 +86,8 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
   const replay = useQuery({ queryKey: ["replay", id], queryFn: () => api.replay(id), staleTime: Infinity, retry: false });
   const { frames, loaded, check, error } = useReplayFrames(replay.data);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(initialPlayer);
+  useEffect(() => sfx.holdAmbient(), []);
+  useEffect(() => sfx.holdMusic("battle"), []);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(initialPlaying && !initialSeconds);
   const [speed, setSpeed] = useState(initialSpeed);

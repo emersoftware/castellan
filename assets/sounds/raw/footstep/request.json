@@ -1,0 +1,12 @@
+{
+  "space": "OpenMOSS-Team/MOSS-SoundEffect-v2.0",
+  "prompt": "Slow footsteps of a man walking on a grass meadow in leather boots, one step per second. Close, quiet background, no music, no voices.",
+  "seconds": 8,
+  "steps": 50,
+  "cfg_scale": 4.0,
+  "sigma_shift": 5.0,
+  "seeds": [
+    1,
+    2
+  ]
+}

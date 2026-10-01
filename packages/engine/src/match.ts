@@ -2,7 +2,7 @@ import type {
   DepositView, EntityView, GameEvent, KindSpec, MatchStatus, Order, OrderResult, Outcome, PlayerId, PlayerStats,
   LastSeen, PlayerView, ProjectileView, Ruleset, SpectatorView, UnderAttack,
 } from "@aoa/shared";
-import { matchLengthMs } from "@aoa/shared";
+import { barrierAxes, matchLengthMs } from "@aoa/shared";
 import { createScriptHost, type ScriptAction, type ScriptHost, type ScriptWorld } from "@aoa/sandbox";
 import { DIRS, DIR_LIST, SEAT_DIRS, canCross, cheb, findPath, inBounds, mapToSeat, seatToMap, type Grid } from "./grid";
 import { segmentCircleHit } from "./projectiles";
@@ -74,7 +74,7 @@ interface Entity {
   training?: { kind: string; completesAtTick?: number }[];
 }
 
-interface Projectile extends ProjectileView { attack: number; launchedAt: number; source?: string }
+interface Projectile extends ProjectileView { attack: number; launchedAt: number; source?: string; aimedAt?: string }
 
 interface Deposit {
   id: string;
@@ -277,13 +277,15 @@ export class Match {
       const target = this.ents.get(it.id);
       if (!target || !this.canSee(e.owner, target.x, target.y) || !this.hostile(target.owner, e.owner) || cheb(e.x, e.y, target.x, target.y) > (e.spec.range ?? 1)) continue;
       e.nextAttack = T + this.ticks(e.spec.attackMs ?? 1000);
+      if (e.spec.aimMs) e.nextMove = Math.max(e.nextMove, T + this.ticks(e.spec.aimMs));
       if (this.ruleset.projectiles && (e.spec.range ?? 1) > 1) {
         const dx = target.x - e.x, dy = target.y - e.y;
         const distance = Math.hypot(dx, dy);
         const id = `p${this.nextProjectileId++}`;
         this.projectiles.set(id, { id, owner: e.owner, x: e.x, y: e.y,
           vx: dx / distance * this.ruleset.projectiles.speed, vy: dy / distance * this.ruleset.projectiles.speed,
-          endX: target.x, endY: target.y, attack: e.spec.atk, launchedAt: T, ...(this.ruleset.reactiveScripts ? { source: e.id } : {}) });
+          endX: target.x, endY: target.y, attack: e.spec.atk, launchedAt: T, ...(this.ruleset.reactiveScripts ? { source: e.id } : {}),
+          ...(this.ruleset.projectiles.flyOverTargetById ? { aimedAt: target.id } : {}) });
         emit({ tick: T, type: "attack", from: e.id, to: target.id, dmg: 0, projectile: id });
       } else {
         const dmg = Math.max(1, e.spec.atk - target.spec.def);
@@ -654,6 +656,7 @@ export class Match {
         if (!inBounds(this.grid, o.x, o.y)) return { ok: false, reason: `(${o.x},${o.y}) is outside the map` };
         if (!this.canSee(p.id, o.x, o.y)) return { ok: false, reason: "build site must be visible" };
         if (this.grid.isStatic(o.x, o.y) && this.buildSites.get(o.y * this.grid.width + o.x) !== e.id) return { ok: false, reason: `(${o.x},${o.y}) is occupied` };
+        if (this.makesDoorCorner(p.id, o.kind, o.x, o.y)) return { ok: false, reason: "doors must stay on one wall axis; no corners or junctions" };
         if (p.capital < spec.cost) return { ok: false, reason: `needs ${spec.cost} capital, you have ${p.capital}` };
         const near = this.enemyBuildingNear(p.id, o.x, o.y);
         if (near) return { ok: false, reason: `too close to enemy ${near.kind} ${near.id}: keep ${this.ruleset.buildExclusion}+ tiles away` };
@@ -911,7 +914,7 @@ export class Match {
   private projectileViews(player?: PlayerId): ProjectileView[] {
     return [...this.projectiles.values()]
       .filter((p) => !player || this.canSee(player, Math.round(p.x), Math.round(p.y)))
-      .map(({ attack, launchedAt, source, ...view }) => ({ ...view }));
+      .map(({ attack, launchedAt, source, aimedAt, ...view }) => ({ ...view }));
   }
 
   /** Sweep each segment, so fast shots cannot tunnel through an occupied tile. */
@@ -931,6 +934,8 @@ export class Match {
       }
       for (const e of this.ents.values()) {
         if (!this.hostile(p.owner, e.owner)) continue;
+        if (config.flyOver?.includes(e.kind) && (config.flyOverTargetById
+          ? e.id !== p.aimedAt : e.x !== p.endX || e.y !== p.endY)) continue;
         const hit = segmentCircleHit(p.x, p.y, nx, ny, e.x, e.y, e.spec.building ? config.buildingRadius : config.unitRadius);
         if (hit !== null && hit < fraction) { fraction = hit; target = e; }
       }
@@ -1059,6 +1064,31 @@ export class Match {
     e.carrying = 0;
   }
 
+  /** Check the prospective layout, including reserved builds, in either construction order. */
+  private makesDoorCorner(owner: PlayerId, kind: string, x: number, y: number): boolean {
+    if (!this.ruleset.straightDoors || (kind !== "wall" && !this.ruleset.kinds[kind]?.alliedPassage)) return false;
+    const at = (tx: number, ty: number): string | undefined => {
+      if (tx === x && ty === y) return kind;
+      if (!inBounds(this.grid, tx, ty)) return undefined;
+      const tile = ty * this.grid.width + tx;
+      const entity = this.ents.get(this.doors.get(tile) ?? this.occ[tile] ?? "");
+      if (entity?.owner === owner) return entity.kind;
+      const builder = this.ents.get(this.buildSites.get(tile) ?? "");
+      return builder?.owner === owner ? builder.construction?.kind : undefined;
+    };
+    const has = (tx: number, ty: number) => {
+      const k = at(tx, ty);
+      return k === "wall" || !!(k && this.ruleset.kinds[k]?.alliedPassage);
+    };
+    for (const [dx, dy] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      const k = at(x + dx, y + dy);
+      if (!k || !this.ruleset.kinds[k]?.alliedPassage) continue;
+      const { alongX, alongY } = barrierAxes(x + dx, y + dy, has);
+      if (alongX && alongY) return true;
+    }
+    return false;
+  }
+
   private build(e: Entity, emit: (e: GameEvent) => void) {
     const o = e.order;
     if (o?.type !== "build") return;
@@ -1073,6 +1103,7 @@ export class Match {
       if (this.grid.isStatic(o.x, o.y)) this.endOrder(e, "tile blocked", emit);
       return; // a unit is standing there; wait
     }
+    if (this.makesDoorCorner(p.id, o.kind, o.x, o.y)) return this.endOrder(e, "doors must stay on one wall axis; no corners or junctions", emit);
     if (p.capital < spec.cost) return this.endOrder(e, "not enough capital", emit);
     if (this.enemyBuildingNear(p.id, o.x, o.y)) return this.endOrder(e, "too close to an enemy building", emit);
     if (spec.buildMs) {

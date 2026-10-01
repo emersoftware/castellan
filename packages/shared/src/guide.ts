@@ -27,6 +27,7 @@ export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean;
       const bits = [
         `hp ${s.hp}`, `def ${s.def}`,
         s.atk ? `atk ${s.atk} range ${s.range} every ${effectiveMs(s.attackMs ?? 1000)}ms` : "no attack",
+        s.aimMs ? `stands still ${effectiveMs(s.aimMs)}ms after each shot` : "",
         s.moveMs ? `${effectiveMs(s.moveMs)}ms/tile` : "static",
         `vision ${s.vision}`,
         s.cost ? `cost ${s.cost}` : "not producible",
@@ -110,7 +111,8 @@ ${Object.entries(r.upgrades).map(([id, u]) => `- ${id}: ${u.kind} ${u.stat}; ${u
 
 ${r.projectiles ? `Ranged attacks (range > 1) launch real projectiles at ${r.projectiles.speed} Euclidean tiles/s, aimed at the target's position at launch; they never home.
 Damage occurs only on collision with the first hostile entity along the path. Moving out of the trajectory can dodge; other enemies can intercept.
-Shots stop at their fixed destination on a miss, or on rock terrain. Allies and deposits do not block shots; there is no friendly fire.
+Shots stop at their fixed destination on a miss, or on rock terrain. Allies and deposits do not block shots; there is no friendly fire.${r.projectiles.flyOver?.length ? `
+Shots fly over hostile ${r.projectiles.flyOver.map((k) => `${k}s`).join(" and ")}: those are hit only by a shot aimed at them, so they never shield what stands behind.` : ""}
 Collision radii: units ${r.projectiles.unitRadius}, buildings/rocks ${r.projectiles.buildingRadius} tiles. Attack is captured at launch; defense is evaluated at impact.
 Each tick: scripts decide, units move, then existing projectiles advance. New shots start travelling next tick. Shots survive their shooter's death.
 Melee (range <= 1) applies damage immediately in the attack tick.
@@ -122,7 +124,7 @@ ${r.map.description}${r.map.walls.length ? " Rock (^) is impassable and can't be
 ${four ? "Every corner is the same layout rotated 90°." : "Each side mirrors the other (rotated 180°)."} Your corner is random: read the map to see where you are.
 
 ${r.fogOfWar ? `## Fog of war
-Your team shares vision: a tile is visible when any allied entity is within its vision radius (Chebyshev distance). Walls and rocks do not block sight.${r.projectiles ? " Rocks and hostile buildings block projectiles." : " Walls and rocks do not block shots."}
+Your team shares vision: a tile is visible when any allied entity is within its vision radius (Chebyshev distance). Walls and rocks do not block sight.${r.projectiles ? (r.projectiles.flyOver?.length ? ` Rocks and hostile buildings block projectiles, except ${r.projectiles.flyOver.map((k) => `${k}s`).join(" and ")}, which shots fly over.` : " Rocks and hostile buildings block projectiles.") : " Walls and rocks do not block shots."}
 State shows only currently visible enemy units. Explored terrain is remembered, and so are enemy buildings and deposits as you last saw them: outside vision they stay on the map and are listed under "last seen" with their age, until you see the tile again without them. They may have changed since (damaged, destroyed, mined). Scripts do not see this memory.
 Map symbols: ? unexplored, : explored ground outside vision; visibility rows use 0 unexplored, 1 explored, 2 visible.
 Map geometry and starting layouts are public in rules, but enemy positions, capital, population, score, kills, research and training queues are not revealed by state outside this policy.
@@ -135,8 +137,8 @@ ${k.door ? `## Walls and doors
 Walls and doors each occupy exactly one tile. Workers build doors with kind="door" for ${k.door.cost} capital, ${k.door.hp} HP and ${k.door.def} armor.
 Doors automatically allow their owner's and teammates' units through, one unit per tile. Enemies cannot enter even while the door is visually open; destroy it to pass.
 The passage opens while an allied unit occupies it and closes when it leaves. No manual open/close order is needed.
-Doors connect visually to neighbouring walls. Like other hostile buildings, they block and take projectile damage, even while open. Allied shots pass through.
-State lists both the door and any unit on its tile; the ASCII grid shows the unit when occupied. Doors expose open:true/false.
+Doors connect visually to neighbouring walls.${r.straightDoors ? " Doors may connect to same-owner walls and doors along X or Y, never both: corners and junctions are forbidden. Building a wall that would turn an existing or reserved door into a corner is also rejected." : ""} ${r.projectiles?.flyOver?.includes("door") ? "Walls and doors block movement, not shots: projectiles fly over them and damage them only when aimed at them, even while open." : "Like other hostile buildings, they block and take projectile damage, even while open. Allied shots pass through."}
+${r.projectiles?.flyOverTargetById ? "A unit standing in a door can be targeted and damaged directly. Aim at the unit ID to hit the unit, or the door ID to hit the door. Shots still go to the original position and can miss a moving target.\n" : ""}State lists both the door and any unit on its tile; the ASCII grid shows the unit when occupied. Doors expose open:true/false.
 ` : ""}
 ## Orders (POST /act with {"orders":[...]}, many per call)
 - {"type":"train","building":"<${baseKind} id>","kind":"worker"|"knight"|"ranger"}

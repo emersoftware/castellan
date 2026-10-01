@@ -1,0 +1,11 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "prompt": "Only the cloth flag ripples gently in steady wind. Seamless idle loop. Castle, stonework and flagpole completely motionless. Fixed isometric camera, no zoom. Preserve shape, grayscale building and solid magenta background.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 4,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "first_and_last_frame": true
+}

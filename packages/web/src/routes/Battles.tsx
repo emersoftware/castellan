@@ -1,15 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api, fmtTime, playerColors, readReplayFile, setDroppedReplay, setDroppedSeries } from "../api";
 import { Agent } from "../components/Agent";
 import { Versus, wonText } from "../components/Versus";
 import { hasScriptedBot, replayFileDate } from "../replayCatalog";
+import { sfx } from "../audio/sfx";
+import { SoundToggle } from "../components/Hud";
 
 export function Battles() {
   const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays, refetchInterval: 3000 });
   const series = useQuery({ queryKey: ["series"], queryFn: api.series, refetchInterval: 3000 });
   const nav = useNavigate();
+  useEffect(() => sfx.holdMusic("theme"), []);
   const [over, setOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dates = new Map((replays.data ?? []).map((replay) => [replay.id, replayFileDate(replay)]));
@@ -39,6 +42,7 @@ export function Battles() {
 
   return (
     <div className="page battles">
+      <div className="page-sound"><SoundToggle /></div>
       <header className="page-head">
         <Link to="/" className="brand">Age of Agents</Link>
         <h1>Battles</h1>

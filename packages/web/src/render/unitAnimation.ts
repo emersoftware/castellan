@@ -57,3 +57,8 @@ export function unitMiningAnimation(kind: string, timeMs: number): AnimationFram
   const meta = unitAtlas(kind).mine;
   return meta && meta.available !== false ? { action: 'mine', frame: Math.floor(Math.max(0, timeMs) * meta.fps / 1000) % meta.frameCount } : undefined;
 }
+
+/** Frames where the pick hits the rock, per screen direction (rows s, se, e, ne, n). */
+export function miningStrikes(dir: number): [number, number] {
+  return [[11, 11, 7, 7, 7][ROW[dir]], 21];
+}

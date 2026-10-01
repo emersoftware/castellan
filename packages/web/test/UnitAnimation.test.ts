@@ -32,7 +32,7 @@ function setup(kind:string){
   const last=()=>sprites.mock.calls.filter(c=>c[0]===kind).at(-1)!;
   return {renderer,internal,unit,target,frame,last,time:(t:number)=>{now=t;}};
 }
-it.each(['knight','king','agent'])('keeps %s walking between tile updates and freezes on pause',kind=>{
+it.each(['knight','king','agent','worker'])('keeps %s walking between tile updates and freezes on pause',kind=>{
   const h=setup(kind);h.renderer.setFrame(h.frame(1),100);
   const moved={...h.unit,x:5,stats:{atk:0,def:10,range:0,attackMs:1000,moveMs:500}};
   for(let tick=2;tick<=6;tick++){
@@ -125,8 +125,10 @@ it('removes the old corpse when seeking back to a living unit',()=>{
   expect(h.last()[2]?.action).toBe('idle');
 });
 
-it('keeps Worker static when idle and uses distance for walking',()=>{
- expect(unitAnimation('worker',0,false)).toBeUndefined();
+it('loops Worker idle and uses distance for walking',()=>{
+ expect(unitAnimation('worker',0,false)).toEqual({action:'idle',frame:0});
+ expect(unitAnimation('worker',1000,false)).toEqual({action:'idle',frame:12});
+ expect(unitAnimation('worker',2500,false)).toEqual({action:'idle',frame:2});
  expect(unitAnimation('worker',10000,true,undefined,.5)).toEqual({action:'walk',frame:7});
 });
 
@@ -146,7 +148,7 @@ it.each([[1,1,0],[1,0,1],[1,-1,2],[0,-1,3],[-1,-1,4],[-1,0,5],[-1,1,6],[0,1,7]])
 it.each([0,1,2,3,4,5,6,7])('starts Worker melee direction %i at the actual contact pose',dir=>{
  const row=[0,1,2,3,4,3,2,1][dir];
  expect(unitAnimation('worker',1000,true,{at:1000,dir})).toEqual({action:'attack',frame:workerAtlas.attack.impactFrames[row]});
- expect(unitAnimation('worker',1400,false,{at:1000,dir})).toBeUndefined();
+ expect(unitAnimation('worker',1400,false,{at:1000,dir})?.action).toBe('idle');
 });
 it('locks a Worker melee hit to the target instead of the mineral or movement',()=>{
  const h=setup('worker');h.renderer.setFrame(h.frame(1),100);
@@ -159,7 +161,7 @@ it('freezes mining on pause and stops mining when work ends',()=>{
  h.renderer.setFrame(h.frame(10,[unit]),100);h.internal.animate();
  expect(h.last()[2]?.action).toBe('mine');
  h.renderer.setPaused(true);const before=h.last()[2];h.time(5000);h.internal.animate();expect(h.last()[2]).toEqual(before);
- h.renderer.setPaused(false);h.renderer.setFrame(h.frame(11,[h.unit]),100);h.internal.animate();expect(h.last()[2]).toBeUndefined();
+ h.renderer.setPaused(false);h.renderer.setFrame(h.frame(11,[h.unit]),100);h.internal.animate();expect(h.last()[2]?.action).toBe('idle');
 });
 
 it.each([0,1,2,3,4,5,6,7])('starts King melee direction %i at contact and resumes idle',dir=>{

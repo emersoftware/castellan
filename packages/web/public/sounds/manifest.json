@@ -1,0 +1,72 @@
+{
+ "pad": 0.05,
+ "loop": 28.0,
+ "files": {
+  "ambient": [
+   "ambient-1.mp3",
+   "ambient-2.mp3"
+  ],
+  "build": [
+   "build-1.mp3",
+   "build-2.mp3"
+  ],
+  "chat": [
+   "chat-1.mp3",
+   "chat-2.mp3",
+   "chat-3.mp3"
+  ],
+  "collapse": [
+   "collapse-1.mp3",
+   "collapse-2.mp3"
+  ],
+  "death": [
+   "death-1.mp3",
+   "death-3.mp3",
+   "death-5.mp3"
+  ],
+  "fanfare": [
+   "fanfare-1.mp3",
+   "fanfare-2.mp3"
+  ],
+  "footstep": [
+   "footstep-1-1.mp3",
+   "footstep-1-2.mp3",
+   "footstep-1-3.mp3",
+   "footstep-2-1.mp3",
+   "footstep-2-2.mp3",
+   "footstep-2-3.mp3"
+  ],
+  "hit": [
+   "hit-1.mp3",
+   "hit-2.mp3",
+   "hit-6.mp3",
+   "hit-7.mp3"
+  ],
+  "horn": [
+   "horn-1.mp3",
+   "horn-2.mp3"
+  ],
+  "pick": [
+   "pick-1.mp3",
+   "pick-3.mp3",
+   "pick-4.mp3"
+  ],
+  "spawn": [
+   "spawn-1.mp3",
+   "spawn-2.mp3",
+   "spawn-3.mp3",
+   "spawn-4.mp3"
+  ],
+  "sword": [
+   "sword-1.mp3",
+   "sword-4.mp3",
+   "sword-6.mp3"
+  ],
+  "whoosh": [
+   "whoosh-1.mp3",
+   "whoosh-3.mp3",
+   "whoosh-5.mp3",
+   "whoosh-6.mp3"
+  ]
+ }
+}

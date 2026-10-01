@@ -11,7 +11,7 @@ the same character scale and the same ground position (101.5 stored pixels).
 - Ranger: idle, walk, shoot and death; see `ranger/*-directions/README.md`.
 - Knight: idle, walk, melee attack and death.
 - King: idle, walk, melee attack and death. It cannot be trained.
-- Worker: walk, mining, melee attack and death; static idle.
+- Worker: idle, walk, mining, melee attack and death.
   See STATUS.md for integration and validation evidence.
 
 ## Generate and package units
@@ -26,6 +26,7 @@ node assets/animations/package-units.mjs knight attack
 node assets/animations/package-units.mjs king idle
 node assets/animations/package-units.mjs king walk
 node assets/animations/package-units.mjs king attack
+node assets/animations/package-units.mjs worker idle
 node assets/animations/package-units.mjs worker walk
 node assets/animations/package-units.mjs worker mine
 node assets/animations/package-units.mjs worker attack

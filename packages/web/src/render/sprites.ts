@@ -98,14 +98,14 @@ async function buildSprites(base: string): Promise<SpriteSet> {
   );
   const fallback = arts.get("knight") ?? arts.get("knight_2") ?? [...arts.values()][0];
   const animations = new Map<string, SpriteArt[][]>();
-  await Promise.all(["ranger", "knight", "king", "worker"].map(async kind => {
+  await Promise.all(["ranger", "knight", "king", "worker", "castle", "turret"].map(async kind => {
     const metadata = await fetch(`${base}/${kind}/manifest.json`).then((r) => r.json()) as Partial<Record<AnimationFrame["action"], {
       available?: boolean; image: string; frameCount: number; frameWidth: number; frameHeight: number; storedScale: number; anchorX: number; anchorY: number; rows: string[];
     }>>;
     await Promise.all(Object.entries(metadata).map(async ([action, m]) => {
       if (m.available === false) return;
       const img = await loadImage(`${base}/${kind}/${m.image}`);
-      const atlas = { ...derive(img, undefined, undefined, true), scale: 1 / m.storedScale, anchorX: m.anchorX, anchorY: m.anchorY };
+      const atlas = { ...derive(img, undefined, undefined, isCharacter(kind)), scale: 1 / m.storedScale, anchorX: m.anchorX, anchorY: m.anchorY };
       animations.set(`${kind}:${action}`, m.rows.map((_, row) => Array.from({ length: m.frameCount }, (_, frame) => animationCell(atlas, {
         x: frame * m.frameWidth, y: row * m.frameHeight, width: m.frameWidth, height: m.frameHeight,
       }))));
@@ -113,8 +113,10 @@ async function buildSprites(base: string): Promise<SpriteSet> {
   }));
   return (kind, dir = 2, animation) => {
     if (animation) {
-      const frames = animations.get(`${kind === "agent" ? "king" : kind}:${animation.action}`)?.[SHEET_VIEW[dir]];
-      if (frames) return { art: frames[Math.max(0, Math.min(frames.length - 1, Math.floor(animation.frame)))], flip: MIRRORED[dir] };
+      const canonical = kind === "agent" ? "king" : kind === "nexus" ? "castle" : kind;
+      const building = canonical === "castle" || canonical === "turret";
+      const frames = animations.get(`${canonical}:${animation.action}`)?.[building ? 0 : SHEET_VIEW[dir]];
+      if (frames) return { art: frames[Math.max(0, Math.min(frames.length - 1, Math.floor(animation.frame)))], flip: building ? false : MIRRORED[dir] };
     }
     const file = FILES[kind] ?? kind;
     const view = arts.get(`${file}_${SHEET_VIEW[dir]}`);

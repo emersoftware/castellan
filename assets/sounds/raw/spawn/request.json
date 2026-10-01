@@ -1,0 +1,14 @@
+{
+  "space": "OpenMOSS-Team/MOSS-SoundEffect-v2.0",
+  "prompt": "A single soft warm note on a wooden hang drum, gentle and round, close-mic ASMR. Close, dry, no music, no reverb, no voices, no whispering.",
+  "seconds": 2,
+  "steps": 50,
+  "cfg_scale": 4.0,
+  "sigma_shift": 5.0,
+  "seeds": [
+    1,
+    2,
+    3,
+    4
+  ]
+}

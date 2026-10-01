@@ -2,16 +2,10 @@
  "scale": 3,
  "sprites": {
   "tower": {
-   "frame": {
-    "x": 45,
-    "y": 0,
-    "width": 83,
-    "height": 182
-   },
-   "width": 42.666666666666664,
-   "height": 60.666666666666664,
-   "anchorX": 0.6171875,
-   "anchorY": 0.8934065934065936
+   "width": 36,
+   "height": 72,
+   "anchorX": 0.5039370078740157,
+   "anchorY": 0.8661417322834646
   },
   "wall": {
    "width": 34.333333333333336,
@@ -176,23 +170,44 @@
    "anchorY": 0.6772413793103448
   },
   "castle": {
-   "width": 56.333333333333336,
-   "height": 72.33333333333333,
-   "anchorX": 0.6113609467455622,
-   "anchorY": 0.7802764976958526
+   "width": 60,
+   "height": 78,
+   "anchorX": 0.5,
+   "anchorY": 0.860236220472441
   },
   "door": {
-   "width": 32,
-   "height": 40,
-   "anchorX": 0.5,
-   "anchorY": 0.8,
+   "width": 34.333333333333336,
+   "height": 36,
+   "anchorX": 0.429126213592233,
+   "anchorY": 0.7462962962962963,
    "format": "svg"
   },
   "door-open": {
-   "width": 32,
-   "height": 40,
-   "anchorX": 0.5,
-   "anchorY": 0.8,
+   "width": 34.333333333333336,
+   "height": 36,
+   "anchorX": 0.429126213592233,
+   "anchorY": 0.7462962962962963,
+   "format": "svg"
+  },
+  "wall-door-left": {
+   "width": 34.333333333333336,
+   "height": 36,
+   "anchorX": 0.429126213592233,
+   "anchorY": 0.7462962962962963,
+   "format": "svg"
+  },
+  "wall-door-right": {
+   "width": 34.333333333333336,
+   "height": 36,
+   "anchorX": 0.429126213592233,
+   "anchorY": 0.7462962962962963,
+   "format": "svg"
+  },
+  "wall-door-both": {
+   "width": 34.333333333333336,
+   "height": 36,
+   "anchorX": 0.429126213592233,
+   "anchorY": 0.7462962962962963,
    "format": "svg"
   }
  }

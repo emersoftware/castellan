@@ -1,0 +1,16 @@
+{
+  "idle": {
+    "image": "turret-idle.png",
+    "fps": 12,
+    "frameCount": 28,
+    "frameWidth": 108,
+    "frameHeight": 216,
+    "storedScale": 3,
+    "anchorX": 0.5039370078740157,
+    "anchorY": 0.8661417322834646,
+    "loop": true,
+    "rows": [
+      "se"
+    ]
+  }
+}

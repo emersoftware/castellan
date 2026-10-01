@@ -1,0 +1,12 @@
+{
+  "space": "OpenMOSS-Team/MOSS-SoundEffect-v2.0",
+  "prompt": "A short medieval brass trumpet fanfare announcing victory.",
+  "seconds": 5,
+  "steps": 50,
+  "cfg_scale": 4.0,
+  "sigma_shift": 5.0,
+  "seeds": [
+    1,
+    2
+  ]
+}

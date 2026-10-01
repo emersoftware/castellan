@@ -17,3 +17,7 @@ export { v10 } from "./rulesets/v10";
 export { v11 } from "./rulesets/v11";
 export { v12 } from "./rulesets/v12";
 export { v13 } from "./rulesets/v13";
+export { v14 } from "./rulesets/v14";
+
+export { v15 } from "./rulesets/v15";
+export { barrierAxes } from "./barriers";

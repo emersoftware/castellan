@@ -33,6 +33,9 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series 
   const [playerEvents, setPlayerEvents] = useState<Record<string, GameEvent[]>>({});
   const [lost, setLost] = useState(false);
 
+  useEffect(() => sfx.holdAmbient(), []);
+  useEffect(() => sfx.holdMusic("battle"), []);
+
   useEffect(() => {
     if (room.error instanceof Error && room.error.message.startsWith("404 ")) setArchived(true);
   }, [room.error]);

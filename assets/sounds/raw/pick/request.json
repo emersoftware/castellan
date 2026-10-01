@@ -1,0 +1,14 @@
+{
+  "space": "OpenMOSS-Team/MOSS-SoundEffect-v2.0",
+  "prompt": "Soft ASMR tap of a pick into a rock, a gentle muffled stone crack and tiny pebbles crumbling, no metallic ring. Close, dry, no music, no reverb, no voices, no whispering.",
+  "seconds": 1.5,
+  "steps": 50,
+  "cfg_scale": 4.0,
+  "sigma_shift": 5.0,
+  "seeds": [
+    1,
+    2,
+    3,
+    4
+  ]
+}

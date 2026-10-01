@@ -30,6 +30,8 @@ export interface Ruleset {
    * building. Zero allows building next to enemies, including tower rushes.
    */
   buildExclusion: number;
+  /** Same-owner wall/door connections must keep doors on one axis; legacy layouts are unchanged. */
+  straightDoors?: boolean;
   kinds: Record<string, KindSpec>;
   /** Optional in old replays. Research belongs to a player and affects one kind. */
   upgrades?: Record<string, UpgradeSpec>;
@@ -38,7 +40,13 @@ export interface Ruleset {
   /** Shared team vision; remember explored terrain, but never unseen enemy updates. */
   fogOfWar?: { rememberTerrain: boolean };
   /** Real ranged shots; absent preserves legacy instant damage. Speed is Euclidean tiles/s. */
-  projectiles?: { speed: number; unitRadius: number; buildingRadius: number };
+  projectiles?: {
+    speed: number; unitRadius: number; buildingRadius: number;
+    /** Hostile building kinds shots fly over: they are hit only by a shot aimed at them. Absent: every hostile entity intercepts. */
+    flyOver?: string[];
+    /** Identify the aimed-at fly-over building by entity ID, not its potentially shared tile. */
+    flyOverTargetById?: boolean;
+  };
   /** Expose recent damage and economy controls to scripts; preserve older VM views. */
   reactiveScripts?: boolean;
   /**
@@ -95,6 +103,8 @@ export interface KindSpec {
   atk?: number;
   range?: number;
   attackMs?: number;
+  /** Mobile shooters stand still this long after each attack (their move order waits). */
+  aimMs?: number;
   /** Runs a player script when it has no order. */
   scriptable?: boolean;
   /** Can extract capital from deposits. */

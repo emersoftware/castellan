@@ -1,0 +1,16 @@
+{
+  "space": "OpenMOSS-Team/MOSS-SoundEffect-v2.0",
+  "prompt": "A sword blow landing on a wooden shield, one soft deep thump with a short low wooden knock, muffled, warm and creamy, no metal ring. Close, dry, no music, no reverb, no voices, no whispering.",
+  "seconds": 1.5,
+  "steps": 50,
+  "cfg_scale": 4.0,
+  "sigma_shift": 5.0,
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ]
+}

@@ -8,6 +8,8 @@ import { GameCanvas } from "../components/GameCanvas";
 import { Portrait } from "../components/Portrait";
 import { useReplayFrames } from "../useReplay";
 import { loadSprites } from "../render/sprites";
+import { sfx } from "../audio/sfx";
+import { SoundToggle } from "../components/Hud";
 
 const SHOWCASE = "ef3532ef";
 
@@ -19,6 +21,7 @@ export function Landing() {
 
   // Prepare the unit art while the replay downloads and re-simulates.
   useEffect(() => { loadSprites().catch(() => {}); }, []);
+  useEffect(() => sfx.holdMusic("theme"), []);
 
   // The page appears at once with the battle, not text first. If the battle
   // cannot load, show the page anyway.
@@ -46,12 +49,15 @@ export function Landing() {
 
   const colors = useMemo(() => playerColors(showcase.data?.players ?? []), [showcase.data]);
   const k = v8.kinds;
+  const [teams, setTeams] = useState([0, 1, 2, 3, 0, 1, 2, 3]);
+  const nextTeam = (index: number) => setTeams(current => current.map((team, i) => i === index ? (team + 1) % 4 : team));
 
   return (
     <div className={ready ? "landing" : "landing pending"}>
+      <div className="page-sound"><SoundToggle /></div>
       <section className="hero">
         <div className="hero-field" role="img" aria-label="Battlefield from a real Age of Agents match">
-          {showcase.data && loaded > 0 && <GameCanvas ruleset={showcase.data.ruleset} colors={colors} frame={frame} tickMs={50} bare interactive={false} onReady={() => setReady(true)} />}
+          {showcase.data && loaded > 0 && <GameCanvas ruleset={showcase.data.ruleset} colors={colors} frame={frame} tickMs={50} sound={sfx.play} bare interactive={false} onReady={() => setReady(true)} />}
         </div>
         <div className="hero-content">
           <div className="hero-copy">
@@ -96,9 +102,9 @@ export function Landing() {
             ["wall", "Wall", "One-tile barrier. Blocks passage.", `${k.wall.cost} gold`],
             ["door", "Door", "One-tile passage for you and your allies.", `${k.door.cost} gold`],
             ["castle", "Castle", "Trains units, stores resources and shoots back.", `${k.castle.hp} hp`],
-          ].map(([kind, name, text, stat]) => (
-            <div key={kind} className="unit">
-              <Portrait kind={kind} team={kind === "castle" || kind === "turret" ? 1 : 0} height={kind === "castle" ? 110 : 120} />
+          ].map(([kind, name, text, stat], index) => (
+            <div key={kind} className="unit" tabIndex={0} aria-label={`${name}: preview next player color`} onPointerEnter={() => nextTeam(index)} onFocus={() => nextTeam(index)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); nextTeam(index); } }}>
+              <Portrait kind={kind} team={teams[index]} height={120} idle />
               <h4>{name}</h4>
               <p>{text}</p>
               <span className="stat">{stat}</span>

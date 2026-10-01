@@ -1,0 +1,16 @@
+{
+  "space": "OpenMOSS-Team/MOSS-SoundEffect-v2.0",
+  "prompt": "A body softly falling onto grass, one short muffled thud with a light rustle of cloth, gentle, low intensity. Close, dry, no music, no reverb, no voices, no whispering.",
+  "seconds": 1.5,
+  "steps": 50,
+  "cfg_scale": 4.0,
+  "sigma_shift": 5.0,
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ]
+}

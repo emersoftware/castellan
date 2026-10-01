@@ -1,13 +1,12 @@
 // @vitest-environment jsdom
 import { expect, it } from "vitest";
 import { Texture, TextureSource } from "pixi.js";
-import manifest from "../public/sprites/manifest.json";
 import { animationCell, cropSpriteArt } from "../src/render/sprites";
 
-it("excludes the stray building from every tower layer without shifting its ground anchor", () => {
+it("crops unwanted source fragments from every layer without shifting the ground anchor", () => {
   const texture = new Texture({ source: new TextureSource({ width: 128, height: 182 }) });
-  const tower = manifest.sprites.tower;
-  const art = { texture, silhouette: texture, xray: Array(4).fill(texture), scale: 1 / manifest.scale, anchorX: tower.anchorX, anchorY: tower.anchorY };
+  const tower = { anchorX: 0.6171875, anchorY: 0.8934065934065936, frame: { x: 45, y: 0, width: 83, height: 182 } };
+  const art = { texture, silhouette: texture, xray: Array(4).fill(texture), scale: 1 / 3, anchorX: tower.anchorX, anchorY: tower.anchorY };
   const cropped = cropSpriteArt(art, tower.frame);
   for (const layer of [cropped.texture, cropped.silhouette, ...cropped.xray]) {
     // The source's unwanted fragment occupies columns 0–40; the tower starts at 50.

@@ -28,7 +28,7 @@ def main(options):
     for kind in kinds:
         assert kind in ('king','knight','ranger','worker')
         equipment={'knight':'sword and shield','king':'crown, cloak and scepter','ranger':'bow and quiver','worker':'pickaxe'}[kind]
-        actions=[options.action] if options.action else (['walk','mine','attack','death'] if kind=='worker' else ['death'] if kind=='ranger' else ['idle','walk']+(['attack'] if kind=='knight' else []))
+        actions=[options.action] if options.action else (['idle','walk','mine','attack','death'] if kind=='worker' else ['death'] if kind=='ranger' else ['idle','walk']+(['attack'] if kind=='knight' else []))
         for action in actions:
             if options.action and options.action != action: continue
             for stage in (['bootstrap','continuous'] if action=='walk' else [action]):

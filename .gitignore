@@ -17,6 +17,8 @@ assets/animations/**/*frames*/
 assets/animations/**/attempt-*/
 assets/animations/**/rejected-*/
 assets/animations/downloads/
+assets/sounds/downloads/
+assets/music/__pycache__/
 assets/animations/**/*.gif
 assets/animations/**/contact-sheet.png
 assets/animations/**/*.jsonl

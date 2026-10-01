@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {resolve} from 'node:path';
 const root=resolve(import.meta.dirname,'../../..');
 const sharp=createRequire(root+'/packages/web/package.json')('sharp');
-const expected={ranger:['idle','walk','shoot','death'],knight:['idle','walk','attack','death'],king:['idle','walk','attack','death'],worker:['walk','mine','attack','death']};
+const expected={ranger:['idle','walk','shoot','death'],knight:['idle','walk','attack','death'],king:['idle','walk','attack','death'],worker:['idle','walk','mine','attack','death']};
 let atlases=0,cells=0;
 for(const [kind,actions] of Object.entries(expected)){
  const base=root+'/packages/web/public/sprites/'+kind;

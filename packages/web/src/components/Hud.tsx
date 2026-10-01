@@ -1,5 +1,5 @@
 import { displayKind } from "../render/names";
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useSyncExternalStore, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { ChatMessage, GameEvent, PlayerStats, SpectatorView } from "@aoa/shared";
 import type { HoverInfo } from "../render/renderer";
 import { fmtTime, winnersOf } from "../api";
@@ -294,19 +294,19 @@ export function OutcomeBanner({ view, names, colors = {}, dismissible, children 
   );
 }
 
-/** Sound on/off; the first click also unlocks audio in the browser. */
+/** Separate, shared preferences in every view. A press also unlocks browser audio. */
 export function SoundToggle() {
-  const [muted, setMuted] = useState(sfx.muted);
+  useSyncExternalStore(sfx.subscribe, sfx.snapshot);
   return (
-    <button
-      className="sound"
-      title={muted ? "sound off" : "sound on"}
-      onClick={() => {
-        sfx.setMuted(!muted);
-        setMuted(!muted);
-      }}
-    >
-      {muted ? "sound: off" : "sound: on"}
-    </button>
+    <div className="audio-controls" role="group" aria-label="Audio">
+      <button className="sound" aria-pressed={!sfx.effectsMuted} onClick={() => sfx.setEffectsMuted(!sfx.effectsMuted)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4Z" />{sfx.effectsMuted ? <path d="m16 9 6 6m0-6-6 6" /> : <><path d="M15 8a6 6 0 0 1 0 8" /><path d="M18 5a10 10 0 0 1 0 14" /></>}</svg>
+        <span>Sounds: {sfx.effectsMuted ? "off" : "on"}</span>
+      </button>
+      <button className="sound" aria-pressed={!sfx.musicMuted} onClick={() => sfx.setMusicMuted(!sfx.musicMuted)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13M9 9l11-2" /><ellipse cx="6" cy="18" rx="3" ry="2" /><ellipse cx="17" cy="16" rx="3" ry="2" />{sfx.musicMuted && <path d="m3 3 18 18" />}</svg>
+        <span>Music: {sfx.musicMuted ? "off" : "on"}</span>
+      </button>
+    </div>
   );
 }

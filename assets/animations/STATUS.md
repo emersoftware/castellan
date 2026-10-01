@@ -1,4 +1,4 @@
-# Animation status — 2026-09-28 (Chile)
+# Animation status — 2026-10-01 (Chile)
 
 ## Integrated and reviewed
 
@@ -7,11 +7,11 @@
 | Ranger | idle, walking, shooting, death |
 | Knight | idle, walking, melee attack, death |
 | King | idle, walking, melee attack, death |
-| Worker | walking, mining, melee attack, death |
+| Worker | idle, walking, mining, melee attack, death |
 
 Five generated views (S, SE, E, NE, N) plus mirrored NW/W/SW cover each action.
 All actions above are published under `packages/web/public/sprites/`.
-The Worker keeps its existing static idle. No requested action remains pending.
+Worker idle now uses five generated views, covering all eight directions, in the game and landing. No requested action remains pending.
 
 New matches use `v9-worker-scripts`: Workers mine by default; their scripts may
 choose resources, unload, fight, flee or hold. The King has attack 3, range 1 and
@@ -37,7 +37,22 @@ Ranger/Knight/King/Worker sprites and portraits share shadow/midtone/highlight
 targets. Each complete atlas is measured once, preventing per-frame brightness
 pumping. Source art and alpha silhouettes remain unchanged.
 
-## Verification
+## Worker idle update — 2026-10-01
+
+Generated with the public MiniMax Space using the existing source sheet, four steps,
+seed 42 and matching first/last references. Reviewed all five source contact sheets
+and exported frames. The atlas contains 140 cells at 12 fps with the same ground
+anchor and contrast normalization as the other Worker actions.
+
+- 83 unit-animation tests pass, including walk/pause/seek, melee recovery and
+  mining-to-idle transitions.
+- The asset audit passes for 17 atlases and 2,380 cells in eight directions.
+- Browser QA confirms an animated landing portrait, reduced-motion freeze,
+  eight in-game facings with mirrored west views, and pause without errors.
+- Production build (including web TypeScript) passes.
+- Reproduce the browser check: `node packages/web/scripts/check-worker-idle.mjs`.
+
+## Previous verification — 2026-09-28
 
 - Full project suite: 254 tests passed across 38 files.
 - 82 unit-animation tests cover all directional deaths, contact markers, target

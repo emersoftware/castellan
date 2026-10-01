@@ -14,7 +14,9 @@ import { RAMPS, PLAYER_RAMPS, dim } from "./palette";
 import { depositSprite, initialDepositAmount } from "./deposits";
 import { type RangerShot } from "./rangerAnimation";
 
-import { animatedUnit, unitAnimation, recoveryMs, hasUnitAnimation, unitDeathAnimation, unitMiningAnimation } from "./unitAnimation";
+import { barrierAxes } from "@aoa/shared";
+
+import { animatedUnit, unitAnimation, recoveryMs, hasUnitAnimation, unitDeathAnimation, unitMiningAnimation, miningStrikes } from "./unitAnimation";
 
 export interface HoverInfo {
   x: number;
@@ -24,7 +26,7 @@ export interface HoverInfo {
   deposit?: DepositView;
 }
 
-export type SoundName = "sword" | "arrow" | "tower" | "death" | "collapse" | "spawn" | "build" | "coin" | "horn" | "fanfare" | "chat";
+export type SoundName = "sword" | "hit" | "arrow" | "tower" | "pick" | "footstep" | "death" | "collapse" | "spawn" | "build" | "horn" | "fanfare" | "chat";
 /** Plays a named sound effect, panned -1 (left) … 1 (right). */
 export type SoundSink = (name: SoundName, pan: number, volume: number) => void;
 
@@ -52,6 +54,9 @@ interface Drawn {
   flashUntil: number;
   lungeUntil: number;
   lunge: { x: number; y: number };
+  /** Half-tile footfalls walked so far, and the pick's swing phase: sound cues. */
+  footfalls?: number;
+  swing?: number;
 }
 
 interface Effect {
@@ -242,6 +247,7 @@ export class GameRenderer {
           d.walkUntil = undefined;
           d.step = undefined;
           d.walkDistance = 0;
+          d.swing = undefined;
           d.from = d.to = { x: e.x, y: e.y };
         }
         else if (e.x !== d.to.x || e.y !== d.to.y) {
@@ -398,11 +404,15 @@ export class GameRenderer {
   private layoutWalls() {
     const at = new Map<string, Drawn>();
     for (const d of this.drawn.values()) if (d.view.kind === "wall" || d.view.kind === "door") at.set(`${d.to.x},${d.to.y},${d.view.owner}`, d);
-    const has = (d: Drawn, dx: number, dy: number) => at.has(`${d.to.x + dx},${d.to.y + dy},${d.view.owner}`);
     for (const d of at.values()) {
-      const alongX = has(d, 1, 0) || has(d, -1, 0);
-      const alongY = has(d, 0, 1) || has(d, 0, -1);
-      const { art } = this.sprites(d.view.kind === "door" ? (d.view.open ? "door-open" : "door") : alongX !== alongY ? "wall" : "wallpost");
+      const { alongX, alongY } = barrierAxes(d.to.x, d.to.y, (x, y) => at.has(`${x},${y},${d.view.owner}`));
+      let kind = d.view.kind === "door" ? (d.view.open ? "door-open" : "door") : alongX !== alongY ? "wall" : "wallpost";
+      if (kind === "wall") {
+        const doorAt = (sign: number) => at.get(`${d.to.x + (alongX ? sign : 0)},${d.to.y + (alongY ? sign : 0)},${d.view.owner}`)?.view.kind === "door";
+        const left = doorAt(1), right = doorAt(-1);
+        if (left || right) kind = `wall-door-${left && right ? "both" : left ? "left" : "right"}`;
+      }
+      const { art } = this.sprites(kind);
       d.sprite.texture = art.texture;
       d.sprite.anchor.set(art.anchorX, art.anchorY);
       d.sprite.scale.set(alongX && !alongY ? -art.scale : art.scale, art.scale);
@@ -526,6 +536,14 @@ export class GameRenderer {
           const dx = mining.x - d.view.x, dy = mining.y - d.view.y;
           d.dir = screenDir(dx - dy, (dx + dy) / 2);
         }
+        // Footfalls and pick strikes follow the animation. Only units on screen are heard.
+        const footfalls = walking ? Math.floor(distance * 2) : undefined;
+        if (footfalls !== undefined && d.footfalls !== undefined && footfalls > d.footfalls) this.play("footstep", x, y, 0.2, false);
+        d.footfalls = footfalls;
+        const strikes = miningStrikes(d.dir);
+        const swing = animation?.action === "mine" ? Number(animation.frame >= strikes[0] && animation.frame < strikes[1]) : undefined;
+        if (swing !== undefined && d.swing !== undefined && swing !== d.swing) this.play("pick", x, y, 0.4, false);
+        d.swing = swing;
         const { art, flip } = this.sprites(d.view.kind, d.shot?.dir ?? d.dir, animation);
         d.sprite.texture = art.texture;
         d.sprite.anchor.set(art.anchorX, art.anchorY);
@@ -548,6 +566,13 @@ export class GameRenderer {
           d.outline.tint = depthTint(d.sprite.zIndex);
           d.outline.zIndex = d.sprite.zIndex;
         }
+      }
+      if (building && ["castle", "nexus", "turret"].includes(d.view.kind)) {
+        const { art } = this.sprites(d.view.kind, 1, { action: "idle", frame: Math.floor(Math.max(0, animationMs) * 12 / 1000) % 28 });
+        d.sprite.texture = art.texture;
+        d.sprite.anchor.set(art.anchorX, art.anchorY);
+        d.sprite.scale.set(art.scale);
+        if (d.depth) d.depth.texture = art.silhouette;
       }
       // Colour separates overlapping units; only the building tag enables x-ray.
       if (d.depth) this.syncDepth(d.sprite, d.depth, d.color, !!building);
@@ -622,7 +647,7 @@ export class GameRenderer {
           from.shot = { at: this.gameMs, dir: from.dir };
         }
         if (!ev.projectile && to) this.effects.push(this.arrow(from, to));
-        this.play(spec?.building ? "tower" : "arrow", from.to.x, from.to.y, 0.6);
+        this.play(spec?.building ? "tower" : "arrow", from.to.x, from.to.y, 0.35);
       } else if (targetPosition) {
         if (hasUnitAnimation(from.view.kind, "attack")) {
           const position = this.position(from, this.alpha(now), this.animationMs(now));
@@ -641,24 +666,19 @@ export class GameRenderer {
     } else if (ev.type === "projectile_end") {
       if (ev.reason !== "miss") {
         this.effects.push(this.dust(ev.x, ev.y, RAMPS.neutral.key, 3, 5));
+        this.play("hit", ev.x, ev.y, 0.5);
         const target = ev.target && this.drawn.get(ev.target);
         if (target) target.flashUntil = now + 90;
       }
     } else if (ev.type === "death") {
       const vital = this.ruleset.kinds[ev.kind]?.vital;
       const building = this.ruleset.kinds[ev.kind]?.building;
-      this.play(vital ? "horn" : building ? "collapse" : "death", ev.x, ev.y, vital ? 1 : 0.7);
+      this.play(vital ? "horn" : building ? "collapse" : "death", ev.x, ev.y, vital ? 1 : building ? 0.7 : 0.4);
       if (vital) this.effects.push(this.floatText(["king", "agent"].includes(ev.kind) ? "KING DOWN" : `${ev.kind.toUpperCase()} DESTROYED`, ev.x, ev.y, RAMPS.neutral.key, 3200, 12));
     } else if (ev.type === "spawn") {
       const building = this.ruleset.kinds[ev.kind]?.building;
       this.effects.push(this.dust(ev.x, ev.y, 0xaaaaaa, building ? 14 : 6));
       this.play(building ? "build" : "spawn", ev.x, ev.y, 0.5);
-    } else if (ev.type === "unload") {
-      const d = this.drawn.get(ev.id);
-      if (d) {
-        this.effects.push(this.floatText(`+${ev.amount}`, d.to.x, d.to.y, RAMPS.gold.key));
-        this.play("coin", d.to.x, d.to.y, 0.35);
-      }
     } else if (ev.type === "chat") {
       const king = [...this.drawn.values()].find((d) => d.view.owner === ev.owner && ["king", "agent"].includes(d.view.kind));
       if (king) {
@@ -670,8 +690,8 @@ export class GameRenderer {
     }
   }
 
-  /** Pans with the screen position; quieter the farther off-screen. */
-  private play(name: SoundName, x: number, y: number, volume: number) {
+  /** Pans with the screen position; quieter the farther off-screen, or silent there. */
+  private play(name: SoundName, x: number, y: number, volume: number, offscreen = true) {
     const { sx, sy } = iso(x, y);
     const px = this.world.x + sx * this.zoomLevel;
     const py = this.world.y + sy * this.zoomLevel;
@@ -679,6 +699,7 @@ export class GameRenderer {
     const h = this.app.renderer.height;
     const pan = Math.max(-1, Math.min(1, (px / w) * 2 - 1));
     const off = Math.max(0, Math.abs(px - w / 2) - w / 2, Math.abs(py - h / 2) - h / 2);
+    if (off > 0 && !offscreen) return;
     this.sound(name, pan, volume * Math.max(0.15, 1 - off / 400));
   }
 

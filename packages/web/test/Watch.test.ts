@@ -16,7 +16,7 @@ vi.mock("../src/components/Hud", () => ({
   Tooltip: () => null, PlayerList: () => null, notableEvents: (events: unknown[]) => events,
 }));
 vi.mock("../src/routes/Replay", () => ({ ReplayPlayer: ({ id }: { id: string }) => createElement("div", null, `Saved replay ${id}`), writeUrl: () => {} }));
-vi.mock("../src/audio/sfx", () => ({ sfx: { muted: true } }));
+vi.mock("../src/audio/sfx", () => ({ sfx: { muted: true, holdAmbient: () => () => {}, holdMusic: () => () => {} } }));
 
 let root: Root;
 let host: HTMLDivElement;
