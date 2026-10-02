@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
-import { mkdtemp, realpath, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir, homedir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -55,6 +55,8 @@ describe("Antigravity connector", () => {
     const conversation = randomUUID();
     const projectPath = join(homedir(), ".gemini/config/projects", `${projectId}.json`);
     files.push(projectPath);
+    // A fresh CI machine has no Antigravity installation or project directory.
+    await mkdir(dirname(projectPath), { recursive: true });
     await writeFile(projectPath, JSON.stringify(await preparePlayer({ workspace: root, projectId, server: "http://localhost:4400", token: "player-only" })), { mode: 0o600 });
     await writeFile(bin, `#!${process.execPath}\nconst args = process.argv.slice(2);\nif (!args.includes('--conversation')) { console.log(JSON.stringify({ status: 'SUCCESS', conversation_id: '${conversation}' })); }\nelse require('node:fs').writeFileSync(process.env.CAPTURE, JSON.stringify({ args, cwd: process.cwd(), token: process.env.AOA_TOKEN }));\n`, { mode: 0o700 });
     const env = { ...process.env, AOA_AGY_BIN: bin, AOA_AGY_PROJECT: projectId, AOA_TOKEN: "player-only", CAPTURE: capture };
