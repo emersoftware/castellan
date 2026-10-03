@@ -132,6 +132,14 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return room ? room.summary() : reply.code(404).send({ error: "no such room" });
   });
 
+  // Observer view of the code each player's scriptable kinds run now (the watch page's unit panel).
+  app.get("/rooms/:id/scripts", async (req, reply) => {
+    const room = rooms.get((req.params as { id: string }).id);
+    if (!room) return reply.code(404).send({ error: "no such room" });
+    const kinds = Object.entries(room.ruleset.kinds).filter(([, k]) => k.scriptable).map(([kind]) => kind);
+    return Object.fromEntries(room.players.map((p) => [p.id, Object.fromEntries(kinds.map((kind) => [kind, room.script(p.id, kind)]))]));
+  });
+
   app.get("/replays", async () => Promise.all((await readIndex(opts.replayDir)).map(async (entry) => ({
     ...entry,
     savedAt: await stat(join(opts.replayDir, `${entry.id}.json.gz`)).then((file) => file.mtime.toISOString()).catch(() => entry.createdAt),

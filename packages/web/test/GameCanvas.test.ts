@@ -18,6 +18,8 @@ function fakeRenderer() {
     setFrame: vi.fn(checkAlive),
     setPaused: vi.fn(checkAlive),
     onHover: vi.fn(checkAlive),
+    onSelect: vi.fn(checkAlive),
+    select: vi.fn(checkAlive),
     onSound: vi.fn(checkAlive),
     zoom: vi.fn(checkAlive),
   };

@@ -47,11 +47,16 @@ export function setDroppedReplay(r: ReplayFile) {
 }
 export function setDroppedSeries(r: SeriesReplay) { droppedSeries = r; }
 
+/** Per player, per kind: the script it runs (null for a kind without one). */
+export type LiveScripts = Record<string, Record<string, { code: string; custom: boolean } | null>>;
+
 export const api = {
   series: () => fetch(seriesPath()).then((r) => json<SeriesSummary[]>(r)),
   seriesSummary: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries.series) : fetch(`${seriesPath()}/${id}`).then((r) => json<SeriesSummary>(r)),
   seriesReplay: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries) : fetch(`${seriesPath()}/${id}/replay.json`).then((r) => json<SeriesReplay>(r)),
   room: (id: string) => fetch(`/rooms/${id}`).then((r) => json<RoomSummary>(r)),
+  /** Live room: the code each player's scriptable kinds run now. */
+  roomScripts: (id: string) => fetch(`/rooms/${id}/scripts`).then((r) => json<LiveScripts>(r)),
 
   /** Featured replays ship with the site; a local server adds yours. */
   async replays(): Promise<ReplaySummary[]> {

@@ -6,7 +6,9 @@ import { api, playerColors, fmtTime } from "../api";
 import { playerPerspective } from "../perspective";
 import { sfx } from "../audio/sfx";
 import { GameCanvas } from "../components/GameCanvas";
-import { OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, notableEvents } from "../components/Hud";
+import { DepositPanel, OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, UnitPanel, notableEvents } from "../components/Hud";
+import { useUnitSelection } from "../useSelection";
+import { scriptAt } from "../scripts";
 import type { HoverInfo, SoundSink } from "../render/renderer";
 import { useReplayFrames } from "../useReplay";
 import { Arrow } from "../components/Arrow";
@@ -170,6 +172,10 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
 
   const frame = frames.current[index] ?? null;
   const display = playerPerspective(frame, selectedPlayer);
+  const unit = useUnitSelection(display?.entities, display?.deposits);
+  const shownUnit = unit.entity ?? unit.last;
+  const unitScript = useMemo(() => shownUnit && replay.data ? scriptAt(replay.data, shownUnit.owner, shownUnit.kind, frame?.tick ?? index) : undefined,
+    [shownUnit?.owner, shownUnit?.kind, replay.data, frame?.tick, index]);
   const total = replay.data ? replay.data.finalTick + 1 : 0;
   const names = useMemo(() => Object.fromEntries((replay.data?.players ?? []).map((p) => [p.id, p.name])), [replay.data]);
   const colors = useMemo(() => playerColors(replay.data?.players ?? []), [replay.data]);
@@ -198,8 +204,10 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
   return (
     <div className="game viewer" onPointerDown={() => !sfx.muted && sfx.unlock()}>
       <div className="stage">
-        {replay.data && <GameCanvas key={selectedPlayer ?? "all"} ruleset={replay.data.ruleset} colors={colors} frame={display} tickMs={tickMs / speed} paused={!playing} jumpKey={jumpKey} onHover={setHover} sound={sound} />}
-        <Tooltip hover={hover} names={names} colors={colors} />
+        {replay.data && <GameCanvas key={selectedPlayer ?? "all"} ruleset={replay.data.ruleset} colors={colors} frame={display} tickMs={tickMs / speed} paused={!playing} jumpKey={jumpKey} onHover={setHover} selected={unit.selected} onSelect={unit.setSelected} sound={sound} />}
+        {unit.deposit ? <DepositPanel deposit={unit.deposit} onClose={() => unit.setSelected(null)} />
+          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} tickMs={tickMs} names={names} colors={colors} onClose={() => unit.setSelected(null)} />
+          : <Tooltip hover={hover} names={names} colors={colors} />}
         <div className="corner">
           <Link to="/battles"><Arrow dir="left" /> Battles</Link>
         </div>

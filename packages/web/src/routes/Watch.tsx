@@ -4,7 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import type { GameEvent, Ruleset, SpectatorMessage, SpectatorView } from "@aoa/shared";
 import { api, fmtTime, playerColors, spectateUrl } from "../api";
 import { GameCanvas } from "../components/GameCanvas";
-import { OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, notableEvents } from "../components/Hud";
+import { DepositPanel, OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, UnitPanel, notableEvents } from "../components/Hud";
+import { useUnitSelection } from "../useSelection";
+import { defaultScript } from "../scripts";
 import { ReplayPlayer, writeUrl } from "./Replay";
 import { Agent } from "../components/Agent";
 import { Arrow } from "../components/Arrow";
@@ -80,6 +82,12 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series 
   // fail independently; an old "prep" response must not cover a running match.
   const display = playerPerspective(frame, selectedPlayer);
   const status = frame?.status ?? room.data?.status;
+  const unit = useUnitSelection(display?.entities, display?.deposits);
+  const shownUnit = unit.entity ?? unit.last;
+  // The live room reports each player's scripts; polled only while a unit is selected.
+  const scripts = useQuery({ queryKey: ["scripts", id], queryFn: () => api.roomScripts(id), enabled: !!shownUnit && !archived, refetchInterval: 2000 });
+  const unitScript = !shownUnit || !ruleset ? undefined : !ruleset.kinds[shownUnit.kind]?.scriptable ? null
+    : scripts.data ? scripts.data[shownUnit.owner]?.[shownUnit.kind] ?? defaultScript(ruleset, shownUnit.kind) : undefined;
 
   useEffect(() => { if (syncUrl) writeUrl({ pov: selectedPlayer }); }, [syncUrl, selectedPlayer]);
 
@@ -90,8 +98,10 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series 
   return (
     <div className="game viewer" onPointerDown={() => !sfx.muted && sfx.unlock()}>
       <div className="stage">
-        {ruleset && Object.keys(colors).length > 0 && <GameCanvas key={selectedPlayer ?? "all"} ruleset={ruleset} colors={colors} frame={display} tickMs={tickMs} onHover={setHover} sound={sfx.play} />}
-        <Tooltip hover={hover} names={names} colors={colors} />
+        {ruleset && Object.keys(colors).length > 0 && <GameCanvas key={selectedPlayer ?? "all"} ruleset={ruleset} colors={colors} frame={display} tickMs={tickMs} onHover={setHover} selected={unit.selected} onSelect={unit.setSelected} sound={sfx.play} />}
+        {unit.deposit ? <DepositPanel deposit={unit.deposit} onClose={() => unit.setSelected(null)} />
+          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} tickMs={tickMs} names={names} colors={colors} onClose={() => unit.setSelected(null)} />
+          : <Tooltip hover={hover} names={names} colors={colors} />}
         <div className="corner">
           <Link to="/battles"><Arrow dir="left" /> Battles</Link>
         </div>

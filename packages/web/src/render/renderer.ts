@@ -80,6 +80,7 @@ export class GameRenderer {
   private objects = new Container();
   private fx = new Container();
   private hoverMark = new Graphics();
+  private selectMark = new Graphics();
   private fog = new Graphics();
   private visibility?: string[];
   /** Only units get x-ray outlines, behind buildings of their own colour. */
@@ -108,7 +109,16 @@ export class GameRenderer {
   private pauseOffset = 0;
   private zoomLevel = 1;
   private hoverCb: (h: HoverInfo | null) => void = () => {};
+  private selectCb: (id: string | null) => void = () => {};
+  /** The entity the viewer clicked; kept across frames until another click or `select(null)`. */
+  private selectedId: string | null = null;
   private hovered: { x: number; y: number } | null = null;
+  /** Pointer position in renderer pixels, to pick the sprite under it. */
+  private pointer: { x: number; y: number } | null = null;
+  /** The entity or deposit under the pointer, outlined on the ground like the selection. */
+  private hoverId: string | null = null;
+  /** Readable copies of sprite sheets, to hit-test only opaque pixels. */
+  private alphaSources = new WeakMap<object, CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null>();
   private resize?: ResizeObserver;
   private width: number;
   private height: number;
@@ -141,7 +151,7 @@ export class GameRenderer {
     this.xrayLayer.sortableChildren = true;
     this.outlineLayer.sortableChildren = true;
     this.depthWorld.addChild(this.depthLayer);
-    this.world.addChild(this.ground, this.shadows, this.hoverMark, this.objects, this.outlineLayer, this.xrayLayer, this.fx, this.fog);
+    this.world.addChild(this.ground, this.shadows, this.hoverMark, this.selectMark, this.objects, this.outlineLayer, this.xrayLayer, this.fx, this.fog);
     this.root.addChild(this.world);
     this.root.filters = [createDitherFilter()];
     this.app.stage.addChild(this.root);
@@ -152,6 +162,14 @@ export class GameRenderer {
     this.resize.observe(this.host);
     if (this.interactive) this.bindInput();
     this.app.ticker.add(() => this.animate());
+  }
+
+  onSelect(cb: (id: string | null) => void) {
+    this.selectCb = cb;
+  }
+
+  select(id: string | null) {
+    this.selectedId = id;
   }
 
   onHover(cb: (h: HoverInfo | null) => void) {
@@ -597,11 +615,32 @@ export class GameRenderer {
       graphic.moveTo(tail.sx, tail.sy - 6).lineTo(head.sx, head.sy - 6).stroke({ width: 1, color: 0xaaaaaa });
       graphic.rect(head.sx - 0.5, head.sy - 6.5, 1, 1).fill(0xffffff);
     }
+    this.drawSelection(a, animationMs);
     this.effects = this.effects.filter((e) => e.update(now));
     // Depth pass for the x-ray: occluders only, in the world's current view.
     this.depthWorld.position.copyFrom(this.world.position);
     this.depthWorld.scale.copyFrom(this.world.scale);
     this.app.renderer.render({ container: this.depthWorld, target: this.depthRT, clear: true, clearColor: [0, 0, 0, 0] });
+  }
+
+  /** Rings on the ground under the selected and hovered entity or deposit, following their drawn position. */
+  private drawSelection(alpha: number, animationMs: number) {
+    this.selectMark.clear();
+    const ring = (id: string | null, selected: boolean) => {
+      if (!id) return;
+      const d = this.drawn.get(id);
+      const deposit = d ? undefined : this.deposits.get(id);
+      if (!d && !deposit) return;
+      const { x, y } = d ? this.position(d, alpha, animationMs) : deposit!.view;
+      const { sx, sy } = iso(x, y);
+      const big = d ? this.ruleset.kinds[d.view.kind]?.building : false;
+      const w = (big ? 0.62 : 0.4) * TILE_W, h = (big ? 0.62 : 0.4) * TILE_H;
+      const color = !selected ? 0xffffff : d ? PLAYER_RAMPS[d.color].key : 0xffff55;
+      this.selectMark.ellipse(sx, sy + 2, w, h).stroke({ width: 1, color, alpha: selected ? 0.95 : 0.6 });
+      if (selected) this.selectMark.ellipse(sx, sy + 2, w + 2, h + 1).stroke({ width: 1, color: 0x000000, alpha: 0.5 });
+    };
+    if (this.hoverId !== this.selectedId) ring(this.hoverId, false);
+    ring(this.selectedId, true);
   }
 
   private drawBar(d: Drawn, sx: number) {
@@ -854,9 +893,19 @@ export class GameRenderer {
       drag = { x: e.clientX, y: e.clientY, wx: this.world.x, wy: this.world.y };
       cv.setPointerCapture(e.pointerId);
     });
-    cv.addEventListener("pointerup", () => (drag = null));
+    cv.addEventListener("pointerup", (e) => {
+      // A click (not a drag) selects the visible entity on that tile, or clears the selection.
+      if (drag && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5) {
+        const picked = this.pointer && this.pickAt(this.pointer.x, this.pointer.y);
+        this.selectedId = picked ? picked.view.id : null;
+        this.selectCb(this.selectedId);
+      }
+      drag = null;
+    });
     cv.addEventListener("pointerleave", () => {
       this.hovered = null;
+      this.pointer = null;
+      this.hoverId = null;
       this.refreshHover();
     });
     cv.addEventListener("pointermove", (e) => {
@@ -868,6 +917,7 @@ export class GameRenderer {
       const gx = Math.round((px / (TILE_W / 2) + py / (TILE_H / 2)) / 2);
       const gy = Math.round((py / (TILE_H / 2) - px / (TILE_W / 2)) / 2);
       this.hovered = gx >= 0 && gy >= 0 && gx < this.width && gy < this.height ? { x: gx, y: gy } : null;
+      this.pointer = { x: (e.clientX - rect.left) / k, y: (e.clientY - rect.top) / k };
       this.refreshHover();
     });
     cv.addEventListener("wheel", (e) => {
@@ -876,14 +926,62 @@ export class GameRenderer {
     }, { passive: false });
   }
 
+  /**
+   * The entity or deposit drawn under a canvas point (renderer pixels): among the sprites
+   * whose box holds it, the one drawn in front (highest depth), then the smallest. Only
+   * what is drawn (and so visible from the current view) can be picked.
+   */
+  private pickAt(px: number, py: number): { kind: "entity"; view: EntityView } | { kind: "deposit"; view: DepositView } | null {
+    let best: { kind: "entity"; view: EntityView } | { kind: "deposit"; view: DepositView } | null = null;
+    let front = -Infinity, area = Infinity;
+    const consider = (sprite: Sprite, item: NonNullable<typeof best>) => {
+      if (!sprite.visible || !sprite.parent) return;
+      const b = sprite.getBounds();
+      if (px < b.x || px > b.x + b.width || py < b.y || py > b.y + b.height || !this.opaqueAt(sprite, px, py)) return;
+      const a = b.width * b.height;
+      if (sprite.zIndex < front || (sprite.zIndex === front && a >= area)) return;
+      front = sprite.zIndex; area = a;
+      best = item;
+    };
+    for (const d of this.drawn.values()) consider(d.sprite, { kind: "entity", view: d.view });
+    for (const d of this.deposits.values()) consider(d.sprite, { kind: "deposit", view: d.view });
+    return best;
+  }
+
+  /** Whether the sprite's own pixel under a canvas point is opaque (not its transparent margin). */
+  private opaqueAt(sprite: Sprite, px: number, py: number): boolean {
+    const tex = sprite.texture;
+    const res = (tex.source as { resource?: unknown }).resource as (CanvasImageSource & { width?: number; height?: number }) | undefined;
+    if (!res || typeof res.width !== "number" || typeof res.height !== "number") return true;
+    let ctx = this.alphaSources.get(res);
+    if (ctx === undefined) {
+      try {
+        const canvas = typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(res.width, res.height) : Object.assign(document.createElement("canvas"), { width: res.width, height: res.height });
+        ctx = canvas.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+        ctx?.drawImage(res, 0, 0);
+      } catch { ctx = null; }
+      this.alphaSources.set(res, ctx);
+    }
+    if (!ctx) return true;
+    const local = sprite.toLocal({ x: px, y: py });
+    const u = Math.floor(local.x + sprite.anchor.x * tex.orig.width - (tex.trim?.x ?? 0));
+    const v = Math.floor(local.y + sprite.anchor.y * tex.orig.height - (tex.trim?.y ?? 0));
+    if (u < 0 || v < 0 || u >= tex.frame.width || v >= tex.frame.height) return false;
+    return ctx.getImageData(tex.frame.x + u, tex.frame.y + v, 1, 1).data[3] > 40;
+  }
+
   private refreshHover() {
-    const h = this.hovered;
     this.hoverMark.clear();
-    if (!h || (this.visibility && this.visibility[h.y]?.[h.x] !== "2")) return this.hoverCb(null);
+    // The sprite under the pointer first (bodies stand above their tile), else the tile itself.
+    const picked = this.pointer ? this.pickAt(this.pointer.x, this.pointer.y) : null;
+    this.hoverId = picked ? picked.view.id : null;
+    const h = picked ? { x: picked.kind === "entity" ? this.drawn.get(picked.view.id)!.to.x : picked.view.x, y: picked.kind === "entity" ? this.drawn.get(picked.view.id)!.to.y : picked.view.y } : this.hovered;
+    if (!h || (!picked && this.visibility && this.visibility[h.y]?.[h.x] !== "2")) return this.hoverCb(null);
     const { sx, sy } = iso(h.x, h.y);
-    this.hoverMark.poly([sx, sy - TILE_H / 2, sx + TILE_W / 2, sy, sx, sy + TILE_H / 2, sx - TILE_W / 2, sy]).stroke({ width: 1, color: 0xffffff, alpha: 0.7 });
-    const entity = [...this.drawn.values()].find((d) => d.to.x === h.x && d.to.y === h.y)?.view;
-    const deposit = [...this.deposits.values()].find((d) => d.view.x === h.x && d.view.y === h.y)?.view;
+    // A picked sprite gets a ring under its drawn position (see drawSelection); a bare tile gets a diamond.
+    if (!picked) this.hoverMark.poly([sx, sy - TILE_H / 2, sx + TILE_W / 2, sy, sx, sy + TILE_H / 2, sx - TILE_W / 2, sy]).stroke({ width: 1, color: 0xffffff, alpha: 0.7 });
+    const entity = picked?.kind === "entity" ? picked.view : picked ? undefined : [...this.drawn.values()].find((d) => d.to.x === h.x && d.to.y === h.y)?.view;
+    const deposit = picked?.kind === "deposit" ? picked.view : picked ? undefined : [...this.deposits.values()].find((d) => d.view.x === h.x && d.view.y === h.y)?.view;
     const rock = (this.ruleset.map.walls ?? []).some((w) => w.x === h.x && w.y === h.y);
     this.hoverCb({ x: h.x, y: h.y, entity, deposit, rock });
   }

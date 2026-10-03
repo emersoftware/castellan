@@ -1,11 +1,13 @@
 import { displayKind } from "../render/names";
 import { useSyncExternalStore, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { ChatMessage, GameEvent, PlayerStats, SpectatorView } from "@aoa/shared";
+import type { ChatMessage, DepositView, EntityView, GameEvent, PlayerStats, SpectatorView } from "@aoa/shared";
 import type { HoverInfo } from "../render/renderer";
 import { fmtTime, winnersOf } from "../api";
 import { Agent, Agents, agentText } from "./Agent";
 import { Arrow } from "./Arrow";
 import { sfx } from "../audio/sfx";
+import type { LoadedScript } from "../scripts";
+import { highlightJs } from "../highlight";
 
 /**
  * The score list, as in Age of Empires: the clock (with the title on its left
@@ -271,6 +273,59 @@ export function Tooltip({ hover, names = {}, colors = {} }: { hover: HoverInfo |
         </>
       )}
       {hover.rock && <b>impassable rock</b>}
+    </div>
+  );
+}
+
+/**
+ * The clicked entity, kept at the bottom of the map: what it is and does now, and the
+ * script its kind runs for its owner. `entity` is null while it is not visible (or dead);
+ * `last` is the last time it was seen.
+ */
+export function UnitPanel({ entity, last, script, tickMs, names = {}, colors = {}, onClose }: {
+  entity: EntityView | null; last: EntityView; script: LoadedScript | null | undefined; tickMs: number;
+  names?: Names; colors?: Colors; onClose: () => void;
+}) {
+  const e = entity ?? last;
+  const pct = Math.max(0, Math.min(100, (100 * e.hp) / Math.max(1, e.maxHp)));
+  const details = [
+    e.vital && "VITAL",
+    e.ruin && "ruin",
+    e.stats && `atk ${e.stats.atk} · def ${e.stats.def} · range ${e.stats.range} · attack ${e.stats.attackMs}ms${e.stats.moveMs ? ` · move ${e.stats.moveMs}ms` : ""}`,
+    e.carrying ? `carrying ${e.carrying}` : "",
+    e.construction && `building ${e.construction.kind} (${e.construction.x},${e.construction.y})`,
+    e.training?.length ? `training ${e.training.map((t) => t.kind).join(", ")}` : "",
+  ].filter(Boolean);
+  return (
+    <div className="unit-panel">
+      <button className="unit-close" onClick={onClose} aria-label="close" title="close (Esc)">×</button>
+      <div className="unit-head">
+        <b>{displayKind(e.kind)}</b> {e.id} · <Agent id={e.owner} name={names[e.owner]} color={colors[e.owner]} /> · ({e.x}, {e.y})
+        <span className="unit-hp"><span className={`unit-hp-bar bg${colors[e.owner] ?? 0}`} style={{ width: `${pct}%` }} /></span>{e.hp}/{e.maxHp} hp
+      </div>
+      {!entity && <div className="muted">not visible from this view</div>}
+      {entity && <div>{e.order ? <>order: <b>{e.order}</b></> : "running its script"}{e.doing ? ` · now ${e.doing}` : e.heading ? ` · ${e.heading}` : ""}</div>}
+      {details.length > 0 && <div className="muted">{details.join(" · ")}</div>}
+      {script === undefined ? <div className="muted">loading script…</div> : script === null ? <div className="muted">no script</div> : (
+        <div className="unit-script">
+          <div className="muted">
+            {displayKind(e.kind)} script of <Agent id={e.owner} name={names[e.owner]} color={colors[e.owner]} />: {script.custom ? `custom${script.sinceTick !== undefined ? `, loaded at ${fmtTime(script.sinceTick * tickMs)}` : ""}` : "default"}
+            {e.order ? " · paused while the order runs" : ""}
+          </div>
+          <pre><code>{highlightJs(script.code.trim())}</code></pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A clicked gold mine: where it is and how much is left. */
+export function DepositPanel({ deposit, onClose }: { deposit: DepositView; onClose: () => void }) {
+  return (
+    <div className="unit-panel">
+      <button className="unit-close" onClick={onClose} aria-label="close" title="close (Esc)">×</button>
+      <div className="unit-head"><b>gold mine</b> {deposit.id} · ({deposit.x}, {deposit.y}) · {deposit.amount} left</div>
+      {deposit.lastSeenMs !== undefined && <div className="muted">as last seen by this player at {fmtTime(deposit.lastSeenMs)}</div>}
     </div>
   );
 }

@@ -12,6 +12,9 @@ interface Props {
   /** Increment to snap to `frame` without animating (replay seeks). */
   jumpKey?: number;
   onHover?: (h: HoverInfo | null) => void;
+  /** The clicked entity id; the canvas draws a ring under it. */
+  selected?: string | null;
+  onSelect?: (id: string | null) => void;
   sound?: SoundSink;
   /** Hide the zoom buttons (e.g. the landing's background battle). */
   bare?: boolean;
@@ -22,7 +25,7 @@ interface Props {
 }
 
 /** Mounts the Pixi renderer and feeds it frames. */
-export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jumpKey = 0, onHover, sound, bare, interactive = true, onReady }: Props) {
+export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jumpKey = 0, onHover, selected = null, onSelect, sound, bare, interactive = true, onReady }: Props) {
   const host = useRef<HTMLDivElement>(null);
   // Clear synchronously on cleanup: a reconnect can replace the ruleset and
   // deliver a frame in the same render, before the next Pixi instance is ready.
@@ -52,6 +55,14 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
   useEffect(() => {
     if (onHover) renderer.current?.onHover(onHover);
   }, [rendererVersion, onHover]);
+
+  useEffect(() => {
+    if (onSelect) renderer.current?.onSelect(onSelect);
+  }, [rendererVersion, onSelect]);
+
+  useEffect(() => {
+    renderer.current?.select(selected);
+  }, [rendererVersion, selected]);
 
   useEffect(() => {
     renderer.current?.onSound(sound ?? (() => {}));
