@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { v0, type Order } from "@aoa/shared";
+import { rules, type Order } from "@aoa/shared";
 import { createMatch } from "../src";
 
 describe("chat validation", () => {
   it("rejects team chat without a teammate and invalid payloads without emitting messages", async () => {
-    const m = await createMatch({ ruleset: v0, players: [{ id: "p1", name: "a" }, { id: "p2", name: "b" }], seed: 1, tickRate: 10 });
+    const m = await createMatch({ ruleset: rules, players: [{ id: "p1", name: "a" }, { id: "p2", name: "b" }], seed: 1, tickRate: 10 });
     try {
       const invalid = [
         { text: "secret", channel: "team" },

@@ -1,24 +1,13 @@
 /**
- * A ruleset is all the game content: every number, every kind of entity and
- * the starting map. The engine contains no stats of its own, so balancing is
- * editing a ruleset (see docs/balance.md).
- *
- * Times are in milliseconds; the engine converts them to ticks, so changing the
- * tick rate does not change the balance.
+ * The shape of the rules (see rules.ts): every number, every kind of entity and the
+ * starting map. Times are in milliseconds; the engine converts them to ticks.
+ * At the time limit, if more than one side survives, the match is a draw.
  */
 export interface Ruleset {
   version: string;
-  /** Match length before the timeout rule decides. */
+  /** Match length before the time limit; four-seat maps use `fourSeatMatchMs` (see `matchLengthMs`). */
   matchMs: number;
-  /** Match length on four-seat maps. Omitted: `matchMs`. Read both through `matchLengthMs`. */
-  fourSeatMatchMs?: number;
-  /** Omitted in legacy replays: highest score wins. New matches may draw at the limit. */
-  timeoutOutcome?: "score" | "draw";
-  /**
-   * Free-for-all only (more than two players, each on its own team): at the limit the
-   * surviving player with the highest score wins; ties draw. Overrides `timeoutOutcome`.
-   */
-  ffaTimeoutOutcome?: "survivorScore";
+  fourSeatMatchMs: number;
   /** Clock-stopped phase where players may read rules and upload scripts. */
   prepMs: number;
   startCapital: number;
@@ -26,35 +15,22 @@ export interface Ruleset {
   popCap: number;
   gather: { carry: number; ms: number };
   /**
-   * No building may be placed within this Chebyshev distance of an enemy
+   * No building may be placed within this distance (see `dist`) of an enemy
    * building. Zero allows building next to enemies, including tower rushes.
    */
   buildExclusion: number;
-  /** Same-owner wall/door connections must keep doors on one axis; legacy layouts are unchanged. */
-  straightDoors?: boolean;
-  kinds: Record<string, KindSpec>;
-  /** Optional in old replays. Research belongs to a player and affects one kind. */
-  upgrades?: Record<string, UpgradeSpec>;
-  /** Maximum paid units waiting/working at each producer. Legacy training is instant. */
-  trainingQueueLimit?: number;
-  /** Shared team vision; remember explored terrain, but never unseen enemy updates. */
-  fogOfWar?: { rememberTerrain: boolean };
-  /** Real ranged shots; absent preserves legacy instant damage. Speed is Euclidean tiles/s. */
-  projectiles?: {
-    speed: number; unitRadius: number; buildingRadius: number;
-    /** Hostile building kinds shots fly over: they are hit only by a shot aimed at them. Absent: every hostile entity intercepts. */
-    flyOver?: string[];
-    /** Identify the aimed-at fly-over building by entity ID, not its potentially shared tile. */
-    flyOverTargetById?: boolean;
-  };
-  /** Expose recent damage and economy controls to scripts; preserve older VM views. */
-  reactiveScripts?: boolean;
+  /** Maximum paid units waiting/working at each producer. */
+  trainingQueueLimit: number;
+  /** A diagonal step takes this many times a straight one; paths account for it. */
+  diagonalMove: number;
   /**
-   * An eliminated player's buildings stay as inert ruins: they block, can be destroyed
-   * (no kills or score), let only the owner's teammates through doors, and never act or see.
-   * Absent: everything the player had is removed.
+   * Ranged attacks are real projectiles (Euclidean tiles/s). Only hostile entities stop
+   * them, never rock; `flyOver` building kinds are hit only by a shot aimed at them.
    */
-  ruins?: boolean;
+  projectiles: { speed: number; unitRadius: number; buildingRadius: number; flyOver: string[] };
+  kinds: Record<string, KindSpec>;
+  /** Research belongs to a player and affects one kind. */
+  upgrades: Record<string, UpgradeSpec>;
   map: MapSpec;
   script: ScriptLimits;
   score: { unit: number; building: number; capital: number; kill: number; buildingKill: number };
@@ -103,7 +79,7 @@ export interface KindSpec {
   atk?: number;
   range?: number;
   attackMs?: number;
-  /** Mobile shooters stand still this long after each attack (their move order waits). */
+  /** After a step, a mobile attacker must stand still this long before it attacks. */
   aimMs?: number;
   /** Runs a player script when it has no order. */
   scriptable?: boolean;
@@ -148,4 +124,4 @@ export interface ScriptLimits {
 }
 
 /** How long this ruleset's match lasts on its map. */
-export const matchLengthMs = (r: Ruleset): number => (r.map.seats === 4 ? r.fourSeatMatchMs ?? r.matchMs : r.matchMs);
+export const matchLengthMs = (r: Ruleset): number => (r.map.seats === 4 ? r.fourSeatMatchMs : r.matchMs);

@@ -22,7 +22,7 @@ describe("aoa commands", () => {
     expect(new Set(room.players.map((p: { team: number }) => p.team)).size).toBe(4);
     const clients = room.players.map((p: { token: string }) => client({ server: srv.url, token: p.token }));
     const guide = await rules(clients[0]);
-    expect(guide).toContain("four-player free-for-all");
+    expect(guide).toContain("Four-player free-for-all");
     expect(guide).toContain('"to":"p2"');
     expect(guide).not.toContain("allied AI");
     for (const c of clients) await state(c);
@@ -91,7 +91,7 @@ describe("aoa commands", () => {
     expect(await getScript(c1, "knight")).toContain("self.nearestEnemy()");
     expect(await state(c1)).toContain("map (x→, y↓;");
 
-    const nexus = view.mine.find((e) => e.kind === "nexus")!;
+    const nexus = view.mine.find((e) => e.kind === "castle")!;
     const out = await act(c1, [{ type: "train", building: nexus.id, kind: "knight" }, { type: "move", unit: "zzz", x: 1, y: 1 }]);
     expect(out).toMatch(/order 0: ok[\s\S]*order 1: FAILED/);
 

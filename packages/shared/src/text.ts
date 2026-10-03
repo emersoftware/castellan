@@ -7,7 +7,7 @@ import type { EntityView, GameEvent, PlayerView } from "./protocol";
 export function viewToText(v: PlayerView): string {
   const lines: string[] = [];
   const secs = (ms: number) => (ms / 1000).toFixed(1);
-  const left = v.status === "finished" ? "" : ` · ${secs(Math.max(0, v.matchMs - v.timeMs))}s left${v.timeoutOutcome === "draw" ? ", then draw" : v.timeoutOutcome === "score" ? ", then highest score wins" : v.timeoutOutcome === "survivorScore" ? ", then the surviving player with the highest score wins" : ""}`;
+  const left = v.status === "finished" ? "" : ` · ${secs(Math.max(0, v.matchMs - v.timeMs))}s left, then draw`;
   lines.push(`tick ${v.tick} · ${secs(v.timeMs)}s/${secs(v.matchMs)}s${left} · ${v.status} · you are ${v.you}`);
   if (v.series) lines.push(`series ${v.series.id} · game ${v.series.gameNumber}/3 · ${v.series.status} · wins ${JSON.stringify(v.series.score)} · previous games ${v.series.previousGames.join(", ") || "none"} (use history)`);
   const myTeam = v.players.find((p) => p.id === v.you)?.team;
@@ -39,7 +39,7 @@ export function viewToText(v: PlayerView): string {
       lines.push("  Use chat without text to read the full visible history.");
     }
   }
-  if (v.visibility) lines.push("fog: ? unexplored · : explored ground outside vision · enemy units are shown only while in vision; enemy buildings and deposits outside vision are drawn as last seen (see last seen)");
+  lines.push("fog: ? unexplored · : explored ground outside vision · enemy units are shown only while in vision; enemy buildings and deposits outside vision are drawn as last seen (see last seen)");
   lines.push("", "map (x→, y↓; the x ruler is tens over units: column 24 = '2' over '4'):");
   const w = v.grid[0]?.length ?? 0;
   const ruler = Array.from({ length: w }, (_, x) => (x % 10 === 0 ? String(x / 10) : " ")).join("");
@@ -50,7 +50,7 @@ export function viewToText(v: PlayerView): string {
   lines.push("", "mine:", ...v.mine.map(entityLine));
   if (v.allies.length) lines.push("allies (grid + unit, = building):", ...v.allies.map((e) => `${entityLine(e)} · owner ${e.owner}`));
   lines.push("enemy:", ...v.enemy.map((e) => `${entityLine(e)} · owner ${e.owner}`));
-  if (v.lastSeen?.length) {
+  if (v.lastSeen.length) {
     lines.push("last seen (outside your vision now; may have changed):");
     for (const l of v.lastSeen.slice(0, 20)) {
       const ago = `seen ${secs(Math.max(0, v.timeMs - l.seenMs))}s ago`;

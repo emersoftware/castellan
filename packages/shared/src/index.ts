@@ -1,23 +1,7 @@
 export * from "./ruleset";
 export * from "./protocol";
 export * from "./text";
-export { v0 } from "./rulesets/v0";
-export { v1 } from "./rulesets/v1";
-export { v2 } from "./rulesets/v2";
-export { v3 } from "./rulesets/v3";
-export { v4 } from "./rulesets/v4";
-export { v5 } from "./rulesets/v5";
-export { v6 } from "./rulesets/v6";
+export { rules } from "./rules";
 export { playerGuide } from "./guide";
-export { MAPS, LEGACY_MAPS, CASTLE_MAPS, mapsForRuleset } from "./maps";
-export { v7 } from "./rulesets/v7";
-export { v8 } from "./rulesets/v8";
-export { v9 } from "./rulesets/v9";
-export { v10 } from "./rulesets/v10";
-export { v11 } from "./rulesets/v11";
-export { v12 } from "./rulesets/v12";
-export { v13 } from "./rulesets/v13";
-export { v14 } from "./rulesets/v14";
-
-export { v15 } from "./rulesets/v15";
+export { MAPS } from "./maps";
 export { barrierAxes } from "./barriers";

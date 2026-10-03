@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LEGACY_MAPS as MAPS, v0, type GameEvent, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { rules, MAPS, type GameEvent, type ReplayFile, type Ruleset } from "@aoa/shared";
 import { createMatch, runReplay } from "../src";
 
 /** 2v2: p1 and p2 (team 0) against p3 and p4 (team 1), one per seat. */
@@ -9,15 +9,16 @@ const players = [
   { id: "p3", name: "c", side: 2, team: 1 },
   { id: "p4", name: "d", side: 3, team: 1 },
 ];
-const quad: Ruleset = { ...v0, map: MAPS.quad };
+// Whole-map sight: these tests are about seats and teams, not fog.
+const quad: Ruleset = { ...rules, map: MAPS.quad, kinds: Object.fromEntries(Object.entries(rules.kinds).map(([k, s]) => [k, { ...s, vision: 44 }])) };
 
-/** A 16×16 4-seat arena where the four Agents start next to each other, each with a knight. */
+/** A 16×16 4-seat arena where the four Kings start next to each other, each with a knight. */
 const arena: Ruleset = {
-  ...v0,
-  kinds: { ...v0.kinds, agent: { ...v0.kinds.agent, hp: 30 } },
+  ...rules,
+  kinds: { ...rules.kinds, king: { ...rules.kinds.king, hp: 30 } },
   map: {
     name: "arena", description: "", width: 16, height: 16, seats: 4, walls: [],
-    start: [{ kind: "nexus", x: 1, y: 1 }, { kind: "agent", x: 7, y: 7 }, { kind: "knight", x: 5, y: 5 }],
+    start: [{ kind: "castle", x: 1, y: 1 }, { kind: "king", x: 7, y: 7 }, { kind: "knight", x: 5, y: 5 }],
     deposits: [], sharedDeposits: [],
   },
 };
@@ -43,7 +44,7 @@ describe("2v2", () => {
 
   it("puts each seat in its own corner, rotated", async () => {
     const m = await createMatch({ ruleset: quad, players, seed: 1, tickRate: 10 });
-    const nexus = (p: string) => m.view(p).mine.find((e) => e.kind === "nexus")!;
+    const nexus = (p: string) => m.view(p).mine.find((e) => e.kind === "castle")!;
     expect([nexus("p1").x, nexus("p1").y]).toEqual([4, 4]);
     expect([nexus("p2").x, nexus("p2").y]).toEqual([39, 39]);
     expect([nexus("p3").x, nexus("p3").y]).toEqual([39, 4]);
@@ -52,14 +53,14 @@ describe("2v2", () => {
     expect(v.allies.every((e) => e.owner === "p2")).toBe(true);
     expect(v.enemy.every((e) => e.owner === "p3" || e.owner === "p4")).toBe(true);
     expect(v.grid[39][39]).toBe("=");
-    expect(v.grid[4][39]).toBe("n");
+    expect(v.grid[4][39]).toBe("c");
     m.dispose();
   });
 
   it("refuses orders against allies", async () => {
     const m = await createMatch({ ruleset: quad, players, seed: 1, tickRate: 10 });
     const worker = m.view("p1").mine.find((e) => e.kind === "worker")!;
-    const allyNexus = m.view("p1").allies.find((e) => e.kind === "nexus")!;
+    const allyNexus = m.view("p1").allies.find((e) => e.kind === "castle")!;
     const r = m.step([{ player: "p1", order: { type: "attack", unit: worker.id, target: allyNexus.id } }]);
     expect(r.results[0]).toMatchObject({ ok: false });
     m.dispose();
@@ -69,7 +70,7 @@ describe("2v2", () => {
     const m = await createMatch({ ruleset: arena, players, seed: 3, tickRate: 10 });
     while (!m.outcome && m.tick < 3000) m.step([]);
     const deaths = m.spectate(0).events.filter((e) => e.type === "death");
-    expect(deaths.map((e) => e.kind)).toEqual(["agent", "agent", "agent", "agent"]);
+    expect(deaths.map((e) => e.kind)).toEqual(["king", "king", "king", "king"]);
     expect(m.outcome!.winners).toEqual([]);
     m.dispose();
   });
@@ -81,7 +82,7 @@ describe("2v2", () => {
     const events: GameEvent[] = [];
     // Team 0 focuses one enemy Agent: the symmetry breaks and p3 falls first.
     const knight = (p: string) => m.view(p).mine.find((e) => e.kind === "knight")!.id;
-    const p3Agent = m.view("p3").mine.find((e) => e.kind === "agent")!.id;
+    const p3Agent = m.view("p3").mine.find((e) => e.kind === "king")!.id;
     m.step([
       { player: "p1", order: { type: "attack", unit: knight("p1"), target: p3Agent } },
       { player: "p2", order: { type: "attack", unit: knight("p2"), target: p3Agent } },
@@ -90,7 +91,7 @@ describe("2v2", () => {
       for (const e of m.spectate().entities) owner.set(e.id, e.owner);
       events.push(...m.step([]).events);
       for (const e of events.filter((x) => x.type === "eliminated")) {
-        expect(m.spectate().entities.some((x) => x.owner === (e as { owner: string }).owner)).toBe(false);
+        expect(m.spectate().entities.some((x) => x.owner === (e as { owner: string }).owner && !x.ruin)).toBe(false); // only ruins stay
       }
     }
     for (const e of events) if (e.type === "attack") expect(team.get(owner.get(e.from)!)).not.toBe(team.get(owner.get(e.to)!));

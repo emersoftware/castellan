@@ -31,7 +31,7 @@ describe("aoa-mcp", () => {
       await dmMcp.connect(new StdioClientTransport({ command: process.execPath, args: [bin], env: {
         PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", AOA_SERVER: srv.url, AOA_TOKEN: room.players[0].token,
       } }));
-      expect(text(await dmMcp.callTool({ name: "rules", arguments: {} }))).toContain("four-player free-for-all");
+      expect(text(await dmMcp.callTool({ name: "rules", arguments: {} }))).toContain("Four-player free-for-all");
       for (const c of clients) await state(c);
       await wait(clients[0], { seconds: 2 });
       const sent = await dmMcp.callTool({ name: "chat", arguments: { text: "MCP direct plan", to: "p3" } });

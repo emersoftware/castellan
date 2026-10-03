@@ -251,11 +251,12 @@ export class GameRenderer {
           d.from = d.to = { x: e.x, y: e.y };
         }
         else if (e.x !== d.to.x || e.y !== d.to.y) {
-          const moveMs = e.stats?.moveMs ?? this.ruleset.kinds[e.kind]?.moveMs ?? this.gameTickMs;
-          // Same quantization as the engine: a 380 ms step at 10 Hz takes
-          // four ticks. Only an actual tile change renews this window.
-          const cadence = Math.max(1, Math.round(moveMs / this.gameTickMs)) * this.gameTickMs;
           const dx = e.x - d.to.x, dy = e.y - d.to.y;
+          // Same timing as the engine: a diagonal step takes diagonalMove times
+          // as long, and steps are quantized to ticks (380 ms at 10 Hz is four
+          // ticks). Only an actual tile change renews this window.
+          const moveMs = (e.stats?.moveMs ?? this.ruleset.kinds[e.kind]?.moveMs ?? this.gameTickMs) * (dx && dy ? this.ruleset.diagonalMove ?? 1 : 1);
+          const cadence = Math.max(1, Math.round(moveMs / this.gameTickMs)) * this.gameTickMs;
           const position = this.position(d, alpha, previousGameMs);
           d.walkDistance = (d.walkDistance ?? 0) + gridSteps(position, d.from);
           d.from = position;

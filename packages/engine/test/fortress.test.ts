@@ -1,11 +1,11 @@
 import { expect, it } from "vitest";
-import { CASTLE_MAPS as MAPS, v7 } from "@aoa/shared";
+import { rules, MAPS } from "@aoa/shared";
 import { createMatch, findPath } from "../src";
 import type { Grid } from "../src/grid";
 
 it("starts both players in symmetric, sealed corner fortresses with two allied exits", async () => {
   const map = MAPS.fortress;
-  const m = await createMatch({ ruleset: { ...v7, map }, players: [{id:"a",name:"A"},{id:"b",name:"B"}], seed:1,tickRate:10 });
+  const m = await createMatch({ ruleset: { ...rules, map }, players: [{id:"a",name:"A"},{id:"b",name:"B"}], seed:1,tickRate:10 });
   try {
     const frame = m.spectate();
     const occupied = [...frame.entities, ...frame.deposits];
@@ -27,7 +27,7 @@ it("starts both players in symmetric, sealed corner fortresses with two allied e
       expect(findPath(allied,4,4,15,15,0)).not.toBeNull();
     }
     const worker=mine.find(e=>e.kind==="worker")!;
-    m.step([{player:"a",order:{type:"move",unit:worker.id,x:14,y:7}}]);
+    m.step([{player:"a",order:{type:"script",kind:"worker",code:"self.hold();"}},{player:"a",order:{type:"move",unit:worker.id,x:14,y:7}}]);
     for(let i=0;i<100;i++)m.step([]);
     expect(m.view("a").mine.find(e=>e.id===worker.id)).toMatchObject({x:14,y:7});
   } finally {m.dispose();}
@@ -38,7 +38,7 @@ it("rotates four sealed fortresses without overlaps and lets each player exit it
   const map = MAPS["fortress-quad"];
   const W = map.width;
   const players = Array.from({length:4},(_,side)=>({id:`p${side}`,name:`P${side}`,side,team:side}));
-  const m = await createMatch({ruleset:{...v7,map},players,seed:1,tickRate:10});
+  const m = await createMatch({ruleset:{...rules,map},players,seed:1,tickRate:10});
   try {
     const frame=m.spectate(), occupied=[...frame.entities,...frame.deposits];
     expect(map.seats).toBe(4);
@@ -64,7 +64,8 @@ it("rotates four sealed fortresses without overlaps and lets each player exit it
       const [x,y]=seatToMap(14,7,p.side,W,W);
       orders.push({player:p.id,order:{type:"move" as const,unit:mine.find(e=>e.kind==="worker")!.id,x,y}});
     }
-    m.step(orders);for(let i=0;i<100;i++)m.step([]);
+    // Hold workers after arriving (their default script would walk back to mine).
+    m.step([...orders,...players.map(p=>({player:p.id,order:{type:"script" as const,kind:"worker",code:"self.hold();"}}))]);for(let i=0;i<100;i++)m.step([]);
     for(const {player,order} of orders) expect(m.view(player).mine.find(e=>e.id===order.unit)).toMatchObject({x:order.x,y:order.y});
   } finally {m.dispose();}
 });

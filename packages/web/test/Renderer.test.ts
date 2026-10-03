@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { expect, it, vi } from "vitest";
 import { Container, FilterSystem, Graphics, Rectangle, RenderTexture, Sprite, Texture } from "pixi.js";
-import { v4, MAPS, type EntityView, type SpectatorView } from "@aoa/shared";
+import { rules, MAPS, type EntityView, type SpectatorView } from "@aoa/shared";
 import { GameRenderer } from "../src/render/renderer";
 import { TILE_H, TILE_W, type SpriteSet } from "../src/render/sprites";
 import { initialDepositAmount } from "../src/render/deposits";
@@ -31,7 +31,7 @@ it("falls back to the screen resolution after a pooled filter texture is pruned"
 it("keeps the depth source held by filters alive when the viewport changes", () => {
   const host = document.createElement("div");
   Object.defineProperties(host, { clientWidth: { value: 390 }, clientHeight: { value: 600 } });
-  const renderer = Reflect.construct(GameRenderer, [host, v4, {}]) as GameRenderer;
+  const renderer = Reflect.construct(GameRenderer, [host, rules, {}]) as GameRenderer;
   const depth = RenderTexture.create({ width: 800, height: 600 });
   const source = depth.source;
   const filter = () => ({ resources: { uDepth: source, xrayUniforms: { uniforms: { uScreen: new Float32Array([800, 600]) } } } });
@@ -54,7 +54,7 @@ it("keeps the depth source held by filters alive when the viewport changes", () 
 });
 
 it("keeps ordinary outlines separate from building-only x-ray masks", () => {
-  const renderer = Reflect.construct(GameRenderer, [document.createElement("div"), v4, { p1: 0, p2: 1 }]) as GameRenderer;
+  const renderer = Reflect.construct(GameRenderer, [document.createElement("div"), rules, { p1: 0, p2: 1 }]) as GameRenderer;
   const internal = renderer as unknown as RendererInternals & { animate(): void; app: { renderer: { render: () => void } } };
   internal.now = () => 1000;
   internal.app = { renderer: { render: () => {} } };
@@ -62,14 +62,14 @@ it("keeps ordinary outlines separate from building-only x-ray masks", () => {
     texture: Texture.EMPTY, silhouette: Texture.EMPTY, xray: Array(4).fill(Texture.EMPTY), outline: Array(4).fill(Texture.EMPTY),
     scale: 1, anchorX: 0.5, anchorY: 1,
   } });
-  const entities = ["worker", "agent", "knight", "ranger", "nexus", "turret", "wall"].flatMap((kind) =>
+  const entities = ["worker", "king", "knight", "ranger", "castle", "turret", "wall"].flatMap((kind) =>
     ["p1", "p2"].map((owner) => ({ id: `${kind}-${owner}`, kind, owner, x: 4, y: 4, hp: 40, maxHp: 40, vital: false })),
   );
   renderer.setFrame({ tick: 1, entities, deposits: [], events: [] } as unknown as SpectatorView, 100);
   internal.animate();
   for (const e of entities) {
     const d = internal.drawn.get(e.id)!;
-    const building = !!v4.kinds[e.kind].building;
+    const building = !!rules.kinds[e.kind].building;
     expect(!!d.xray).toBe(!building);
     expect(!!d.outline).toBe(!building);
     const tag = d.depth!.tint & 255;
@@ -80,13 +80,13 @@ it("keeps ordinary outlines separate from building-only x-ray masks", () => {
 });
 
 it("switches mineral art and occlusion at fixed scale, including when seeking backwards", () => {
-  const renderer = Reflect.construct(GameRenderer, [document.createElement("div"), v4, {}]) as GameRenderer;
+  const renderer = Reflect.construct(GameRenderer, [document.createElement("div"), rules, {}]) as GameRenderer;
   const internal = renderer as unknown as RendererInternals & { deposits: Map<string, { sprite: Sprite; depth: Sprite }> };
   const makeArt = () => ({ texture: new Texture(), silhouette: new Texture(), xray: [], scale: 1 / 3, anchorX: 0.5, anchorY: 0.68 });
   const arts = { "minerals-full": makeArt(), "minerals-half": makeArt(), "minerals-low": makeArt() };
   internal.sprites = (name) => ({ art: arts[name as keyof typeof arts], flip: false });
   internal.now = () => 1000;
-  const source = v4.map.deposits[0];
+  const source = rules.map.deposits[0];
   for (const [fraction, stage] of [[1, "minerals-full"], [0.6, "minerals-half"], [0.2, "minerals-low"], [0.9, "minerals-full"]] as const) {
     renderer.setFrame({ tick: 1, entities: [], events: [], deposits: [{ ...source, id: "d1", amount: source.amount * fraction }] } as unknown as SpectatorView, 100, true);
     const d = internal.deposits.get("d1")!;
@@ -112,7 +112,7 @@ it("uses each deposit's capacity across every rotated quad seat and shared depos
 it.each(["shooter", "target"])("places a newly spawned or revealed %s before drawing its first arrow", (newEntity) => {
   // Replay aca7a69c, tick 669: A1's ranger spawns and attacks four tiles away.
   // Construct real Pixi scene objects without starting a browser/GPU ticker.
-  const renderer = Reflect.construct(GameRenderer, [document.createElement("div"), v4, { p1: 0, p4: 3 }]) as GameRenderer;
+  const renderer = Reflect.construct(GameRenderer, [document.createElement("div"), rules, { p1: 0, p4: 3 }]) as GameRenderer;
   const internal = renderer as unknown as RendererInternals;
   internal.now = () => 1000;
   internal.play = () => {};
@@ -142,7 +142,7 @@ it.each(["shooter", "target"])("places a newly spawned or revealed %s before dra
 });
 
 it("renders real projectile state on seeks, interpolates it, and removes it on impact or fog loss", () => {
-  const renderer = Reflect.construct(GameRenderer, [document.createElement("div"), v4, {}]) as GameRenderer;
+  const renderer = Reflect.construct(GameRenderer, [document.createElement("div"), rules, {}]) as GameRenderer;
   let now = 1000;
   const internal = renderer as unknown as RendererInternals & {
     shots: Map<string, { graphic: Graphics; from: { x: number; y: number }; to: { x: number; y: number } }>;

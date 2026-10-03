@@ -41,6 +41,17 @@ export function mapToSeat(x: number, y: number, seat: number, w: number, h: numb
   }
 }
 
+/**
+ * Game distance for range, vision and proximity: Euclidean, rounded to the nearest
+ * whole tile, so range r covers a disc and a diagonal neighbour is at distance 1.
+ * Exact integer arithmetic (no floating point), shared with the script sandbox.
+ */
+export function dist(ax: number, ay: number, bx: number, by: number): number {
+  const n = (ax - bx) ** 2 + (ay - by) ** 2;
+  const r = Math.floor(Math.sqrt(n));
+  return n - r * r > r ? r + 1 : r;
+}
+
 export function cheb(ax: number, ay: number, bx: number, by: number): number {
   return Math.max(Math.abs(ax - bx), Math.abs(ay - by));
 }
@@ -66,17 +77,24 @@ export function canCross(g: Grid, x: number, y: number, dx: number, dy: number):
  * A* from (sx,sy) to any free tile within `range` of (gx,gy), ignoring units.
  * Returns the tiles to walk (excluding the start), [] if already there, or null
  * if no such tile is reachable. Deterministic: ties break by insertion order.
+ * With `diagonalCost`, steps cost 10 straight and `diagonalCost` diagonally (e.g. 14).
  */
 export function findPath(
   g: Grid, sx: number, sy: number, gx: number, gy: number, range: number,
   dirs: [number, number][] = DIR_LIST,
   /** Extra tiles to avoid this time (e.g. units blocking the way). */
   avoid?: Set<number>,
+  diagonalCost?: number,
 ): number[] | null {
   const W = g.width;
   const H = g.height;
-  const h = (x: number, y: number) => Math.max(0, cheb(x, y, gx, gy) - range);
-  if (h(sx, sy) === 0) return [];
+  const arrived = (x: number, y: number) => dist(x, y, gx, gy) <= range;
+  // Lower bound on the cost left: the straight-line gap to the disc of radius range + 0.5.
+  const h = (x: number, y: number) => {
+    const gap = Math.max(0, Math.hypot(x - gx, y - gy) - range - 0.5);
+    return diagonalCost ? gap * 9.9 : gap / 1.415;
+  };
+  if (arrived(sx, sy)) return [];
   const size = W * H;
   const cost = new Int32Array(size).fill(-1);
   const from = new Int32Array(size).fill(-1);
@@ -88,7 +106,7 @@ export function findPath(
     const cur = heap.pop();
     const cx = cur % W;
     const cy = (cur / W) | 0;
-    if (h(cx, cy) === 0) {
+    if (arrived(cx, cy)) {
       const path: number[] = [];
       for (let n = cur; n !== start; n = from[n]) path.push(n);
       return path.reverse();
@@ -100,10 +118,11 @@ export function findPath(
       if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
       const ni = ny * W + nx;
       if (g.isStatic(nx, ny) || avoid?.has(ni) || !canCross(g, cx, cy, dx, dy)) continue;
-      if (cost[ni] !== -1 && cost[ni] <= c + 1) continue;
-      cost[ni] = c + 1;
+      const next = c + (!diagonalCost ? 1 : dx && dy ? diagonalCost : 10);
+      if (cost[ni] !== -1 && cost[ni] <= next) continue;
+      cost[ni] = next;
       from[ni] = cur;
-      heap.push(c + 1 + h(nx, ny), h(nx, ny), ni);
+      heap.push(next + h(nx, ny), h(nx, ny), ni);
     }
   }
   return null;

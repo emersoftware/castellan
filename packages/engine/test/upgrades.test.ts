@@ -1,18 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { v0, v1, playerGuide, viewToText, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { rules, playerGuide, viewToText, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
 import { createMatch, runReplay, type Match, type PlayerOrder } from "../src";
 
 const players = [{ id: "p1", name: "one" }, { id: "p2", name: "two" }];
-function rules(): Ruleset {
-  return { ...v1, startCapital: 2000, matchMs: 60_000,
-    defaultScripts: { knight: "self.hold();", ranger: "self.hold();", nexus: "self.hold();" },
-    map: { ...v1.map, width: 16, height: 16, walls: [], deposits: [], sharedDeposits: [], start: [
-      { kind: "nexus", x: 1, y: 1 }, { kind: "agent", x: 0, y: 0 },
+function setupRules(): Ruleset {
+  return { ...rules, startCapital: 2000, matchMs: 60_000,
+    // The whole 16x16 map in sight: these tests are about research, not fog.
+    kinds: Object.fromEntries(Object.entries(rules.kinds).map(([k, s]) => [k, { ...s, vision: 16 }])),
+    defaultScripts: { knight: "self.hold();", ranger: "self.hold();", castle: "self.hold();", worker: "self.hold();" },
+    map: { ...rules.map, width: 16, height: 16, walls: [], deposits: [], sharedDeposits: [], start: [
+      { kind: "castle", x: 1, y: 1 }, { kind: "king", x: 0, y: 0 },
       { kind: "knight", x: 7, y: 7 }, { kind: "worker", x: 5, y: 5 }, { kind: "ranger", x: 3, y: 5 },
     ] },
   };
 }
-const make = (r = rules()) => createMatch({ ruleset: r, players, seed: 42, tickRate: 10 });
+const make = (r = setupRules()) => createMatch({ ruleset: r, players, seed: 42, tickRate: 10 });
 const stepTo = (m: Match, tick: number) => { while (m.tick < tick && !m.outcome) m.step([]); };
 const unit = (m: Match, kind: string, player = "p1") => m.view(player).mine.find((u) => u.kind === kind)!;
 const stats = (m: Match, player = "p1") => m.view(player).players.find((p) => p.id === player)!;
@@ -35,19 +37,22 @@ describe("research upgrades", () => {
       expect(unit(m, "knight").stats?.atk).toBe(14);
       expect(unit(m, "knight", "p2").stats?.atk).toBe(12);
       expect(unit(m, "ranger").stats?.atk).toBe(12);
-      expect(v1.kinds.knight.atk).toBe(12);
+      expect(rules.kinds.knight.atk).toBe(12);
       expect(stats(m).research).toBeUndefined();
-      const train = m.step([{ player: "p1", order: { type: "train", building: unit(m, "nexus").id, kind: "knight" } }]);
-      expect(m.view("p1").mine.find((e) => e.id === (train.results[0].ok ? train.results[0].id : ""))?.stats?.atk).toBe(14);
+      m.step([{ player: "p1", order: { type: "train", building: unit(m, "castle").id, kind: "knight" } }]);
+      stepTo(m, m.tick + rules.kinds.knight.trainMs! / 100 + 1);
+      const knights = m.view("p1").mine.filter((e) => e.kind === "knight");
+      expect(knights.map((k) => k.stats?.atk)).toEqual([14, 14]);
+      const bought = m.tick;
       expect(buy(m, "knight_damage").results[0].capital?.spent).toBe(250);
-      stepTo(m, 253); m.step([]);
+      stepTo(m, bought + 151); m.step([]);
       expect(unit(m, "knight").stats?.atk).toBe(16);
       expect(buy(m, "knight_damage").results[0]).toMatchObject({ ok: false, reason: "knight_damage is already at maximum level", capital: { spent: 0 } });
     } finally { m.dispose(); }
   });
 
-  it("rejects unaffordable research and disables upgrades in old rulesets", async () => {
-    for (const r of [{ ...rules(), startCapital: 149 }, v0]) {
+  it("rejects unaffordable research", async () => {
+    for (const r of [{ ...setupRules(), startCapital: 149 }]) {
       const m = await make(r);
       try {
         expect(buy(m, "knight_damage").results[0]).toMatchObject({ ok: false, capital: { spent: 0, remaining: r.startCapital } });
@@ -67,7 +72,7 @@ describe("research upgrades", () => {
       m.step([{ player: "p1", order: { type: "script", kind: "knight", code: 'self.log([self.atk,self.attackMs,self.moveMs].join(",")); self.hold();' } }]);
       expect(m.events("p1", 353)).toContainEqual(expect.objectContaining({ type: "log", message: "14,900,300" }));
       const first = m.step([{ player: "p1", order: { type: "attack", unit: knight.id, target: enemy.id } }]);
-      expect(first.events).toContainEqual(expect.objectContaining({ type: "attack", from: knight.id, dmg: 10 }));
+      expect(first.events).toContainEqual(expect.objectContaining({ type: "attack", from: knight.id, dmg: 14 - rules.kinds.knight.def }));
       const hitTick = first.events.find((e) => e.type === "attack")!.tick;
       for (let i = 0; i < 8; i++) expect(m.step([]).events.some((e) => e.type === "attack" && e.from === knight.id)).toBe(false);
       expect(m.step([]).events).toContainEqual(expect.objectContaining({ type: "attack", tick: hitTick + 9, from: knight.id }));
@@ -80,7 +85,7 @@ describe("research upgrades", () => {
     } finally { m.dispose(); }
   });
 
-  it("upgrades worker melee while preserving manual orders and gives all clients the same research information", async () => {
+  it("upgrades worker melee while preserving manual orders and hides research from the enemy", async () => {
     const m = await make();
     try {
       buy(m, "worker_damage");
@@ -88,15 +93,14 @@ describe("research upgrades", () => {
       stepTo(m, 101);
       const worker = unit(m, "worker");
       expect(worker.stats?.atk).toBe(5);
-      expect(m.view("p1").scripts.worker).toBeUndefined();
       const attack = m.step([{ player: "p1", order: { type: "attack", unit: worker.id, target: unit(m, "worker", "p2").id } }]);
       expect(attack.results[0].ok).toBe(true);
       let dealt = false;
       for (let i = 0; i < 50; i++) dealt ||= m.step([]).events.some((e) => e.type === "attack" && e.from === worker.id && e.dmg === 4);
       expect(dealt).toBe(true);
       expect(m.spectate().players[0].upgrades).toEqual({ worker_damage: 1 });
-      expect(viewToText(m.view("p2"))).toContain("worker_damage L1");
-      const guide = playerGuide(v1);
+      expect(viewToText(m.view("p2"))).not.toContain("worker_damage"); // enemies never see research
+      const guide = playerGuide(rules);
       expect(guide).toContain('"type":"upgrade"');
       expect(guide).toContain("worker_damage");
       expect(guide).toContain("400ms/tile");
@@ -105,7 +109,7 @@ describe("research upgrades", () => {
   });
 
   it("replays research deterministically, detects research-state differences, and resets it in a fresh game", async () => {
-    const r = { ...rules(), matchMs: 20_000 };
+    const r = { ...setupRules(), matchMs: 20_000 };
     const m = await make(r);
     try {
       const orders: ReplayFile["orders"] = [];

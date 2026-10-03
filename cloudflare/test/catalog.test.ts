@@ -5,9 +5,23 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import type { ReplayFile } from "../../packages/shared/src/protocol";
+import { rules } from "../../packages/shared/src/rules";
+import { createMatch } from "../../packages/engine/src";
 import { collectPublication, completeSeries, publicationSQL, publicReplay, type Publication } from "../catalog";
 
-const fixture: ReplayFile = JSON.parse(await readFile(new URL("../../packages/web/public/featured/ef3532ef.json", import.meta.url), "utf8"));
+// A short finished match under the current rules, recorded like a real replay.
+const fixture: ReplayFile = await (async () => {
+  const ruleset = { ...rules, matchMs: 3000 };
+  const players = [{ id: "p1", name: "one", side: 0, team: 0 }, { id: "p2", name: "two", side: 1, team: 1 }];
+  const m = await createMatch({ ruleset, players, seed: 1, tickRate: 10 });
+  const hashes: Record<number, string> = {};
+  while (!m.outcome) { if (m.tick % 10 === 0) hashes[m.tick] = m.hash(); m.step([]); }
+  hashes[m.tick] = m.hash();
+  const replay: ReplayFile = { format: 1, id: "f1x7ure0", createdAt: "2026-10-02T00:00:00.000Z", ruleset, seed: 1, tickRate: 10,
+    players, orders: [], hashes, finalTick: m.tick, outcome: m.outcome };
+  m.dispose();
+  return replay;
+})();
 const directories: string[] = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))); });
 const entry = (replay: ReplayFile): Publication["replays"][number] => ({ replay, summary: {

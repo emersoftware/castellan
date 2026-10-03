@@ -1,9 +1,9 @@
 import { expect, it, vi } from "vitest";
-import { v3 } from "@aoa/shared";
+import { rules } from "@aoa/shared";
 import { Room } from "../src/room";
 
 it("restores queued production, reserved population and explored terrain without a second charge", async () => {
-  const room = await Room.create({ ruleset: { ...v3, startCapital: 1000, map: { ...v3.map, deposits: [], sharedDeposits: [] } },
+  const room = await Room.create({ ruleset: { ...rules, startCapital: 1000, map: { ...rules.map, deposits: [], sharedDeposits: [] } },
     players: [{ name: "one" }, { name: "two" }], seed: 42, tickRate: 10, sides: "fixed", prepMs: 0, botLatencyMs: 3000,
     chat: true, onFinish: () => {} });
   let restored: Room | undefined;
@@ -12,14 +12,14 @@ it("restores queued production, reserved population and explored terrain without
     room.touch("p1"); room.touch("p2"); await vi.advanceTimersByTimeAsync(1);
     const initial = room.view("p1");
     const pending = room.act("p1", [
-      { type: "train", building: initial.mine.find((e) => e.kind === "nexus")!.id, kind: "worker" },
-      { type: "train", building: initial.mine.find((e) => e.kind === "nexus")!.id, kind: "ranger" },
-      { type: "move", unit: initial.mine.find((e) => e.kind === "agent")!.id, x: 15, y: 15 },
+      { type: "train", building: initial.mine.find((e) => e.kind === "castle")!.id, kind: "worker" },
+      { type: "train", building: initial.mine.find((e) => e.kind === "castle")!.id, kind: "ranger" },
+      { type: "move", unit: initial.mine.find((e) => e.kind === "king")!.id, x: 15, y: 15 },
     ]);
     await vi.advanceTimersByTimeAsync(2100); expect((await pending).results.every((r) => r.ok)).toBe(true);
     room.suspend();
     const before = room.view("p1", 0), saved = room.checkpoint();
-    expect(before.players[0]).toMatchObject({ capital: 830, queuedPop: 2 });
+    expect(before.players[0]).toMatchObject({ capital: 1000 - 50 - rules.kinds.ranger.cost, queuedPop: 2 });
     restored = await Room.restore(saved, () => {});
     const after = restored.view("p1", 0);
     expect(after.mine).toEqual(before.mine); expect(after.visibility).toEqual(before.visibility);
@@ -28,6 +28,6 @@ it("restores queued production, reserved population and explored terrain without
     await vi.advanceTimersByTimeAsync(3500);
     const completed = restored.view("p1");
     expect(completed.mine.filter((e) => e.kind === "worker")).toHaveLength(4);
-    expect(completed.players[0]).toMatchObject({ capital: 830, queuedPop: 1 });
+    expect(completed.players[0]).toMatchObject({ capital: 1000 - 50 - rules.kinds.ranger.cost, queuedPop: 1 });
   } finally { room.close(); restored?.close(); vi.useRealTimers(); }
 });

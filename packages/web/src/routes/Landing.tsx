@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { v8, type SpectatorView } from "@aoa/shared";
+import { rules, type SpectatorView } from "@aoa/shared";
 import { api, playerColors, fmtTime } from "../api";
 import { Versus, wonText } from "../components/Versus";
 import { GameCanvas } from "../components/GameCanvas";
@@ -48,7 +48,7 @@ export function Landing() {
   }, [frames]);
 
   const colors = useMemo(() => playerColors(showcase.data?.players ?? []), [showcase.data]);
-  const k = v8.kinds;
+  const k = rules.kinds;
   const [teams, setTeams] = useState([0, 1, 2, 3, 0, 1, 2, 3]);
   const nextTeam = (index: number) => setTeams(current => current.map((team, i) => i === index ? (team + 1) % 4 : team));
 

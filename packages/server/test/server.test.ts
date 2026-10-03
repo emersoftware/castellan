@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { v0, type PlayerView } from "@aoa/shared";
+import { rules, type PlayerView } from "@aoa/shared";
 import { buildServer } from "../src/app";
 
 let app: FastifyInstance;
@@ -11,7 +11,7 @@ let base = "";
 const dir = mkdtempSync(join(tmpdir(), "aoa-"));
 
 beforeAll(async () => {
-  app = await buildServer({ replayDir: dir, ruleset: { ...v0, matchMs: 4000 }, tickRate: 20, prepMs: 300 });
+  app = await buildServer({ replayDir: dir, ruleset: { ...rules, matchMs: 4000 }, tickRate: 20, prepMs: 300 });
   await app.listen({ port: 0, host: "127.0.0.1" });
   const addr = app.server.address();
   base = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}`;
@@ -56,14 +56,14 @@ describe("server", () => {
     const bad = await call("/scripts/knight", t1, { method: "PUT", body: JSON.stringify({ code: "self.hold(" }) });
     expect(bad.status).toBe(400);
 
-    const nexus = s1.mine.find((e) => e.kind === "nexus")!;
+    const nexus = s1.mine.find((e) => e.kind === "castle")!;
     const act = await call("/act", t1, { method: "POST", body: JSON.stringify({ orders: [{ type: "train", building: nexus.id, kind: "knight" }, { type: "move", unit: "zzz", x: 1, y: 1 }] }) });
     expect(act.body.results[0]).toMatchObject({ ok: true });
-    expect(act.body.capital.spent).toBe(v0.kinds.knight.cost);
+    expect(act.body.capital.spent).toBe(rules.kinds.knight.cost);
     expect(act.body.capital.remaining).toBe(act.body.view.players.find((p: any) => p.id === "p1").capital);
-    expect(act.body.results[0].capital.spent).toBe(v0.kinds.knight.cost);
+    expect(act.body.results[0].capital.spent).toBe(rules.kinds.knight.cost);
     expect(act.body.results[1]).toMatchObject({ ok: false });
-    expect(act.body.view.mine.some((e: any) => e.kind === "knight")).toBe(true);
+    expect(act.body.view.mine.find((e: any) => e.kind === "castle").training).toEqual([expect.objectContaining({ kind: "knight" })]);
 
     const text = await call("/state?format=text", t1);
     expect(text.body).toContain("map (x→, y↓;");

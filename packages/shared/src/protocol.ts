@@ -193,12 +193,12 @@ export interface PlayerView {
   /** ASCII map, one string per row (y), one char per column (x). */
   grid: string[];
   /** 0 = unexplored, 1 = explored, 2 = currently visible. */
-  visibility?: string[];
+  visibility: string[];
   mine: EntityView[];
   /** Your teammates' entities (team matches only). */
   allies: EntityView[];
   enemy: EntityView[];
-  projectiles?: ProjectileView[];
+  projectiles: ProjectileView[];
   deposits: DepositView[];
   scripts: Record<string, { custom: boolean; errors: string[] }>;
   events: GameEvent[];
@@ -211,9 +211,7 @@ export interface PlayerView {
    * Fog of war memory: enemy buildings and deposits as you last saw them, for those outside your vision now.
    * Cleared when you see the tile again and the thing is gone. Buildings may since have changed or fallen.
    */
-  lastSeen?: LastSeen[];
-  /** What the clock decides at `matchMs` if no side has been eliminated. */
-  timeoutOutcome?: "score" | "draw" | "survivorScore";
+  lastSeen: LastSeen[];
   /** Added by the room: last 5 visible messages, independent of the events cursor. Full history via /chat. */
   chat?: { enabled: boolean; messages: ChatMessage[] };
   outcome?: Outcome;
@@ -232,9 +230,9 @@ export interface SpectatorView {
   /** Observer-only conversations, filtered exactly as each player may see them. */
   playerChats?: Record<PlayerId, ChatMessage[]>;
   /** Observer-only per-player perspectives, for watch/replay. Never sent by player tools. */
-  perspectives?: Record<PlayerId, { visibility: string[]; entities: EntityView[]; projectiles?: ProjectileView[]; deposits: DepositView[]; players: PlayerStats[]; events: GameEvent[] }>;
+  perspectives?: Record<PlayerId, { visibility: string[]; entities: EntityView[]; projectiles: ProjectileView[]; deposits: DepositView[]; players: PlayerStats[]; events: GameEvent[] }>;
   visibility?: string[];
-  projectiles?: ProjectileView[];
+  projectiles: ProjectileView[];
   deposits: DepositView[];
   /** Events produced by the last simulated tick. */
   events: GameEvent[];

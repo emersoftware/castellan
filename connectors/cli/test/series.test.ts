@@ -3,12 +3,12 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildServer } from "@aoa/server";
-import { v0 } from "@aoa/shared";
+import { rules } from "@aoa/shared";
 import { client, runSeries } from "../src/index";
 
 it("runs three fresh agent processes with game-scoped credentials and API history", async () => {
   const dir = await mkdtemp(join(tmpdir(), "aoa-series-runner-"));
-  const app = await buildServer({ replayDir: dir, ruleset: { ...v0, matchMs: 400 }, prepMs: 0, tickRate: 20 });
+  const app = await buildServer({ replayDir: dir, ruleset: { ...rules, matchMs: 400 }, prepMs: 0, tickRate: 20 });
   await app.listen({ port: 0, host: "127.0.0.1" });
   const address = app.server.address() as { port: number };
   const server = `http://127.0.0.1:${address.port}`;

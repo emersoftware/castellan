@@ -20,7 +20,7 @@ it("uses engine perspective without hidden economy, events or entities and resto
   expect(selected.visibility).toEqual(["210"]); expect(selected.perspectives).toBeUndefined();
   expect(playerPerspective(view, null)).toBe(view);
 });
-it("keeps legacy open-map visibility while removing opponents' private orders", () => {
+it("shows frames without perspectives in full while removing opponents' private orders", () => {
   const selected = playerPerspective(frame, "p1")!;
   expect(selected.entities).toHaveLength(2); expect(selected.entities[1].order).toBeUndefined();
   expect(selected.visibility).toBeUndefined(); expect(frame.entities[1].order).toBeDefined();

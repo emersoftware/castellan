@@ -1,29 +1,28 @@
 import { expect, it } from 'vitest';
-import { v7, v8, MAPS, mapsForRuleset, playerGuide, viewToText, type ReplayFile } from '@aoa/shared';
+import { rules, MAPS, playerGuide, viewToText, type ReplayFile } from '@aoa/shared';
 import { createMatch, runReplay } from '../src/index';
 
-it('uses king in every current map, rules and state while keeping v7 maps intact', async () => {
-  expect(v8.kinds.agent).toBeUndefined();
-  expect(v8.kinds.king).toMatchObject({ hp: 400, def: 10, vital: true, moveMs: 500 });
-  expect(v8.kinds.king.atk).toBeUndefined();
-  expect(playerGuide(v8)).toContain('Only the King is vital');
-  expect(playerGuide(v8)).not.toMatch(/\bagent\b/i);
+it('uses king in every map, the rules and state', async () => {
+  expect(rules.kinds.agent).toBeUndefined();
+  expect(rules.kinds.king).toMatchObject({ hp: 400, def: 10, vital: true, moveMs: 500 });
+  expect(playerGuide(rules)).toContain('Only the King is vital');
+  expect(playerGuide(rules)).not.toMatch(/\bagent\b/i);
   for (const map of Object.values(MAPS)) {
     expect(map.start.some(e => e.kind === 'king')).toBe(true);
-    const m = await createMatch({ ruleset: { ...v8, map }, seed: 42, tickRate: 10, players: [{id:'a',name:'A'},{id:'b',name:'B'}] });
+    const m = await createMatch({ ruleset: { ...rules, map }, seed: 42, tickRate: 10, players: [{id:'a',name:'A'},{id:'b',name:'B'}] });
     try {
       expect(m.view('a').mine.filter(e => e.kind === 'king')).toHaveLength(1);
       expect(viewToText(m.view('a'))).toContain('king');
     } finally { m.dispose(); }
   }
-  expect(v7.map.start.some(e => e.kind === 'agent')).toBe(true);
-  expect(mapsForRuleset(v7)['fortress-quad'].start.some(e => e.kind === 'agent')).toBe(true);
+  expect(rules.map.start.some(e => e.kind === 'king')).toBe(true);
+  expect(MAPS['fortress-quad'].start.some(e => e.kind === 'king')).toBe(true);
 });
 
 it('ends on king death and deterministically replays the new kind', async () => {
-  const ruleset = { ...v8, fogOfWar: undefined, map: { ...v8.map, width: 8, height: 8, walls: [], deposits: [], sharedDeposits: [],
+  const ruleset = { ...rules, map: { ...rules.map, width: 8, height: 8, walls: [], deposits: [], sharedDeposits: [],
     start: [{kind:'king',x:3,y:3},{kind:'knight',x:3,y:4}] },
-    kinds: { ...v8.kinds, knight: { ...v8.kinds.knight, atk: 500 } }, defaultScripts: {} };
+    kinds: { ...rules.kinds, knight: { ...rules.kinds.knight, atk: 500 } }, defaultScripts: {} };
   const players = [{id:'a',name:'A'},{id:'b',name:'B'}];
   const m = await createMatch({ruleset, players, seed: 1, tickRate:10});
   try {

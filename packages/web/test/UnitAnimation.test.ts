@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { expect, it, vi } from 'vitest';
 import { Texture, type Sprite } from 'pixi.js';
-import { v8, type EntityView, type SpectatorView } from '@aoa/shared';
+import { rules, type EntityView, type SpectatorView } from '@aoa/shared';
 import { GameRenderer } from '../src/render/renderer';
 import { unitAnimation, unitDeathAnimation, MELEE_RECOVERY_MS } from '../src/render/unitAnimation';
 import { displayKind } from '../src/render/names';
@@ -18,9 +18,9 @@ it.each([0,1,2,3,4,5,6,7])('starts knight direction %i at contact and returns to
   expect(unitAnimation('king',1000,false)?.action).toBe('idle');
 });
 
-function setup(kind:string){
+function setup(kind:string,ruleset:typeof rules={...rules,diagonalMove:1}){
   let now=1000;
-  const renderer=Reflect.construct(GameRenderer,[document.createElement('div'),v8,{a:0,b:1}]) as GameRenderer;
+  const renderer=Reflect.construct(GameRenderer,[document.createElement('div'),ruleset,{a:0,b:1}]) as GameRenderer; // default: diagonal at straight speed
   const internal=renderer as unknown as {now:()=>number;play:()=>void;sprites:SpriteSet;animate():void;
     app:{renderer:{render():void}};drawn:Map<string,{sprite:Sprite;shot?:{at:number;dir:number}}>};
   internal.now=()=>now;internal.play=vi.fn();internal.app={renderer:{render(){}}};
@@ -174,4 +174,14 @@ it('faces the King toward his attacker and freezes the strike on pause',()=>{
  h.renderer.setFrame({...h.frame(2),events:[{tick:1,type:'attack',from:'u',to:'t',dmg:1}]},100);h.internal.animate();
  expect(h.last().slice(1)).toEqual([6,{action:'attack',frame:kingAtlas.attack.impactFrames[2]}]);
  h.renderer.setPaused(true);const before=h.last();h.time(5000);h.internal.animate();expect(h.last()).toEqual(before);
+});
+
+it('times a diagonal step like the engine: diagonalMove times a straight one',()=>{
+  const steps=(x:number,y:number)=>{
+    const h=setup('knight',rules);h.renderer.setFrame(h.frame(1),100);
+    h.renderer.setFrame(h.frame(2,[{...h.unit,x,y,stats:{atk:0,def:0,range:0,attackMs:1000,moveMs:500}},h.target]),100);
+    return (h.internal.drawn.get('u') as unknown as {step:{ms:number}}).step.ms;
+  };
+  expect(steps(5,4)).toBe(500);
+  expect(steps(5,5)).toBe(Math.round(500*rules.diagonalMove/100)*100);
 });

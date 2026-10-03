@@ -33,8 +33,11 @@ export const PRELUDE = String.raw`
   let others = [];
   let tie = {};
 
-  function cheb(a, b) {
-    return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+  // Game distance: Euclidean rounded to the nearest tile (same integer math as the engine).
+  function dist(a, b) {
+    const n = (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
+    const r = Math.floor(Math.sqrt(n));
+    return n - r * r > r ? r + 1 : r;
   }
 
   function load(json) {
@@ -63,7 +66,7 @@ export const PRELUDE = String.raw`
   }
   function byDistance(u, list) {
     return list.sort(function (a, b) {
-      return cheb(u, a) - cheb(u, b) || tieKey(a) - tieKey(b);
+      return dist(u, a) - dist(u, b) || tieKey(a) - tieKey(b);
     });
   }
 
@@ -74,7 +77,7 @@ export const PRELUDE = String.raw`
     const act = function (a) { if (action === null) action = a; };
     const idOf = function (t) { return typeof t === "string" ? t : t && t.id; };
     const visible = function (pred) {
-      return byDistance(u, others.filter(function (o) { return o.id !== u.id && pred(o) && cheb(u, o) <= u.vision; }));
+      return byDistance(u, others.filter(function (o) { return o.id !== u.id && pred(o) && dist(u, o) <= u.vision; }));
     };
     if (!memory[id]) memory[id] = {};
     const self = {
@@ -87,9 +90,9 @@ export const PRELUDE = String.raw`
       nearbyAllies: function () { return visible(friendly); },
       nearestEnemy: function () { return visible(hostile)[0] || null; },
       nearestAlly: function () { return visible(friendly)[0] || null; },
-      enemiesInRange: function () { return byDistance(u, others.filter(function (o) { return hostile(o) && cheb(u, o) <= u.range; })); },
-      distanceTo: function (o) { return cheb(u, o); },
-      distanceToPos: function (x, y) { return cheb(u, { x: x, y: y }); },
+      enemiesInRange: function () { return byDistance(u, others.filter(function (o) { return hostile(o) && dist(u, o) <= u.range; })); },
+      distanceTo: function (o) { return dist(u, o); },
+      distanceToPos: function (x, y) { return dist(u, { x: x, y: y }); },
       enemyBase: function () { return world.enemyBase; },
       myBase: function () { return world.myBase; },
       random: random,
@@ -111,7 +114,7 @@ export const PRELUDE = String.raw`
       self.carryCapacity = u.carryCapacity;
       self.deposits = function () {
         return (world.deposits || []).slice().sort(function (a,b) {
-          return cheb(u,a)-cheb(u,b) || a.tie-b.tie;
+          return dist(u,a)-dist(u,b) || a.tie-b.tie;
         }).map(function (d) { return {id:d.id,x:d.x,y:d.y,amount:d.amount}; });
       };
       self.nearestDeposit = function () { return self.deposits()[0] || null; };

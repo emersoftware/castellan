@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { MAPS, v9, v10, viewToText, type Ruleset } from "@aoa/shared";
+import { rules, MAPS, viewToText, type Ruleset } from "@aoa/shared";
 import { createMatch, type Match } from "../src";
 
 const live: Match[] = [];
@@ -17,7 +17,7 @@ const advance = (m: Match, n: number) => { for (let i = 0; i < n; i++) m.step([]
 
 describe("ruins", () => {
   it("keeps an eliminated player's buildings as inert ruins that give no vision", async () => {
-    const m = await start({ ...v10, map: MAPS.quad }, teams);
+    const m = await start({ ...rules, map: MAPS.quad }, teams);
     const castle = m.spectate().entities.find((e) => e.owner === "p3" && e.kind === "castle")!;
     const seesCastle = () => m.view("p4").visibility![castle.y][castle.x] === "2";
     expect(seesCastle()).toBe(true); // shared team vision
@@ -34,23 +34,18 @@ describe("ruins", () => {
     expect(m.spectate().entities.find((e) => e.id === castle.id)).toMatchObject({ hp: castle.hp });
   });
 
-  it("still removes everything under older rules", async () => {
-    const m = await start({ ...v9, map: MAPS.quad }, teams);
-    m.forfeit("p3");
-    expect(m.spectate().entities.filter((e) => e.owner === "p3")).toEqual([]);
-  });
 });
 
 describe("fog memory", () => {
   it("remembers enemy buildings and deposits as last seen, on the map and in state", async () => {
-    const ruleset: Ruleset = { ...v10, kinds: { ...v10.kinds, worker: { ...v10.kinds.worker, vision: 6, moveMs: 100 } },
-      defaultScripts: { ...v10.defaultScripts, worker: "self.hold();" } };
+    const ruleset: Ruleset = { ...rules, kinds: { ...rules.kinds, worker: { ...rules.kinds.worker, vision: 6, moveMs: 100 } },
+      defaultScripts: { ...rules.defaultScripts, worker: "self.hold();" } };
     const m = await start(ruleset, [{ id: "p1", name: "a", side: 0, team: 0 }, { id: "p2", name: "b", side: 1, team: 1 }]);
     const enemyCastle = m.spectate().entities.find((e) => e.owner === "p2" && e.kind === "castle")!;
     const scout = m.view("p1").mine.find((e) => e.kind === "worker")!;
     expect(m.view("p1").lastSeen).toEqual([]);
     const to = (x: number, y: number) => { m.step([{ player: "p1", order: { type: "move", unit: scout.id, x, y } }]); advance(m, 60); };
-    to(enemyCastle.x - 6, enemyCastle.y - 6);
+    to(enemyCastle.x - 4, enemyCastle.y - 4);
     expect(m.view("p1").enemy.some((e) => e.id === enemyCastle.id)).toBe(true);
     to(10, 10);
     const v = m.view("p1");

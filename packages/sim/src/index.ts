@@ -1,5 +1,5 @@
 import { createMatch, type PlayerOrder } from "@aoa/engine";
-import { mapsForRuleset, v9, type Outcome, type Ruleset } from "@aoa/shared";
+import { MAPS, rules, type Outcome, type Ruleset } from "@aoa/shared";
 import type { Bot } from "./bots";
 
 export * from "./bots";
@@ -21,9 +21,9 @@ export interface SimResult {
 /** Plays a whole match as fast as possible, without real time. */
 export async function simulate(a: SimSide, b: SimSide, opts: { seed?: number; ruleset?: Ruleset; tickRate?: number; map?: string } = {}): Promise<SimResult> {
   const tickRate = opts.tickRate ?? 10;
-  const base = opts.ruleset ?? v9;
+  const base = opts.ruleset ?? rules;
   const m = await createMatch({
-    ruleset: opts.map ? { ...base, map: mapsForRuleset(base)[opts.map] } : base, seed: opts.seed ?? 1, tickRate,
+    ruleset: opts.map ? { ...base, map: MAPS[opts.map] } : base, seed: opts.seed ?? 1, tickRate,
     players: [{ id: "p1", name: "A" }, { id: "p2", name: "B" }],
   });
   // Each side decides every `every` ticks, starting at a seeded random offset:

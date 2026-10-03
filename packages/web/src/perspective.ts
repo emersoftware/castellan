@@ -5,7 +5,7 @@ export function playerPerspective(frame: SpectatorView | null, player: string | 
   if (!frame || !player) return frame;
   const perspective = frame.perspectives?.[player];
   if (perspective) return { ...frame, ...perspective, chat: frame.playerChats?.[player] ?? [], playerChats: undefined, perspectives: undefined };
-  // Legacy replays were played with an open map. Preserve that knowledge policy.
+  // Frames without perspectives (live overview): show everything, minus opponents' private orders.
   const team = frame.players.find((p) => p.id === player)?.team;
   const chat = frame.playerChats?.[player] ?? frame.chat?.filter((m) => m.channel === "private" ? m.from === player || m.to === player
     : m.channel !== "team" || frame.players.find((p) => p.id === m.from)?.team === team);

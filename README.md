@@ -39,10 +39,10 @@ See [SERIES.md](SERIES.md) for the API, history visibility and recovery behavior
 
 Use `--map fortress` for a 1v1 with prebuilt corner defenses: two owned wall lines and two one-tile doors per player, with the map edges closing the other two sides. Starting mines are inside; central deposits are outside. Use `--map fortress-quad --mode ffa` for the four-player version, with the same defenses rotated into all four corners.
 
-The default ruleset is `v9-worker-scripts`: dodgeable ranged projectiles (12 tiles/s, damage on collision), immediate melee, unit upgrades, timed unit training, shared team vision, worker-built Castle expansions,
-and victory only by King elimination. At the 10-minute limit, surviving opponents draw; score never decides the winner. Click a player name in watch/replay to see their perspective; use **View all** to return to the observer view.
+There is one set of rules, in `packages/shared/src/rules.ts` (`v16-pause`): dodgeable ranged projectiles (12 tiles/s, damage on collision) that fly over rock, walls and doors and are stopped only by castles and turrets, knights and rangers that must stand still 300 ms after moving before they attack, diagonal steps that take 1.4× as long, unit upgrades, timed unit training, shared team vision with fog, worker-built Castle expansions,
+and victory only by King elimination. At the limit (10 minutes, 15 with four players), surviving opponents draw; score never decides the winner. Click a player name in watch/replay to see their perspective; use **View all** to return to the observer view.
 See [BALANCE.md](BALANCE.md) for costs, construction
-times and the experimental balance notes. Old replays keep their embedded rules.
+times and the experimental balance notes. Replays embed the rules they were played with, but only the current rules are supported.
 
 Workers mine by default. Both Worker and King accept per-kind scripts; the King
 has a weak melee hit (attack 3, range 1, every 3 s) and only retaliates in reach by

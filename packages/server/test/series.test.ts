@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { v0, type SeriesSummary } from "@aoa/shared";
+import { rules, type SeriesSummary } from "@aoa/shared";
 import { runReplay } from "@aoa/engine";
 import { buildServer } from "../src/app";
 
@@ -14,7 +14,7 @@ async function start(dir?: string, matchMs = 800) {
   const webDir = join(replayDir, "web");
   await mkdir(webDir, { recursive: true });
   await writeFile(join(webDir, "index.html"), "<!doctype html><title>Series viewer</title>");
-  app = await buildServer({ replayDir, webDir, ruleset: { ...v0, matchMs }, prepMs: 0, tickRate: 20 });
+  app = await buildServer({ replayDir, webDir, ruleset: { ...rules, matchMs, fourSeatMatchMs: matchMs }, prepMs: 0, tickRate: 20 });
   return replayDir;
 }
 async function request(url: string, token?: string, payload?: unknown, method: "GET" | "POST" | "PUT" = payload ? "POST" : "GET") {
@@ -51,7 +51,7 @@ describe("three-game series", () => {
     expect((await request(`/series/${id}`)).body.players.map((p: { name: string }) => p.name)).toEqual(["player1", "player2", "player3", "player4"]);
     expect((await request("/history", tokens[0])).body.games).toEqual([]);
     expect((await request("/history?game=1", tokens[0])).status).toBe(403);
-    expect((await request("/rules", tokens[0])).body.guide).toContain("game 1 of 3");
+    expect((await request("/rules", tokens[0])).body.guide).toContain("Game 1 of 3");
     expect((await request(`/series/${id}/replay.json`)).status).toBe(409);
     await connect(tokens);
     await Promise.all([
@@ -113,7 +113,7 @@ describe("three-game series", () => {
     const tokens = joins.map((j) => j.game.token);
     await connect(tokens);
     const before = (await request("/state", tokens[0])).body;
-    await request("/act", tokens[0], { orders: [{ type: "train", building: before.mine.find((e: any) => e.kind === "nexus").id, kind: "worker" }] });
+    await request("/act", tokens[0], { orders: [{ type: "train", building: before.mine.find((e: any) => e.kind === "castle").id, kind: "worker" }] });
     await request("/chat", tokens[0], { text: "remember after restart", to: "p2" });
     await app.close();
     const saved = JSON.parse(await readFile(join(dir, "series", `${created.id}.json`), "utf8"));
@@ -123,7 +123,8 @@ describe("three-game series", () => {
     expect(restored.game.token).toBe(tokens[0]);
     const view = (await request("/state", tokens[0])).body;
     expect(view.tick).toBe(saved.games[0].tick);
-    expect(view.mine.filter((e: any) => e.kind === "worker")).toHaveLength(4);
+    expect(view.mine.filter((e: any) => e.kind === "worker")).toHaveLength(3);
+    expect(view.mine.find((e: any) => e.kind === "castle").training).toEqual([expect.objectContaining({ kind: "worker" })]); // still queued
     expect(view.chat.messages).toContainEqual(expect.objectContaining({ text: "remember after restart" }));
     await connect(tokens);
     await poll(() => current(invites[0]), (j) => j.game.number === 2);

@@ -1,19 +1,19 @@
 import { afterEach, expect, it } from "vitest";
-import { v4, v5, v6, playerGuide, viewToText, type Ruleset, type ReplayFile } from "@aoa/shared";
+import { rules, playerGuide, viewToText, type Ruleset, type ReplayFile } from "@aoa/shared";
 import { createMatch, runReplay, type Match, type PlayerOrder } from "../src";
 import { segmentCircleHit } from "../src/projectiles";
 
 const live: Match[] = [];
 afterEach(() => { for (const m of live.splice(0)) m.dispose(); });
 const players = [{ id: "a", name: "A" }, { id: "b", name: "B" }];
-async function setup(options: { legacy?: boolean; speed?: number; range?: number; fog?: boolean; wall?: boolean; rate?: number; start?: Ruleset["map"]["start"] } = {}) {
-  const base = options.legacy ? v4 : v6;
-  const ruleset: Ruleset = { ...base, matchMs: 5000, fogOfWar: options.fog ? base.fogOfWar : undefined,
-    ...(options.speed ? { projectiles: { ...v6.projectiles!, speed: options.speed } } : {}),
+async function setup(options: { speed?: number; range?: number; fog?: boolean; wall?: boolean; rate?: number; start?: Ruleset["map"]["start"] } = {}) {
+  const base = rules;
+  const ruleset: Ruleset = { ...base, matchMs: 5000,
+    ...(options.speed ? { projectiles: { ...rules.projectiles!, speed: options.speed } } : {}),
     defaultScripts: { knight: "self.hold();", ranger: "self.hold();" },
     kinds: { ...base.kinds, ranger: { ...base.kinds.ranger, range: options.range ?? 8, def: 0, attackMs: 10000, moveMs: 100 } },
     map: { ...base.map, width: 9, height: 9, deposits: [], sharedDeposits: [], walls: options.wall ? [{ x: 4, y: 4 }] : [],
-      start: options.start ?? [{ kind: "ranger", x: 2, y: 4 }, { kind: "agent", x: 0, y: 0 }] } };
+      start: options.start ?? [{ kind: "ranger", x: 2, y: 4 }, { kind: "king", x: 0, y: 0 }] } };
   const m = await createMatch({ ruleset, players, seed: 1, tickRate: options.rate ?? 10 });
   live.push(m);
   const a = m.view("a").mine.find(e => e.kind === "ranger")!;
@@ -57,7 +57,7 @@ it("lets a sandbox script perceive and dodge a real incoming shot", async () => 
 
 it("intercepts the first hostile unit, even with a segment crossing several tiles", async () => {
   const { m, b, fire } = await setup({ speed: 100, start: [
-    { kind: "ranger", x: 2, y: 4 }, { kind: "worker", x: 4, y: 3 }, { kind: "agent", x: 0, y: 0 },
+    { kind: "ranger", x: 2, y: 4 }, { kind: "worker", x: 4, y: 3 }, { kind: "king", x: 0, y: 0 },
   ] });
   m.step(fire);
   const worker = m.view("b").mine.find(e => e.kind === "worker")!;
@@ -67,13 +67,13 @@ it("intercepts the first hostile unit, even with a segment crossing several tile
   expect(hp(m, worker.id)).toBeLessThan(worker.hp);
 });
 
-it("ignores friendly units and blocks at rock terrain", async () => {
+it("ignores friendly units and flies over rock terrain", async () => {
   const { m, b, fire } = await setup({ wall: true, speed: 100 });
   m.step(fire);
-  expect(m.step([]).events).toContainEqual(expect.objectContaining({ type: "projectile_end", reason: "blocked", x: 3.5 }));
-  expect(hp(m, b.id)).toBe(b.hp);
+  expect(m.step([]).events).toContainEqual(expect.objectContaining({ type: "projectile_end", reason: "hit", target: b.id }));
+  expect(hp(m, b.id)).toBeLessThan(b.hp);
   const second = await setup({ speed: 100, start: [
-    { kind: "ranger", x: 2, y: 4 }, { kind: "worker", x: 4, y: 3 }, { kind: "agent", x: 0, y: 0 },
+    { kind: "ranger", x: 2, y: 4 }, { kind: "worker", x: 4, y: 3 }, { kind: "king", x: 0, y: 0 },
   ] });
   second.m.step(second.fire);
   const worker = second.m.view("a").mine.find(e => e.kind === "worker")!;
@@ -84,7 +84,7 @@ it("ignores friendly units and blocks at rock terrain", async () => {
 
 it("keeps shots alive after the shooter dies and records the owner of the kill", async () => {
   const { m, a, b, fire } = await setup({ start: [
-    { kind: "ranger", x: 2, y: 4 }, { kind: "worker", x: 6, y: 5 }, { kind: "agent", x: 0, y: 0 },
+    { kind: "ranger", x: 2, y: 4 }, { kind: "worker", x: 6, y: 5 }, { kind: "king", x: 0, y: 0 },
   ] });
   const internals = m as unknown as { ents: Map<string, { hp: number }> };
   internals.ents.get(a.id)!.hp = 1;
@@ -95,19 +95,6 @@ it("keeps shots alive after the shooter dies and records the owner of the kill",
   expect(hp(m, a.id)).toBeUndefined();
   expect(m.spectate().projectiles).toHaveLength(1);
   expect(advance(m, 8)).toContainEqual(expect.objectContaining({ type: "death", id: b.id, by: "a" }));
-});
-
-it("preserves instant ranged damage for legacy rules and immediate melee for v6", async () => {
-  const old = await setup({ legacy: true });
-  old.m.step(old.fire);
-  expect(hp(old.m, old.b.id)).toBe(old.b.hp - 12);
-  expect(old.m.spectate().projectiles).toBeUndefined();
-  const melee = await setup({ range: 1, start: [{ kind: "ranger", x: 4, y: 3 }, { kind: "agent", x: 0, y: 0 }] });
-  // Move within range, then attack in the next tick.
-  melee.m.step([{ player: "a", order: { type: "move", unit: melee.a.id, x: 4, y: 4 } }]);
-  melee.m.step(melee.fire);
-  expect(hp(melee.m, melee.b.id)).toBe(melee.b.hp - 12);
-  expect(melee.m.spectate().projectiles).toEqual([]);
 });
 
 it("filters projectile state by current team vision", async () => {
@@ -147,7 +134,7 @@ it("does not leak hidden impact events to the shooter", async () => {
   expect(m.spectate().perspectives!.b.events.some(e => e.type === "projectile_end")).toBe(true);
 });
 
-it.each([10, 20, 40].flatMap(rate => [v5, v6].map(rules => [rate, rules.projectiles!.speed])))("keeps flight speed independent of tick rate (%s Hz, %s tiles/s)", async (rate, speed) => {
+it.each([10, 20, 40].flatMap(rate => [rules, rules].map(rules => [rate, rules.projectiles!.speed])))("keeps flight speed independent of tick rate (%s Hz, %s tiles/s)", async (rate, speed) => {
   const { m, fire } = await setup({ rate, speed });
   m.step(fire);
   while (m.spectate().projectiles!.length) m.step([]);
@@ -156,7 +143,7 @@ it.each([10, 20, 40].flatMap(rate => [v5, v6].map(rules => [rate, rules.projecti
   expect(end.tick / rate).toBeLessThan(3.65 / speed + 1 / rate);
 });
 
-it("tells the victim what hit its units, from landed shots and instant hits, but not the attacker", async () => {
+it("tells the victim what hit its units, from landed shots, but not the attacker", async () => {
   const { m, a, b, fire } = await setup();
   const since = m.view("b").tick;
   m.step(fire);
@@ -170,7 +157,4 @@ it("tells the victim what hit its units, from landed shots and instant hits, but
   // Later views only report new damage.
   expect(m.view("b", m.view("b").tick).underAttack).toEqual([]);
 
-  const legacy = await setup({ legacy: true });
-  legacy.m.step(legacy.fire);
-  expect(legacy.m.view("b", 0).underAttack).toMatchObject([{ id: legacy.b.id, damage: legacy.b.hp - hp(legacy.m, legacy.b.id)!, unseenAttackers: 0 }]);
 });

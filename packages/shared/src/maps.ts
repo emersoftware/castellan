@@ -115,16 +115,3 @@ export const MAPS: Record<string, MapSpec> = {
     ],
   },
 };
-
-/** v7 keeps the original unit identifier for deterministic historical games. */
-export const CASTLE_MAPS: Record<string, MapSpec> = Object.fromEntries(Object.entries(MAPS).map(([id, map]) =>
-  [id, { ...map, start: map.start.map(s => ({ ...s, kind: s.kind === "king" ? "agent" : s.kind })) }]));
-
-/** Select map content using the requested rules, including older custom rooms. */
-export function mapsForRuleset(ruleset: { kinds: Record<string, unknown> }): Record<string, MapSpec> {
-  return ruleset.kinds.king ? MAPS : ruleset.kinds.castle ? CASTLE_MAPS : LEGACY_MAPS;
-}
-
-/** Layouts for v0-v6 and embedded legacy game content. Never rename replay orders. */
-export const LEGACY_MAPS: Record<string, MapSpec> = Object.fromEntries(Object.entries(CASTLE_MAPS).filter(([, map]) => !map.start.some(s => s.kind === "door")).map(([id, map]) =>
-  [id, { ...map, start: map.start.map(s => ({ ...s, kind: s.kind === "castle" ? "nexus" : s.kind })) }]));

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LEGACY_MAPS as MAPS, v0, viewToText, type GameEvent, type ReplayFile, type SpectatorMessage } from "@aoa/shared";
+import { rules, MAPS, viewToText, type GameEvent, type ReplayFile, type SpectatorMessage } from "@aoa/shared";
 import { runReplay } from "@aoa/engine";
 import { Room } from "../src/room";
 
@@ -12,7 +12,9 @@ afterEach(() => {
 async function start(chat = true, mode?: "ffa", matchMs = 5000) {
   const replays: ReplayFile[] = [];
   room = await Room.create({
-    ruleset: { ...v0, map: MAPS.quad, matchMs },
+    // Whole-map sight, so every player's units show up in each view.
+    ruleset: { ...rules, map: MAPS.quad, matchMs, fourSeatMatchMs: matchMs,
+      kinds: Object.fromEntries(Object.entries(rules.kinds).map(([k, s]) => [k, { ...s, vision: 44 }])) },
     // Deliberately interleaved: privacy must follow team, not seat/list order.
     players: [0, 1, 0, 1].map((team, i) => ({ name: `player${i}`, team: mode === "ffa" ? undefined : team })),
     mode,
@@ -28,7 +30,7 @@ async function start(chat = true, mode?: "ffa", matchMs = 5000) {
 describe("team chat privacy", () => {
   it("shares the per-tick order limit across concurrent action calls", async () => {
     await start();
-    const unit = room.view("p1").mine.find((e) => e.kind === "agent")!.id;
+    const unit = room.view("p1").mine.find((e) => e.kind === "king")!.id;
     const orders = Array.from({ length: 30 }, () => ({ type: "stop" as const, unit }));
     const first = room.act("p1", orders);
     const second = room.act("p1", orders);

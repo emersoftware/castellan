@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { expect, it, vi } from 'vitest';
 import { Texture, type Sprite, type Graphics } from 'pixi.js';
-import { v7, type EntityView, type SpectatorView } from '@aoa/shared';
+import { rules, type EntityView, type SpectatorView } from '@aoa/shared';
 import { GameRenderer } from '../src/render/renderer';
 import { rangerAnimation, SHOT_RECOVERY_MS } from '../src/render/rangerAnimation';
 import type { SpriteSet } from '../src/render/sprites';
@@ -17,7 +17,8 @@ it.each(row.map((_, dir) => dir))('starts direction %i at its release marker and
 
 function setup() {
   let now = 1000;
-  const renderer = Reflect.construct(GameRenderer, [document.createElement('div'), v7, { a: 0, b: 1 }]) as GameRenderer;
+  // Diagonal steps at straight-step speed: these tests are about walking continuity.
+  const renderer = Reflect.construct(GameRenderer, [document.createElement('div'), { ...rules, diagonalMove: 1 }, { a: 0, b: 1 }]) as GameRenderer;
   const internal = renderer as unknown as {
     now: () => number; play: () => void; sprites: SpriteSet; animate(): void;
     app: { renderer: { render(): void } }; drawn: Map<string, { sprite: Sprite; shot?: { at: number; dir: number } }>; shots: Map<string, { graphic: Graphics }>;

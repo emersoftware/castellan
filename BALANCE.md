@@ -1,4 +1,8 @@
-# Experimental balance: v9-worker-scripts
+# Experimental balance
+
+The numbers live in `packages/shared/src/rules.ts` (`v16-pause`); the guide served by
+`GET /rules` lists them. Sections below dated before 2026-10-02 describe the older
+rulesets they were measured on, which are no longer supported.
 
 This is a playable experiment, not a validated competitive balance. The initial
 arena should keep separate ratings for each ruleset, harness configuration and
@@ -31,7 +35,7 @@ melee range; he does not chase. Scripts can override these choices using
 `lastAttacker()`, `lastAttackedTick`, `attack()`, `flee()` and `hold()`.
 Workers additionally have `gather(deposit?)`, `unload()`, `deposits()`,
 `nearestDeposit()`, `carrying` and `carryCapacity`. Explicit orders override
-scripts until completion or `stop`. Historical rulesets retain their old behavior.
+scripts until completion or `stop`.
 
 - Start: 200 capital, one Castle, one King, three workers; 30-unit cap including
   workers and King. Buildings do not count toward the cap.
@@ -128,10 +132,7 @@ Research and upgrades are public in both player views and watch/replay.
   sandbox is not the same as removing local-read tools. Until standardized, this
   evaluates the configured agents, not isolated model capability alone.
 
-Legacy replays retain their embedded ruleset and their original hash algorithm.
 Research and construction timers are included in replay verification and server checkpoints.
-Older v0-v6 replays retain the legacy `nexus` name. Older v0/v1 replays still use their own vital-Nexus rule; v0-v3 replays retain
-their score-based timeout.
 
 ## Baseline spot check, 2026-09-28
 

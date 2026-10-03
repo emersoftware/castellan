@@ -1,10 +1,10 @@
 import { expect, it } from "vitest";
-import { LEGACY_MAPS as MAPS, v4 } from "@aoa/shared";
+import { rules, MAPS } from "@aoa/shared";
 import { createMatch } from "../src";
 
 it("keeps full observer chat per player, including own private/team messages but not other conversations", async () => {
   const players = Array.from({ length: 4 }, (_, i) => ({ id: `p${i+1}`, name: `Player ${i+1}`, side: i, team: Math.floor(i/2) }));
-  const m = await createMatch({ ruleset: { ...v4, map: MAPS.quad }, players, seed: 1, tickRate: 10 });
+  const m = await createMatch({ ruleset: { ...rules, map: MAPS.quad }, players, seed: 1, tickRate: 10 });
   try {
     m.step([
       { player: "p1", order: { type: "chat", text: "public" } },

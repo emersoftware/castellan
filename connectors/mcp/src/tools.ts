@@ -32,7 +32,7 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
   const server = new McpServer({ name: "aoa", version: "0.1.0" });
 
   server.registerTool("history", {
-    description: "Completed previous games in your current series. No game argument lists available games. Sections: summary (result), events (visible events), chat (visible conversation), scripts (your final scripts), orders (your orders and results). Game 1 has no previous history. Only earlier games in your series are accessible; no opponents' scripts or other players' private chat. Detail sections return items and next offset, null at the end.",
+    description: "Completed earlier games of your series. Without game: the list. Sections: summary (result), events and chat (what you could see), scripts (your final ones), orders (yours, with results). Never opponents' scripts or others' private chat. Detail sections page with offset; next is null at the end.",
     inputSchema: {
       game: z.number().int().min(1).max(3).optional(),
       section: z.enum(["summary", "events", "chat", "scripts", "orders"]).optional(),
@@ -43,14 +43,14 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
 
   server.registerTool(
     "rules",
-    { description: "Age of Agents player guide: how to win, unit stats and costs, order shapes, the unit script API. Read it once before playing." },
+    { description: "The rules of this room: victory, unit stats and costs, research, order shapes and the script APIs." },
     () => reply(() => aoa.rules(c)),
   );
 
   server.registerTool(
     "state",
     {
-      description: "Your current view, filtered by the room's fog-of-war rules: tick, status (waiting|prep|running|finished), time left and what happens at the time limit, capital, ASCII map, your units, visible enemies with owner ids, deposits, script errors, the last 5 chat messages visible to you, damage your units and buildings took (UNDER ATTACK), and events since your last call (or since tick `since`). Chat preview is independent of since. Use chat without text for the full visible history.",
+      description: "Your view under fog of war: tick, status (waiting|prep|running|finished), time left, capital, ASCII map, your entities, visible enemies with owner ids, deposits, script errors, the last 5 visible chat messages, damage your entities took (under attack) and events since your last call (or since tick `since`).",
       inputSchema: { since: z.number().int().optional().describe("events from this tick (default: since your last call)") },
     },
     ({ since }) => reply(() => aoa.state(c, { since })),
@@ -63,7 +63,7 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
         "Send a batch of orders (max 50), applied next tick; only while running. Shapes: " +
         "{type:'train',building,kind:'worker'|'knight'|'ranger'} {type:'build',unit,kind:'turret'|'wall'|'door'|'castle',x,y} {type:'move',unit,x,y} " +
         "{type:'attack',unit,target} {type:'gather',unit,deposit?} {type:'stop',unit} {type:'upgrade',upgrade:'<id from rules>'}. " +
-        "Returns ok/FAILED per order, capital spent and remaining for purchases, plus the new view. Training may be queued: rules defines durations/limits, and a queued train returns no unit id until spawn. Research affects your existing and future units of one kind after its timer completes.",
+        "Returns ok/FAILED per order, capital spent and remaining, and your view. A queued unit gets its id when it spawns; durations and limits are in rules.",
       inputSchema: { orders: z.array(order).min(1).max(50) },
     },
     ({ orders }) => reply(() => aoa.act(c, orders)),
@@ -74,7 +74,7 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
     {
       description:
         "Read (omit code) or replace the script every unit of `kind` (worker, king, knight, ranger, turret, castle; see rules) runs each tick when it has no order. " +
-        "code = JS function body with `self` in scope (see rules), max 4 KB. Only once the match is running (not during prep). Uploading returns the result plus your view.",
+        "code = JS function body with `self` in scope (see rules), max 4 KB; only while running. Uploading returns the result and your view.",
       inputSchema: {
         kind: z.string().describe("worker | king | knight | ranger | turret | castle (availability depends on rules)"),
         code: z.string().optional(),
@@ -98,8 +98,7 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
         "entities carry id, kind, owner, x, y, hp, maxHp, stats, order, doing, training), `rules` = the full ruleset JSON (kinds with costs and stats, upgrades, map), " +
         "`act(order)` = queue one order (same shapes as act; move/attack/gather/build/train/upgrade/stop; max 50) and `log(...)`. " +
         "All queued orders are applied together when it returns; if it throws, none are. Its return value (JSON) and logs come back with each order's result. " +
-        "Deterministic CPU/memory limits (heavy loops fail with out of gas); no network or timers. It reads your view like state does. Use it to issue computed batches of orders, " +
-        "e.g. every hurt knight retreats and the rest attack the weakest visible enemy, or to inspect data the text state summarizes.",
+        "Deterministic CPU/memory limits (heavy loops fail with out of gas); no network or timers. It reads your view like state does.",
       inputSchema: {
         code: z.string().min(1).max(16384).describe("function body; may `return` a JSON value"),
         lang: z.enum(["js", "ts"]).optional().describe("default js; ts types are stripped"),
@@ -112,8 +111,7 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
     "wait",
     {
       description:
-        "Block until you have new events since tick `since` (only of the types in `until`, if given) or max_s seconds pass, then return your view. " +
-        "Optional when you want to wait for news; the game and unit scripts keep running. Choose the timeout and event filter to fit your next decision. You do not need to call wait before acting.",
+        "Block until there are new events since tick `since` (only types in `until`, if given) or max_s seconds pass, then return your view. The game and unit scripts keep running meanwhile. Never required: orders can be sent at any time.",
       inputSchema: {
         since: z.number().int().optional().describe("default: since your last call"),
         max_s: z.number().int().min(0).max(30).optional().describe("seconds, ≤30 (default 20)"),
@@ -127,10 +125,9 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
     "chat",
     {
       description:
-        "Talk to players (only in rooms with chat on). With `text`: send it (max 200 chars, one every 3 s across channels); " +
-        "Omit channel and to for public chat. Set to to another player id (e.g. p2) for a private message visible only to sender and recipient during play; channel private is optional with to. " +
-        "channel team is private to teammates and requires an ally; do not combine it with to. Private/team messages are hidden from live spectators and appear in the replay after the match. " +
-        "Returns your view. Without `text`: read all messages visible to you. New messages also show up in state/wait events (wait until=chat to be woken by one).",
+        "Messages, when the room has chat. With `text`: send it (max 200 chars, one per 3 s across channels); public by default, " +
+        "private with `to` (a player id), or to your team with channel team (not with to). Private and team messages are hidden from live spectators and appear in the replay. " +
+        "Returns your view. Without `text`: every message you can see. New ones also arrive as chat events (wait until=chat).",
       inputSchema: {
         text: z.string().min(1).max(200).optional(),
         channel: z.enum(["all", "team", "private"]).optional().describe("all = public, team = allies, private = one recipient; omitted with to implies private; ignored when reading"),

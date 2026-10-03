@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { v7, MAPS, playerGuide, viewToText, type Ruleset, type ReplayFile } from "@aoa/shared";
+import { rules, MAPS, playerGuide, viewToText, type Ruleset, type ReplayFile } from "@aoa/shared";
 import { createMatch, runReplay, type Match, type PlayerOrder } from "../src";
 
 const live: Match[] = [];
@@ -9,10 +9,12 @@ const entity = (m: Match, kind: string, owner = "a") => m.spectate().entities.fi
 const step = (m: Match, n = 1) => { for (let i = 0; i < n; i++) m.step([]); };
 const move = (m: Match, id: string, x: number, y: number, player = "a") => m.step([{ player, order: { type: "move", unit: id, x, y } }]);
 async function setup(team = false, corridor = true) {
-  const ruleset: Ruleset = { ...v7, fogOfWar: undefined, matchMs: 10000, startCapital: 1000,
-    defaultScripts: { ...v7.defaultScripts, castle: "self.hold();" },
+  // Instant walls and doors: these tests are about passage, not construction time.
+  const ruleset: Ruleset = { ...rules, matchMs: 10000, startCapital: 1000,
+    kinds: Object.fromEntries(Object.entries(rules.kinds).map(([k, s]) => [k, k === "wall" || k === "door" ? { ...s, buildMs: undefined } : s])),
+    defaultScripts: { ...rules.defaultScripts, castle: "self.hold();" },
     map: { name: "doors", description: "", width: 9, height: 9,
-      start: [{ kind: "worker", x: 1, y: 4 }, { kind: "agent", x: 0, y: 0 }, { kind: "castle", x: 0, y: 1 }],
+      start: [{ kind: "worker", x: 1, y: 4 }, { kind: "king", x: 0, y: 0 }, { kind: "castle", x: 0, y: 1 }],
       deposits: [], sharedDeposits: [], walls: corridor ? [3,5].flatMap(y => Array.from({ length: 9 }, (_, x) => ({ x, y }))) : [] } };
   const participants = team ? [...players, { id: "ally", name: "Ally", side: 2, team: 0 }] : players;
   const m = await createMatch({ ruleset, players: participants, seed: 1, tickRate: 10 }); live.push(m);
@@ -21,9 +23,9 @@ async function setup(team = false, corridor = true) {
 }
 
 it("uses castle consistently in current maps, rules, text, training and script API", async () => {
-  expect(Object.values(MAPS).every(map => map.start.some(s => s.kind === "castle") && map.start.every(s => s.kind !== "nexus"))).toBe(true);
-  expect(v7.kinds.nexus).toBeUndefined();
-  expect(playerGuide(v7)).not.toMatch(/nexus/i);
+  expect(Object.values(MAPS).every(map => map.start.some(s => s.kind === "castle"))).toBe(true);
+  expect(rules.kinds.nexus).toBeUndefined();
+  expect(playerGuide(rules)).not.toMatch(/nexus/i);
   const { m } = await setup();
   expect(viewToText(m.view("a"))).toContain("castle");
   const castle = entity(m,"castle");

@@ -4,7 +4,7 @@ import type {
 } from "@aoa/shared";
 import { barrierAxes, matchLengthMs } from "@aoa/shared";
 import { createScriptHost, type ScriptAction, type ScriptHost, type ScriptWorld } from "@aoa/sandbox";
-import { DIRS, DIR_LIST, SEAT_DIRS, canCross, cheb, findPath, inBounds, mapToSeat, seatToMap, type Grid } from "./grid";
+import { DIRS, DIR_LIST, SEAT_DIRS, canCross, dist, findPath, inBounds, mapToSeat, seatToMap, type Grid } from "./grid";
 import { segmentCircleHit } from "./projectiles";
 import { validateOrder } from "./validate";
 
@@ -74,7 +74,7 @@ interface Entity {
   training?: { kind: string; completesAtTick?: number }[];
 }
 
-interface Projectile extends ProjectileView { attack: number; launchedAt: number; source?: string; aimedAt?: string }
+interface Projectile extends ProjectileView { attack: number; launchedAt: number; source: string; aimedAt: string }
 
 interface Deposit {
   id: string;
@@ -133,7 +133,7 @@ export class Match {
   /** View-only fog memory (not hashed, never shown to scripts): enemy buildings as last seen, and when each deposit was seen. */
   private seenBuildings = new Map<PlayerId, Map<string, Extract<LastSeen, { owner: PlayerId }> & { tick: number }>>();
   private seenDeposits = new Map<PlayerId, Map<string, number>>();
-  /** Players eliminated under `ruleset.ruins`: their remaining buildings are ruins. Empty under older rules. */
+  /** Eliminated players: their remaining buildings are inert ruins. */
   private ruined = new Set<PlayerId>();
   private eventAudience = new WeakMap<GameEvent, Set<PlayerId>>();
   private nextId = 1;
@@ -192,7 +192,7 @@ export class Match {
     if (this._outcome) return { results: input.map(() => ({ ok: false, reason: "match over" })), events };
     const T = this._tick;
     const emit = (e: GameEvent) => {
-      if (this.ruleset.fogOfWar) this.eventAudience.set(e, new Set(this.players.filter((p) => this.canSeeEvent(p.id, e)).map((p) => p.id)));
+      this.eventAudience.set(e, new Set(this.players.filter((p) => this.canSeeEvent(p.id, e)).map((p) => p.id)));
       events.push(e);
     };
     const prio = this.priority();
@@ -203,7 +203,7 @@ export class Match {
       const { upgrade, level } = p.research;
       p.upgrades[upgrade] = level;
       p.research = null;
-      const kind = this.ruleset.upgrades![upgrade].kind;
+      const kind = this.ruleset.upgrades[upgrade].kind;
       for (const e of this.ents.values()) if (e.owner === p.id && e.kind === kind) e.spec = this.effectiveSpec(p, kind);
       emit({ tick: T, type: "upgrade_completed", owner: p.id, upgrade, level });
     }
@@ -274,24 +274,24 @@ export class Match {
     for (const e of this.interleaved(prio)) {
       const it = intents.get(e.id);
       if (it?.t !== "attack" || T < e.nextAttack || !e.spec.atk) continue;
+      // Aim: after a step, the attacker must stand still before it strikes.
+      if (e.spec.aimMs && e.lastStep && T - e.lastStep.tick < this.ticks(e.spec.aimMs)) continue;
       const target = this.ents.get(it.id);
-      if (!target || !this.canSee(e.owner, target.x, target.y) || !this.hostile(target.owner, e.owner) || cheb(e.x, e.y, target.x, target.y) > (e.spec.range ?? 1)) continue;
+      if (!target || !this.canSee(e.owner, target.x, target.y) || !this.hostile(target.owner, e.owner) || dist(e.x, e.y, target.x, target.y) > (e.spec.range ?? 1)) continue;
       e.nextAttack = T + this.ticks(e.spec.attackMs ?? 1000);
-      if (e.spec.aimMs) e.nextMove = Math.max(e.nextMove, T + this.ticks(e.spec.aimMs));
-      if (this.ruleset.projectiles && (e.spec.range ?? 1) > 1) {
+      if ((e.spec.range ?? 1) > 1) {
         const dx = target.x - e.x, dy = target.y - e.y;
         const distance = Math.hypot(dx, dy);
         const id = `p${this.nextProjectileId++}`;
         this.projectiles.set(id, { id, owner: e.owner, x: e.x, y: e.y,
           vx: dx / distance * this.ruleset.projectiles.speed, vy: dy / distance * this.ruleset.projectiles.speed,
-          endX: target.x, endY: target.y, attack: e.spec.atk, launchedAt: T, ...(this.ruleset.reactiveScripts ? { source: e.id } : {}),
-          ...(this.ruleset.projectiles.flyOverTargetById ? { aimedAt: target.id } : {}) });
+          endX: target.x, endY: target.y, attack: e.spec.atk, launchedAt: T, source: e.id, aimedAt: target.id });
         emit({ tick: T, type: "attack", from: e.id, to: target.id, dmg: 0, projectile: id });
       } else {
         const dmg = Math.max(1, e.spec.atk - target.spec.def);
         damage.set(target.id, (damage.get(target.id) ?? 0) + dmg);
         lastHit.set(target.id, e.owner);
-        if (this.ruleset.reactiveScripts) target.lastAttacked = { id: e.id, tick: T };
+        target.lastAttacked = { id: e.id, tick: T };
         emit({ tick: T, type: "attack", from: e.id, to: target.id, dmg });
       }
     }
@@ -344,12 +344,12 @@ export class Match {
   /** Events `player` may see with tick ≥ `since` (attacks excluded: too many). */
   events(player: PlayerId, since: number): GameEvent[] {
     return this.log.filter((e) => e.tick >= since && e.type !== "attack" && e.type !== "projectile_end" && visibleTo(e, player)
-      && (!this.ruleset.fogOfWar || e.type === "match_end" || this.eventAudience.get(e)?.has(player))
+      && (e.type === "match_end" || this.eventAudience.get(e)?.has(player))
       && (e.type !== "chat" || (e.channel === "private"
         ? e.owner === player || e.to === player
         : e.channel !== "team" || !this.hostile(e.owner, player))))
       .map((e) => {
-        if (this.ruleset.fogOfWar && e.type === "spawn" && this.hostile(e.owner, player)) {
+        if (e.type === "spawn" && this.hostile(e.owner, player)) {
           const { capital, ...publicEvent } = e; return publicEvent;
         }
         return e;
@@ -370,18 +370,17 @@ export class Match {
       status: this.status(),
       you: player,
       players: this.stats(player),
-      ...(this.ruleset.fogOfWar ? { visibility: this.visibilityRows(player) } : {}),
+      visibility: this.visibilityRows(player),
       grid: this.ascii(player),
       mine: all.filter((e) => e.owner === player).map((e) => this.entityView(e, player)),
       allies: all.filter((e) => e.owner !== player && !this.hostile(e.owner, player)).map((e) => this.entityView(e, player)),
       enemy: all.filter((e) => this.hostile(e.owner, player) && this.canSee(player, e.x, e.y)).map((e) => this.entityView(e, player)),
       deposits: this.depositViews().filter((d) => this.canSee(player, d.x, d.y)),
-      ...(this.ruleset.projectiles ? { projectiles: this.projectileViews(player) } : {}),
+      projectiles: this.projectileViews(player),
       scripts,
       events,
       underAttack: this.underAttack(player, since ?? this._tick - this.ticks(10_000)),
-      ...(this.ruleset.fogOfWar ? { lastSeen: this.lastSeen(player) } : {}),
-      timeoutOutcome: this.timeoutRule(),
+      lastSeen: this.lastSeen(player),
       outcome: this._outcome ?? undefined,
     };
   }
@@ -436,20 +435,20 @@ export class Match {
       status: this.status(),
       players: this.stats(),
       entities: [...this.ents.values()].map((e) => this.entityView(e)),
-      ...(this.ruleset.projectiles ? { projectiles: this.projectileViews() } : {}),
-      ...(this.ruleset.fogOfWar ? { perspectives: Object.fromEntries(this.players.map((p) => {
+      projectiles: this.projectileViews(),
+      perspectives: Object.fromEntries(this.players.map((p) => {
         const view = this.view(p.id, from);
         // The player's fog memory, so an observer sees explored ground as that player remembers it.
-        const remembered = view.lastSeen ?? [];
+        const remembered = view.lastSeen;
         const buildings: EntityView[] = remembered.flatMap((l) => "owner" in l ? [{ id: l.id, kind: l.kind, owner: l.owner, x: l.x, y: l.y, hp: l.hp, maxHp: l.maxHp,
           vital: !!this.ruleset.kinds[l.kind]?.vital, ...(l.ruin ? { ruin: true } : {}), lastSeenMs: l.seenMs }] : []);
         const deposits: DepositView[] = remembered.flatMap((l) => "amount" in l ? [{ id: l.id, x: l.x, y: l.y, amount: l.amount, lastSeenMs: l.seenMs }] : []);
-        return [p.id, { visibility: view.visibility!, entities: [...view.mine, ...view.allies, ...view.enemy, ...buildings],
-          ...(this.ruleset.projectiles ? { projectiles: view.projectiles } : {}),
+        return [p.id, { visibility: view.visibility, entities: [...view.mine, ...view.allies, ...view.enemy, ...buildings],
+          projectiles: view.projectiles,
           deposits: [...view.deposits, ...deposits], players: view.players.map((s) => ({ ...s, name: this.player(s.id).name })), events: [...view.events.filter((e) => e.type !== "log" && e.type !== "script_error"
             && (e.type !== "chat" || (e.channel === "private" ? options.includePrivateChat : e.channel !== "team" || options.includePrivateChat || options.includeTeamChat))),
             ...this.log.filter((e) => e.tick >= from && (e.type === "attack" || e.type === "projectile_end") && this.eventAudience.get(e)?.has(p.id))] }];
-      })) } : {}),
+      })),
       deposits: this.depositViews(),
       events: this.log.filter((e) => e.tick >= from && e.type !== "log" && e.type !== "script_error"
         && (e.type !== "chat" || (e.channel === "private" ? options.includePrivateChat
@@ -472,7 +471,7 @@ export class Match {
     const teams = this.aliveTeams();
     if (teams.size <= 1) this.finish(this.teamOf([...teams][0]), "forfeit", this._tick, () => {});
     else this.eliminate(p, (e) => {
-      if (this.ruleset.fogOfWar) this.eventAudience.set(e, new Set(this.players.filter((q) => this.canSeeEvent(q.id, e)).map((q) => q.id)));
+      this.eventAudience.set(e, new Set(this.players.filter((q) => this.canSeeEvent(q.id, e)).map((q) => q.id)));
       this.log.push(e);
     });
     this.refreshVision();
@@ -491,40 +490,35 @@ export class Match {
     for (const e of this.ents.values()) {
       for (let i = 0; i < e.id.length; i++) mix(e.id.charCodeAt(i));
       mix(e.x); mix(e.y); mix(e.hp); mix(e.carrying);
-      if (this.ruleset.reactiveScripts) {
-        mix(e.lastAttacked?.tick ?? -1);
-        for (const ch of e.lastAttacked?.id ?? "") mix(ch.charCodeAt(0));
-      }
+      mix(e.lastAttacked?.tick ?? -1);
+      for (const ch of e.lastAttacked?.id ?? "") mix(ch.charCodeAt(0));
     }
     for (const d of this.deps.values()) mix(d.amount);
-    // Keep the legacy hash untouched for rulesets without research.
-    if (this.ruleset.upgrades) for (const p of this.players) {
+    for (const p of this.players) {
       for (const id of Object.keys(this.ruleset.upgrades).sort()) {
         mix(p.upgrades[id] ?? 0);
         mix(p.research?.upgrade === id ? p.research.level : 0);
         mix(p.research?.upgrade === id ? p.research.completesAtTick : 0);
       }
     }
-    if (Object.values(this.ruleset.kinds).some((k) => k.buildMs)) for (const e of this.ents.values()) {
+    for (const e of this.ents.values()) {
       mix(e.construction?.completesAtTick ?? 0);
       mix(e.construction?.x ?? 0); mix(e.construction?.y ?? 0);
       for (const ch of e.construction?.kind ?? "") mix(ch.charCodeAt(0));
     }
-    if (this.ruleset.trainingQueueLimit) for (const e of this.ents.values()) {
+    for (const e of this.ents.values()) {
       mix(e.training?.length ?? 0);
       for (const job of e.training ?? []) {
         for (const ch of job.kind) mix(ch.charCodeAt(0));
         mix(job.completesAtTick ?? 0);
       }
     }
-    if (this.ruleset.fogOfWar) for (const p of this.players) {
+    for (const p of this.players) {
       for (const tile of [...(this.explored.get(p.id) ?? [])].sort((a, b) => a - b)) mix(tile);
       for (const d of this.knownDeposits.get(p.id)?.values() ?? []) { mix(d.x); mix(d.y); mix(d.amount); }
     }
-    if (this.ruleset.projectiles) {
-      mix(this.nextProjectileId);
-      for (const p of this.projectiles.values()) for (const c of JSON.stringify(p)) mix(c.charCodeAt(0));
-    }
+    mix(this.nextProjectileId);
+    for (const p of this.projectiles.values()) for (const c of JSON.stringify(p)) mix(c.charCodeAt(0));
     return (h >>> 0).toString(16).padStart(8, "0");
   }
 
@@ -563,7 +557,7 @@ export class Match {
     const spec = this.effectiveSpec(this.player(owner), kind);
     const e: Entity = {
       id: `e${this.nextId++}`, kind, spec, owner, x, y, hp: spec.hp,
-      order: spec.gathers && !(this.ruleset.reactiveScripts && spec.scriptable) ? { type: "gather" } : null,
+      order: spec.gathers && !spec.scriptable ? { type: "gather" } : null,
       nextMove: 0, nextAttack: 0, nextGather: 0, carrying: 0, path: null, pathKey: "", blocked: 0, doing: "", lastStep: null,
     };
     this.ents.set(e.id, e);
@@ -618,9 +612,7 @@ export class Match {
     if (o.type === "upgrade") return this.research(p, o.upgrade, emit);
 
     const e = this.ents.get(o.unit);
-    if (this.ruleset.fogOfWar && (!e || e.owner !== p.id)) return { ok: false, reason: `no entity ${o.unit} of yours` };
-    if (!e) return { ok: false, reason: `no entity ${o.unit}` };
-    if (e.owner !== p.id) return { ok: false, reason: `${o.unit} is not yours` };
+    if (!e || e.owner !== p.id) return { ok: false, reason: `no entity ${o.unit} of yours` };
     if (!e.spec.moveMs) return { ok: false, reason: `${e.kind} cannot take orders` };
     const { width, height } = this.ruleset.map;
     switch (o.type) {
@@ -646,7 +638,7 @@ export class Match {
       }
       case "gather":
         if (!e.spec.gathers) return { ok: false, reason: `${e.kind} cannot gather` };
-        if (o.deposit !== undefined && (!this.deps.has(o.deposit) || (this.ruleset.fogOfWar && !this.knownDeposits.get(p.id)?.has(o.deposit)))) return { ok: false, reason: `no deposit ${o.deposit}` };
+        if (o.deposit !== undefined && (!this.deps.has(o.deposit) || !this.knownDeposits.get(p.id)?.has(o.deposit))) return { ok: false, reason: `no deposit ${o.deposit}` };
         this.clearConstruction(e);
         e.order = { type: "gather", deposit: o.deposit };
         return { ok: true };
@@ -682,7 +674,6 @@ export class Match {
 
   private effectiveSpec(p: Player, kind: string): KindSpec {
     const base = this.ruleset.kinds[kind];
-    if (!this.ruleset.upgrades) return base;
     const spec = { ...base };
     for (const [id, level] of Object.entries(p.upgrades)) {
       const upgrade = this.ruleset.upgrades[id];
@@ -695,8 +686,8 @@ export class Match {
   }
 
   private research(p: Player, id: string, emit: (e: GameEvent) => void): OrderResult {
-    const upgrade = this.ruleset.upgrades?.[id];
-    if (!upgrade || !Object.hasOwn(this.ruleset.upgrades!, id)) return { ok: false, reason: `unknown upgrade ${id}` };
+    const upgrade = this.ruleset.upgrades[id];
+    if (!upgrade || !Object.hasOwn(this.ruleset.upgrades, id)) return { ok: false, reason: `unknown upgrade ${id}` };
     if (p.research) return { ok: false, reason: `already researching ${p.research.upgrade}` };
     const level = (p.upgrades[id] ?? 0) + 1;
     const next = upgrade.levels[level - 1];
@@ -718,7 +709,7 @@ export class Match {
     if (this.pop(p.id) + this.queuedPop(p.id) >= this.ruleset.popCap) return { ok: false, reason: `population cap ${this.ruleset.popCap} reached` };
     if (spec.trainMs) {
       const queue = b.training ??= [];
-      if (queue.length >= (this.ruleset.trainingQueueLimit ?? 5)) return { ok: false, reason: "training queue full" };
+      if (queue.length >= this.ruleset.trainingQueueLimit) return { ok: false, reason: "training queue full" };
       p.capital -= spec.cost;
       queue.push({ kind, ...(queue.length === 0 ? { completesAtTick: this._tick + this.ticks(spec.trainMs) } : {}) });
       emit({ tick: this._tick, type: "training_queued", owner: p.id, building: b.id, kind, position: queue.length });
@@ -769,17 +760,17 @@ export class Match {
       case "move": {
         if (e.x === o.x && e.y === o.y) return this.endOrder(e, "arrived", emit), null;
         const r = this.movementGrid(e.owner).isStatic(o.x, o.y) ? 1 : 0;
-        if (r === 1 && cheb(e.x, e.y, o.x, o.y) <= 1) return this.endOrder(e, "arrived", emit), null;
+        if (r === 1 && dist(e.x, e.y, o.x, o.y) <= 1) return this.endOrder(e, "arrived", emit), null;
         return { t: "goto", x: o.x, y: o.y, range: r };
       }
       case "attack": {
         const t = this.ents.get(o.target);
         if (!t || !this.canSee(e.owner, t.x, t.y)) return this.endOrder(e, "target lost", emit), null;
-        if (cheb(e.x, e.y, t.x, t.y) <= range) return { t: "attack", id: t.id };
+        if (dist(e.x, e.y, t.x, t.y) <= range) return { t: "attack", id: t.id };
         return { t: "goto", x: t.x, y: t.y, range };
       }
       case "build": {
-        const d = cheb(e.x, e.y, o.x, o.y);
+        const d = dist(e.x, e.y, o.x, o.y);
         if (d === 0) {
           const off = this.freeNeighbor(e.x, e.y, e.owner);
           return off ? { t: "dir", dx: off[0] - e.x, dy: off[1] - e.y } : { t: "hold" };
@@ -800,10 +791,10 @@ export class Match {
     if (e.carrying >= this.ruleset.gather.carry || (e.carrying > 0 && !dep)) {
       const drop = this.nearestOwn(e, (x) => !!x.spec.dropoff);
       if (!drop) return this.endOrder(e, "no dropoff", emit), null;
-      return cheb(e.x, e.y, drop.x, drop.y) <= 1 ? { t: "unload", id: drop.id } : { t: "goto", x: drop.x, y: drop.y, range: 1 };
+      return dist(e.x, e.y, drop.x, drop.y) <= 1 ? { t: "unload", id: drop.id } : { t: "goto", x: drop.x, y: drop.y, range: 1 };
     }
     if (!dep) return this.endOrder(e, "no deposits left", emit), null;
-    return cheb(e.x, e.y, dep.x, dep.y) <= 1 ? { t: "gather", id: dep.id } : { t: "goto", x: dep.x, y: dep.y, range: 1 };
+    return dist(e.x, e.y, dep.x, dep.y) <= 1 ? { t: "gather", id: dep.id } : { t: "goto", x: dep.x, y: dep.y, range: 1 };
   }
 
   /** Script actions are untrusted: anything invalid becomes hold. */
@@ -811,15 +802,15 @@ export class Match {
     const { width, height } = this.ruleset.map;
     switch (a.a) {
       case "gather": {
-        if (!this.ruleset.reactiveScripts || !e.spec.gathers) return { t: "hold" };
-        if (a.id !== undefined && !(this.ruleset.fogOfWar ? this.knownDeposits.get(e.owner)?.has(a.id) : this.deps.has(a.id))) return { t: "hold" };
+        if (!e.spec.gathers) return { t: "hold" };
+        if (a.id !== undefined && !this.knownDeposits.get(e.owner)?.has(a.id)) return { t: "hold" };
         return this.gatherIntent(e, { type: "gather", deposit: a.id }, () => {}) ?? { t: "hold" };
       }
       case "unload": {
-        if (!this.ruleset.reactiveScripts || !e.spec.gathers || !e.carrying) return { t: "hold" };
+        if (!e.spec.gathers || !e.carrying) return { t: "hold" };
         const drop = this.nearestOwn(e, x => !!x.spec.dropoff);
         if (!drop) return { t: "hold" };
-        return cheb(e.x, e.y, drop.x, drop.y) <= 1
+        return dist(e.x, e.y, drop.x, drop.y) <= 1
           ? { t: "unload", id: drop.id }
           : { t: "goto", x: drop.x, y: drop.y, range: 1 };
       }
@@ -833,16 +824,16 @@ export class Match {
         const t = this.ents.get(a.id);
         if (!t || !this.canSee(e.owner, t.x, t.y) || !this.hostile(t.owner, e.owner) || !e.spec.atk) return { t: "hold" };
         const range = e.spec.range ?? 1;
-        if (cheb(e.x, e.y, t.x, t.y) <= range) return { t: "attack", id: t.id };
+        if (dist(e.x, e.y, t.x, t.y) <= range) return { t: "attack", id: t.id };
         return e.spec.moveMs ? { t: "goto", x: t.x, y: t.y, range } : { t: "hold" };
       }
       case "flee": {
         const t = this.ents.get(a.id);
         if (!t || !this.canSee(e.owner, t.x, t.y) || !e.spec.moveMs) return { t: "hold" };
         let best: [number, number] | null = null;
-        let bestD = cheb(e.x, e.y, t.x, t.y);
+        let bestD = dist(e.x, e.y, t.x, t.y);
         for (const [dx, dy] of this.dirs(e.owner)) {
-          const d = cheb(e.x + dx, e.y + dy, t.x, t.y);
+          const d = dist(e.x + dx, e.y + dy, t.x, t.y);
           if (d > bestD && this.canStep(e, e.x + dx, e.y + dy)) [best, bestD] = [[dx, dy], d];
         }
         return best ? { t: "dir", dx: best[0], dy: best[1] } : { t: "hold" };
@@ -875,7 +866,7 @@ export class Match {
     for (const q of this.players) {
       if (!q.alive || !this.hostile(q.id, p.id)) continue;
       const b = baseOf(q.id);
-      if (b && (!enemyBase || (myBase && cheb(myBase.x, myBase.y, b.x, b.y) < cheb(myBase.x, myBase.y, enemyBase.x, enemyBase.y)))) enemyBase = b;
+      if (b && (!enemyBase || (myBase && dist(myBase.x, myBase.y, b.x, b.y) < dist(myBase.x, myBase.y, enemyBase.x, enemyBase.y)))) enemyBase = b;
     }
     const relation = (owner: PlayerId) => (owner === p.id ? 1 : this.hostile(owner, p.id) ? 0 : 2);
     const u: ScriptWorld["units"] = {};
@@ -883,26 +874,19 @@ export class Match {
       u[e.id] = {
         id: e.id, type: e.kind, x: e.x, y: e.y, hp: e.hp, maxHp: e.spec.hp, atk: e.spec.atk ?? 0,
         def: e.spec.def, range: e.spec.range ?? 0, vision: e.spec.vision,
-        ...(this.ruleset.upgrades ? {
-          attackMs: e.spec.attackMs ? this.ms(this.ticks(e.spec.attackMs)) : 0,
-          moveMs: e.spec.moveMs ? this.ms(this.ticks(e.spec.moveMs)) : 0,
-        } : {}),
-        ...(this.ruleset.reactiveScripts ? {
-          lastAttackedTick: e.lastAttacked?.tick ?? null,
-          lastAttacker: e.lastAttacked && this._tick - e.lastAttacked.tick <= this.ticks(5000) ? e.lastAttacked.id : null,
-          ...(e.spec.gathers ? { carrying: e.carrying, carryCapacity: this.ruleset.gather.carry } : {}),
-        } : {}),
+        attackMs: e.spec.attackMs ? this.ms(this.ticks(e.spec.attackMs)) : 0,
+        moveMs: e.spec.moveMs ? this.ms(this.ticks(e.spec.moveMs)) : 0,
+        lastAttackedTick: e.lastAttacked?.tick ?? null,
+        lastAttacker: e.lastAttacked && this._tick - e.lastAttacked.tick <= this.ticks(5000) ? e.lastAttacked.id : null,
+        ...(e.spec.gathers ? { carrying: e.carrying, carryCapacity: this.ruleset.gather.carry } : {}),
       };
     }
     return {
       tick: this._tick,
       side: p.side,
       units: u,
-      ...(this.ruleset.reactiveScripts ? {
-        deposits: [...(this.ruleset.fogOfWar ? this.knownDeposits.get(p.id)?.values() ?? [] : this.deps.values())]
-          .map(d => ({ ...d, tie: this.readingKey(d.x, d.y, p.side) })),
-      } : {}),
-      ...(this.ruleset.projectiles ? { projectiles: this.projectileViews(p.id) } : {}),
+      deposits: [...this.knownDeposits.get(p.id)?.values() ?? []].map(d => ({ ...d, tie: this.readingKey(d.x, d.y, p.side) })),
+      projectiles: this.projectileViews(p.id),
       all: [...this.ents.values()].filter((e) => !this.hostile(e.owner, p.id) || this.canSee(p.id, e.x, e.y)).map((e) => [
         e.id, e.kind, e.owner, relation(e.owner), e.x, e.y, e.hp, e.spec.hp, e.spec.building ? 1 : 0, this.readingKey(e.x, e.y, p.side),
       ]),
@@ -920,7 +904,6 @@ export class Match {
   /** Sweep each segment, so fast shots cannot tunnel through an occupied tile. */
   private advanceProjectiles(damage: Map<string, number>, lastHit: Map<string, PlayerId>, emit: (e: GameEvent) => void) {
     const config = this.ruleset.projectiles;
-    if (!config) return;
     for (const p of this.projectiles.values()) {
       if (p.launchedAt === this._tick) continue;
       const remaining = Math.hypot(p.endX - p.x, p.endY - p.y);
@@ -928,14 +911,9 @@ export class Match {
       const nx = p.x + p.vx / config.speed * step, ny = p.y + p.vy / config.speed * step;
       let fraction = Infinity;
       let target: Entity | undefined;
-      for (const rock of this.ruleset.map.walls) {
-        const hit = segmentCircleHit(p.x, p.y, nx, ny, rock.x, rock.y, config.buildingRadius);
-        if (hit !== null && hit < fraction) { fraction = hit; target = undefined; }
-      }
       for (const e of this.ents.values()) {
         if (!this.hostile(p.owner, e.owner)) continue;
-        if (config.flyOver?.includes(e.kind) && (config.flyOverTargetById
-          ? e.id !== p.aimedAt : e.x !== p.endX || e.y !== p.endY)) continue;
+        if (config.flyOver.includes(e.kind) && e.id !== p.aimedAt) continue;
         const hit = segmentCircleHit(p.x, p.y, nx, ny, e.x, e.y, e.spec.building ? config.buildingRadius : config.unitRadius);
         if (hit !== null && hit < fraction) { fraction = hit; target = e; }
       }
@@ -945,7 +923,7 @@ export class Match {
         if (target) {
           damage.set(target.id, (damage.get(target.id) ?? 0) + dmg);
           lastHit.set(target.id, p.owner);
-          if (this.ruleset.reactiveScripts) target.lastAttacked = { id: p.source!, tick: this._tick };
+          target.lastAttacked = { id: p.source, tick: this._tick };
         }
         emit({ tick: this._tick, type: "projectile_end", id: p.id, x: p.x, y: p.y,
           ...(target ? { target: target.id } : {}), dmg, reason: target ? "hit" : "blocked" });
@@ -970,6 +948,11 @@ export class Match {
     } };
   }
 
+  /** Path costs follow step times: 10 straight, 14 diagonal when diagonals are slower. */
+  private pathDiagonalCost(): number {
+    return Math.round(10 * this.ruleset.diagonalMove);
+  }
+
   private canStep(e: Entity, x: number, y: number): boolean {
     const grid = this.movementGrid(e.owner);
     return inBounds(grid, x, y) && !grid.isStatic(x, y) && this.occ[y * grid.width + x] === null && canCross(grid, e.x, e.y, x - e.x, y - e.y);
@@ -978,11 +961,12 @@ export class Match {
   private moveTo(e: Entity, x: number, y: number) {
     const W = this.grid.width;
     this.occ[e.y * W + e.x] = null;
+    const diagonal = x !== e.x && y !== e.y;
     e.lastStep = { dx: x - e.x, dy: y - e.y, tick: this._tick };
     e.x = x;
     e.y = y;
     this.occ[y * W + x] = e.id;
-    e.nextMove = this._tick + this.ticks(e.spec.moveMs!);
+    e.nextMove = this._tick + this.ticks(e.spec.moveMs! * (diagonal ? this.ruleset.diagonalMove : 1));
   }
 
   /** One step toward being within `range` of (gx,gy). False if unreachable. */
@@ -990,14 +974,14 @@ export class Match {
     // A static goal tile can't be entered: standing next to it is arriving.
     const grid = this.movementGrid(e.owner);
     if (range === 0 && grid.isStatic(gx, gy)) range = 1;
-    if (cheb(e.x, e.y, gx, gy) <= range) return true;
+    if (dist(e.x, e.y, gx, gy) <= range) return true;
     const W = this.grid.width;
     const key = `${gx},${gy},${range},${this.staticVersion}`;
-    const adjacent = (i: number) => cheb(e.x, e.y, i % W, (i / W) | 0) === 1;
+    const adjacent = (i: number) => dist(e.x, e.y, i % W, (i / W) | 0) === 1;
     // A cached null means "unreachable" and stays valid until the key changes.
     const stale = e.pathKey !== key || (e.path !== null && (e.path.length === 0 || !adjacent(e.path[0])));
     if (stale) {
-      e.path = findPath(grid, e.x, e.y, gx, gy, range, this.dirs(e.owner));
+      e.path = findPath(grid, e.x, e.y, gx, gy, range, this.dirs(e.owner), undefined, this.pathDiagonalCost());
       e.pathKey = key;
     }
     if (!e.path) return false;
@@ -1013,7 +997,7 @@ export class Match {
     }
     // A unit is in the way. First try a free tile that still gets closer.
     e.blocked++;
-    const h = (x: number, y: number) => Math.max(0, cheb(x, y, gx, gy) - range);
+    const h = (x: number, y: number) => Math.max(0, dist(x, y, gx, gy) - range);
     const here = h(e.x, e.y);
     let best: [number, number] | null = null;
     for (const [dx, dy] of this.dirs(e.owner)) {
@@ -1029,7 +1013,7 @@ export class Match {
         const y = e.y + dy;
         if (inBounds(this.grid, x, y) && this.occ[y * W + x] !== null) avoid.add(y * W + x);
       }
-      const detour = findPath(grid, e.x, e.y, gx, gy, range, this.dirs(e.owner), avoid);
+      const detour = findPath(grid, e.x, e.y, gx, gy, range, this.dirs(e.owner), avoid, this.pathDiagonalCost());
       if (detour && detour.length > 0 && this.canStep(e, detour[0] % W, (detour[0] / W) | 0)) best = [detour[0] % W, (detour[0] / W) | 0];
     }
     if (best) {
@@ -1066,7 +1050,7 @@ export class Match {
 
   /** Check the prospective layout, including reserved builds, in either construction order. */
   private makesDoorCorner(owner: PlayerId, kind: string, x: number, y: number): boolean {
-    if (!this.ruleset.straightDoors || (kind !== "wall" && !this.ruleset.kinds[kind]?.alliedPassage)) return false;
+    if (kind !== "wall" && !this.ruleset.kinds[kind]?.alliedPassage) return false;
     const at = (tx: number, ty: number): string | undefined => {
       if (tx === x && ty === y) return kind;
       if (!inBounds(this.grid, tx, ty)) return undefined;
@@ -1119,43 +1103,21 @@ export class Match {
     p.capital -= spec.cost;
     const b = this.spawn(o.kind, p.id, o.x, o.y);
     emit({ tick: this._tick, type: "spawn", id: b.id, kind: o.kind, owner: p.id, x: b.x, y: b.y, builder: e.id, capital: { spent: spec.cost, remaining: p.capital } });
-    e.order = e.spec.gathers && !(this.ruleset.reactiveScripts && e.spec.scriptable) ? { type: "gather" } : null;
+    e.order = e.spec.gathers && !e.spec.scriptable ? { type: "gather" } : null;
     this.clearConstruction(e);
     e.path = null;
   }
 
   // ───────────────────────── end ─────────────────────────
 
-  /** Elimination takes priority; a time limit follows the embedded ruleset. */
+  /** Elimination takes priority; at the time limit, more than one surviving side is a draw. */
   private checkEnd(T: number, emit: (e: GameEvent) => void) {
     const teams = this.aliveTeams();
     if (teams.size <= 1 && this.players.some((p) => !p.alive)) {
       this.finish(this.teamOf([...teams][0]), "vital_lost", T, emit);
     } else if (T + 1 >= this.maxTicks) {
-      if (this.timeoutRule() === "survivorScore") {
-        const alive = this.players.filter((p) => p.alive);
-        const top = Math.max(...alive.map((p) => this.score(p)));
-        const leaders = alive.filter((p) => this.score(p) === top);
-        this.finish(leaders.length === 1 ? [leaders[0].id] : [], "timeout", T, emit);
-        return;
-      }
-      if (this.ruleset.timeoutOutcome === "draw") {
-        this.finish([], "timeout", T, emit);
-        return;
-      }
-      const score = new Map<number, number>();
-      for (const p of this.players) score.set(p.team, (score.get(p.team) ?? 0) + this.score(p));
-      const top = Math.max(...score.values());
-      const leaders = [...score].filter(([, s]) => s === top);
-      this.finish(leaders.length === 1 ? this.teamOf(leaders[0][0]) : [], "timeout", T, emit);
+      this.finish([], "timeout", T, emit);
     }
-  }
-
-  /** What the clock decides at the limit for this match. */
-  private timeoutRule(): "score" | "draw" | "survivorScore" {
-    const ffa = this.players.length > 2 && new Set(this.players.map((p) => p.team)).size === this.players.length;
-    if (ffa && this.ruleset.ffaTimeoutOutcome) return this.ruleset.ffaTimeoutOutcome;
-    return this.ruleset.timeoutOutcome ?? "score";
   }
 
   private aliveTeams(): Set<number> {
@@ -1202,12 +1164,12 @@ export class Match {
     return this.player(a).team !== this.player(b).team;
   }
 
-  /** A player whose vital entity died in a match that goes on: its entities are removed, or its buildings left as ruins. */
+  /** A player whose vital entity died in a match that goes on: its units are removed and its buildings left as ruins. */
   private eliminate(p: Player, emit: (e: GameEvent) => void) {
-    if (this.ruleset.ruins) this.ruined.add(p.id);
+    this.ruined.add(p.id);
     for (const e of [...this.ents.values()]) {
       if (e.owner !== p.id) continue;
-      if (this.ruleset.ruins && e.spec.building) { e.training = e.training && []; e.order = null; continue; }
+      if (e.spec.building) { e.training = e.training && []; e.order = null; continue; }
       this.remove(e);
       emit({ tick: this._tick, type: "death", id: e.id, kind: e.kind, owner: e.owner, x: e.x, y: e.y });
     }
@@ -1224,7 +1186,7 @@ export class Match {
 
   private enemyBuildingNear(owner: PlayerId, x: number, y: number): Entity | undefined {
     for (const b of this.ents.values()) {
-      if (b.spec.building && this.hostile(b.owner, owner) && !this.ruined.has(b.owner) && cheb(x, y, b.x, b.y) < this.ruleset.buildExclusion) return b;
+      if (b.spec.building && this.hostile(b.owner, owner) && !this.ruined.has(b.owner) && dist(x, y, b.x, b.y) < this.ruleset.buildExclusion) return b;
     }
     return undefined;
   }
@@ -1235,8 +1197,8 @@ export class Match {
 
   /** Is `a` closer to `e` than `b`? Ties go to the tile first in `e`'s owner's reading order. */
   private closer(e: Entity, a: { x: number; y: number }, b: { x: number; y: number }): boolean {
-    const da = cheb(e.x, e.y, a.x, a.y);
-    const db = cheb(e.x, e.y, b.x, b.y);
+    const da = dist(e.x, e.y, a.x, a.y);
+    const db = dist(e.x, e.y, b.x, b.y);
     if (da !== db) return da < db;
     const side = this.player(e.owner).side;
     return this.readingKey(a.x, a.y, side) < this.readingKey(b.x, b.y, side);
@@ -1274,7 +1236,7 @@ export class Match {
 
   private nearestDeposit(e: Entity): Deposit | undefined {
     let best: Deposit | undefined;
-    const known = this.ruleset.fogOfWar ? this.knownDeposits.get(e.owner)?.values() ?? [] : this.deps.values();
+    const known = this.knownDeposits.get(e.owner)?.values() ?? [];
     for (const d of known) if (!best || this.closer(e, d, best)) best = d;
     return best;
   }
@@ -1289,21 +1251,21 @@ export class Match {
   }
 
   private canSee(player: PlayerId, x: number, y: number): boolean {
-    return !this.ruleset.fogOfWar || !!this.visible.get(player)?.has(y * this.grid.width + x);
+    return !!this.visible.get(player)?.has(y * this.grid.width + x);
   }
 
   private refreshVision() {
-    if (!this.ruleset.fogOfWar) return;
     const { width, height } = this.grid;
     for (const p of this.players) {
       const visible = new Set<number>();
       for (const e of this.ents.values()) {
         if (this.hostile(p.id, e.owner) || this.ruined.has(e.owner)) continue;
         for (let y = Math.max(0, e.y - e.spec.vision); y <= Math.min(height - 1, e.y + e.spec.vision); y++)
-          for (let x = Math.max(0, e.x - e.spec.vision); x <= Math.min(width - 1, e.x + e.spec.vision); x++) visible.add(y * width + x);
+          for (let x = Math.max(0, e.x - e.spec.vision); x <= Math.min(width - 1, e.x + e.spec.vision); x++)
+            if (dist(e.x, e.y, x, y) <= e.spec.vision) visible.add(y * width + x);
       }
       this.visible.set(p.id, visible);
-      const explored = this.ruleset.fogOfWar.rememberTerrain ? this.explored.get(p.id) ?? new Set<number>() : new Set<number>();
+      const explored = this.explored.get(p.id) ?? new Set<number>();
       for (const tile of visible) explored.add(tile);
       this.explored.set(p.id, explored);
       const known = this.knownDeposits.get(p.id) ?? new Map<string, Deposit>();
@@ -1348,15 +1310,15 @@ export class Match {
 
   /** A player's view names everyone by id: display names (often the model) stay with observers. */
   private stats(viewer?: PlayerId): PlayerStats[] {
-    return this.players.map((p) => (viewer && this.ruleset.fogOfWar && this.hostile(p.id, viewer) ? {
+    return this.players.map((p) => (viewer && this.hostile(p.id, viewer) ? {
       id: p.id, name: viewer ? p.id : p.name, popCap: this.ruleset.popCap, team: p.team, alive: p.alive,
     } : {
       id: p.id, name: viewer ? p.id : p.name, capital: p.capital, pop: this.pop(p.id), popCap: this.ruleset.popCap,
-      ...(this.ruleset.trainingQueueLimit ? { queuedPop: this.queuedPop(p.id) } : {}),
+      queuedPop: this.queuedPop(p.id),
       score: this.score(p), kills: p.kills + p.buildingKills, team: p.team, alive: p.alive,
-      ...(this.ruleset.upgrades ? { upgrades: { ...p.upgrades }, ...(p.alive && p.research ? { research: {
+      upgrades: { ...p.upgrades }, ...(p.alive && p.research ? { research: {
         upgrade: p.research.upgrade, level: p.research.level, completesAtMs: this.ms(p.research.completesAtTick),
-      } } : {}) } : {}),
+      } } : {}),
     }));
   }
 
@@ -1364,17 +1326,17 @@ export class Match {
     const { width, height } = this.ruleset.map;
     const rows = Array.from({ length: height }, () => new Array<string>(width).fill("·"));
     for (const w of this.ruleset.map.walls ?? []) rows[w.y][w.x] = "^";
-    for (const d of (this.ruleset.fogOfWar ? this.knownDeposits.get(player)?.values() ?? [] : this.deps.values())) rows[d.y][d.x] = "$";
+    for (const d of this.knownDeposits.get(player)?.values() ?? []) rows[d.y][d.x] = "$";
     const entities = [...this.ents.values()];
     if (this.doors.size) entities.sort((a, b) => Number(!!b.spec.alliedPassage) - Number(!!a.spec.alliedPassage));
     for (const e of entities) {
       if (!this.canSee(player, e.x, e.y)) continue;
       rows[e.y][e.x] = e.owner === player ? e.spec.symbol : this.hostile(e.owner, player) ? e.spec.enemySymbol : e.spec.building ? "=" : "+";
     }
-    if (this.ruleset.fogOfWar) for (const b of this.seenBuildings.get(player)?.values() ?? []) {
+    for (const b of this.seenBuildings.get(player)?.values() ?? []) {
       if (!this.canSee(player, b.x, b.y)) rows[b.y][b.x] = this.ruleset.kinds[b.kind]?.enemySymbol ?? "?";
     }
-    if (this.ruleset.fogOfWar) for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
       if (this.canSee(player, x, y)) continue;
       if (!this.explored.get(player)?.has(y * width + x)) rows[y][x] = "?";
       else if (rows[y][x] === "·") rows[y][x] = ":";
@@ -1390,7 +1352,7 @@ export class Match {
     if (e.spec.alliedPassage) v.open = this.occ[e.y * this.grid.width + e.x] !== null;
     if (e.construction) v.construction = { kind: e.construction.kind, x: e.construction.x, y: e.construction.y,
       completesAtMs: this.ms(e.construction.completesAtTick) };
-    if (this.ruleset.upgrades) v.stats = {
+    v.stats = {
       atk: e.spec.atk ?? 0, def: e.spec.def, range: e.spec.range ?? 0,
       attackMs: e.spec.attackMs ? this.ms(this.ticks(e.spec.attackMs)) : 0,
       moveMs: e.spec.moveMs ? this.ms(this.ticks(e.spec.moveMs)) : 0,
@@ -1403,7 +1365,7 @@ export class Match {
     if (own && e.doing) v.doing = e.doing;
     if (e.spec.gathers && e.doing.startsWith("gather ")) {
       const deposit = this.deps.get(e.doing.slice(7));
-      if (deposit && cheb(e.x, e.y, deposit.x, deposit.y) <= 1) v.gathering = { x: deposit.x, y: deposit.y };
+      if (deposit && dist(e.x, e.y, deposit.x, deposit.y) <= 1) v.gathering = { x: deposit.x, y: deposit.y };
     }
     const o = own ? e.order : null;
     if (o) {

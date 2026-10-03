@@ -8,7 +8,7 @@ it("serves consistent castle/door rules and default maps for duels and FFA", asy
   const app = await buildServer({ replayDir: await mkdtemp(join(tmpdir(), "aoa-doors-")), prepMs: 0 });
   try {
     const { ruleset, guide } = (await app.inject({ method: "GET", url: "/rules" })).json();
-    expect(ruleset.version).toBe("v15-doors");
+    expect(ruleset.version).toBe("v16-pause");
     expect(ruleset.kinds.worker.builds).toEqual(["turret", "wall", "door", "castle"]);
     expect(JSON.stringify({ruleset,guide})).not.toMatch(/nexus/i);
     for (const map of ["open","quad","fortress","fortress-quad"]) {
@@ -17,8 +17,7 @@ it("serves consistent castle/door rules and default maps for duels and FFA", asy
         const state=(await app.inject({method:"GET",url:"/state",headers:{authorization:`Bearer ${p.token}`}})).json();
         expect(state.mine.filter((e:{kind:string})=>e.kind==="castle")).toHaveLength(1);
         expect(state.mine.filter((e:{kind:string})=>e.kind==="king")).toHaveLength(1);
-        expect(state.mine.some((e:{kind:string})=>e.kind==="agent")).toBe(false);
-        expect(state.mine.some((e:{kind:string})=>e.kind==="nexus")).toBe(false);
+        expect(state.mine.some((e:{kind:string})=>e.kind==="agent"||e.kind==="nexus")).toBe(false);
       }
     }
   } finally {await app.close();}

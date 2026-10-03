@@ -6,12 +6,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildServer } from "@aoa/server";
-import { v1 } from "@aoa/shared";
+import { rules } from "@aoa/shared";
 
 it("researches through the real MCP schema, reports capital and persists pending research across a server restart", async () => {
   const replayDir = await mkdtemp(join(tmpdir(), "aoa-upgrade-api-"));
-  const ruleset = { ...v1, matchMs: 15_000, upgrades: {
-    worker_damage: { ...v1.upgrades!.worker_damage, levels: [{ cost: 150, researchMs: 3000, value: 5 }] },
+  const ruleset = { ...rules, matchMs: 15_000, upgrades: {
+    worker_damage: { ...rules.upgrades!.worker_damage, levels: [{ cost: 150, researchMs: 3000, value: 5 }] },
   } };
   let app = await buildServer({ replayDir, ruleset, prepMs: 0 });
   const mcp = new Client({ name: "upgrade-test", version: "0" });

@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { createMatch, type PlayerOrder } from "@aoa/engine";
 import type { Bot } from "@aoa/sim";
-import { v13, type GameEvent, type Order, type PlayerView, type ReplayFile } from "@aoa/shared";
+import { rules, type GameEvent, type Order, type PlayerView, type ReplayFile } from "@aoa/shared";
 import { saveReplay } from "./app";
 
 const root = resolve(fileURLToPath(import.meta.url), "../../../..");
@@ -92,7 +92,7 @@ const chatty = (bot: Bot, offset: number): Bot => {
 };
 
 async function play(a: Demo, b: Demo, seed: number) {
-  const m = await createMatch({ ruleset: v13, seed, tickRate: TICK_RATE, players: [{ id: "p1", name: "A" }, { id: "p2", name: "B" }] });
+  const m = await createMatch({ ruleset: rules, seed, tickRate: TICK_RATE, players: [{ id: "p1", name: "A" }, { id: "p2", name: "B" }] });
   const bots: Record<string, Bot> = { p1: chatty(demo(a), 0), p2: chatty(demo(b), 450) };
   const kinds = new Map(m.spectate().entities.map((e) => [e.id, e.kind]));
   const heard = new Set<string>();
@@ -145,7 +145,7 @@ const best = results.sort((x, y) => x.missing - y.missing || x.ticks - y.ticks)
 for (const r of best) {
   const id = randomBytes(4).toString("hex");
   await saveReplay(dir, {
-    format: 1, id, createdAt: new Date().toISOString(), ruleset: v13, seed: r.seed, tickRate: TICK_RATE,
+    format: 1, id, createdAt: new Date().toISOString(), ruleset: rules, seed: r.seed, tickRate: TICK_RATE,
     players: [{ id: "p1", name: `demo:${r.setup}` }, { id: "p2", name: "demo:defend" }],
     orders: r.orders, hashes: r.hashes, finalTick: r.ticks, outcome: r.outcome,
   });

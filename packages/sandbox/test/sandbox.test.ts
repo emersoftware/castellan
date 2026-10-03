@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { createScriptHost, initSandbox, validateScript, type ScriptWorld } from "../src";
-import { v0 } from "@aoa/shared";
+import { rules } from "@aoa/shared";
 
 const world: ScriptWorld = {
   tick: 5,
@@ -19,18 +19,18 @@ beforeAll(initSandbox);
 
 describe("sandbox", () => {
   it("runs a script and returns its action", () => {
-    const h = createScriptHost(v0.script, 1);
-    expect(h.setScript("knight", v0.defaultScripts.knight)).toEqual({ ok: true });
+    const h = createScriptHost(rules.script, 1);
+    expect(h.setScript("knight", rules.defaultScripts.knight)).toEqual({ ok: true });
     expect(h.run(world, ["e1"]).e1.action).toEqual({ a: "attack", id: "e2" });
     h.dispose();
   });
 
   it("reports syntax errors", () => {
-    expect(validateScript("self.hold(", v0.script).ok).toBe(false);
+    expect(validateScript("self.hold(", rules.script).ok).toBe(false);
   });
 
   it("stops infinite loops with gas and keeps working", () => {
-    const h = createScriptHost(v0.script, 1);
+    const h = createScriptHost(rules.script, 1);
     h.setScript("knight", "while (true) {}");
     const r = h.run(world, ["e1"]).e1;
     expect(r.action).toEqual({ a: "hold" });
@@ -43,7 +43,7 @@ describe("sandbox", () => {
   it("keeps memory per unit and is deterministic", () => {
     const code = "self.memory.n = (self.memory.n || 0) + 1; self.log(self.memory.n + ':' + self.random().toFixed(6)); self.hold();";
     const logs = (seed: number) => {
-      const h = createScriptHost(v0.script, seed);
+      const h = createScriptHost(rules.script, seed);
       h.setScript("knight", code);
       const out = [h.run(world, ["e1"]).e1.log, h.run(world, ["e1"]).e1.log];
       h.dispose();
@@ -57,14 +57,14 @@ describe("sandbox", () => {
   });
 
   it("has no host access and no clock", () => {
-    const h = createScriptHost(v0.script, 1);
+    const h = createScriptHost(rules.script, 1);
     h.setScript("knight", "self.log([typeof Date, typeof require, typeof process, typeof fetch, typeof setTimeout].join(','));");
     expect(h.run(world, ["e1"]).e1.log).toBe("undefined,undefined,undefined,undefined,undefined");
     h.dispose();
   });
 
   it("caps memory and heap", () => {
-    const h = createScriptHost(v0.script, 1);
+    const h = createScriptHost(rules.script, 1);
     h.setScript("knight", "self.memory.big = 'x'.repeat(5000); self.hold();");
     expect(h.run(world, ["e1"]).e1.error).toMatch(/memory/);
     h.setScript("knight", "const a = []; for (let i = 0; i < 1e8; i++) a.push('xxxxxxxxxxxxxxxx' + i);");
@@ -76,7 +76,7 @@ describe("sandbox", () => {
 });
 
 it('exposes worker economy controls with first action winning', () => {
- const h=createScriptHost(v0.script,1);
+ const h=createScriptHost(rules.script,1);
  const w={...world,units:{e1:{...world.units.e1,type:'worker',carrying:2,carryCapacity:10,lastAttackedTick:null,lastAttacker:null}},
   deposits:[{id:'far',x:8,y:8,amount:20,tie:80},{id:'near',x:5,y:6,amount:10,tie:50}]};
  try {
@@ -88,7 +88,7 @@ it('exposes worker economy controls with first action winning', () => {
  }finally{h.dispose();}
 });
 it('only returns a living visible hostile attacker and leaves legacy APIs unchanged',()=>{
- const h=createScriptHost(v0.script,1);
+ const h=createScriptHost(rules.script,1);
  try {
   h.setScript('knight','self.log(typeof self.lastAttacker);');expect(h.run(world,['e1']).e1.log).toBe('undefined');
   h.setScript('knight','self.log(self.lastAttacker() ? self.lastAttacker().id : "none");');

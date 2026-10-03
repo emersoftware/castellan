@@ -7,7 +7,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createServer } from "node:http";
 import { buildServer } from "@aoa/server";
-import { v0 } from "@aoa/shared";
+import { rules } from "@aoa/shared";
 // @ts-expect-error Plain Node launcher shared with external harnesses.
 import { options, preparePlayer, usage } from "../../loop-keepers/deepseek/agent.mjs";
 // @ts-expect-error Plain Node runtime configuration.
@@ -65,7 +65,7 @@ describe("DeepSeek connector", () => {
 
   it.skipIf(!available).each(["low", "off"])("boots the real harness with effort %s and plays through MCP against a local model fixture", async (effort) => {
     const root = await temp();
-    const game = await buildServer({ replayDir: join(root, "replays"), prepMs: 0, tickRate: 20, ruleset: { ...v0, matchMs: 2000 } });
+    const game = await buildServer({ replayDir: join(root, "replays"), prepMs: 0, tickRate: 20, ruleset: { ...rules, matchMs: 2000 } });
     await game.listen({ port: 0, host: "127.0.0.1" });
     const server = `http://127.0.0.1:${(game.server.address() as { port: number }).port}`;
     const room = (await game.inject({ method: "POST", url: "/rooms", payload: { players: [{ name: "DeepSeek fixture" }, { bot: "eco" }] } })).json();
@@ -80,7 +80,7 @@ describe("DeepSeek connector", () => {
       else if (turn === 2) {
         const view = (await game.inject({ url: "/state", headers: { authorization: `Bearer ${token}` } })).json();
         content = [
-          { type: "tool_use", id: "act-1", name: "mcp__aoa__act", input: { orders: [{ type: "train", building: view.mine.find((e: any) => e.kind === "nexus").id, kind: "worker" }] } },
+          { type: "tool_use", id: "act-1", name: "mcp__aoa__act", input: { orders: [{ type: "train", building: view.mine.find((e: any) => e.kind === "castle").id, kind: "worker" }] } },
           { type: "tool_use", id: "history-1", name: "mcp__aoa__history", input: {} },
         ];
       } else if (turn === 3) content = [{ type: "tool_use", id: "wait-1", name: "mcp__aoa__wait", input: { max_s: 3, until: "match_end" } }];
@@ -111,7 +111,7 @@ describe("DeepSeek connector", () => {
       }
       const final = (await game.inject({ url: "/state", headers: { authorization: `Bearer ${token}` } })).json();
       expect(final.status).toBe("finished");
-      expect(final.mine.filter((e: any) => e.kind === "worker")).toHaveLength(4);
+      expect(final.mine.find((e: any) => e.kind === "castle").training).toEqual([expect.objectContaining({ kind: "worker" })]); // ordered, still training
       expect(await usage(player.root)).toMatchObject({ calls: 4, inputTokens: 400, outputTokens: 20, cacheReadTokens: 80 });
     } finally {
       provider.closeAllConnections(); await new Promise<void>((resolve) => provider.close(() => resolve()));

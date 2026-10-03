@@ -1,11 +1,13 @@
 import { afterEach, expect, it } from 'vitest';
-import { v14, v15, type Ruleset } from '@aoa/shared';
+import { rules, type Ruleset } from '@aoa/shared';
 import { createMatch, type Match } from '../src';
 
 const matches: Match[] = [];
 afterEach(() => { for(const m of matches.splice(0)) m.dispose(); });
-async function setup(base: Ruleset = v15) {
- const ruleset: Ruleset = { ...base, fogOfWar: undefined, buildExclusion: 0, startCapital: 5000,
+async function setup(base: Ruleset = rules) {
+ // Instant walls and doors by default and whole-map sight: these tests are about layout and shots.
+ const ruleset: Ruleset = { ...base, buildExclusion: 0, startCapital: 5000,
+   kinds: Object.fromEntries(Object.entries(base.kinds).map(([k,s])=>[k,{...(base===rules&&(k==="wall"||k==="door"||k==="turret")?{...s,buildMs:undefined}:s),vision:12}])),
    defaultScripts: Object.fromEntries(Object.keys(base.kinds).map(k=>[k,'self.hold();'])),
    map: {name:'door-safety',description:'',width:12,height:12,start:[{kind:'king',x:0,y:0}],walls:[],deposits:[],sharedDeposits:[]} };
  const m=await createMatch({ruleset,players:[{id:'a',name:'A'},{id:'b',name:'B'}],seed:1,tickRate:10});matches.push(m);
@@ -47,7 +49,7 @@ it('still hits the door when explicitly targeting its ID, even with an occupant'
  expect(m.spectate().entities.find(e=>e.id===door.id)!.hp).toBeLessThan(doorHP);
 });
 it('lets the occupant dodge; its former door does not catch the missed arrow',async()=>{
- const base={...v15,projectiles:{...v15.projectiles!,speed:2},kinds:{...v15.kinds,ranger:{...v15.kinds.ranger,moveMs:100}}};
+ const base={...rules,projectiles:{...rules.projectiles!,speed:2},kinds:{...rules.kinds,ranger:{...rules.kinds.ranger,moveMs:100}}};
  const {m,spawn}=await setup(base);const door=spawn('door','a',4,4),ranger=spawn('ranger','a',4,3),attacker=spawn('ranger','b',4,7);
  const hp=ranger.hp,doorHP=door.hp;
  m.step([{player:'a',order:{type:'move',unit:ranger.id,x:4,y:4}}]);
@@ -64,12 +66,6 @@ it('allows melee to damage a ranger occupying a hostile door',async()=>{
  m.step([{player:'b',order:{type:'attack',unit:attacker.id,target:ranger.id}}]);
  expect(m.spectate().entities.find(e=>e.id===ranger.id)!.hp).toBeLessThan(hp);
  expect(m.spectate().entities.find(e=>e.id===door.id)?.hp).toBe(doorHP);
-});
-it('retains the v14 interception behavior for old replays',async()=>{
- const {m,spawn}=await setup(v14);const door=spawn('door','a',4,4),ranger=spawn('ranger','a',4,3),attacker=spawn('ranger','b',4,7);
- m.step([{player:'a',order:{type:'move',unit:ranger.id,x:4,y:4}}]);
- m.step([{player:'b',order:{type:'attack',unit:attacker.id,target:ranger.id}}]);
- expect(step(m)).toContainEqual(expect.objectContaining({type:'projectile_end',target:door.id,reason:'hit'}));
 });
 
 it.each([[1,1],[1,-1],[-1,1],[-1,-1]])('rejects each corner orientation (%i,%i) without charging',async(dx,dy)=>{
@@ -96,7 +92,7 @@ it.each(['wall','door'])('rejects adding a %s that turns an existing door into a
  expect(m.step([{player:'a',order:{type:'build',unit:worker.id,kind,x:5,y:4}}]).results[0].ok).toBe(false);
 });
 it('includes reserved construction when checking a later perpendicular wall',async()=>{
- const base={...v15,kinds:{...v15.kinds,door:{...v15.kinds.door,buildMs:500}}};
+ const base={...rules,kinds:{...rules.kinds,door:{...rules.kinds.door,buildMs:500}}};
  const {m,spawn}=await setup(base);const a=spawn('worker','a',4,4),b=spawn('worker','a',6,3);spawn('wall','a',4,5);
  expect(m.step([{player:'a',order:{type:'build',unit:a.id,kind:'door',x:5,y:5}}]).events).toContainEqual(expect.objectContaining({type:'construction_started',kind:'door'}));
  expect(m.step([{player:'a',order:{type:'build',unit:b.id,kind:'wall',x:5,y:4}}]).results[0].ok).toBe(false);
@@ -108,5 +104,5 @@ it('rechecks an accepted build when its worker arrives after the layout changed'
  expect(result.results.every(r=>r.ok)).toBe(true);
  expect(step(m,60)).toContainEqual(expect.objectContaining({type:'order_end',id:a.id,reason:expect.stringContaining('corners')}));
  expect(m.spectate().entities.some(e=>e.kind==='door')).toBe(false);
- expect(m.view('a').players.find(p=>p.id==='a')!.capital).toBe(5000-v15.kinds.wall.cost);
+ expect(m.view('a').players.find(p=>p.id==='a')!.capital).toBe(5000-rules.kinds.wall.cost);
 });
