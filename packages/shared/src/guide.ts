@@ -15,11 +15,13 @@ export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean;
   const flyOver = r.projectiles.flyOver.map((kind) => `${kind}s`).join(" and ");
   const unitRows = Object.entries(k).map(([name, s]) => `- ${name} (${s.symbol}): ${[
     `hp ${s.hp}`, `def ${s.def}`,
-    s.atk ? `atk ${s.atk} range ${s.range} every ${effectiveMs(s.attackMs ?? 1000)}ms` : "no attack",
+    s.atk ? `atk ${s.atk} range ${s.minRange ? `${s.minRange}-` : ""}${s.range} every ${effectiveMs(s.attackMs ?? 1000)}ms` : "no attack",
+    s.minRange ? `can't attack anything closer than ${s.minRange} (adjacent units are safe from it)` : "",
     s.aimMs ? `after moving must stand still ${effectiveMs(s.aimMs)}ms before attacking` : "",
     s.moveMs ? `${effectiveMs(s.moveMs)}ms/tile` : "static",
     `vision ${s.vision}`,
     s.cost ? `cost ${s.cost}` : "not producible",
+    s.requires ? `requires ${s.requires} research` : "",
     s.vital ? "VITAL" : "",
     s.scriptable ? "scriptable" : "",
     s.trains ? `trains ${s.trains.join("/")}` : "",
@@ -27,8 +29,8 @@ export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean;
     s.buildMs ? `construction ${secs(s.buildMs)}` : "",
     s.trainMs ? `training ${secs(s.trainMs)}` : "",
   ].filter(Boolean).join(", ")}`).join("\n");
-  const research = Object.entries(r.upgrades).map(([id, u]) => `- ${id}: ${u.kind} ${u.stat}; ${u.levels.map((l, i) =>
-    `L${i + 1}: ${u.stat === "atk" ? `${l.value} damage` : u.stat === "range" ? `range ${l.value}` : `${effectiveMs(l.value)}ms`}${l.vision !== undefined ? `, vision ${l.vision}` : ""}, cost ${l.cost}, research ${secs(l.researchMs)}`).join("; ")}`).join("\n");
+  const research = Object.entries(r.upgrades).map(([id, u]) => `- ${id}: ${u.stat === "unlock" ? `unlocks ${u.kind}` : `${u.kind} ${u.stat}`}; ${u.levels.map((l, i) =>
+    `L${i + 1}: ${u.stat === "unlock" ? "unlocked" : u.stat === "atk" ? `${l.value} damage` : u.stat === "range" ? `range ${l.value}` : `${effectiveMs(l.value)}ms`}${l.vision !== undefined ? `, vision ${l.vision}` : ""}, cost ${l.cost}, research ${secs(l.researchMs)}`).join("; ")}`).join("\n");
   const built = Object.entries(k).filter(([, s]) => s.buildMs).map(([name, s]) => `${name} ${s.cost} capital, ${secs(s.buildMs!)}`).join("; ");
   const ruins = "An eliminated player's buildings stay as RUINS: inert and blind, still blocking, their doors passing only the owner's teammates; anyone can destroy them, for no kills or score.";
 
@@ -81,7 +83,7 @@ Distance for range, vision and script helpers is Euclidean, rounded to the neare
 ${four ? "Every corner has the same layout, rotated 90°." : "Each side mirrors the other (rotated 180°)."} Corners are assigned at random.
 
 ## Fog of war
-A tile is visible within the vision of any allied entity; walls and rocks don't block sight. State lists enemy units only while visible.
+A tile is visible within the vision of any allied entity; walls and rocks don't block sight. An enemy that damages one of your entities stays visible for ${r.revealAttackerMs / 1000} s wherever it is. State lists enemy units only while visible.
 Explored ground stays on the map as ":", and enemy buildings and deposits stay as last seen, listed under "last seen" with their age, until you see the tile again. Scripts don't see this memory.
 Enemies' capital, population, score, kills, research and queues are hidden; identities, teams and eliminations are public. Chat ignores vision.
 Events are filtered by what you could see when they happened. Attack targets and build sites must be visible; an attack order ends when its target leaves vision.
@@ -106,9 +108,9 @@ A build's cost is pending until completion; its spawn event reports the actual c
 ## Unit scripts
 ${Object.entries(k).filter(([, spec]) => spec.scriptable).map(([kind]) => kind).join(", ")} run a JavaScript function body every tick while they have no order: one script per kind, \`self\` in scope, one action per tick (the first wins).
 Upload with PUT /scripts/<kind> {"code":"…","lang":"js"|"ts"} (max ${r.script.maxBytes} bytes).
-self: id type x y hp maxHp atk def range vision attackMs moveMs tick memory (per unit, ≤${r.script.memoryBytes} bytes JSON)
-perception: nearbyEnemies() nearbyAllies() nearestEnemy() nearestAlly() enemiesInRange() distanceTo(u) distanceToPos(x,y) enemyBase() myBase()
-  (each seen unit: {id,type,owner,mine,${teams ? "ally," : ""}x,y,hp,maxHp,isBuilding}; only within vision${teams ? "; allies = yours and your ally's" : ""})
+self: id type x y hp maxHp atk def range minRange vision attackMs moveMs tick memory (per unit, ≤${r.script.memoryBytes} bytes JSON)
+perception: nearbyEnemies() nearbyAllies() nearestEnemy() nearestAlly() enemiesInRange() (attackable now: within range and minRange) distanceTo(u) distanceToPos(x,y) enemyBase() myBase()
+  (each seen unit: {id,type,owner,mine,${teams ? "ally," : ""}x,y,hp,maxHp,isBuilding}; everything you can see, not only within this unit's vision${teams ? "; allies = yours and your ally's" : ""})
 actions: move("N"|"NE"|"E"|"SE"|"S"|"SW"|"W"|"NW") moveTo(x,y) attack(u) flee(u) hold()
 reaction: lastAttackedTick (null until hit), lastAttacker() (a visible hostile that hit this unit in the last 5 s, or null). Damage shows on the next tick; a launch alone is not damage.
 workers: carrying carryCapacity deposits() nearestDeposit() gather(deposit?) unload(). gather() runs the whole cycle: walks to a known deposit, mines a full load (${r.gather.carry}), carries it to the nearest Castle and goes back; gather(deposit) picks the deposit. unload() delivers what the worker carries before the load is full. Deposits are the known ones, {id,x,y,amount}, nearest first; hidden amounts may be stale.

@@ -35,6 +35,8 @@ export interface ScriptWorld {
   all: [string, string, string, number, number, number, number, number, number, number][];
   myBase: { x: number; y: number } | null;
   enemyBase: { x: number; y: number } | null;
+  /** What perception helpers return: everything the player sees, or (older rules) only within the unit's vision. */
+  sight?: "player" | "unit";
 }
 
 export interface ScriptUnit {
@@ -47,6 +49,8 @@ export interface ScriptUnit {
   atk: number;
   def: number;
   range: number;
+  /** Blind spot: closer targets can't be attacked. */
+  minRange?: number;
   vision: number;
   attackMs?: number;
   moveMs?: number;

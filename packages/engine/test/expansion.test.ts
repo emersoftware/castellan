@@ -54,7 +54,7 @@ describe("Castle expansion", () => {
       expect(units(m, "castle")).toHaveLength(1);
       const completed = m.step([]);
       const expansion = units(m, "castle").find((e) => e.x === 7 && e.y === 5)!;
-      expect(expansion).toMatchObject({ hp: 600, vital: false });
+      expect(expansion).toMatchObject({ hp: rules.kinds.castle.hp, vital: false });
       expect(completed.events).toContainEqual(expect.objectContaining({ type: "spawn", id: expansion.id, capital: { spent: 600, remaining: 600 } }));
       expect(units(m, "worker")[0].construction).toBeUndefined();
       const trained = m.step([{ player: "p1", order: { type: "train", building: expansion.id, kind: "worker" } },

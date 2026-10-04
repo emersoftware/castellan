@@ -5,6 +5,7 @@ import { createMatch, type Match } from "../src";
 const live: Match[] = [];
 afterEach(() => { for (const m of live.splice(0)) m.dispose(); });
 const ruleset: Ruleset = { ...rules, startCapital: 2000, matchMs: 120_000,
+  kinds: Object.fromEntries(Object.entries(rules.kinds).map(([k, s]) => [k, { ...s, requires: undefined }])),
   defaultScripts: { ...rules.defaultScripts, ranger: "self.hold();", turret: "self.hold();", castle: "self.hold();", worker: "self.hold();" },
   map: { ...rules.map, width: 24, height: 24, walls: [], deposits: [], sharedDeposits: [], start: [
     { kind: "castle", x: 1, y: 1 }, { kind: "king", x: 0, y: 0 }, { kind: "ranger", x: 8, y: 8 }, { kind: "turret", x: 4, y: 8 },
@@ -16,23 +17,23 @@ it("extends ranger range one tile and turret range two, always keeping turrets a
   const mine = (kind: string) => m.view("p1").mine.find((e) => e.kind === kind)!;
   const ranger = mine("ranger");
   const sees = (dx: number) => m.view("p1").visibility![ranger.y][ranger.x + dx] === "2";
-  expect(mine("ranger").stats?.range).toBe(4);
-  expect(sees(6)).toBe(true);
-  expect(sees(7)).toBe(false);
-  const buy = (upgrade: string) => m.step([{ player: "p1", order: { type: "upgrade", upgrade } }]).results[0];
-  expect(buy("ranger_range")).toMatchObject({ ok: true, capital: { spent: 200 } });
-  for (let i = 0; i < 151; i++) m.step([]);
   expect(mine("ranger").stats?.range).toBe(5);
   expect(sees(7)).toBe(true);
+  expect(sees(8)).toBe(false);
+  const buy = (upgrade: string) => m.step([{ player: "p1", order: { type: "upgrade", upgrade } }]).results[0];
+  expect(buy("ranger_range")).toMatchObject({ ok: true, capital: { spent: rules.upgrades.ranger_range.levels[0].cost } });
+  for (let i = 0; i < 151; i++) m.step([]);
+  expect(mine("ranger").stats?.range).toBe(6);
+  expect(sees(8)).toBe(true);
   expect(buy("ranger_range")).toMatchObject({ ok: false, reason: "ranger_range is already at maximum level" });
-  expect(mine("turret").stats?.range).toBe(6);
+  expect(mine("turret").stats?.range).toBe(7);
   expect(buy("turret_range")).toMatchObject({ ok: true, capital: { spent: 200 } });
   for (let i = 0; i < 151; i++) m.step([]);
-  expect(mine("turret").stats?.range).toBe(7);
-  expect(m.view("p2").mine.find((e) => e.kind === "turret")!.stats?.range).toBe(6); // only the buyer's
+  expect(mine("turret").stats?.range).toBe(8);
+  expect(m.view("p2").mine.find((e) => e.kind === "turret")!.stats?.range).toBe(7); // only the buyer's
   expect(buy("turret_range")).toMatchObject({ ok: true, capital: { spent: 300 } });
   for (let i = 0; i < 201; i++) m.step([]);
-  expect(mine("turret").stats?.range).toBe(8);
-  expect(playerGuide(ruleset)).toContain("- ranger_range: ranger range; L1: range 5, vision 7, cost 200, research 15s\n");
-  expect(playerGuide(ruleset)).toContain("- turret_range: turret range; L1: range 7, vision 8, cost 200, research 15s; L2: range 8, vision 9, cost 300, research 20s");
+  expect(mine("turret").stats?.range).toBe(9);
+  expect(playerGuide(ruleset)).toContain("- ranger_range: ranger range; L1: range 6, vision 8, cost 150, research 15s\n");
+  expect(playerGuide(ruleset)).toContain("- turret_range: turret range; L1: range 8, vision 9, cost 200, research 15s; L2: range 9, vision 10, cost 300, research 20s");
 });

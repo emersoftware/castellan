@@ -16,7 +16,7 @@ describe("timed production", () => {
     try {
       const b = mine(m, "castle")[0].id;
       const result = next(m, [{ type: "train", building: b, kind: "worker" }, { type: "train", building: b, kind: "knight" }]);
-      expect(result.results).toMatchObject([{ ok: true, capital: { spent: 50, remaining: 1950 } }, { ok: true, capital: { spent: 100, remaining: 1850 } }]);
+      expect(result.results).toMatchObject([{ ok: true, capital: { spent: 50, remaining: 1950 } }, { ok: true, capital: { spent: rules.kinds.knight.cost, remaining: 1950 - rules.kinds.knight.cost! } }]);
       expect(result.results[0]).not.toHaveProperty("id");
       expect(mine(m, "castle")[0].training).toEqual([{ kind: "worker", completesAtMs: 5000 }, { kind: "knight" }]);
       expect(m.view("p1").players[0].queuedPop).toBe(2);
@@ -25,7 +25,7 @@ describe("timed production", () => {
       expect(mine(m, "castle")[0].training).toEqual([{ kind: "knight", completesAtMs: 13000 }]);
       advance(m, 130); expect(mine(m, "knight")).toHaveLength(0);
       m.step([]); expect(mine(m, "knight")).toHaveLength(1);
-      expect(m.view("p1").players[0]).toMatchObject({ capital: 1850, pop: 6, queuedPop: 0 });
+      expect(m.view("p1").players[0]).toMatchObject({ capital: 1950 - rules.kinds.knight.cost!, pop: 6, queuedPop: 0 });
     } finally { m.dispose(); }
   });
 

@@ -9,6 +9,8 @@ const run = (m: Match, n: number, orders: (m: Match) => PlayerOrder[] = () => []
 };
 const mine = (m: Match, p: string, kind: string) => m.view(p).mine.filter((e) => e.kind === kind);
 /** Every entity sees the whole map, for tests about something other than fog. */
+/** Rangers and turrets producible without their unlock research, for tests about something else. */
+const unlocked = (r: Ruleset = rules): Ruleset => ({ ...r, kinds: Object.fromEntries(Object.entries(r.kinds).map(([k, s]) => [k, { ...s, requires: undefined }])) });
 const seeAll = (r: Ruleset = rules): Ruleset => ({ ...r, kinds: Object.fromEntries(Object.entries(r.kinds).map(([k, s]) => [k, { ...s, vision: 40 }])) });
 
 describe("engine", () => {
@@ -86,10 +88,11 @@ else self.moveTo(${king.x}, ${king.y});`;
   });
 
   it("builds once the worker has worked the construction time next to the site", async () => {
-    const m = await make();
+    const r = unlocked({ ...rules, startCapital: 400 });
+    const m = await make(r);
     const w = mine(m, "p1", "worker")[0];
     const ordered = m.step([{ player: "p1", order: { type: "build", unit: w.id, kind: "turret", x: 7, y: 7 } }]);
-    expect(ordered.results[0].capital).toEqual({ spent: 0, remaining: rules.startCapital, pending: rules.kinds.turret.cost });
+    expect(ordered.results[0].capital).toEqual({ spent: 0, remaining: r.startCapital, pending: rules.kinds.turret.cost });
     run(m, 40);
     expect(mine(m, "p1", "turret")).toHaveLength(0); // still under construction
     run(m, rules.kinds.turret.buildMs! / 100);
@@ -135,19 +138,23 @@ describe("replay", () => {
 
 describe("building rules", () => {
   it("allows a tower rush to build next to the enemy castle and fight its base", async () => {
-    const m = await make(seeAll());
+    const m = await make(seeAll(unlocked({ ...rules, startCapital: 400 })));
     const w = mine(m, "p1", "worker")[0];
     const enemyNexus = mine(m, "p2", "castle")[0];
-    const x = enemyNexus.x - rules.kinds.turret.range!;
-    const r = m.step([{ player: "p1", order: { type: "build", unit: w.id, kind: "turret", x, y: enemyNexus.y } }]);
-    expect(r.results[0]).toMatchObject({ ok: true });
+    // The farthest free tile in range west of the castle.
+    let r;
+    for (let d = rules.kinds.turret.range!; d > 2; d--) {
+      r = m.step([{ player: "p1", order: { type: "build", unit: w.id, kind: "turret", x: enemyNexus.x - d, y: enemyNexus.y } }]);
+      if (r.results[0].ok) break;
+    }
+    expect(r!.results[0]).toMatchObject({ ok: true });
     run(m, 600);
     expect(mine(m, "p1", "turret")).toHaveLength(1);
     expect(mine(m, "p2", "worker")).toHaveLength(0); // the turret shoots the weakest target in range first
   });
 
   it("preserves build exclusion when enabled by a saved ruleset", async () => {
-    const m = await make(seeAll({ ...rules, buildExclusion: 8 }));
+    const m = await make(seeAll(unlocked({ ...rules, startCapital: 400, buildExclusion: 8 })));
     const w = mine(m, "p1", "worker")[0];
     const enemyNexus = mine(m, "p2", "castle")[0];
     const r = m.step([{ player: "p1", order: { type: "build", unit: w.id, kind: "turret", x: enemyNexus.x - 5, y: enemyNexus.y } }]);
@@ -179,7 +186,7 @@ describe("maps and sides", () => {
   });
 
   it("rangers shoot from range", async () => {
-    const m = await make();
+    const m = await make(unlocked());
     const nexus = mine(m, "p1", "castle")[0];
     const r = m.step([{ player: "p1", order: { type: "train", building: nexus.id, kind: "ranger" } }]);
     expect(r.results[0]).toMatchObject({ ok: true });

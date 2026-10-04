@@ -23,6 +23,10 @@ export interface Ruleset {
   trainingQueueLimit: number;
   /** A diagonal step takes this many times a straight one; paths account for it. */
   diagonalMove: number;
+  /** An enemy that damages one of your entities stays visible to you this long, wherever it is (absent in older rules: 0). */
+  revealAttackerMs: number;
+  /** Scripts perceive everything the player sees ("player"), or only within the unit's own vision ("unit", older rules). */
+  scriptSight: "player" | "unit";
   /**
    * Ranged attacks are real projectiles (Euclidean tiles/s). Only hostile entities stop
    * them, never rock; `flyOver` building kinds are hit only by a shot aimed at them.
@@ -42,7 +46,8 @@ export interface Ruleset {
 
 export interface UpgradeSpec {
   kind: string;
-  stat: "atk" | "attackMs" | "moveMs" | "range";
+  /** "unlock" makes the kind producible (see KindSpec.requires); its level value is unused. */
+  stat: "atk" | "attackMs" | "moveMs" | "range" | "unlock";
   /**
    * Absolute resulting stat values, bought in order. One research at a time per player.
    * `vision` optionally raises sight with the same level (a longer range needs it to see targets).
@@ -67,6 +72,8 @@ export interface KindSpec {
   vision: number;
   /** Capital to train (units) or build (buildings). 0 = not producible. */
   cost: number;
+  /** Research that must be completed before this kind can be trained or built, or its other research started. */
+  requires?: string;
   /** Time a builder must work adjacent to a free site. Omitted means instant. */
   buildMs?: number;
   /** Production time per unit. Omitted means instant. */
@@ -78,6 +85,8 @@ export interface KindSpec {
   /** Present on kinds that attack. */
   atk?: number;
   range?: number;
+  /** Blind spot: targets closer than this can't be attacked (a turret can't shoot at its own foot). */
+  minRange?: number;
   attackMs?: number;
   /** After a step, a mobile attacker must stand still this long before it attacks. */
   aimMs?: number;

@@ -2,13 +2,14 @@ import { expect, it } from "vitest";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { rules } from "@aoa/shared";
 import { buildServer } from "../src/app";
 
 it("serves consistent castle/door rules and default maps for duels and FFA", async () => {
   const app = await buildServer({ replayDir: await mkdtemp(join(tmpdir(), "aoa-doors-")), prepMs: 0 });
   try {
     const { ruleset, guide } = (await app.inject({ method: "GET", url: "/rules" })).json();
-    expect(ruleset.version).toBe("v16-pause");
+    expect(ruleset.version).toBe(rules.version);
     expect(ruleset.kinds.worker.builds).toEqual(["turret", "wall", "door", "castle"]);
     expect(JSON.stringify({ruleset,guide})).not.toMatch(/nexus/i);
     for (const map of ["open","quad","fortress","fortress-quad"]) {

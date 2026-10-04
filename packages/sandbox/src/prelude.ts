@@ -77,12 +77,14 @@ export const PRELUDE = String.raw`
     const act = function (a) { if (action === null) action = a; };
     const idOf = function (t) { return typeof t === "string" ? t : t && t.id; };
     const visible = function (pred) {
-      return byDistance(u, others.filter(function (o) { return o.id !== u.id && pred(o) && dist(u, o) <= u.vision; }));
+      // Everything the player sees (shared vision), or under older rules only within the unit's vision; nearest first.
+      const shared = world.sight === "player";
+      return byDistance(u, others.filter(function (o) { return o.id !== u.id && pred(o) && (shared || dist(u, o) <= u.vision); }));
     };
     if (!memory[id]) memory[id] = {};
     const self = {
       id: u.id, type: u.type, x: u.x, y: u.y, hp: u.hp, maxHp: u.maxHp,
-      atk: u.atk, def: u.def, range: u.range, vision: u.vision, tick: world.tick,
+      atk: u.atk, def: u.def, range: u.range, minRange: u.minRange || 0, vision: u.vision, tick: world.tick,
       ...(u.attackMs !== undefined ? { attackMs: u.attackMs, moveMs: u.moveMs } : {}),
       memory: memory[id],
       projectiles: function () { return (world.projectiles || []).map(function (p) { return { ...p }; }); },
@@ -90,7 +92,7 @@ export const PRELUDE = String.raw`
       nearbyAllies: function () { return visible(friendly); },
       nearestEnemy: function () { return visible(hostile)[0] || null; },
       nearestAlly: function () { return visible(friendly)[0] || null; },
-      enemiesInRange: function () { return byDistance(u, others.filter(function (o) { return hostile(o) && dist(u, o) <= u.range; })); },
+      enemiesInRange: function () { return byDistance(u, others.filter(function (o) { return hostile(o) && dist(u, o) <= u.range && dist(u, o) >= (u.minRange || 0); })); },
       distanceTo: function (o) { return dist(u, o); },
       distanceToPos: function (x, y) { return dist(u, { x: x, y: y }); },
       enemyBase: function () { return world.enemyBase; },

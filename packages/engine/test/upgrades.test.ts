@@ -23,30 +23,31 @@ const buy = (m: Match, upgrade: string) => m.step([{ player: "p1", order: { type
 describe("research upgrades", () => {
   it("charges once, rejects concurrent/unknown research, and applies only at completion to this player's existing and future units", async () => {
     const m = await make();
+    const base = rules.kinds.knight.atk!, [l1, l2] = rules.upgrades.knight_damage.levels;
     try {
       const initial = buy(m, "knight_damage");
-      expect(initial.results[0]).toMatchObject({ ok: true, capital: { spent: 150, remaining: 1850 } });
+      expect(initial.results[0]).toMatchObject({ ok: true, capital: { spent: l1.cost, remaining: 2000 - l1.cost } });
       expect(stats(m).research).toEqual({ upgrade: "knight_damage", level: 1, completesAtMs: 10_000 });
-      expect(buy(m, "knight_damage").results[0]).toMatchObject({ ok: false, capital: { spent: 0, remaining: 1850 } });
+      expect(buy(m, "knight_damage").results[0]).toMatchObject({ ok: false, capital: { spent: 0, remaining: 2000 - l1.cost } });
       expect(buy(m, "__proto__").results[0]).toMatchObject({ ok: false });
-      expect(unit(m, "knight").stats?.atk).toBe(12);
+      expect(unit(m, "knight").stats?.atk).toBe(base);
       stepTo(m, 100);
-      expect(unit(m, "knight").stats?.atk).toBe(12);
+      expect(unit(m, "knight").stats?.atk).toBe(base);
       const completion = m.step([]);
       expect(completion.events).toContainEqual({ tick: 100, type: "upgrade_completed", owner: "p1", upgrade: "knight_damage", level: 1 });
-      expect(unit(m, "knight").stats?.atk).toBe(14);
-      expect(unit(m, "knight", "p2").stats?.atk).toBe(12);
-      expect(unit(m, "ranger").stats?.atk).toBe(12);
-      expect(rules.kinds.knight.atk).toBe(12);
+      expect(unit(m, "knight").stats?.atk).toBe(l1.value);
+      expect(unit(m, "knight", "p2").stats?.atk).toBe(base);
+      expect(unit(m, "ranger").stats?.atk).toBe(rules.kinds.ranger.atk);
+      expect(rules.kinds.knight.atk).toBe(base);
       expect(stats(m).research).toBeUndefined();
       m.step([{ player: "p1", order: { type: "train", building: unit(m, "castle").id, kind: "knight" } }]);
       stepTo(m, m.tick + rules.kinds.knight.trainMs! / 100 + 1);
       const knights = m.view("p1").mine.filter((e) => e.kind === "knight");
-      expect(knights.map((k) => k.stats?.atk)).toEqual([14, 14]);
+      expect(knights.map((k) => k.stats?.atk)).toEqual([l1.value, l1.value]);
       const bought = m.tick;
-      expect(buy(m, "knight_damage").results[0].capital?.spent).toBe(250);
+      expect(buy(m, "knight_damage").results[0].capital?.spent).toBe(l2.cost);
       stepTo(m, bought + 151); m.step([]);
-      expect(unit(m, "knight").stats?.atk).toBe(16);
+      expect(unit(m, "knight").stats?.atk).toBe(l2.value);
       expect(buy(m, "knight_damage").results[0]).toMatchObject({ ok: false, reason: "knight_damage is already at maximum level", capital: { spent: 0 } });
     } finally { m.dispose(); }
   });
@@ -68,17 +69,18 @@ describe("research upgrades", () => {
       buy(m, "knight_cadence"); stepTo(m, 202);
       buy(m, "knight_mobility"); stepTo(m, 353);
       const knight = unit(m, "knight"), enemy = unit(m, "knight", "p2");
-      expect(knight.stats).toMatchObject({ atk: 14, attackMs: 900, moveMs: 300 });
+      const atk = rules.upgrades.knight_damage.levels[0].value, moveMs = rules.upgrades.knight_mobility.levels[0].value;
+      expect(knight.stats).toMatchObject({ atk, attackMs: 900, moveMs });
       m.step([{ player: "p1", order: { type: "script", kind: "knight", code: 'self.log([self.atk,self.attackMs,self.moveMs].join(",")); self.hold();' } }]);
-      expect(m.events("p1", 353)).toContainEqual(expect.objectContaining({ type: "log", message: "14,900,300" }));
+      expect(m.events("p1", 353)).toContainEqual(expect.objectContaining({ type: "log", message: `${atk},900,${moveMs}` }));
       const first = m.step([{ player: "p1", order: { type: "attack", unit: knight.id, target: enemy.id } }]);
-      expect(first.events).toContainEqual(expect.objectContaining({ type: "attack", from: knight.id, dmg: 14 - rules.kinds.knight.def }));
+      expect(first.events).toContainEqual(expect.objectContaining({ type: "attack", from: knight.id, dmg: atk - rules.kinds.knight.def }));
       const hitTick = first.events.find((e) => e.type === "attack")!.tick;
       for (let i = 0; i < 8; i++) expect(m.step([]).events.some((e) => e.type === "attack" && e.from === knight.id)).toBe(false);
       expect(m.step([]).events).toContainEqual(expect.objectContaining({ type: "attack", tick: hitTick + 9, from: knight.id }));
       m.step([{ player: "p1", order: { type: "move", unit: knight.id, x: 7, y: 2 } }]);
       expect(unit(m, "knight").y).toBe(6);
-      m.step([]); m.step([]);
+      for (let i = 1; i < moveMs / 100; i++) m.step([]);
       expect(unit(m, "knight").y).toBe(6);
       m.step([]);
       expect(unit(m, "knight").y).toBe(5);
@@ -127,8 +129,27 @@ describe("research upgrades", () => {
       expect((await runReplay(altered, () => {})).verified).toBe(false);
       const fresh = await make(r);
       expect(stats(fresh).upgrades).toEqual({});
-      expect(unit(fresh, "knight").stats?.atk).toBe(12);
+      expect(unit(fresh, "knight").stats?.atk).toBe(rules.kinds.knight.atk);
       fresh.dispose();
+    } finally { m.dispose(); }
+  });
+});
+
+describe("unlock research", () => {
+  it("makes rangers and turrets producible only after their research, and gates their other research", async () => {
+    const m = await make({ ...setupRules(), kinds: { ...setupRules().kinds, worker: { ...setupRules().kinds.worker, vision: 16 } } });
+    try {
+      const castle = unit(m, "castle").id, train = () => m.step([{ player: "p1", order: { type: "train", building: castle, kind: "ranger" } }]).results[0];
+      expect(train()).toMatchObject({ ok: false, reason: "ranger requires archery research" });
+      expect(buy(m, "ranger_damage").results[0]).toMatchObject({ ok: false, reason: "ranger requires archery research" });
+      expect(buy(m, "archery").results[0]).toMatchObject({ ok: true, capital: { spent: rules.upgrades.archery.levels[0].cost } });
+      stepTo(m, m.tick + rules.upgrades.archery.levels[0].researchMs / 100 + 1);
+      expect(stats(m).upgrades).toMatchObject({ archery: 1 });
+      expect(train()).toMatchObject({ ok: true });
+      const worker = unit(m, "worker").id;
+      expect(m.step([{ player: "p1", order: { type: "build", unit: worker, kind: "turret", x: 9, y: 9 } }]).results[0]).toMatchObject({ ok: false, reason: "turret requires engineering research" });
+      expect(playerGuide(rules)).toContain("- archery: unlocks ranger; L1: unlocked, cost 100");
+      expect(playerGuide(rules)).toContain("requires archery research");
     } finally { m.dispose(); }
   });
 });

@@ -277,7 +277,7 @@ export class Match {
       // Aim: after a step, the attacker must stand still before it strikes.
       if (e.spec.aimMs && e.lastStep && T - e.lastStep.tick < this.ticks(e.spec.aimMs)) continue;
       const target = this.ents.get(it.id);
-      if (!target || !this.canSee(e.owner, target.x, target.y) || !this.hostile(target.owner, e.owner) || dist(e.x, e.y, target.x, target.y) > (e.spec.range ?? 1)) continue;
+      if (!target || !this.canSee(e.owner, target.x, target.y) || !this.hostile(target.owner, e.owner) || !this.inReach(e, target)) continue;
       e.nextAttack = T + this.ticks(e.spec.attackMs ?? 1000);
       if ((e.spec.range ?? 1) > 1) {
         const dx = target.x - e.x, dy = target.y - e.y;
@@ -645,6 +645,7 @@ export class Match {
       case "build": {
         const spec = this.ruleset.kinds[o.kind];
         if (!e.spec.builds?.includes(o.kind) || !spec) return { ok: false, reason: `${e.kind} cannot build ${o.kind}` };
+        if (this.locked(p, o.kind)) return { ok: false, reason: `${o.kind} requires ${spec.requires} research` };
         if (!inBounds(this.grid, o.x, o.y)) return { ok: false, reason: `(${o.x},${o.y}) is outside the map` };
         if (!this.canSee(p.id, o.x, o.y)) return { ok: false, reason: "build site must be visible" };
         if (this.grid.isStatic(o.x, o.y) && this.buildSites.get(o.y * this.grid.width + o.x) !== e.id) return { ok: false, reason: `(${o.x},${o.y}) is occupied` };
@@ -672,12 +673,18 @@ export class Match {
     return { ok: true };
   }
 
+  /** A kind that needs a research this player has not completed. */
+  private locked(p: Player, kind: string): boolean {
+    const req = this.ruleset.kinds[kind]?.requires;
+    return !!req && !p.upgrades[req];
+  }
+
   private effectiveSpec(p: Player, kind: string): KindSpec {
     const base = this.ruleset.kinds[kind];
     const spec = { ...base };
     for (const [id, level] of Object.entries(p.upgrades)) {
       const upgrade = this.ruleset.upgrades[id];
-      if (upgrade.kind !== kind) continue;
+      if (upgrade.kind !== kind || upgrade.stat === "unlock") continue;
       const bought = upgrade.levels[level - 1];
       spec[upgrade.stat] = bought.value;
       if (bought.vision !== undefined) spec.vision = bought.vision;
@@ -692,6 +699,7 @@ export class Match {
     const level = (p.upgrades[id] ?? 0) + 1;
     const next = upgrade.levels[level - 1];
     if (!next) return { ok: false, reason: `${id} is already at maximum level` };
+    if (upgrade.stat !== "unlock" && this.locked(p, upgrade.kind)) return { ok: false, reason: `${upgrade.kind} requires ${this.ruleset.kinds[upgrade.kind].requires} research` };
     if (p.capital < next.cost) return { ok: false, reason: `needs ${next.cost} capital, you have ${p.capital}` };
     p.capital -= next.cost;
     p.research = { upgrade: id, level, completesAtTick: this._tick + this.ticks(next.researchMs) };
@@ -705,6 +713,7 @@ export class Match {
     const spec = this.ruleset.kinds[kind];
     if (!b || b.owner !== p.id) return { ok: false, reason: `no building ${buildingId} of yours` };
     if (!b.spec.trains?.includes(kind) || !spec) return { ok: false, reason: `${b.kind} cannot train ${kind}` };
+    if (this.locked(p, kind)) return { ok: false, reason: `${kind} requires ${spec.requires} research` };
     if (p.capital < spec.cost) return { ok: false, reason: `needs ${spec.cost} capital, you have ${p.capital}` };
     if (this.pop(p.id) + this.queuedPop(p.id) >= this.ruleset.popCap) return { ok: false, reason: `population cap ${this.ruleset.popCap} reached` };
     if (spec.trainMs) {
@@ -766,7 +775,7 @@ export class Match {
       case "attack": {
         const t = this.ents.get(o.target);
         if (!t || !this.canSee(e.owner, t.x, t.y)) return this.endOrder(e, "target lost", emit), null;
-        if (dist(e.x, e.y, t.x, t.y) <= range) return { t: "attack", id: t.id };
+        if (this.inReach(e, t)) return { t: "attack", id: t.id };
         return { t: "goto", x: t.x, y: t.y, range };
       }
       case "build": {
@@ -824,7 +833,7 @@ export class Match {
         const t = this.ents.get(a.id);
         if (!t || !this.canSee(e.owner, t.x, t.y) || !this.hostile(t.owner, e.owner) || !e.spec.atk) return { t: "hold" };
         const range = e.spec.range ?? 1;
-        if (dist(e.x, e.y, t.x, t.y) <= range) return { t: "attack", id: t.id };
+        if (this.inReach(e, t)) return { t: "attack", id: t.id };
         return e.spec.moveMs ? { t: "goto", x: t.x, y: t.y, range } : { t: "hold" };
       }
       case "flee": {
@@ -873,7 +882,7 @@ export class Match {
     for (const e of units) {
       u[e.id] = {
         id: e.id, type: e.kind, x: e.x, y: e.y, hp: e.hp, maxHp: e.spec.hp, atk: e.spec.atk ?? 0,
-        def: e.spec.def, range: e.spec.range ?? 0, vision: e.spec.vision,
+        def: e.spec.def, range: e.spec.range ?? 0, minRange: e.spec.minRange ?? 0, vision: e.spec.vision,
         attackMs: e.spec.attackMs ? this.ms(this.ticks(e.spec.attackMs)) : 0,
         moveMs: e.spec.moveMs ? this.ms(this.ticks(e.spec.moveMs)) : 0,
         lastAttackedTick: e.lastAttacked?.tick ?? null,
@@ -892,6 +901,7 @@ export class Match {
       ]),
       myBase,
       enemyBase,
+      sight: this.ruleset.scriptSight === "player" ? "player" : "unit",
     };
   }
 
@@ -951,6 +961,12 @@ export class Match {
   /** Path costs follow step times: 10 straight, 14 diagonal when diagonals are slower. */
   private pathDiagonalCost(): number {
     return Math.round(10 * this.ruleset.diagonalMove);
+  }
+
+  /** Within attack range, and not inside the attacker's blind spot (`minRange`). */
+  private inReach(e: Entity, t: { x: number; y: number }): boolean {
+    const d = dist(e.x, e.y, t.x, t.y);
+    return d <= (e.spec.range ?? 1) && d >= (e.spec.minRange ?? 0);
   }
 
   private canStep(e: Entity, x: number, y: number): boolean {
@@ -1258,11 +1274,15 @@ export class Match {
     const { width, height } = this.grid;
     for (const p of this.players) {
       const visible = new Set<number>();
+      const reveal = this.ruleset.revealAttackerMs ? this.ticks(this.ruleset.revealAttackerMs) : -1;
       for (const e of this.ents.values()) {
         if (this.hostile(p.id, e.owner) || this.ruined.has(e.owner)) continue;
         for (let y = Math.max(0, e.y - e.spec.vision); y <= Math.min(height - 1, e.y + e.spec.vision); y++)
           for (let x = Math.max(0, e.x - e.spec.vision); x <= Math.min(width - 1, e.x + e.spec.vision); x++)
             if (dist(e.x, e.y, x, y) <= e.spec.vision) visible.add(y * width + x);
+        // Whoever recently damaged it is revealed, wherever it stands.
+        const by = e.lastAttacked && this._tick - e.lastAttacked.tick <= reveal ? this.ents.get(e.lastAttacked.id) : undefined;
+        if (by && this.hostile(p.id, by.owner)) visible.add(by.y * width + by.x);
       }
       this.visible.set(p.id, visible);
       const explored = this.explored.get(p.id) ?? new Set<number>();

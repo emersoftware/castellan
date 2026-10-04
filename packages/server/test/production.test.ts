@@ -3,7 +3,8 @@ import { rules } from "@aoa/shared";
 import { Room } from "../src/room";
 
 it("restores queued production, reserved population and explored terrain without a second charge", async () => {
-  const room = await Room.create({ ruleset: { ...rules, startCapital: 1000, map: { ...rules.map, deposits: [], sharedDeposits: [] } },
+  // Rangers trained without their unlock research: this test is about restoring production.
+  const room = await Room.create({ ruleset: { ...rules, kinds: Object.fromEntries(Object.entries(rules.kinds).map(([k, s]) => [k, { ...s, requires: undefined }])), startCapital: 1000, map: { ...rules.map, deposits: [], sharedDeposits: [] } },
     players: [{ name: "one" }, { name: "two" }], seed: 42, tickRate: 10, sides: "fixed", prepMs: 0, botLatencyMs: 3000,
     chat: true, onFinish: () => {} });
   let restored: Room | undefined;

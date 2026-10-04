@@ -87,14 +87,16 @@ it('exposes worker economy controls with first action winning', () => {
   h.setScript('worker','self.gather();');expect(h.run(w,['e1']).e1.action).toEqual({a:'gather'});
  }finally{h.dispose();}
 });
-it('only returns a living visible hostile attacker and leaves legacy APIs unchanged',()=>{
+it('returns a living hostile attacker the player sees, even beyond this unit\'s vision, and leaves legacy APIs unchanged',()=>{
  const h=createScriptHost(rules.script,1);
  try {
   h.setScript('knight','self.log(typeof self.lastAttacker);');expect(h.run(world,['e1']).e1.log).toBe('undefined');
   h.setScript('knight','self.log(self.lastAttacker() ? self.lastAttacker().id : "none");');
-  for(const [id,result] of [['e2','e2'],['e3','none'],['e1','none'],['dead','none']]){
-   const w={...world,units:{e1:{...world.units.e1,lastAttackedTick:4,lastAttacker:id}}};
+  for(const [id,result] of [['e2','e2'],['e3','e3'],['e1','none'],['dead','none']]){
+   const w={...world,sight:'player' as const,units:{e1:{...world.units.e1,lastAttackedTick:4,lastAttacker:id}}};
    expect(h.run(w,['e1']).e1.log).toBe(result);
   }
+  // Older rules: only within the unit's own vision.
+  expect(h.run({...world,sight:'unit',units:{e1:{...world.units.e1,lastAttackedTick:4,lastAttacker:'e3'}}},['e1']).e1.log).toBe('none');
  }finally{h.dispose();}
 });
