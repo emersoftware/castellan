@@ -151,7 +151,9 @@ export class GameRenderer {
     this.xrayLayer.sortableChildren = true;
     this.outlineLayer.sortableChildren = true;
     this.depthWorld.addChild(this.depthLayer);
-    this.world.addChild(this.ground, this.shadows, this.hoverMark, this.selectMark, this.objects, this.outlineLayer, this.xrayLayer, this.fx, this.fog);
+    // Fog darkens the ground only; objects on fogged tiles are dimmed whole (see fogDim), so a
+    // tall building is never half-dark where it overlaps tiles of different visibility.
+    this.world.addChild(this.ground, this.shadows, this.fog, this.hoverMark, this.selectMark, this.objects, this.outlineLayer, this.xrayLayer, this.fx);
     this.root.addChild(this.world);
     this.root.filters = [createDitherFilter()];
     this.app.stage.addChild(this.root);
@@ -240,7 +242,10 @@ export class GameRenderer {
     this.frameAt = sameTick && !jump ? now - alpha * tickMs : now;
     this.visibility = v.visibility;
     this.fog.clear();
-    for (const rock of this.staticDepth) rock.sprite.visible = !v.visibility || v.visibility[rock.y]?.[rock.x] !== "0";
+    for (const rock of this.staticDepth) {
+      rock.sprite.visible = !v.visibility || v.visibility[rock.y]?.[rock.x] !== "0";
+      rock.sprite.tint = this.fogDim(RAMPS.neutral.key, rock.x, rock.y);
+    }
     if (v.visibility) for (let y = 0; y < this.height; y++) for (let x = 0; x < this.width; x++) {
       const visibility = v.visibility[y]?.[x];
       if (visibility === "2") continue;
@@ -327,6 +332,7 @@ export class GameRenderer {
       d.sprite.texture = art.texture;
       d.sprite.anchor.set(art.anchorX, art.anchorY);
       d.sprite.scale.set(art.scale);
+      d.sprite.tint = this.fogDim(RAMPS.neutral.key, dv.x, dv.y);
       d.depth.texture = art.silhouette;
       d.view = dv;
     }
@@ -541,7 +547,7 @@ export class GameRenderer {
       }
       d.sprite.position.set(sx + ox, sy + oy + (building ? 0 : 3));
       d.sprite.zIndex = Math.round((x + y) * 10) + 5;
-      d.sprite.tint = now < d.flashUntil ? RAMPS.neutral.key : PLAYER_RAMPS[d.color].key;
+      d.sprite.tint = this.fogDim(now < d.flashUntil ? RAMPS.neutral.key : PLAYER_RAMPS[d.color].key, d.to.x, d.to.y);
       if (!building) {
         if (d.shot && animationMs >= d.shot.at + recoveryMs(d.view.kind)) d.shot = undefined;
         // Decide locomotion from confirmed simulation ticks, not the end of
@@ -621,6 +627,11 @@ export class GameRenderer {
     this.depthWorld.position.copyFrom(this.world.position);
     this.depthWorld.scale.copyFrom(this.world.scale);
     this.app.renderer.render({ container: this.depthWorld, target: this.depthRT, clear: true, clearColor: [0, 0, 0, 0] });
+  }
+
+  /** A colour as seen on tile (x, y): unchanged in sight, darkened like the fog on explored ground. */
+  private fogDim(color: number, x: number, y: number): number {
+    return !this.visibility || this.visibility[y]?.[x] === "2" ? color : dim(color, 0.2);
   }
 
   /** Rings on the ground under the selected and hovered entity or deposit, following their drawn position. */

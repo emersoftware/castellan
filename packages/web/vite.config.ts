@@ -9,7 +9,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      ...Object.fromEntries(proxied.map((p) => [p, api])),
+      // Page navigations (e.g. /series/:id/replay) stay with the app; data requests go to the server.
+      ...Object.fromEntries(proxied.map((p) => [p, { target: api, bypass: (req: { headers: { accept?: string } }) => (req.headers.accept?.includes("text/html") ? "/index.html" : undefined) }])),
       "/spectate": { target: api, ws: true },
     },
   },
