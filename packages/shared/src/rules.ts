@@ -9,7 +9,7 @@ import { MAPS } from "./maps";
 import type { Ruleset } from "./ruleset";
 
 export const rules: Ruleset = {
-  version: "v20-unlocks",
+  version: "v21-validated",
   matchMs: 600000,
   fourSeatMatchMs: 900000,
   prepMs: 60000,
@@ -44,12 +44,12 @@ export const rules: Ruleset = {
       building: false,
       symbol: "K",
       enemySymbol: "k",
-      hp: 100,
+      hp: 110,
       def: 6,
       vision: 6,
       cost: 100,
       moveMs: 500,
-      atk: 14,
+      atk: 17,
       range: 1,
       attackMs: 1000,
       scriptable: true,
@@ -77,7 +77,7 @@ export const rules: Ruleset = {
       building: true,
       symbol: "T",
       enemySymbol: "t",
-      hp: 170,
+      hp: 160,
       def: 7,
       vision: 8,
       cost: 200,
@@ -94,8 +94,8 @@ export const rules: Ruleset = {
       building: true,
       symbol: "C",
       enemySymbol: "c",
-      hp: 500,
-      def: 4,
+      hp: 600,
+      def: 7,
       vision: 7,
       cost: 600,
       vital: false,
@@ -140,7 +140,7 @@ export const rules: Ruleset = {
     knight_damage: {
       kind: "knight",
       stat: "atk",
-      levels: [{ cost: 200, researchMs: 10000, value: 16 }, { cost: 300, researchMs: 15000, value: 18 }],
+      levels: [{ cost: 250, researchMs: 10000, value: 19 }, { cost: 350, researchMs: 15000, value: 21 }],
     },
     knight_cadence: {
       kind: "knight",
@@ -151,7 +151,7 @@ export const rules: Ruleset = {
     ranger_damage: {
       kind: "ranger",
       stat: "atk",
-      levels: [{ cost: 200, researchMs: 10000, value: 14 }, { cost: 300, researchMs: 15000, value: 16 }],
+      levels: [{ cost: 250, researchMs: 10000, value: 14 }, { cost: 350, researchMs: 15000, value: 16 }],
     },
     ranger_cadence: {
       kind: "ranger",
@@ -164,13 +164,13 @@ export const rules: Ruleset = {
       stat: "atk",
       levels: [{ cost: 150, researchMs: 10000, value: 5 }, { cost: 250, researchMs: 15000, value: 7 }],
     },
-    ranger_range: { kind: "ranger", stat: "range", levels: [{ cost: 150, researchMs: 15000, value: 6, vision: 8 }] },
+    ranger_range: { kind: "ranger", stat: "range", levels: [{ cost: 200, researchMs: 15000, value: 6, vision: 8 }] },
     turret_range: {
       kind: "turret",
       stat: "range",
       levels: [
-        { cost: 200, researchMs: 15000, value: 8, vision: 9 },
-        { cost: 300, researchMs: 20000, value: 9, vision: 10 },
+        { cost: 150, researchMs: 15000, value: 8, vision: 9 },
+        { cost: 250, researchMs: 20000, value: 9, vision: 10 },
       ],
     },
   },

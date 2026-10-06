@@ -27,13 +27,13 @@ it("extends ranger range one tile and turret range two, always keeping turrets a
   expect(sees(8)).toBe(true);
   expect(buy("ranger_range")).toMatchObject({ ok: false, reason: "ranger_range is already at maximum level" });
   expect(mine("turret").stats?.range).toBe(7);
-  expect(buy("turret_range")).toMatchObject({ ok: true, capital: { spent: 200 } });
+  expect(buy("turret_range")).toMatchObject({ ok: true, capital: { spent: rules.upgrades.turret_range.levels[0].cost } });
   for (let i = 0; i < 151; i++) m.step([]);
   expect(mine("turret").stats?.range).toBe(8);
   expect(m.view("p2").mine.find((e) => e.kind === "turret")!.stats?.range).toBe(7); // only the buyer's
-  expect(buy("turret_range")).toMatchObject({ ok: true, capital: { spent: 300 } });
+  expect(buy("turret_range")).toMatchObject({ ok: true, capital: { spent: rules.upgrades.turret_range.levels[1].cost } });
   for (let i = 0; i < 201; i++) m.step([]);
   expect(mine("turret").stats?.range).toBe(9);
-  expect(playerGuide(ruleset)).toContain("- ranger_range: ranger range; L1: range 6, vision 8, cost 150, research 15s\n");
-  expect(playerGuide(ruleset)).toContain("- turret_range: turret range; L1: range 8, vision 9, cost 200, research 15s; L2: range 9, vision 10, cost 300, research 20s");
+  expect(playerGuide(ruleset)).toContain(`- ranger_range: ranger range; L1: range 6, vision 8, cost ${rules.upgrades.ranger_range.levels[0].cost}, research 15s\n`);
+  expect(playerGuide(ruleset)).toContain(`- turret_range: turret range; L1: range 8, vision 9, cost ${rules.upgrades.turret_range.levels[0].cost}, research 15s; L2: range 9, vision 10, cost ${rules.upgrades.turret_range.levels[1].cost}, research 20s`);
 });

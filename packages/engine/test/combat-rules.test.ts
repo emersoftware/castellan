@@ -64,7 +64,7 @@ it("flies arrows over rock: only castles and turrets stop them", async () => {
   };
   expect(await shot(rules)).toMatchObject({ reason: "hit" });
   expect(playerGuide(rules)).toContain("Shots fly over rock and over hostile walls and doors");
-  expect(playerGuide(rules)).toContain("knight (K): hp 100, def 6, atk 14 range 1 every 1000ms, after moving must stand still 100ms before attacking");
+  expect(playerGuide(rules)).toContain(`knight (K): hp ${rules.kinds.knight.hp}, def ${rules.kinds.knight.def}, atk ${rules.kinds.knight.atk} range 1 every 1000ms, after moving must stand still ${rules.kinds.knight.aimMs}ms before attacking`);
 });
 
 it("lets turrets outrange every ranger, and castles reach as far as a researched one", () => {
