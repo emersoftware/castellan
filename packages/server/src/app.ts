@@ -73,7 +73,10 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const body = (req.body ?? {}) as {
       players?: { name?: string; bot?: string; team?: number }[]; seed?: number; prepMs?: number; tickRate?: number; botLatencyMs?: number;
       map?: string; sides?: "random" | "fixed"; chat?: boolean; mode?: "teams" | "ffa";
+      stats?: { label: string; kinds: Record<string, Record<string, unknown>>; upgrades: Ruleset["upgrades"] };
     };
+    // Experiments only (server started with AOA_CUSTOM_STATS=1): play today's engine with another version's stats.
+    if (body.stats && process.env.AOA_CUSTOM_STATS !== "1") return reply.code(400).send({ error: "custom stats are disabled on this server" });
     const map = maps[body.map ?? "open"];
     if (!map) return reply.code(400).send({ error: `unknown map ${body.map}; available: ${Object.keys(maps).join(", ")}` });
     if (body.mode !== undefined && body.mode !== "teams" && body.mode !== "ffa") return reply.code(400).send({ error: 'mode must be "teams" or "ffa"' });
@@ -90,7 +93,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     }
     for (const p of players) if (p.bot && !BOTS[p.bot]) return reply.code(400).send({ error: `unknown bot ${p.bot}; available: ${Object.keys(BOTS).join(", ")}` });
     const config = {
-      ruleset: { ...ruleset, map },
+      ruleset: { ...(body.stats ? withStats(ruleset, body.stats) : ruleset), map },
       players,
       mode: body.mode,
       sides: body.sides === "fixed" ? "fixed" as const : "random" as const,
@@ -376,4 +379,19 @@ async function readIndex(dir: string): Promise<ReplayIndexEntry[]> {
   } catch {
     return [];
   }
+}
+
+/** Numbers that describe a kind; everything else (capabilities, symbols) stays as today. */
+const STATS = ["hp", "def", "atk", "range", "minRange", "vision", "moveMs", "attackMs", "cost", "aimMs", "trainMs", "buildMs", "requires"];
+
+/** Today's rules with another version's unit stats and research (for experiments). */
+function withStats(r: Ruleset, stats: { label: string; kinds: Record<string, Record<string, unknown>>; upgrades: Ruleset["upgrades"] }): Ruleset {
+  // A kind the version didn't have (e.g. doors before v7) keeps today's stats.
+  const kinds = Object.fromEntries(Object.entries(r.kinds).map(([k, spec]) => {
+    if (!stats.kinds[k]) return [k, spec];
+    const own: Record<string, unknown> = { ...spec };
+    for (const f of STATS) delete own[f];
+    return [k, { ...own, ...(stats.kinds[k] ?? {}) }];
+  })) as unknown as Ruleset["kinds"];
+  return { ...r, version: `${r.version}+stats:${String(stats.label).slice(0, 40)}`, kinds, upgrades: stats.upgrades };
 }
