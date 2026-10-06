@@ -1,0 +1,15 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "destructionPercent": 50,
+  "action": "death",
+  "prompt": "Locked isometric game sprite camera. TOP TO BOTTOM structural collapse, one floor at a time. Upper battlements break into individual stone blocks and DROP STRAIGHT DOWN into the central courtyard first. Next upper towers crumble downward and inner walls tip INWARD toward the center. Finally lower walls break inward and drop onto the same foundation. All stones fall DOWN and INWARD, staying inside the original base footprint. Rigid blocks break apart; the castle does not squash, stretch or flatten elastically. No outward push, spreading wall slabs, explosion or flying debris. End exactly on the last reference: low asymmetric architectural ruins, broken short perimeter walls and corner bases, loose small masonry blocks resting flat in the courtyard. The final ruins have open spaces and retain the original foundation footprint. No tall mound or pyramid-shaped heap. Fixed camera and ground position, solid magenta background throughout. Small fires go out as stone blocks fall. Only this single castle.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 10,
+  "seed": 93,
+  "upsample": false,
+  "lora": "larry",
+  "first_and_last_frame": true,
+  "reference": "reference.png",
+  "last_reference": "last-reference.png"
+}

@@ -1,0 +1,35 @@
+{
+  "purpose": "Final frame for inward top-to-bottom collapse; not an additional damage state",
+  "source": "rubble-aoe-v2.png",
+  "generatedImage": "exec-34896a17-14d9-44fb-a53e-c2c925b73f7d.png",
+  "tool": "built-in image_gen",
+  "reference": "death-healthy/reference.png",
+  "prompt": "Use case: stylized-concept. Asset type: final frame of an isometric medieval RTS castle destruction sprite. Input image: reference for the exact castle identity, isometric camera, grayscale stone rendering, scale, placement and solid magenta chroma-key background. Create the FULLY DESTROYED ruins of this same castle, evoking the readable castle ruins of classic Age of Empires II. Replace the entire standing castle and flag with a LOW, WIDE, irregular ruin on its exact original foundation: broken perimeter wall stumps only two to three courses high, crumbled corner bases, a few remnants of front entrance steps, and many small scattered angular masonry blocks lying flat inside the former courtyard. Visually readable original square/isometric footprint, with negative space and dark cracks between debris. Most of the ruin is flat; highest broken wall fragments are under one-quarter of the former castle height. Asymmetric destroyed architectural remains rather than a tall pyramid-shaped heap or a symmetrical pile of huge boulders. Use the reference's clean pre-rendered grayscale stone, crisp small-game-sprite detail and top-left lighting. Orthographic isometric view, camera LOCKED. All ruins stay within the original castle ground footprint, centered at the same base location; frontmost corner remains exactly at the reference's frontmost foundation corner. Maintain the full square canvas and large empty magenta space above. Background perfectly solid #ff00ff with no floor patch or cast shadow outside the ruins. No fire, smoke, flag, people, vegetation, dirt, text or interface. The image is the settled end frame after walls fall inward and down; keep monochrome and avoid flying debris or intact tall walls.",
+  "selection": "Age of Empires inspired low architectural ruins, short broken walls and loose masonry inside the original foundation",
+  "normalizedReference": "rubble-aoe-v2-reference.png",
+  "normalization": {
+    "canvas": [
+      544,
+      544
+    ],
+    "sourceBounds": [
+      263,
+      520,
+      994,
+      1018
+    ],
+    "size": [
+      286,
+      195
+    ],
+    "left": 129,
+    "top": 248,
+    "bottom": 443
+  },
+  "videoGuidance": {
+    "firstFrame": "existing healthy/mild/intermediate castle reference",
+    "lastFrame": "rubble-aoe-v2-reference.png",
+    "firstAndLastFrame": true
+  },
+  "superseded": "rejected-pile-rubble-v1/"
+}

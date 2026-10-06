@@ -1,0 +1,14 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "kind": "wall",
+  "action": "death",
+  "prompt": "The stone wall crumbles and collapses downward into a low pile of broken stone rubble. Debris settles, motion stops. Fixed isometric camera. Preserve grayscale style and solid magenta background. No explosion, fire or new objects.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 6,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": false
+}

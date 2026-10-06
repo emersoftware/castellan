@@ -1,0 +1,14 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "destructionPercent": 50,
+  "action": "fire",
+  "prompt": "Only the existing fires flicker and burn continuously. Small sparks rise and fade, smoke drifts upward. Seamless loop. All stonework and camera perfectly motionless. Preserve castle shape, orange flames and solid magenta background.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 6,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "first_and_last_frame": true,
+  "reference": "reference.png"
+}

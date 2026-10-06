@@ -1,0 +1,15 @@
+{
+  "status": "reviewed-and-exported-locally",
+  "firstFrame": "reference.png",
+  "lastFrame": "last-reference.png",
+  "finalArt": "../rubble-aoe-v2-reference.png",
+  "source": "generated.mp4",
+  "review": "Top masonry breaks first, walls fall inward, final architectural ruins stay within the original foundation",
+  "heldFinalFrames": [
+    26,
+    27
+  ],
+  "runtime": "last frame fades in place; no descent",
+  "assetAndRendererTests": "29 passed",
+  "browserQA": "two damage stages, four owner colors, fire, particles, pause and cleanup passed"
+}

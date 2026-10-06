@@ -1,0 +1,8 @@
+{
+  "wall": { "trimStart": 0.25 },
+  "wallpost": { "trimStart": 0.25 },
+  "door": { "trimStart": 0.25 },
+  "door-open": { "trimStart": 0.25 },
+  "turret": { "trimStart": 0.35, "end": 1.6 },
+  "castle": { "trimStart": 0.35 }
+}

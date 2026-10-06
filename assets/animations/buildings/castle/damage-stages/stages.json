@@ -1,0 +1,73 @@
+{
+  "status": "integrated-locally",
+  "source": "../source.png",
+  "stages": [
+    {
+      "visualDestructionPercent": 25,
+      "maxRemainingHpPercent": 75,
+      "image": "destruction-25.png"
+    },
+    {
+      "visualDestructionPercent": 50,
+      "maxRemainingHpPercent": 25,
+      "image": "destruction-50.png"
+    }
+  ],
+  "fireActivationHpPercent": 50,
+  "selection": "User selected mild and intermediate damage; the severe ruin is rejected.",
+  "collapseMotion": "Top-to-bottom rigid masonry breakup, inward walls, Age of Empires inspired low architectural ruins on the original foundation",
+  "generation": {
+    "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+    "fire": {
+      "steps": 6,
+      "seed": 42
+    },
+    "collapse": {
+      "steps": 10,
+      "seed": 93
+    },
+    "durationSeconds": 2,
+    "firstAndLastFrame": true
+  },
+  "preview": "review/in-game-fire-and-inward-collapse.mp4",
+  "firePixelMap": "fire-pixels.json",
+  "firePalette": {
+    "style": "monochrome white and gray",
+    "steps": [
+      "#1e1e1e",
+      "#a4a4a4",
+      "#ffffff"
+    ],
+    "appliesTo": [
+      "HF flame sprites",
+      "native fire particles"
+    ]
+  },
+  "localDemoReplay": {
+    "id": "castle-9c036372",
+    "durationSeconds": 85,
+    "fireSeconds": 36.1,
+    "intermediateSeconds": 52.1,
+    "collapseSeconds": 69.1,
+    "verified": true
+  },
+  "runtimeCollapse": {
+    "motion": "Complete collapse at original position; final frame fades in place",
+    "clip": "No runtime ground clipping",
+    "collapseSeconds": 2.3333333333333335,
+    "lastFrameHoldSeconds": 1.5,
+    "fadeSeconds": 3,
+    "fadeCurve": "same linear corpseFade alpha used by dead units",
+    "allBuildingKinds": true,
+    "browserFixedPositionCheck": "passed for four structure types and four owner colors throughout collapse, hold and fade"
+  },
+  "collapseEndpoint": {
+    "image": "rubble-aoe-v2.png",
+    "normalizedReference": "rubble-aoe-v2-reference.png",
+    "provenance": "rubble-endpoint-provenance.json",
+    "style": "low broken perimeter walls, corner bases and loose courtyard masonry; grayscale",
+    "videoGuidance": "original healthy/mild/intermediate castle as first frame; new ruins as last frame",
+    "primaryClip": "death-50/generated.mp4",
+    "primaryInitialImage": "destruction-50.png (latest approved partially broken castle with fire)"
+  }
+}
