@@ -12,5 +12,20 @@
     "rows": [
       "se"
     ]
+  },
+  "death": {
+    "image": "turret-death.png",
+    "fps": 12,
+    "frameCount": 28,
+    "columns": 7,
+    "frameWidth": 392,
+    "frameHeight": 392,
+    "storedScale": 3,
+    "anchorX": 0.4992473367299675,
+    "anchorY": 0.6063281611857341,
+    "loop": false,
+    "rows": [
+      "se"
+    ]
   }
 }

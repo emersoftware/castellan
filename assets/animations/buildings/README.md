@@ -1,5 +1,43 @@
 # Medieval brutalist buildings
 
+For one-shot destruction of Castle, Turret, walls and gates, see
+[collapse/README.md](collapse/README.md).
+
+Castle damage uses exactly two approved images: mild (`25`) and intermediate
+(`50` visual destruction); the severe ruin was rejected. Masonry is fixed,
+flames are independent HF loops, and fire ignites at 50% remaining HP.
+The intermediate material appears at 25% remaining HP. Source pixel bounds
+map four/five fire sites into sprite-local coordinates in
+`castle/damage-stages/fire-pixels.json`. Collapse frames also map moving fires.
+Native particles use the same simulation clock and dedicated three-tone white/gray
+fire ramp through the game's ordered-dither shader. The orange source fires are
+exported as grayscale heat, keeping the game's monochrome visual language.
+Healing, fog and replay seeking
+clear overlays; pause freezes flames, sparks and the fall.
+
+The replacement Castle falls break the upper masonry first, then tip walls
+inward. An imagegen last-frame reference gives Age of Empires inspired low ruins,
+short broken perimeter walls and loose courtyard masonry inside the foundation;
+no whole-building scaling or outward-spreading slabs are used. Healthy Castle
+has a matching generated fall too. HF settings: `larry`, 544 × 544, two seconds,
+10 steps/seed 93 for falls and 6 steps/seed 42 for fire loops. First and last
+frames guide every clip. Requests and reviewed source references are retained.
+
+The full collapse plays at the original ground position. The final frame holds
+for 1.5 seconds, then fades in place over three seconds using the same linear
+alpha curve as dead units. There is no runtime descent or ground clipping.
+Pause, speed and seek affect the fall and final fade together.
+
+```sh
+node packages/web/scripts/castle-damage.mjs --prepare
+uv run --with gradio_client==2.7.1 python assets/animations/generate-castle-damage.py
+node packages/web/scripts/castle-damage.mjs
+node packages/web/scripts/check-castle-damage.mjs --record
+```
+
+Prepared references are preserved on reruns. The in-game review video is
+`castle/damage-stages/review/in-game-fire-and-inward-collapse.mp4`.
+
 Castle and Tower source art was generated with the built-in `image_gen` tool, using the previous `public/sprites/castle.png` and `tower.png` as edit references. Source PNGs retain transparency in `castle/source.png` and `turret/source.png`.
 
 ## Source prompts

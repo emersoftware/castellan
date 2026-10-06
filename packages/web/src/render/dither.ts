@@ -37,7 +37,8 @@ void main(void) {
   float scaled = clamp(L, 0.0, 1.0) * 2.0;
   float level = min(2.0, floor(scaled) + step(bayer4(gl_FragCoord.xy) + 0.5 / 16.0, fract(scaled)));
   vec3 col;
-  if (n.r > 0.6 && n.g > 0.6 && n.b > 0.6) col = ${pick(RAMPS.neutral.steps)};
+  if (n.r > 0.9 && n.g > 0.32 && n.g < 0.6 && n.b < 0.15) col = ${pick(RAMPS.fire.steps)};
+  else if (n.r > 0.6 && n.g > 0.6 && n.b > 0.6) col = ${pick(RAMPS.neutral.steps)};
   else if (n.r > 0.6 && n.g > 0.6) col = ${pick(RAMPS.gold.steps)};
   else if (n.g > 0.6 && n.b > 0.6) col = ${pick(RAMPS.teamC.steps)};
   else if (n.r > 0.6 && n.b > 0.6) col = ${pick(RAMPS.teamD.steps)};

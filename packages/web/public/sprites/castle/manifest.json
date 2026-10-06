@@ -12,5 +12,149 @@
     "rows": [
       "se"
     ]
+  },
+  "death": {
+    "image": "castle-death.png",
+    "fps": 12,
+    "frameCount": 28,
+    "columns": 7,
+    "frameWidth": 317,
+    "frameHeight": 317,
+    "storedScale": 3,
+    "anchorX": 0.5,
+    "anchorY": 0.7361366421568627,
+    "loop": false,
+    "rows": [
+      "se"
+    ],
+    "masks": false
+  },
+  "damaged25": {
+    "image": "castle-damaged-25.png",
+    "fps": 12,
+    "frameCount": 1,
+    "columns": 1,
+    "frameWidth": 317,
+    "frameHeight": 317,
+    "storedScale": 3,
+    "anchorX": 0.5,
+    "anchorY": 0.7361366421568627,
+    "loop": false,
+    "rows": [
+      "se"
+    ],
+    "masks": true
+  },
+  "fire25": {
+    "image": "castle-fire-25.png",
+    "fps": 12,
+    "frameCount": 28,
+    "columns": 7,
+    "frameWidth": 317,
+    "frameHeight": 317,
+    "storedScale": 3,
+    "anchorX": 0.5,
+    "anchorY": 0.7361366421568627,
+    "loop": true,
+    "rows": [
+      "se"
+    ],
+    "masks": false
+  },
+  "deathFire25": {
+    "image": "castle-death-fire-25.png",
+    "fps": 12,
+    "frameCount": 28,
+    "columns": 7,
+    "frameWidth": 317,
+    "frameHeight": 317,
+    "storedScale": 3,
+    "anchorX": 0.5,
+    "anchorY": 0.7361366421568627,
+    "loop": false,
+    "rows": [
+      "se"
+    ],
+    "masks": false
+  },
+  "death25": {
+    "image": "castle-death-25.png",
+    "fps": 12,
+    "frameCount": 28,
+    "columns": 7,
+    "frameWidth": 317,
+    "frameHeight": 317,
+    "storedScale": 3,
+    "anchorX": 0.5,
+    "anchorY": 0.7361366421568627,
+    "loop": false,
+    "rows": [
+      "se"
+    ],
+    "masks": false
+  },
+  "damaged50": {
+    "image": "castle-damaged-50.png",
+    "fps": 12,
+    "frameCount": 1,
+    "columns": 1,
+    "frameWidth": 317,
+    "frameHeight": 317,
+    "storedScale": 3,
+    "anchorX": 0.5,
+    "anchorY": 0.7361366421568627,
+    "loop": false,
+    "rows": [
+      "se"
+    ],
+    "masks": true
+  },
+  "fire50": {
+    "image": "castle-fire-50.png",
+    "fps": 12,
+    "frameCount": 28,
+    "columns": 7,
+    "frameWidth": 317,
+    "frameHeight": 317,
+    "storedScale": 3,
+    "anchorX": 0.5,
+    "anchorY": 0.7361366421568627,
+    "loop": true,
+    "rows": [
+      "se"
+    ],
+    "masks": false
+  },
+  "deathFire50": {
+    "image": "castle-death-fire-50.png",
+    "fps": 12,
+    "frameCount": 28,
+    "columns": 7,
+    "frameWidth": 317,
+    "frameHeight": 317,
+    "storedScale": 3,
+    "anchorX": 0.5,
+    "anchorY": 0.7361366421568627,
+    "loop": false,
+    "rows": [
+      "se"
+    ],
+    "masks": false
+  },
+  "death50": {
+    "image": "castle-death-50.png",
+    "fps": 12,
+    "frameCount": 28,
+    "columns": 7,
+    "frameWidth": 317,
+    "frameHeight": 317,
+    "storedScale": 3,
+    "anchorX": 0.5,
+    "anchorY": 0.7361366421568627,
+    "loop": false,
+    "rows": [
+      "se"
+    ],
+    "masks": false
   }
 }

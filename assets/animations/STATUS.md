@@ -1,5 +1,45 @@
 # Animation status — 2026-10-01 (Chile)
 
+## Building destruction — 2026-10-06 (Chile)
+
+Structures play their complete 28-frame collapse at the original position.
+The last frame holds for 1.5 seconds, then fades in place over three seconds
+using the same linear alpha curve as dead units. There is no runtime descent
+or ground clipping. Pause/speed and seek preserve position and clean up the layer.
+105 focused renderer/animation tests and web typecheck pass. Actual Pixi QA
+checks fixed position throughout collapse, hold and fade for four structures
+and all four owner colors, including pause and seek cleanup.
+The local demo replay `castle-9c036372` has its fall at 1:09.
+
+Castle has exactly two approved damage states, mild and intermediate. Fires
+ignite at half HP. Four/five mapped source fire sites drive native sparks, and
+both HF flame atlases and particles pass through an explicit white/gray three-tone fire
+ordered-dither ramp. Castle's healthy and both damaged falls were regenerated
+with upper masonry falling first and walls breaking inward into low architectural
+ruins inspired by Age of Empires. The new imagegen endpoint retains short
+perimeter walls and loose courtyard masonry; all three videos use both the
+original initial image and this new final image.
+The old outward/squashed takes and the severe damage image are rejected.
+
+The focused suite passes 119 tests, including damage/HP boundaries, reproducible
+particles, pause, matching falls, fixed masonry, fire pixel mapping, inward
+footprints and held endpoints. Typecheck and production build pass. Actual Pixi
+QA verifies both states in all four owner colors, the shader's three fire tones,
+healing/seek cleanup and the final collapse cleanup.
+Preview: `buildings/castle/damage-stages/review/in-game-fire-and-inward-collapse.mp4`.
+
+Wall, wall post/corner, closed/open gate, Turret and Castle now have generated
+one-shot collapses. Six MiniMax source videos produce nine published grayscale
+atlases, including the three wall end trims beside gates. The four owner colors,
+barrier axis, original ground position, replay pause/speed and seek cleanup are
+preserved. Remains fade in place; legacy Nexus replays use Castle.
+
+See [building collapse sources and previews](buildings/collapse/README.md).
+The focused renderer/animation/asset suite passes (128 tests); types and the
+production web build pass. Actual Pixi browser QA checks all four building kinds
+in all four owner colors, standing-to-collapse scale, fading in place, pause, disappearance
+and seeking. `check-building-collapse.mjs --record` also saves a rendered video.
+
 ## Integrated and reviewed
 
 | Character | Actions in all eight directions |

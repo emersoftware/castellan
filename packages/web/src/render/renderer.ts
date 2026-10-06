@@ -17,6 +17,9 @@ import { type RangerShot } from "./rangerAnimation";
 import { barrierAxes } from "@aoa/shared";
 
 import { animatedUnit, unitAnimation, recoveryMs, hasUnitAnimation, unitDeathAnimation, unitMiningAnimation, miningStrikes } from "./unitAnimation";
+import { buildingCollapse } from "./buildingCollapse";
+import { corpseFade } from "./corpseFade";
+import { castleDamageStage, castleMaterial, castleFire, castleEmitters, castleCollapseFire, fireParticles, type FireEmitter } from "./castleDamage";
 
 export interface HoverInfo {
   x: number;
@@ -57,6 +60,12 @@ interface Drawn {
   /** Half-tile footfalls walked so far, and the pick's swing phase: sound cues. */
   footfalls?: number;
   swing?: number;
+  /** Preserve the visible barrier shape and axis when it is destroyed. */
+  barrierArt?: string;
+  flame?: Sprite;
+  sparks?: Graphics;
+  /** One mask clips masonry, flame and particles together at a fixed ground edge. */
+  collapseLayer?: Container;
 }
 
 interface Effect {
@@ -306,6 +315,7 @@ export class GameRenderer {
       d.outline?.destroy();
       d.depth?.destroy();
       if (quiet || (v.visibility && !v.events.some((e) => e.type === "death" && e.id === id))) {
+        this.clearCastleFire(d);
         d.sprite.destroy();
         d.shadow.destroy();
       } else this.effects.push(this.corpse(d));
@@ -438,6 +448,7 @@ export class GameRenderer {
         if (left || right) kind = `wall-door-${left && right ? "both" : left ? "left" : "right"}`;
       }
       const { art } = this.sprites(kind);
+      d.barrierArt = kind;
       d.sprite.texture = art.texture;
       d.sprite.anchor.set(art.anchorX, art.anchorY);
       d.sprite.scale.set(alongX && !alongY ? -art.scale : art.scale, art.scale);
@@ -593,11 +604,17 @@ export class GameRenderer {
         }
       }
       if (building && ["castle", "nexus", "turret"].includes(d.view.kind)) {
-        const { art } = this.sprites(d.view.kind, 1, { action: "idle", frame: Math.floor(Math.max(0, animationMs) * 12 / 1000) % 28 });
+        const damage = castleMaterial(d.view.kind, d.view.hp, d.view.maxHp);
+        const { art } = this.sprites(d.view.kind, 1, damage ?? { action: "idle", frame: Math.floor(Math.max(0, animationMs) * 12 / 1000) % 28 });
         d.sprite.texture = art.texture;
         d.sprite.anchor.set(art.anchorX, art.anchorY);
         d.sprite.scale.set(art.scale);
         if (d.depth) d.depth.texture = art.silhouette;
+        const fire = castleFire(d.view.kind, d.view.hp, d.view.maxHp, animationMs);
+        const stage = castleDamageStage(d.view.kind, d.view.hp, d.view.maxHp);
+        const visible = !this.visibility || this.visibility[d.to.y]?.[d.to.x] === '2';
+        if (fire && stage && visible) this.drawCastleFire(d, fire, castleEmitters(stage), animationMs);
+        else this.clearCastleFire(d);
       }
       // Colour separates overlapping units; only the building tag enables x-ray.
       if (d.depth) this.syncDepth(d.sprite, d.depth, d.color, !!building);
@@ -682,8 +699,9 @@ export class GameRenderer {
       const a = iso(from.to.x, from.to.y);
       const b = projectile ? iso(from.to.x + projectile.vx, from.to.y + projectile.vy) : iso(targetPosition!.x, targetPosition!.y);
       const dx = Math.sign(b.sx - a.sx);
-      if (b.sx !== a.sx || b.sy !== a.sy) from.dir = screenDir(b.sx - a.sx, b.sy - a.sy);
+      const attackDir = b.sx !== a.sx || b.sy !== a.sy ? screenDir(b.sx - a.sx, b.sy - a.sy) : from.dir;
       if ((spec?.range ?? 1) > 1) {
+        from.dir = attackDir;
         if (from.view.kind === "ranger") {
           const position = this.position(from, this.alpha(now), this.animationMs(now));
           const visible = iso(position.x, position.y);
@@ -700,15 +718,15 @@ export class GameRenderer {
         if (!ev.projectile && to) this.effects.push(this.arrow(from, to));
         this.play(spec?.building ? "tower" : "arrow", from.to.x, from.to.y, 0.35);
       } else if (targetPosition) {
-        if (hasUnitAnimation(from.view.kind, "attack")) {
-          const position = this.position(from, this.alpha(now), this.animationMs(now));
-          from.walkDistance = (from.walkDistance ?? 0) + gridSteps(position, from.from);
-          from.from = position;
-          from.step = { at: this.gameMs, ms: this.gameTickMs };
-          from.walkUntil = undefined;
-          from.shot = { at: this.gameMs, dir: from.dir };
-        }
-        from.lungeUntil = hasUnitAnimation(from.view.kind, "attack") ? 0 : now + 140;
+        const animatedAttack = hasUnitAnimation(from.view.kind, "attack");
+        if (animatedAttack) {
+          // The engine may hit one tick after a step. Preserve that step's
+          // cadence and walking heading instead of rushing its remainder in
+          // one tick; only the strike faces the target during recovery.
+          if (this.gameMs >= (from.walkUntil ?? 0)) from.dir = attackDir;
+          from.shot = { at: this.gameMs, dir: attackDir };
+        } else from.dir = attackDir;
+        from.lungeUntil = animatedAttack ? 0 : now + 140;
         from.lunge = { x: dx, y: Math.sign(b.sy - a.sy) };
         if (to) to.flashUntil = now + 90;
         this.effects.push(this.dust(targetPosition.x, targetPosition.y, RAMPS.neutral.key, 3, 5));
@@ -758,39 +776,89 @@ export class GameRenderer {
   private corpse(d: Drawn): Effect {
     const building = this.ruleset.kinds[d.view.kind]?.building;
     const start = this.presentationNow();
-    const animated = !building && hasUnitAnimation(d.view.kind, 'death');
+    const collapseKind = d.barrierArt ?? d.view.kind;
+    const damageStage = castleDamageStage(d.view.kind, d.view.hp, d.view.maxHp);
+    const collapsing = !!building && !!buildingCollapse(collapseKind, 0);
+    const animated = collapsing || (!building && hasUnitAnimation(d.view.kind, 'death'));
     const facing = d.shot?.dir ?? d.dir;
+    const barrierFlip = d.sprite.scale.x < 0;
     let previous = start, elapsed = 0;
-    d.sprite.tint = dim(PLAYER_RAMPS[d.color].key, 0.45);
-    if (building) this.effects.push(this.dust(d.to.x, d.to.y, 0xaaaaaa, 24, 14));
+    d.sprite.tint = collapsing ? PLAYER_RAMPS[d.color].key : dim(PLAYER_RAMPS[d.color].key, 0.45);
+    if (building && !collapsing) this.effects.push(this.dust(d.to.x, d.to.y, 0xaaaaaa, 24, 14));
     else if (!animated) {
       d.sprite.anchor.set(0.5, 0.5);
       d.sprite.rotation = (Math.PI / 2) * Math.sign(d.sprite.scale.x);
       d.sprite.y -= 3;
     }
     d.sprite.zIndex -= 3;
+    if (collapsing) {
+      const layer = new Container(); layer.sortableChildren = true; layer.zIndex = d.sprite.zIndex;
+      layer.addChild(d.sprite);
+      if (d.flame) layer.addChild(d.flame);
+      if (d.sparks) layer.addChild(d.sparks);
+      this.objects.addChild(layer); d.collapseLayer = layer;
+    }
+    const destroy = () => {
+      this.clearCastleFire(d);
+      if (d.collapseLayer) {
+        d.collapseLayer.destroy({ children: true });
+        d.collapseLayer = undefined;
+      } else d.sprite.destroy();
+      d.shadow.destroy();
+    };
     return {
-      destroy: () => { d.sprite.destroy(); d.shadow.destroy(); },
+      destroy,
       update: (now) => {
         // Follow replay speed, including changes during the fall. Keep advancing
         // after the final snapshot so a lethal King hit can finish its animation.
         elapsed += Math.max(0, now - previous) * (animated ? this.gameTickMs / this.tickMs : 1);
         previous = now;
+        const collapse = collapsing ? buildingCollapse(collapseKind, elapsed, damageStage) : undefined;
         if (animated) {
-          const { art, flip } = this.sprites(d.view.kind, facing, unitDeathAnimation(d.view.kind, elapsed));
+          const { art, flip } = this.sprites(collapsing ? collapseKind : d.view.kind, facing,
+            collapse?.animation ?? unitDeathAnimation(d.view.kind, elapsed));
           d.sprite.texture = art.texture;
           d.sprite.anchor.set(art.anchorX, art.anchorY);
-          d.sprite.scale.set(flip ? -art.scale : art.scale, art.scale);
+          d.sprite.scale.set((collapsing && d.barrierArt ? barrierFlip : flip) ? -art.scale : art.scale, art.scale);
         }
+        const burning = d.view.maxHp > 0 && d.view.hp / d.view.maxHp <= .5;
+        const deathFire = burning && damageStage && collapse ? castleCollapseFire(damageStage, collapse.animation.frame) : undefined;
+        const intensity = Math.max(0, 1 - Math.max(0, elapsed - 2300) / 1000);
+        if (deathFire && intensity > 0) this.drawCastleFire(d, deathFire.animation, deathFire.emitters, elapsed, intensity);
+        else this.clearCastleFire(d);
         const k = elapsed / (building ? 1500 : 6000);
-        d.sprite.alpha = Math.max(0, 1 - k);
+        d.sprite.alpha = collapse?.alpha ?? corpseFade(elapsed, 0, building ? 1500 : 6000).alpha;
         d.shadow.alpha = Math.max(0, 1 - k * 2);
-        if (k < 1) return true;
-        d.sprite.destroy();
-        d.shadow.destroy();
+        if (d.sprite.alpha > 0) return true;
+        destroy();
         return false;
       },
     };
+  }
+
+  private clearCastleFire(d: Drawn) {
+    d.flame?.destroy(); d.sparks?.destroy();
+    d.flame = undefined; d.sparks = undefined;
+  }
+
+  /** Fire and sparks use the dedicated key inside the actual game dither pass. */
+  private drawCastleFire(d: Drawn, animation: import('./sprites').AnimationFrame, emitters: readonly FireEmitter[], timeMs: number, intensity = 1) {
+    const { art } = this.sprites(d.view.kind, 1, animation);
+    const layer = d.collapseLayer ?? this.objects;
+    if (!d.flame) { d.flame = new Sprite(art.texture); layer.addChild(d.flame); }
+    d.flame.texture = art.texture;
+    d.flame.anchor.set(art.anchorX, art.anchorY);
+    d.flame.scale.set(art.scale);
+    d.flame.position.copyFrom(d.sprite.position);
+    d.flame.tint = dim(RAMPS.fire.key, intensity);
+    d.flame.zIndex = d.sprite.zIndex + 1;
+    if (!d.sparks) { d.sparks = new Graphics(); layer.addChild(d.sparks); }
+    d.sparks.position.copyFrom(d.sprite.position);
+    d.sparks.zIndex = d.sprite.zIndex + 2;
+    d.sparks.clear();
+    for (const p of fireParticles(emitters, timeMs)) {
+      d.sparks.rect(p.x, p.y, p.size, p.size).fill(dim(RAMPS.fire.key, p.heat * intensity));
+    }
   }
 
   private dust(x: number, y: number, color: number, n: number, spread = 8): Effect {

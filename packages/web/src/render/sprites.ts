@@ -49,7 +49,7 @@ const FILES: Record<string, string> = {
 const SHEET_VIEW = [0, 1, 2, 3, 4, 3, 2, 1];
 const MIRRORED = [false, false, false, false, false, true, true, true];
 
-export interface AnimationFrame { action: "idle" | "walk" | "shoot" | "attack" | "death" | "mine"; frame: number }
+export interface AnimationFrame { action: "idle" | "walk" | "shoot" | "attack" | "death" | "mine" | "damaged25" | "damaged50" | "fire25" | "fire50" | "death25" | "death50" | "deathFire25" | "deathFire50"; frame: number }
 export type SpriteSet = (kind: string, dir?: number, animation?: AnimationFrame) => Facing;
 
 /** Atlas cells have a local ground anchor, shared by all texture passes. */
@@ -98,23 +98,26 @@ async function buildSprites(base: string): Promise<SpriteSet> {
   );
   const fallback = arts.get("knight") ?? arts.get("knight_2") ?? [...arts.values()][0];
   const animations = new Map<string, SpriteArt[][]>();
-  await Promise.all(["ranger", "knight", "king", "worker", "castle", "turret"].map(async kind => {
+  await Promise.all(["ranger", "knight", "king", "worker", "castle", "turret", "wall", "wallpost", "door", "door-open", "wall-door-left", "wall-door-right", "wall-door-both"].map(async kind => {
     const metadata = await fetch(`${base}/${kind}/manifest.json`).then((r) => r.json()) as Partial<Record<AnimationFrame["action"], {
-      available?: boolean; image: string; frameCount: number; frameWidth: number; frameHeight: number; storedScale: number; anchorX: number; anchorY: number; rows: string[];
+      available?: boolean; masks?: boolean; image: string; frameCount: number; columns?: number; frameWidth: number; frameHeight: number; storedScale: number; anchorX: number; anchorY: number; rows: string[];
     }>>;
     await Promise.all(Object.entries(metadata).map(async ([action, m]) => {
       if (m.available === false) return;
       const img = await loadImage(`${base}/${kind}/${m.image}`);
-      const atlas = { ...derive(img, undefined, undefined, isCharacter(kind)), scale: 1 / m.storedScale, anchorX: m.anchorX, anchorY: m.anchorY };
+      // Collapsed buildings no longer participate in depth/x-ray passes. Their
+      // larger debris cells need only color, avoiding six unused atlas masks.
+      const atlas = { ...derive(img, undefined, undefined, isCharacter(kind), m.masks ?? (action !== 'death' || isCharacter(kind))), scale: 1 / m.storedScale, anchorX: m.anchorX, anchorY: m.anchorY };
+      const columns = m.columns ?? m.frameCount;
       animations.set(`${kind}:${action}`, m.rows.map((_, row) => Array.from({ length: m.frameCount }, (_, frame) => animationCell(atlas, {
-        x: frame * m.frameWidth, y: row * m.frameHeight, width: m.frameWidth, height: m.frameHeight,
+        x: (frame % columns) * m.frameWidth, y: (row * Math.ceil(m.frameCount / columns) + Math.floor(frame / columns)) * m.frameHeight, width: m.frameWidth, height: m.frameHeight,
       }))));
     }));
   }));
   return (kind, dir = 2, animation) => {
     if (animation) {
       const canonical = kind === "agent" ? "king" : kind === "nexus" ? "castle" : kind;
-      const building = canonical === "castle" || canonical === "turret";
+      const building = ["castle", "turret", "wall", "wallpost", "door", "door-open", "wall-door-left", "wall-door-right", "wall-door-both"].includes(canonical);
       const frames = animations.get(`${canonical}:${animation.action}`)?.[building ? 0 : SHEET_VIEW[dir]];
       if (frames) return { art: frames[Math.max(0, Math.min(frames.length - 1, Math.floor(animation.frame)))], flip: building ? false : MIRRORED[dir] };
     }
@@ -143,7 +146,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /** Builds the sprite texture plus its silhouette and x-ray variants. */
-function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHeight = Math.round(img.naturalHeight * rasterWidth / img.naturalWidth), character = false): Pick<SpriteArt, "texture" | "silhouette" | "xray" | "outline"> {
+function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHeight = Math.round(img.naturalHeight * rasterWidth / img.naturalWidth), character = false, needsMasks = true): Pick<SpriteArt, "texture" | "silhouette" | "xray" | "outline"> {
   // Generated source art can be large. Rasterize once at game resolution before
   // deriving the masks, preserving alpha and a consistent on-screen footprint.
   const w = rasterWidth;
@@ -160,6 +163,9 @@ function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHei
     normalizeCharacterContrast(src);
     ctx.putImageData(imageData, 0, 0);
   }
+  const texture = Texture.from(base);
+  texture.source.scaleMode = "linear";
+  if (!needsMasks) return { texture, silhouette: texture, xray: [] };
   const masks = spriteMasks(src, w, h);
   const make = (pixels: Uint8ClampedArray<ArrayBuffer>) => {
     const cv = document.createElement("canvas");
@@ -170,8 +176,6 @@ function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHei
     t.source.scaleMode = "nearest";
     return t;
   };
-  const texture = Texture.from(base);
-  texture.source.scaleMode = "linear";
   return {
     texture,
     silhouette: make(masks.silhouette),

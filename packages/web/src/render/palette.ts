@@ -23,6 +23,8 @@ export const RAMPS = {
   /** Grass barely lit, the black shows through. */
   terrain: { key: 0x00ff00, steps: ["#000000", "#3f8a33", "#8fcf5a"] },
   gold: { key: 0xffff00, steps: ["#000000", "#b88a12", "#ffe98a"] },
+  /** Internal heat key maps to monochrome flame tones, independent of owner tint. */
+  fire: { key: 0xff8000, steps: ["#1e1e1e", "#a4a4a4", "#ffffff"] },
   /** Rock, arrows, dust, text. */
   neutral: { key: 0xffffff, steps: ["#000000", "#8c8c8c", "#ffffff"] },
 } satisfies Record<string, Ramp>;

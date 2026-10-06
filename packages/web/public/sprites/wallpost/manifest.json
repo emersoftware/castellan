@@ -1,0 +1,17 @@
+{
+  "death": {
+    "image": "wallpost-death.png",
+    "fps": 12,
+    "frameCount": 28,
+    "columns": 7,
+    "frameWidth": 129,
+    "frameHeight": 129,
+    "storedScale": 3,
+    "anchorX": 0.5002828054298644,
+    "anchorY": 0.7353498217468806,
+    "loop": false,
+    "rows": [
+      "se"
+    ]
+  }
+}

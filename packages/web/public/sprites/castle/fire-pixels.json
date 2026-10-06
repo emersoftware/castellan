@@ -1,0 +1,1020 @@
+{
+  "layout": {
+    "sourceWidth": 1107,
+    "sourceHeight": 1421,
+    "sourceAnchor": {
+      "x": 553.5,
+      "y": 1258.1770833333333
+    },
+    "referenceWidth": 544,
+    "referenceHeight": 544,
+    "left": 124,
+    "top": 64,
+    "w": 296,
+    "h": 380,
+    "frameWidth": 317,
+    "frameHeight": 317,
+    "storedScale": 3,
+    "anchorX": 0.5,
+    "anchorY": 0.7361366421568627
+  },
+  "stages": {
+    "25": [
+      {
+        "id": "fire-1",
+        "coordinateSpace": "source",
+        "sourceX": 578.5,
+        "sourceY": 341,
+        "sourceBounds": {
+          "x": 542,
+          "y": 245,
+          "width": 74,
+          "height": 101
+        },
+        "pixelCount": 2536,
+        "x": 1.2984439484917778,
+        "y": -47.641104484178726,
+        "radius": 1.3270097153585914
+      },
+      {
+        "id": "fire-2",
+        "coordinateSpace": "source",
+        "sourceX": 368.5,
+        "sourceY": 404,
+        "sourceBounds": {
+          "x": 342,
+          "y": 346,
+          "width": 54,
+          "height": 63
+        },
+        "pixelCount": 1645,
+        "x": -9.608485218839116,
+        "y": -44.36868344679826,
+        "radius": 0.9634454097808951
+      },
+      {
+        "id": "fire-3",
+        "coordinateSpace": "source",
+        "sourceX": 979.5,
+        "sourceY": 546,
+        "sourceBounds": {
+          "x": 938,
+          "y": 467,
+          "width": 84,
+          "height": 84
+        },
+        "pixelCount": 2803,
+        "x": 22.1254848822998,
+        "y": -36.99275031492482,
+        "radius": 1.5087918681474395
+      },
+      {
+        "id": "fire-4",
+        "coordinateSpace": "source",
+        "sourceX": 177,
+        "sourceY": 967,
+        "sourceBounds": {
+          "x": 140,
+          "y": 863,
+          "width": 75,
+          "height": 109
+        },
+        "pixelCount": 3627,
+        "x": -19.554565864286094,
+        "y": -15.124666874652156,
+        "radius": 1.345187930637476
+      }
+    ],
+    "50": [
+      {
+        "id": "fire-1",
+        "coordinateSpace": "source",
+        "sourceX": 619.5,
+        "sourceY": 574,
+        "sourceBounds": {
+          "x": 537,
+          "y": 402,
+          "width": 166,
+          "height": 177
+        },
+        "pixelCount": 9395,
+        "x": 3.427892024018279,
+        "y": -35.53834096497794,
+        "radius": 2.9994055210159942
+      },
+      {
+        "id": "fire-2",
+        "coordinateSpace": "source",
+        "sourceX": 344.5,
+        "sourceY": 558,
+        "sourceBounds": {
+          "x": 298,
+          "y": 466,
+          "width": 94,
+          "height": 97
+        },
+        "pixelCount": 4305,
+        "x": -10.854991409391216,
+        "y": -36.36943202209044,
+        "radius": 1.6905740209362876
+      },
+      {
+        "id": "fire-3",
+        "coordinateSpace": "source",
+        "sourceX": 924.5,
+        "sourceY": 685,
+        "sourceBounds": {
+          "x": 860,
+          "y": 602,
+          "width": 130,
+          "height": 88
+        },
+        "pixelCount": 4107,
+        "x": 19.268908195617907,
+        "y": -29.772646756259974,
+        "radius": 2.3449897709761407
+      },
+      {
+        "id": "fire-4",
+        "coordinateSpace": "source",
+        "sourceX": 196.5,
+        "sourceY": 974,
+        "sourceBounds": {
+          "x": 155,
+          "y": 891,
+          "width": 84,
+          "height": 88
+        },
+        "pixelCount": 3571,
+        "x": -18.541779584462514,
+        "y": -14.761064537165433,
+        "radius": 1.5087918681474395
+      },
+      {
+        "id": "fire-5",
+        "coordinateSpace": "source",
+        "sourceX": 321,
+        "sourceY": 1113,
+        "sourceBounds": {
+          "x": 288,
+          "y": 1064,
+          "width": 67,
+          "height": 54
+        },
+        "pixelCount": 1961,
+        "x": -12.07552872097348,
+        "y": -7.540960978500592,
+        "radius": 1.1997622084063975
+      }
+    ]
+  },
+  "collapses": {
+    "25": [
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "source",
+          "sourceX": 578.5,
+          "sourceY": 341,
+          "sourceBounds": {
+            "x": 542,
+            "y": 245,
+            "width": 74,
+            "height": 101
+          },
+          "pixelCount": 2536,
+          "x": 1.2984439484917778,
+          "y": -47.641104484178726,
+          "radius": 1.3270097153585914
+        },
+        {
+          "id": "fire-2",
+          "coordinateSpace": "source",
+          "sourceX": 368.5,
+          "sourceY": 404,
+          "sourceBounds": {
+            "x": 342,
+            "y": 346,
+            "width": 54,
+            "height": 63
+          },
+          "pixelCount": 1645,
+          "x": -9.608485218839116,
+          "y": -44.36868344679826,
+          "radius": 0.9634454097808951
+        },
+        {
+          "id": "fire-3",
+          "coordinateSpace": "source",
+          "sourceX": 979.5,
+          "sourceY": 546,
+          "sourceBounds": {
+            "x": 938,
+            "y": 467,
+            "width": 84,
+            "height": 84
+          },
+          "pixelCount": 2803,
+          "x": 22.1254848822998,
+          "y": -36.99275031492482,
+          "radius": 1.5087918681474395
+        },
+        {
+          "id": "fire-4",
+          "coordinateSpace": "source",
+          "sourceX": 177,
+          "sourceY": 967,
+          "sourceBounds": {
+            "x": 140,
+            "y": 863,
+            "width": 75,
+            "height": 109
+          },
+          "pixelCount": 3627,
+          "x": -19.554565864286094,
+          "y": -15.124666874652156,
+          "radius": 1.345187930637476
+        }
+      ],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 275.5,
+          "sourceY": 147,
+          "sourceBounds": {
+            "x": 270,
+            "y": 140,
+            "width": 12,
+            "height": 12
+          },
+          "pixelCount": 112,
+          "x": 0.6798406862745098,
+          "y": -49.23179636437908,
+          "radius": 0.8
+        },
+        {
+          "id": "fire-2",
+          "coordinateSpace": "reference",
+          "sourceX": 220.5,
+          "sourceY": 167,
+          "sourceBounds": {
+            "x": 216,
+            "y": 162,
+            "width": 10,
+            "height": 10
+          },
+          "pixelCount": 60,
+          "x": -10.003370098039216,
+          "y": -45.34699244281045,
+          "radius": 0.8
+        },
+        {
+          "id": "fire-3",
+          "coordinateSpace": "reference",
+          "sourceX": 383.5,
+          "sourceY": 203,
+          "sourceBounds": {
+            "x": 378,
+            "y": 194,
+            "width": 12,
+            "height": 14
+          },
+          "pixelCount": 116,
+          "x": 21.657781862745097,
+          "y": -38.354345383986924,
+          "radius": 0.8
+        },
+        {
+          "id": "fire-4",
+          "coordinateSpace": "reference",
+          "sourceX": 171.5,
+          "sourceY": 317,
+          "sourceBounds": {
+            "x": 168,
+            "y": 308,
+            "width": 8,
+            "height": 14
+          },
+          "pixelCount": 81,
+          "x": -19.52113970588235,
+          "y": -16.210963031045747,
+          "radius": 0.8
+        }
+      ],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 276.5,
+          "sourceY": 155,
+          "sourceBounds": {
+            "x": 274,
+            "y": 154,
+            "width": 6,
+            "height": 6
+          },
+          "pixelCount": 24,
+          "x": 0.8740808823529411,
+          "y": -47.67787479575163,
+          "radius": 0.8
+        },
+        {
+          "id": "fire-2",
+          "coordinateSpace": "reference",
+          "sourceX": 220.5,
+          "sourceY": 167,
+          "sourceBounds": {
+            "x": 216,
+            "y": 162,
+            "width": 10,
+            "height": 10
+          },
+          "pixelCount": 56,
+          "x": -10.003370098039216,
+          "y": -45.34699244281045,
+          "radius": 0.8
+        },
+        {
+          "id": "fire-3",
+          "coordinateSpace": "reference",
+          "sourceX": 383.5,
+          "sourceY": 201,
+          "sourceBounds": {
+            "x": 378,
+            "y": 196,
+            "width": 12,
+            "height": 10
+          },
+          "pixelCount": 88,
+          "x": 21.657781862745097,
+          "y": -38.74282577614379,
+          "radius": 0.8
+        }
+      ],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 311.5,
+          "sourceY": 361,
+          "sourceBounds": {
+            "x": 310,
+            "y": 362,
+            "width": 4,
+            "height": 4
+          },
+          "pixelCount": 16,
+          "x": 7.672487745098039,
+          "y": -7.664394403594767,
+          "radius": 0.8
+        }
+      ],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 311.5,
+          "sourceY": 361,
+          "sourceBounds": {
+            "x": 308,
+            "y": 362,
+            "width": 8,
+            "height": 4
+          },
+          "pixelCount": 24,
+          "x": 7.672487745098039,
+          "y": -7.664394403594767,
+          "radius": 0.8
+        }
+      ],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 311.5,
+          "sourceY": 361,
+          "sourceBounds": {
+            "x": 308,
+            "y": 362,
+            "width": 8,
+            "height": 4
+          },
+          "pixelCount": 26,
+          "x": 7.672487745098039,
+          "y": -7.664394403594767,
+          "radius": 0.8
+        }
+      ],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 311.5,
+          "sourceY": 361,
+          "sourceBounds": {
+            "x": 308,
+            "y": 362,
+            "width": 8,
+            "height": 4
+          },
+          "pixelCount": 26,
+          "x": 7.672487745098039,
+          "y": -7.664394403594767,
+          "radius": 0.8
+        }
+      ],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 311.5,
+          "sourceY": 361,
+          "sourceBounds": {
+            "x": 308,
+            "y": 360,
+            "width": 8,
+            "height": 6
+          },
+          "pixelCount": 31,
+          "x": 7.672487745098039,
+          "y": -7.664394403594767,
+          "radius": 0.8
+        }
+      ],
+      [],
+      [],
+      [],
+      [],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 310.5,
+          "sourceY": 361,
+          "sourceBounds": {
+            "x": 308,
+            "y": 362,
+            "width": 6,
+            "height": 4
+          },
+          "pixelCount": 15,
+          "x": 7.478247549019607,
+          "y": -7.664394403594767,
+          "radius": 0.8
+        }
+      ],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      []
+    ],
+    "50": [
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "source",
+          "sourceX": 619.5,
+          "sourceY": 574,
+          "sourceBounds": {
+            "x": 537,
+            "y": 402,
+            "width": 166,
+            "height": 177
+          },
+          "pixelCount": 9395,
+          "x": 3.427892024018279,
+          "y": -35.53834096497794,
+          "radius": 2.9994055210159942
+        },
+        {
+          "id": "fire-2",
+          "coordinateSpace": "source",
+          "sourceX": 344.5,
+          "sourceY": 558,
+          "sourceBounds": {
+            "x": 298,
+            "y": 466,
+            "width": 94,
+            "height": 97
+          },
+          "pixelCount": 4305,
+          "x": -10.854991409391216,
+          "y": -36.36943202209044,
+          "radius": 1.6905740209362876
+        },
+        {
+          "id": "fire-3",
+          "coordinateSpace": "source",
+          "sourceX": 924.5,
+          "sourceY": 685,
+          "sourceBounds": {
+            "x": 860,
+            "y": 602,
+            "width": 130,
+            "height": 88
+          },
+          "pixelCount": 4107,
+          "x": 19.268908195617907,
+          "y": -29.772646756259974,
+          "radius": 2.3449897709761407
+        },
+        {
+          "id": "fire-4",
+          "coordinateSpace": "source",
+          "sourceX": 196.5,
+          "sourceY": 974,
+          "sourceBounds": {
+            "x": 155,
+            "y": 891,
+            "width": 84,
+            "height": 88
+          },
+          "pixelCount": 3571,
+          "x": -18.541779584462514,
+          "y": -14.761064537165433,
+          "radius": 1.5087918681474395
+        },
+        {
+          "id": "fire-5",
+          "coordinateSpace": "source",
+          "sourceX": 321,
+          "sourceY": 1113,
+          "sourceBounds": {
+            "x": 288,
+            "y": 1064,
+            "width": 67,
+            "height": 54
+          },
+          "pixelCount": 1961,
+          "x": -12.07552872097348,
+          "y": -7.540960978500592,
+          "radius": 1.1997622084063975
+        }
+      ],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 290.5,
+          "sourceY": 215,
+          "sourceBounds": {
+            "x": 272,
+            "y": 178,
+            "width": 38,
+            "height": 42
+          },
+          "pixelCount": 771,
+          "x": 3.5934436274509807,
+          "y": -36.02346303104575,
+          "radius": 2.5154105392156865
+        },
+        {
+          "id": "fire-2",
+          "coordinateSpace": "reference",
+          "sourceX": 215.5,
+          "sourceY": 211,
+          "sourceBounds": {
+            "x": 206,
+            "y": 192,
+            "width": 20,
+            "height": 24
+          },
+          "pixelCount": 329,
+          "x": -10.974571078431373,
+          "y": -36.80042381535947,
+          "radius": 1.2916973039215687
+        },
+        {
+          "id": "fire-3",
+          "coordinateSpace": "reference",
+          "sourceX": 371.5,
+          "sourceY": 245,
+          "sourceBounds": {
+            "x": 360,
+            "y": 226,
+            "width": 24,
+            "height": 24
+          },
+          "pixelCount": 313,
+          "x": 19.326899509803923,
+          "y": -30.19625714869281,
+          "radius": 1.5636335784313726
+        },
+        {
+          "id": "fire-4",
+          "coordinateSpace": "reference",
+          "sourceX": 177.5,
+          "sourceY": 319,
+          "sourceBounds": {
+            "x": 168,
+            "y": 304,
+            "width": 20,
+            "height": 20
+          },
+          "pixelCount": 256,
+          "x": -18.355698529411764,
+          "y": -15.822482638888886,
+          "radius": 1.2916973039215687
+        },
+        {
+          "id": "fire-5",
+          "coordinateSpace": "reference",
+          "sourceX": 211.5,
+          "sourceY": 361,
+          "sourceBounds": {
+            "x": 204,
+            "y": 352,
+            "width": 16,
+            "height": 14
+          },
+          "pixelCount": 126,
+          "x": -11.751531862745098,
+          "y": -7.664394403594767,
+          "radius": 1.0197610294117647
+        }
+      ],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 290.5,
+          "sourceY": 221,
+          "sourceBounds": {
+            "x": 272,
+            "y": 186,
+            "width": 38,
+            "height": 40
+          },
+          "pixelCount": 726,
+          "x": 3.5934436274509807,
+          "y": -34.85802185457516,
+          "radius": 2.5154105392156865
+        },
+        {
+          "id": "fire-2",
+          "coordinateSpace": "reference",
+          "sourceX": 215.5,
+          "sourceY": 211,
+          "sourceBounds": {
+            "x": 206,
+            "y": 190,
+            "width": 20,
+            "height": 26
+          },
+          "pixelCount": 298,
+          "x": -10.974571078431373,
+          "y": -36.80042381535947,
+          "radius": 1.2916973039215687
+        },
+        {
+          "id": "fire-3",
+          "coordinateSpace": "reference",
+          "sourceX": 371.5,
+          "sourceY": 245,
+          "sourceBounds": {
+            "x": 360,
+            "y": 228,
+            "width": 24,
+            "height": 22
+          },
+          "pixelCount": 285,
+          "x": 19.326899509803923,
+          "y": -30.19625714869281,
+          "radius": 1.5636335784313726
+        },
+        {
+          "id": "fire-4",
+          "coordinateSpace": "reference",
+          "sourceX": 176.5,
+          "sourceY": 319,
+          "sourceBounds": {
+            "x": 168,
+            "y": 304,
+            "width": 18,
+            "height": 20
+          },
+          "pixelCount": 236,
+          "x": -18.549938725490197,
+          "y": -15.822482638888886,
+          "radius": 1.1557291666666667
+        },
+        {
+          "id": "fire-5",
+          "coordinateSpace": "reference",
+          "sourceX": 211.5,
+          "sourceY": 361,
+          "sourceBounds": {
+            "x": 204,
+            "y": 352,
+            "width": 16,
+            "height": 14
+          },
+          "pixelCount": 133,
+          "x": -11.751531862745098,
+          "y": -7.664394403594767,
+          "radius": 1.0197610294117647
+        }
+      ],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 289.5,
+          "sourceY": 235,
+          "sourceBounds": {
+            "x": 270,
+            "y": 194,
+            "width": 40,
+            "height": 46
+          },
+          "pixelCount": 804,
+          "x": 3.3992034313725488,
+          "y": -32.138659109477125,
+          "radius": 2.6513786764705882
+        },
+        {
+          "id": "fire-2",
+          "coordinateSpace": "reference",
+          "sourceX": 215.5,
+          "sourceY": 207,
+          "sourceBounds": {
+            "x": 208,
+            "y": 196,
+            "width": 16,
+            "height": 16
+          },
+          "pixelCount": 166,
+          "x": -10.974571078431373,
+          "y": -37.5773845996732,
+          "radius": 1.0197610294117647
+        },
+        {
+          "id": "fire-3",
+          "coordinateSpace": "reference",
+          "sourceX": 371.5,
+          "sourceY": 245,
+          "sourceBounds": {
+            "x": 362,
+            "y": 232,
+            "width": 20,
+            "height": 18
+          },
+          "pixelCount": 176,
+          "x": 19.326899509803923,
+          "y": -30.19625714869281,
+          "radius": 1.2916973039215687
+        },
+        {
+          "id": "fire-4",
+          "coordinateSpace": "reference",
+          "sourceX": 177.5,
+          "sourceY": 319,
+          "sourceBounds": {
+            "x": 170,
+            "y": 306,
+            "width": 16,
+            "height": 18
+          },
+          "pixelCount": 168,
+          "x": -18.355698529411764,
+          "y": -15.822482638888886,
+          "radius": 1.0197610294117647
+        },
+        {
+          "id": "fire-5",
+          "coordinateSpace": "reference",
+          "sourceX": 214.5,
+          "sourceY": 357,
+          "sourceBounds": {
+            "x": 212,
+            "y": 356,
+            "width": 6,
+            "height": 6
+          },
+          "pixelCount": 20,
+          "x": -11.168811274509805,
+          "y": -8.441355187908494,
+          "radius": 0.8
+        }
+      ],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 214.5,
+          "sourceY": 207,
+          "sourceBounds": {
+            "x": 208,
+            "y": 200,
+            "width": 14,
+            "height": 12
+          },
+          "pixelCount": 56,
+          "x": -11.168811274509805,
+          "y": -37.5773845996732,
+          "radius": 0.8837928921568626
+        },
+        {
+          "id": "fire-2",
+          "coordinateSpace": "reference",
+          "sourceX": 289.5,
+          "sourceY": 243,
+          "sourceBounds": {
+            "x": 270,
+            "y": 206,
+            "width": 40,
+            "height": 42
+          },
+          "pixelCount": 792,
+          "x": 3.3992034313725488,
+          "y": -30.584737540849673,
+          "radius": 2.6513786764705882
+        },
+        {
+          "id": "fire-3",
+          "coordinateSpace": "reference",
+          "sourceX": 371.5,
+          "sourceY": 245,
+          "sourceBounds": {
+            "x": 362,
+            "y": 232,
+            "width": 20,
+            "height": 18
+          },
+          "pixelCount": 112,
+          "x": 19.326899509803923,
+          "y": -30.19625714869281,
+          "radius": 1.2916973039215687
+        },
+        {
+          "id": "fire-4",
+          "coordinateSpace": "reference",
+          "sourceX": 177.5,
+          "sourceY": 319,
+          "sourceBounds": {
+            "x": 172,
+            "y": 310,
+            "width": 12,
+            "height": 14
+          },
+          "pixelCount": 95,
+          "x": -18.355698529411764,
+          "y": -15.822482638888886,
+          "radius": 0.8
+        },
+        {
+          "id": "fire-5",
+          "coordinateSpace": "reference",
+          "sourceX": 215.5,
+          "sourceY": 357,
+          "sourceBounds": {
+            "x": 212,
+            "y": 358,
+            "width": 8,
+            "height": 4
+          },
+          "pixelCount": 20,
+          "x": -10.974571078431373,
+          "y": -8.441355187908494,
+          "radius": 0.8
+        }
+      ],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 289.5,
+          "sourceY": 259,
+          "sourceBounds": {
+            "x": 270,
+            "y": 224,
+            "width": 40,
+            "height": 40
+          },
+          "pixelCount": 629,
+          "x": 3.3992034313725488,
+          "y": -27.47689440359477,
+          "radius": 2.6513786764705882
+        }
+      ],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 287.5,
+          "sourceY": 275,
+          "sourceBounds": {
+            "x": 270,
+            "y": 244,
+            "width": 36,
+            "height": 36
+          },
+          "pixelCount": 511,
+          "x": 3.010723039215686,
+          "y": -24.369051266339866,
+          "radius": 2.379442401960784
+        },
+        {
+          "id": "fire-2",
+          "coordinateSpace": "reference",
+          "sourceX": 217.5,
+          "sourceY": 409,
+          "sourceBounds": {
+            "x": 216,
+            "y": 410,
+            "width": 4,
+            "height": 4
+          },
+          "pixelCount": 12,
+          "x": -10.58609068627451,
+          "y": 1.6591350081699383,
+          "radius": 0.8
+        }
+      ],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 288.5,
+          "sourceY": 283,
+          "sourceBounds": {
+            "x": 280,
+            "y": 264,
+            "width": 18,
+            "height": 24
+          },
+          "pixelCount": 80,
+          "x": 3.2049632352941178,
+          "y": -22.81512969771242,
+          "radius": 1.1557291666666667
+        }
+      ],
+      [],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 217.5,
+          "sourceY": 409,
+          "sourceBounds": {
+            "x": 216,
+            "y": 410,
+            "width": 4,
+            "height": 4
+          },
+          "pixelCount": 12,
+          "x": -10.58609068627451,
+          "y": 1.6591350081699383,
+          "radius": 0.8
+        }
+      ],
+      [
+        {
+          "id": "fire-1",
+          "coordinateSpace": "reference",
+          "sourceX": 218,
+          "sourceY": 409,
+          "sourceBounds": {
+            "x": 217,
+            "y": 410,
+            "width": 3,
+            "height": 4
+          },
+          "pixelCount": 9,
+          "x": -10.488970588235295,
+          "y": 1.6591350081699383,
+          "radius": 0.8
+        }
+      ],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      []
+    ]
+  }
+}

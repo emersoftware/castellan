@@ -5,7 +5,7 @@ import { rules, type EntityView, type SpectatorView } from '@aoa/shared';
 import { GameRenderer } from '../src/render/renderer';
 import { unitAnimation, unitDeathAnimation, MELEE_RECOVERY_MS } from '../src/render/unitAnimation';
 import { displayKind } from '../src/render/names';
-import type { SpriteSet } from '../src/render/sprites';
+import { TILE_H, TILE_W, type SpriteSet } from '../src/render/sprites';
 import workerAtlas from '../public/sprites/worker/manifest.json';
 import kingAtlas from '../public/sprites/king/manifest.json';
 import atlas from '../public/sprites/knight/manifest.json';
@@ -68,6 +68,52 @@ it.each([false,true])('faces the melee target immediately, including lethal hits
   h.time(1100);h.renderer.setFrame(h.frame(3,[{...h.unit,x:5,y:3}]),100);h.internal.animate();
   expect(h.last()[1]).toBe(6); // target direction stays locked despite movement
   h.renderer.setFrame(h.frame(1),100,true);h.internal.animate();expect(h.internal.drawn.get('u')!.shot).toBeUndefined();
+});
+
+it.each([50,100,200])('keeps a diagonal melee approach at constant speed with %i ms replay ticks',tickMs=>{
+  // d61d3345 at 6:50: e59 steps (17,26) -> (16,27), then hits e3 at
+  // (16,28) one tick later. The step takes 700 ms; the hit must not rush it.
+  const h=setup('knight',{...rules,diagonalMove:1.4});
+  const unit={...h.unit,x:17,y:26,stats:{atk:14,def:6,range:1,attackMs:1000,moveMs:500}};
+  const target={...h.target,x:16,y:28};
+  const moved={...unit,x:16,y:27};
+  h.renderer.setFrame(h.frame(4099,[unit,target]),tickMs);
+  h.renderer.setFrame(h.frame(4100,[moved,target]),tickMs);
+  const sprite=h.internal.drawn.get('u')!.sprite;
+  for(let step=0;step<=7;step++){
+    h.time(1000+step*tickMs);
+    h.renderer.setFrame({...h.frame(4100+step,[moved,target]),events:step===1?
+      [{tick:4100,type:'attack',from:'u',to:'t',dmg:4}]:[]},tickMs);
+    h.internal.animate();
+    expect(sprite.x).toBeCloseTo((17-26-2*step/7)*TILE_W/2);
+    expect(sprite.y).toBeCloseTo((17+26)*TILE_H/2+3);
+    if(step>=1&&step<5)expect(h.last().slice(1)).toEqual([7,unitAnimation('knight',(4100+step)*100,true,{at:410100,dir:7})]);
+    if(step===5||step===6){
+      expect(h.last()[2]?.action).toBe('walk');
+      expect(h.last()[1]).toBe(6); // resume facing along the step, not toward the target
+    }
+  }
+});
+
+it('freezes a melee approach on pause and discards it on seek',()=>{
+  const h=setup('knight',{...rules,diagonalMove:1.4});
+  h.renderer.setFrame(h.frame(1),100);
+  const moved={...h.unit,x:3,y:5,stats:{atk:14,def:6,range:1,attackMs:1000,moveMs:500}};
+  const target={...h.target,x:2,y:5};
+  h.renderer.setFrame(h.frame(2,[moved,target]),100);
+  h.time(1100);
+  h.renderer.setFrame({...h.frame(3,[moved,target]),events:[{tick:2,type:'attack',from:'u',to:'t',dmg:4}]},100);
+  h.time(1150);h.internal.animate();
+  const sprite=h.internal.drawn.get('u')!.sprite;
+  const before={x:sprite.x,y:sprite.y,animation:h.last()[2]};
+  h.renderer.setPaused(true);h.time(5000);h.internal.animate();
+  expect({x:sprite.x,y:sprite.y,animation:h.last()[2]}).toEqual(before);
+  h.renderer.setPaused(false);
+  h.renderer.setFrame(h.frame(1),100,true);h.internal.animate();
+  expect(sprite.x).toBe(0);
+  expect(sprite.y).toBe(4*TILE_H+3);
+  expect(h.last()[2]?.action).toBe('idle');
+  expect(h.internal.drawn.get('u')!.shot).toBeUndefined();
 });
 it('presents historic unit and building names without altering replay data',()=>{
   expect(displayKind('agent')).toBe('king');expect(displayKind('nexus')).toBe('castle');expect(displayKind('knight')).toBe('knight');
