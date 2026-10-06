@@ -9,7 +9,7 @@ import { MAPS } from "./maps";
 import type { Ruleset } from "./ruleset";
 
 export const rules: Ruleset = {
-  version: "v21-validated",
+  version: "v21b-knight-16",
   matchMs: 600000,
   fourSeatMatchMs: 900000,
   prepMs: 60000,
@@ -49,7 +49,7 @@ export const rules: Ruleset = {
       vision: 6,
       cost: 100,
       moveMs: 500,
-      atk: 17,
+      atk: 16,
       range: 1,
       attackMs: 1000,
       scriptable: true,
@@ -140,7 +140,7 @@ export const rules: Ruleset = {
     knight_damage: {
       kind: "knight",
       stat: "atk",
-      levels: [{ cost: 250, researchMs: 10000, value: 19 }, { cost: 350, researchMs: 15000, value: 21 }],
+      levels: [{ cost: 250, researchMs: 10000, value: 18 }, { cost: 350, researchMs: 15000, value: 20 }],
     },
     knight_cadence: {
       kind: "knight",
