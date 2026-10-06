@@ -5,8 +5,8 @@
 // value grid: each candidate moves 1–3 values by 1–2 steps; candidates already fought are not fought again.
 // Battles where nothing fights under the starting values are dropped. Racing: a candidate first fights a fixed
 // third of the battles and only fights the rest if it is not clearly worse than the best there.
-// Designed equal-cost battles (synthetic.ts) count half: each scenario's result (ln of A's loss ÷ B's loss, summed
-// over sides and scripts) should hit its rock-paper-scissors target.
+// Designed equal-cost battles (synthetic.ts) count half: fighters trade evenly there too (default), or, with
+// OBJECTIVE=rps, each scenario's result (ln of A's loss ÷ B's loss) hits its rock-paper-scissors target.
 //   npx tsx src/balance-optimize.mts [generations] [hours]   → /tmp/aoa-opt/opt.log, /tmp/aoa-opt/best.json
 //   BATTLES=file, VARIANTS=n (first n stagings: as recorded, open, jittered), FROM=values.json (search start),
 //   STARTS=a.json,b.json,… (fight each, start from the most balanced; distance is then measured from it)
@@ -21,6 +21,7 @@ const WORKERS = 8, LAMBDA = 6, GENERATIONS = Number(process.argv[2] ?? 25), DEAD
 const KINDS: [string, number][] = [["knight", 1], ["ranger", 1], ["turret", 0.5]];
 /** The castle must trade below the weakest fighter (by CASTLE_MARGIN, log scale) but not under CASTLE_FLOOR of their
  *  average (v16: ~0.55), so the search can't meet it by weakening a fighter. */
+const OBJECTIVE = process.env.OBJECTIVE ?? "parity";
 const CASTLE_MARGIN = 0.05, CASTLE_FLOOR = 0.5, CASTLE_WEIGHT = 1;
 const recordedIds: string[] = JSON.parse(readFileSync(process.env.BATTLES ?? "/tmp/aoa-opt/battles.json", "utf8")).map((b: { id: string }) => b.id);
 const battles = recordedIds.length;
@@ -89,15 +90,20 @@ function score(values: Values, stats: Map<number, Stats>, which: number[]) {
     designedResult[SCENARIOS[sc].name] = Math.log((a + 50) / (b + 50));
     if (t !== undefined) { miss += (designedResult[SCENARIOS[sc].name] - t) ** 2; scored++; }
   }
-  const rps = scored ? miss / scored : undefined;
+  // OBJECTIVE=rps: designed battles must hit their rock-paper-scissors targets. Default (parity): fighters must
+  // trade evenly in designed battles too, like in recorded ones.
+  const contact = which.filter((j) => designed(j) && (stats.get(j)!.loss![0] + stats.get(j)!.loss![1]) > 0);
+  const designedTrade = contact.length ? trades(contact.map((j) => stats.get(j)!)) : undefined;
+  const rps = OBJECTIVE === "rps" ? (scored ? miss / scored : undefined) : designedTrade && parity(designedTrade).balance;
   const balance = (rps !== undefined ? (recorded + rps) / 2 : recorded) + CASTLE_WEIGHT * castle ** 2;
-  const drift = PARAMS.reduce((a, { key, min, max }) => a + ((values[key] - start[key]) / (max - min)) ** 2, 0);
-  return { score: balance + REG * drift, balance, drift, trade, rps, designedResult };
+  const drift = PARAMS.reduce((a, { key, min, max }) => a + (max > min ? ((values[key] - start[key]) / (max - min)) ** 2 : 0), 0);
+  return { score: balance + REG * drift, balance, drift, trade, rps, designedResult, designedTrade };
 }
 
 const fmt = (v: Values) => PARAMS.map(({ key }) => `${key}=${v[key]}`).join(" ");
-const fmtT = (t: Record<string, number>, rps?: number) => Object.entries(t).map(([k, x]) => `${k} ${x.toFixed(2)}`).join(" · ")
-  + (rps !== undefined ? ` | rps miss ${rps.toFixed(3)}` : "");
+const fmtT = (t: Record<string, number>, rps?: number, d?: Record<string, number>) => Object.entries(t).map(([k, x]) => `${k} ${x.toFixed(2)}`).join(" · ")
+  + (rps !== undefined ? ` | designed ${OBJECTIVE === "rps" ? "rps miss" : "parity"} ${rps.toFixed(3)}` : "")
+  + (d ? ` (${KINDS.map(([k]) => `${k} ${d[k].toFixed(2)}`).join(" · ")})` : "");
 
 // Drop battles where nothing fights, then fix the racing subset (every third active battle).
 const first = await fight(from, jobs.map((_, j) => j));
@@ -109,7 +115,8 @@ const RACE = 1.25;
 log(`battles ${jobs.length}, searching on ${active.length} (racing on ${head.length}), held out ${test.length}`);
 const seen = new Set<string>();
 
-let rnd = 12345;
+// SEED=n changes the sequence of candidates (a resumed run with the same seed and start repeats its tries).
+let rnd = Number(process.env.SEED ?? 12345) >>> 0;
 
 let firstStats = first;
 // Several starting points: fight each in full and keep the most balanced.
@@ -118,14 +125,17 @@ if (process.env.STARTS) {
   log(`start candidate current rules: balance ${top.balance.toFixed(4)}`);
   for (const file of process.env.STARTS.split(",")) {
     const values = load(file), stats = await fight(values, active), res = score(values, stats, active);
-    log(`start candidate ${file}: balance ${res.balance.toFixed(4)} ${fmtT(res.trade, res.rps)}`);
+    log(`start candidate ${file}: balance ${res.balance.toFixed(4)} ${fmtT(res.trade, res.rps, res.designedTrade)}`);
     if (res.balance < top.balance) top = { file, values, stats, balance: res.balance };
   }
   log(`starting from ${top.file}`);
   from = start = top.values; firstStats = top.stats;
 }
 let best = { values: from, head: score(from, firstStats, head).score, ...score(from, firstStats, active) };
-log(`start score ${best.score.toFixed(4)} (balance ${best.balance.toFixed(4)}) trades ${fmtT(best.trade, best.rps)}\n  ${fmt(best.values)}`);
+const validate = async (values: Values) => score(values, await fight(values, test), test);
+let validated = { values: from, balance: (await validate(from)).balance };
+log(`held out at start ${validated.balance.toFixed(4)}`);
+log(`start score ${best.score.toFixed(4)} (balance ${best.balance.toFixed(4)}) trades ${fmtT(best.trade, best.rps, best.designedTrade)}\n  ${fmt(best.values)}`);
 const uniform = () => (rnd = (Math.imul(rnd, 1103515245) + 12345) >>> 0) / 2 ** 32;
 seen.add(JSON.stringify(best.values));
 // Stops early after 10 generations without improvement.
@@ -149,18 +159,26 @@ for (let g = 1, stale = 0; g <= GENERATIONS && Date.now() < DEADLINE && stale < 
     if (headScore > best.head * RACE) { log(`  try ${changed}: dropped after racing (${headScore.toFixed(4)} vs ${best.head.toFixed(4)})`); continue; }
     for (const [j, st] of await fight(values, tail)) early.set(j, st);
     const res = score(values, early, active);
-    log(`  try ${changed}: ${res.score.toFixed(4)} (balance ${res.balance.toFixed(4)}) ${fmtT(res.trade, res.rps)}`);
-    if (res.score < best.score) best = { values, head: headScore, ...res };
+    log(`  try ${changed}: ${res.score.toFixed(4)} (balance ${res.balance.toFixed(4)}) ${fmtT(res.trade, res.rps, res.designedTrade)}`);
+    if (res.score < best.score) {
+      best = { values, head: headScore, ...res };
+      // Every new best is also checked on the held-out games; the one that does best there is the result.
+      const held = (await validate(values)).balance;
+      log(`  held out ${held.toFixed(4)} (best so far ${validated.balance.toFixed(4)})`);
+      if (held < validated.balance) validated = { values, balance: held };
+    }
   }
-  log(`gen ${g}: best ${best.score.toFixed(4)} (balance ${best.balance.toFixed(4)}, drift ${best.drift.toFixed(3)}) trades ${fmtT(best.trade, best.rps)}\n  ${fmt(best.values)}`);
+  log(`gen ${g}: best ${best.score.toFixed(4)} (balance ${best.balance.toFixed(4)}, drift ${best.drift.toFixed(3)}) trades ${fmtT(best.trade, best.rps, best.designedTrade)}\n  ${fmt(best.values)}`);
   writeFileSync("/tmp/aoa-opt/best.json", JSON.stringify(best, null, 1));
   stale = best.score < before ? 0 : stale + 1;
 }
-// The result on the held-out games, against where the search started.
+// The result on the held-out games, against where the search started; the accepted result is the best there.
 const check = async (label: string, values: Values) => {
-  const res = score(values, await fight(values, test), test);
+  const res = await validate(values);
   log(`held out, ${label}: balance ${res.balance.toFixed(4)} ${fmtT(res.trade)}`);
 };
 await check("start", from);
-await check("best", best.values);
+await check("search best", best.values);
+await check("held-out best", validated.values);
+writeFileSync("/tmp/aoa-opt/validated.json", JSON.stringify({ ...validated, improved: validated.values !== from }, null, 1));
 for (const w of workers) w.child.kill();

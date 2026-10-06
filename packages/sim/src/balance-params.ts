@@ -14,7 +14,7 @@ export const PARAMS: Param[] = [
   { key: "turret.atk", min: 8, max: 24, step: 1 }, { key: "turret.range", min: 5, max: 7, step: 1 },
   { key: "castle.hp", min: 400, max: 800, step: 50 }, { key: "castle.def", min: 2, max: 8, step: 1 }, { key: "castle.atk", min: 3, max: 12, step: 1 },
   /** Time a unit must stand still after a step before it can attack. */
-  { key: "knight.aimMs", min: 0, max: 300, step: 100 }, { key: "ranger.aimMs", min: 100, max: 500, step: 100 },
+  { key: "knight.aimMs", min: 100, max: 100, step: 100 }, { key: "ranger.aimMs", min: 100, max: 500, step: 100 },
   /** Researches (knight and ranger alike): mobility takes ms off step time, damage adds attack per level, cadence
    *  takes 100 ms off the attack interval per level. Costs are of the first level; a second costs 100 more. */
   { key: "up.mobility", min: 100, max: 200, step: 100 }, { key: "up.damage", min: 1, max: 3, step: 1 },
