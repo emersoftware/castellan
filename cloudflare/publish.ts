@@ -5,9 +5,17 @@ import { join, resolve } from "node:path";
 import { collectPublication, publicationSQL } from "./catalog";
 
 const args = process.argv.slice(2);
-if (args.some((arg) => !["--local", "--dry-run"].includes(arg))) throw new Error("Usage: pnpm publish:replays [--local] [--dry-run]");
+// `--version v21b`: only games under that set of rules (the engine replays no other), and series made of them.
+const versionAt = args.indexOf("--version"), version = versionAt >= 0 ? args.splice(versionAt, 2)[1] : undefined;
+if (versionAt >= 0 && !version) throw new Error("--version needs a ruleset version prefix");
+if (args.some((arg) => !["--local", "--dry-run"].includes(arg))) throw new Error("Usage: pnpm publish:replays [--local] [--dry-run] [--version <prefix>]");
 const root = resolve(import.meta.dirname, "..");
 const publication = await collectPublication(root);
+if (version) {
+  publication.replays = publication.replays.filter((r) => r.replay.ruleset.version === version || r.replay.ruleset.version.startsWith(`${version}-`));
+  const kept = new Set(publication.replays.map((r) => r.replay.id));
+  publication.series = publication.series.filter((s) => s.summary.games.every((g) => kept.has(g.roomId)));
+}
 const sql = publicationSQL(publication);
 console.log(`${publication.replays.length} agent battles, ${publication.series.length} complete series; ${publication.excluded} bot/demo recordings excluded.`);
 if (!args.includes("--dry-run")) {

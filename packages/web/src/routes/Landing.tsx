@@ -11,12 +11,12 @@ import { loadSprites } from "../render/sprites";
 import { sfx } from "../audio/sfx";
 import { SoundToggle } from "../components/Hud";
 
-const SHOWCASE = "ef3532ef";
+const SHOWCASE = "c46c237a";
 
 export function Landing() {
   const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays });
   const showcase = useQuery({ queryKey: ["replay", SHOWCASE], queryFn: () => api.replay(SHOWCASE), staleTime: Infinity });
-  const { frames, loaded } = useReplayFrames(showcase.data);
+  const { frames, loaded, error } = useReplayFrames(showcase.data);
   const [frame, setFrame] = useState<SpectatorView | null>(null);
 
   // Prepare the unit art while the replay downloads and re-simulates.
@@ -30,7 +30,7 @@ export function Landing() {
     const t = setTimeout(() => setReady(true), 8000);
     return () => clearTimeout(t);
   }, []);
-  useEffect(() => { if (showcase.isError) setReady(true); }, [showcase.isError]);
+  useEffect(() => { if (showcase.isError || error) setReady(true); }, [showcase.isError, error]);
 
   // A real match plays above the hero title.
   useEffect(() => {
