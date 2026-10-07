@@ -4,19 +4,19 @@ Run with uv run --with numpy --with scipy --with soundfile python FILE.
 Harmony: the chord plan of the Age of Empires II menu theme (a D pedal, G-A, C, a shift to the G side,
 then A minor-E minor-G-A back home to D), adapted to D Dorian: D becomes D minor, its G minor section
 becomes G major and F, and A major becomes A sus4. A chord plan is not a melody; no tune is copied.
-Arpeggio: the one of Dorian Concept's "Hide (CS01 Version)", as chord degrees over our chords, in
-sixteenths (slowed from its 99 BPM to 76): its cycle of four half-bar cells (rise from the root: 1 5 7 9 3 11 7
-then the next root anticipated low; rise from the fifth and turn back: 5 7 3 5 6 7 5 3; rise again from the
-root; rise from the fifth to the high sixth and step down: 5 7 6 5 4 3 1 6) and held bass notes of 6 and 10
-sixteenths. Degrees are taken in D Dorian on each chord's root; a note that would rub a semitone above a
+Arpeggio: in the manner of Dorian Concept's "Hide (CS01 Version)", sixteenths over half-bar cells with the
+next root anticipated, but its own cells: rise from the root with a dip (1 5 8 3 7 9 5, then the next root);
+rise from the third and fall back (3 5 8 3 5 3 8 7); the root again, turning sooner (1 5 7 3 8 5 3); an arch from
+the fifth to the high seventh and down (5 8 5 7 5 3 7 5). Held bass notes of 6 and 10 sixteenths. Degrees are taken in D Dorian on each chord's root; a note that would rub a semitone above a
 chord tone moves to its nearest scale neighbour, and roots move to the nearest octave.
 Melody: the rhythm of the Age of Empires II motif (a pickup, a long note, three quick notes, a long landing)
-with our own notes in D Dorian, so it recalls that call without quoting it. It sings in the last section,
-the arpeggio stepping back under it.
+with our own notes in D Dorian, so it recalls that call without quoting it. It peeks in once, softly, at
+bar 9 (the call the battle theme also uses), then sings in the last section, the arpeggio stepping back under it.
 Timbre: a Yamaha CS01 emulated from its architecture: one VCO, here a pulse with PWM from a sine LFO; a 12 dB
-resonant low-pass with its envelope; an ADSR on the VCA; a short glissando between notes.
+resonant low-pass with its envelope; an ADSR on the VCA. No glissando and no legato: every note is struck
+anew, with a short breath before the next one.
 Everything is set chill and creamy, like the game's sound effects: a dark, barely resonant filter with a
-slow sweep, soft rounded attacks, legato notes, a whisper of drums, a warm room,
+slow sweep, soft attacks, a whisper of drums, a warm room,
 a barely moving pulse width and no tape wobble. All synthesized here, no samples.
 Writes packages/web/public/music/theme.mp3 (+ theme.json with its loop points) and index.html here to listen.
 """
@@ -60,10 +60,10 @@ def chord_at(bar, half):
 
 
 SCALE = {2, 4, 5, 7, 9, 11, 0}  # D Dorian
-# Hide's four cells, in scale steps above the cell's root (0 = root, 4 = fifth, 9 = third an octave up...).
+# The four cells, in scale steps above the cell's root (0 = root, 4 = fifth, 9 = third an octave up...).
 # None marks the anticipated root of the next cell.
-CELLS = [[0, 4, 6, 8, 9, 10, 13, None], [4, 6, 9, 11, 12, 13, 11, 9],
-         [0, 4, 6, 8, 9, 10, 13, None], [4, 6, 12, 11, 10, 9, 7, 5]]
+CELLS = [[0, 4, 7, 9, 6, 8, 11, None], [2, 4, 7, 9, 11, 9, 7, 6],
+         [0, 4, 6, 9, 7, 11, 9, None], [4, 7, 11, 13, 11, 9, 6, 4]]
 
 
 def cell_chords():
@@ -93,7 +93,7 @@ def avoid(note, chord):
 
 
 def arpeggio(cells=None):
-    """Hide's four-cell arpeggio over `cells` (one chord per eight-note cell; default: every half bar)."""
+    """The four-cell arpeggio over `cells` (one chord per eight-note cell; default: every half bar)."""
     cells = cells or cell_chords()
     roots = cell_roots(cells)
     line = []
@@ -113,17 +113,19 @@ def arpeggio(cells=None):
 
 
 # The AoE-style call: a pickup on the fourth beat, a long note, three eighths, a long landing.
-# (bar of the long note, pickup, long, eighths, landing), in the last section.
+# (bar of the long note, pickup, long, eighths, landing): once early and softly, then the last section.
+EARLY = [(8, 'D4', 'B4', 'A4 B4 D5', 'C5')]
 MELODY_FROM = 24
 STATEMENTS = [(24, 'D4', 'A4', 'G4 A4 C5', 'B4'), (26, 'D4', 'A4', 'G4 A4 C5', 'D5'),
               (28, 'D4', 'A4', 'G4 F4 E4', 'G4'), (30, 'D4', 'G4', 'F4 G4 E4', 'D4')]
-MELODY = []  # (bar, beat, beats, note), bars absolute
-for bar, pickup, long_note, quick, landing in STATEMENTS:
+MELODY = []  # (bar, beat, beats, note, gain), bars absolute
+for bar, pickup, long_note, quick, landing in EARLY + STATEMENTS:
+    gain = 0.3 if bar < MELODY_FROM else 0.45
     if pickup:
-        MELODY.append((bar - 1, 3, 1, pickup))
-    MELODY.append((bar, 0, 2.5, long_note))
-    MELODY += [(bar, 2.5 + 0.5 * i, 0.5, n) for i, n in enumerate(quick.split())]
-    MELODY.append((bar + 1, 0, 4 if bar == 30 else 3, landing))
+        MELODY.append((bar - 1, 3, 1, pickup, gain))
+    MELODY.append((bar, 0, 2.5, long_note, gain))
+    MELODY += [(bar, 2.5 + 0.5 * i, 0.5, n, gain) for i, n in enumerate(quick.split())]
+    MELODY.append((bar + 1, 0, 4 if bar == 30 else 3, landing, gain))
 
 
 def midi(name):
@@ -147,7 +149,7 @@ def cs01(notes, step, gate=0.9, cutoff=900, env_amt=2200, q=1.6, gain=0.2, glide
         t = np.arange(length) / RATE
         f_to = hz(note)
         f_from = hz(prev) if prev is not None else f_to
-        f = f_to + (f_from - f_to) * np.exp(-t / glide)
+        f = f_to + (f_from - f_to) * np.exp(-t / glide) if glide else np.full(length, f_to)
         phase = np.cumsum(f) / RATE
         width = 0.5 - pwm * (0.5 + 0.5 * np.sin(2 * np.pi * 0.35 * (t0 + t)))
         fc = cutoff * (f_to / 440) ** keytrack + env_amt * np.exp(-t / env_decay)
@@ -179,7 +181,7 @@ def place(buf, sound, at):
 
 def kick(gain):
     t = np.arange(int(0.35 * RATE)) / RATE
-    f = 55 + 65 * np.exp(-t / 0.03)  # settles on A1, in key
+    f = 55 * (1 + 0.8 * np.exp(-t / 0.012))  # settles fast on A1, in key
     return np.sin(2 * np.pi * np.cumsum(f) / RATE) * np.exp(-t / 0.12) * gain
 
 
@@ -201,13 +203,13 @@ def render():
     n = int((LOOP + tail) * RATE)
     arp, bass, drums = np.zeros(n), np.zeros(n), np.zeros(n)
     line = arpeggio()
-    # A creamy take on Hide's patch: darker, gently resonant, slow sweep, rounded attacks, legato.
-    hide = dict(cutoff=650, env_amt=800, q=1.2, env_decay=0.35, glide=0.01, pwm=0.05, attack=0.02, gate=1.0)
+    # A creamy CS01 patch: dark, gently resonant, slow sweep; each note struck anew, a breath before the next.
+    hide = dict(cutoff=650, env_amt=800, q=1.2, env_decay=0.35, glide=0, pwm=0.05, attack=0.005, gate=0.85)
     place(arp, cs01(line, STEP, **hide), 0)
     # The melody: the same CS01, softer filter and slower envelope, an octave above the arpeggio's middle.
     lead = np.zeros(n)
-    for bar, beat, beats, note in MELODY:
-        place(lead, cs01([midi(note)], STEP, gate=beats * 4 * 0.95, cutoff=800, env_amt=500, q=1.1, gain=0.45,
+    for bar, beat, beats, note, gain in MELODY:
+        place(lead, cs01([midi(note)], STEP, gate=beats * 4 * 0.95, cutoff=800, env_amt=500, q=1.1, gain=gain,
                          pwm=0.05, attack=0.05), bar * BAR + beat * BEAT)
     # The arpeggio steps back under the melody, easing in and out over a bar.
     duck = np.ones(n)
@@ -215,6 +217,11 @@ def render():
     duck[a:a + ramp] = np.linspace(1, 0.7, ramp)
     duck[a + ramp:b - ramp // 4] = 0.7
     duck[b - ramp // 4:b] = np.linspace(0.7, 1, ramp // 4)
+    # A lighter step back for the early call (bars 8-10).
+    a, b, q = int(7.5 * BAR * RATE), int(10 * BAR * RATE), ramp // 2
+    duck[a:a + q] = np.linspace(1, 0.85, q)
+    duck[a + q:b - q] = 0.85
+    duck[b - q:b] = np.linspace(0.85, 1, q)
     arp = arp * duck + lead
     # Bass: each bar's first root held 6 sixteenths, the second half's root anticipated and held 10.
     low, roots = [], cell_roots()
@@ -223,7 +230,7 @@ def render():
     gates = [6 if i % 16 == 0 else 10 for i in range(len(low))]
     for i, note in enumerate(low):
         if note is not None:
-            place(bass, cs01([note], STEP, gate=gates[i], cutoff=250, env_amt=350, q=1.1, gain=0.18, keytrack=0), i * STEP)
+            place(bass, cs01([note], STEP, gate=gates[i], cutoff=250, env_amt=350, q=1.1, gain=0.18, keytrack=0, glide=0), i * STEP)
     # A soft broken beat from bar 9, swung sixteenths on the hat.
     for bar in range(8, BARS):
         t0 = bar * BAR
