@@ -4,9 +4,10 @@
 // pixels), so frames are upscaled with nearest neighbour (--scale 2: each pixel a
 // 2×2 block, which lines up with 4:2:0 chroma so colours don't bleed) and encoded
 // at high quality. A screen recording (QuickTime) gets neither and looks smeared.
-//   node scripts/record.mjs <replayId> [--speed 2] [--fps 30] [--scale 2] [--out file.mp4]
+//   node scripts/record.mjs <replayId> [--speed 2] [--fps 30] [--scale 2] [--out file.mp4] [--clean]
+//     [--camera auto|x,y] [--zoom k] [--pov p1] [--from s] [--to s] [--fade-in s] [--fade-out s] [--world-in s] [--world-out s]
 import { spawn } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import puppeteer from "puppeteer-core";
@@ -21,6 +22,20 @@ const { values: o, positionals } = parseArgs({
     width: { type: "string", default: "1280" },
     height: { type: "string", default: "720" },
     scale: { type: "string", default: "2" },
+    // Map only, without HUD (overlays come later in the video edit), and a camera that follows the fights.
+    clean: { type: "boolean", default: false },
+    // "auto" (pans after the fighting) or a fixed "x,y" tile; zoom: the game's zoom steps (×1.25) from the whole map.
+    camera: { type: "string" },
+    zoom: { type: "string" },
+    // Screen pixels to put the camera's target below the centre (room for titles above).
+    dy: { type: "string" },
+    // One player's view, under its fog of war.
+    pov: { type: "string" },
+    // Dissolves at the ends of the shot, in video seconds: units only, or the whole world (map changes).
+    "fade-in": { type: "string" }, "fade-out": { type: "string" }, "world-in": { type: "string" }, "world-out": { type: "string" },
+    // Only this stretch of the game, in game seconds (no end hold unless it reaches the end).
+    from: { type: "string" },
+    to: { type: "string" },
   },
 });
 const id = positionals[0];
@@ -39,12 +54,22 @@ const browser = await puppeteer.launch({
 try {
   const page = await browser.newPage();
   page.on("pageerror", (e) => console.error("page error:", e.message));
-  await page.goto(`${o.server}/record/${id}`);
+  // Shot bounds and dissolves go to the page in game milliseconds.
+  const gms = (s) => String(Math.round(Number(s) * 1000 * Number(o.speed)));
+  const query = new URLSearchParams({
+    ...(o.clean ? { clean: "" } : {}), ...(o.camera ? { camera: o.camera } : {}), ...(o.zoom ? { zoom: o.zoom } : {}), ...(o.dy ? { dy: o.dy } : {}), ...(o.pov ? { pov: o.pov } : {}),
+    ...(o.from ? { from: String(Number(o.from) * 1000) } : {}), ...(o.to ? { to: String(Number(o.to) * 1000) } : {}),
+    ...(o["fade-in"] ? { fadeIn: gms(o["fade-in"]) } : {}), ...(o["fade-out"] ? { fadeOut: gms(o["fade-out"]) } : {}),
+    ...(o["world-in"] ? { worldIn: gms(o["world-in"]) } : {}), ...(o["world-out"] ? { worldOut: gms(o["world-out"]) } : {}),
+  }).toString();
+  await page.goto(`${o.server}/record/${id}${query ? `?${query}` : ""}`);
   await page.waitForFunction(() => window.__record?.ready, { timeout: 600_000 });
   const { ticks, verified } = await page.evaluate(() => ({ ticks: window.__record.ticks, verified: window.__record.verified }));
-  const gameMs = (ticks - 1) * 100;
+  const endMs = (ticks - 1) * 100;
+  const fromMs = o.from ? Number(o.from) * 1000 : 0, gameMs = o.to ? Math.min(endMs, Number(o.to) * 1000) : endMs;
   const step = (1000 / fps) * speed;
-  const frames = Math.ceil(gameMs / step) + fps * 4; // hold the final screen 4 s
+  // The last frame lands on `to` (where fades end); at the end of the game, the final screen holds 4 s.
+  const frames = Math.ceil((gameMs - fromMs) / step) + 1 + (gameMs === endMs ? fps * 4 : 0);
   console.log(`replay ${id}: ${ticks} ticks, verified ${verified}; ${frames} frames → ${out}`);
 
   const scale = Math.max(1, Math.round(Number(o.scale)));
@@ -54,12 +79,15 @@ try {
   const cdp = await page.createCDPSession();
   const started = Date.now();
   for (let k = 0; k < frames; k++) {
-    await page.evaluate((ms) => window.__record.frame(ms), Math.min(k * step, gameMs));
+    await page.evaluate((ms) => window.__record.frame(ms), Math.min(fromMs + k * step, gameMs));
     const { data } = await cdp.send("Page.captureScreenshot", { format: "png" });
     if (!ffmpeg.stdin.write(Buffer.from(data, "base64"))) await new Promise((r) => ffmpeg.stdin.once("drain", r));
     if (k % 300 === 0) console.log(`  frame ${k}/${frames} (${((Date.now() - started) / 1000).toFixed(0)}s)`);
   }
   ffmpeg.stdin.end();
+  // The board's sounds, in seconds of this video (scripts in packages/video mix them).
+  const sounds = await page.evaluate(() => window.__record.sounds);
+  writeFileSync(out.replace(/\.mp4$/, ".sounds.json"), JSON.stringify(sounds.map((x) => ({ ...x, t: +((x.ms - fromMs) / 1000 / speed).toFixed(3) }))));
   await new Promise((r, j) => ffmpeg.on("close", (c) => (c === 0 ? r() : j(new Error(`ffmpeg exit ${c}`)))));
   console.log(`done: ${out}`);
 } finally {
