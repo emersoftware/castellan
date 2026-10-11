@@ -12,7 +12,7 @@ const text = (r: Awaited<ReturnType<Client["callTool"]>>) => (r.content as { tex
 
 beforeAll(async () => {
   srv = await startServer();
-  const room = JSON.parse(await newRoom(client({ server: srv.url }), { json: true }));
+  const room = JSON.parse(await newRoom(client({ server: srv.url }), { json: true, chat: false }));
   mcp = new Client({ name: "test", version: "0" });
   const env = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", AOA_SERVER: srv.url, AOA_TOKEN: room.players[0].token };
   await mcp.connect(new StdioClientTransport({ command: process.execPath, args: [bin], env }));

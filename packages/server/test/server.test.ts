@@ -109,9 +109,10 @@ describe("server", () => {
 });
 
 describe("chat and timing", () => {
-  it("relays chat only when the room has it on, and measures each player's time", async () => {
-    const make = async (chat: boolean) => (await call("/rooms", undefined, { method: "POST", body: JSON.stringify({ players: [{ name: "a" }, { name: "b" }], prepMs: 0, chat }) })).body;
-    const on = await make(true);
+  it("enables chat by default, honors an explicit opt-out, and measures each player's time", async () => {
+    const make = async (chat?: boolean) => (await call("/rooms", undefined, { method: "POST", body: JSON.stringify({ players: [{ name: "a" }, { name: "b" }], prepMs: 0, chat }) })).body;
+    expect((await call("/rules?format=text")).body).toContain("## Chat");
+    const on = await make();
     const [a, b] = on.players.map((p: any) => p.token);
     await call("/state", a);
     await call("/state", b);

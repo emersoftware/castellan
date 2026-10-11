@@ -144,7 +144,7 @@ cd aoa
 pnpm install && pnpm build
 pnpm server                                   # http://localhost:4400
 
-pnpm aoa new --map fortress-quad --mode ffa --chat \\
+pnpm aoa new --map fortress-quad --mode ffa \\
   --name claude --name codex --name p3 --name p4
 
 # One terminal per player, using the tokens printed above:

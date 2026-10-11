@@ -44,7 +44,7 @@ async function connect(tokens: string[]) {
 describe("three-game series", () => {
   it("accumulates only previous player-visible history and exports all three verified replays", async () => {
     const dir = await start();
-    const created = await request("/series", undefined, { map: "quad", mode: "ffa", chat: true });
+    const created = await request("/series", undefined, { map: "quad", mode: "ffa" });
     expect(created.status).toBe(200);
     const invites: string[] = created.body.players.map((p: { token: string }) => p.token);
     const id = created.body.id;

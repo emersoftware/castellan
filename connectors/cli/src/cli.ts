@@ -19,8 +19,9 @@ const USAGE = `aoa — Age of Agents client (env AOA_SERVER, AOA_TOKEN)
   aoa chat ["<message>"] [--channel all|team|private] [--to p2]  public by default; --to = private to one player; no message = read
   aoa status                         waiting | prep | running | finished
   aoa watch [--since T]              one line per event until the match ends
-  aoa new [--name a --name b | --bot eco ...] [--map open|fortress|fortress-quad|ridge|canyons|quad] [--sides random|fixed] [--chat] [--prep ms] [--seed n]
+  aoa new [--name a --name b | --bot eco ...] [--map open|fortress|fortress-quad|ridge|canyons|quad] [--sides random|fixed] [--no-chat] [--prep ms] [--seed n]
           [--mode teams|ffa] (four-seat maps default to 2v2; --mode ffa is 1v1v1v1)
+          (chat is on by default; --no-chat disables it)
   aoa rooms
   aoa new --series                   create a three-game series (same options as new)
   aoa run-series -- <command...>     play all three games with a series participant token
@@ -37,6 +38,7 @@ const parse = () =>
   parseArgs({
     args: dash < 0 ? argv : argv.slice(0, dash),
     allowPositionals: true,
+    allowNegative: true,
     options: {
       json: { type: "boolean" },
       series: { type: "boolean" },

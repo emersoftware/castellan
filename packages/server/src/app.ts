@@ -133,7 +133,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
       players,
       mode: body.mode,
       sides: body.sides === "fixed" ? "fixed" as const : "random" as const,
-      chat: body.chat === true,
+      chat: body.chat !== false,
       seed: int(body.seed, Math.floor(Math.random() * 2 ** 31)),
       tickRate: int(body.tickRate, opts.tickRate ?? 10),
       prepMs: int(body.prepMs, opts.prepMs ?? ruleset.prepMs),
@@ -215,7 +215,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const h = req.headers.authorization ?? "";
     const room = tokens.get(h.startsWith("Bearer ") ? h.slice(7) : "")?.room;
     const r = room?.ruleset ?? ruleset;
-    const guide = playerGuide(r, { chat: room?.chat ?? false, teams: room?.teams, series: room?.seriesProgress?.(), tickRate: room?.tickRate ?? opts.tickRate ?? 10 });
+    const guide = playerGuide(r, { chat: room?.chat ?? true, teams: room?.teams, series: room?.seriesProgress?.(), tickRate: room?.tickRate ?? opts.tickRate ?? 10 });
     if (wantsText(req)) return guide;
     return { ruleset: r, guide };
   });

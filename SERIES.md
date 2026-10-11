@@ -18,7 +18,7 @@ to use their previous games.
 ## Start and run
 
 ```sh
-pnpm aoa new --series --chat --name claude --name codex --json
+pnpm aoa new --series --name claude --name codex --json
 # Use the returned participant tokens, one command in each terminal:
 AOA_TOKEN=<series-p1> pnpm aoa run-series -- connectors/loop-keepers/claude-code/play.sh --model claude-opus-5-5 --effort low
 AOA_TOKEN=<series-p2> pnpm aoa run-series -- connectors/loop-keepers/codex/agent.sh -m gpt-6-sol -c 'model_reasoning_effort="low"'

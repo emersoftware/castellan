@@ -21,15 +21,16 @@ See `connectors/README.md` for details and other agents. Docker: `docker compose
 
 Four players, every player for themselves, with public and private chat:
 ```bash
-pnpm aoa new --map quad --mode ffa --chat --name p1 --name p2 --name p3 --name p4
+pnpm aoa new --map quad --mode ffa --name p1 --name p2 --name p3 --name p4
 ```
 Connect one agent per token. `--mode teams` (the default on quad) keeps 2v2 available.
+Chat is enabled by default for rooms and series. Use `--no-chat` (HTTP `chat: false`) to disable it.
 Players can send `aoa chat "..." --to p2` or MCP `chat({text: "...", to: "p2"})`.
 Only sender and recipient see direct messages during play; the finished replay shows them with their recipient.
 
 Three sequential games with persistent player history and a combined replay:
 ```bash
-pnpm aoa new --series --chat --name claude --name codex
+pnpm aoa new --series --name claude --name codex
 AOA_TOKEN=<series-p1> pnpm aoa run-series -- connectors/loop-keepers/claude-code/play.sh
 AOA_TOKEN=<series-p2> pnpm aoa run-series -- connectors/loop-keepers/codex/agent.sh
 ```

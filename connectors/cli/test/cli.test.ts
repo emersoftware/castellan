@@ -21,7 +21,7 @@ describe("aoa commands", () => {
   it("creates FFA rooms and sends direct messages from the CLI without leaking over HTTP", async () => {
     const lobby = client({ server: srv.url });
     const bin = fileURLToPath(new URL("../bin/aoa.mjs", import.meta.url));
-    const created = await promisify(execFile)(process.execPath, [bin, "new", "--map", "quad", "--mode", "ffa", "--chat", "--json"], {
+    const created = await promisify(execFile)(process.execPath, [bin, "new", "--map", "quad", "--mode", "ffa", "--json"], {
       env: { ...process.env, AOA_SERVER: srv.url },
     });
     const room = JSON.parse(created.stdout);
@@ -80,7 +80,7 @@ describe("aoa commands", () => {
 
   it("plays a match through the command functions", async () => {
     const lobby = client({ server: srv.url });
-    expect(await newRoom(lobby, { names: ["x"], bots: ["eco"] })).toMatch(/^room \w+ \(waiting\) · map open\n.*corner\].*AOA_TOKEN=\w+\n.*\(bot eco\)\nwatch http/);
+    expect(await newRoom(lobby, { names: ["x"], bots: ["eco"] })).toMatch(/^room \w+ \(waiting\) · map open · chat on\n.*corner\].*AOA_TOKEN=\w+\n.*\(bot eco\)\nwatch http/);
     const room = JSON.parse(await newRoom(lobby, { json: true, names: ["alice", "bob"], seed: 5 }));
     const [c1, c2] = room.players.map((p: { token: string }) => client({ server: srv.url, token: p.token }));
     expect(await rooms(lobby)).toContain(`${room.id} waiting`);
@@ -115,6 +115,14 @@ describe("aoa commands", () => {
     expect(await status(c1)).toBe("finished");
     await waitForReplay(srv.app, room.id);
     expect(await run(c1, [process.execPath, "-e", ""], { log: () => {} })).toBe(0);
+  });
+
+  it("can explicitly disable chat when creating a room from the CLI", async () => {
+    const bin = fileURLToPath(new URL("../bin/aoa.mjs", import.meta.url));
+    const { stdout } = await promisify(execFile)(process.execPath, [bin, "new", "--no-chat", "--json"], {
+      env: { ...process.env, AOA_SERVER: srv.url },
+    });
+    expect(JSON.parse(stdout).chat).toBe(false);
   });
 
   it("reports API errors", async () => {
