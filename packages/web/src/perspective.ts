@@ -11,7 +11,7 @@ export function playerPerspective(frame: SpectatorView | null, player: string | 
     : m.channel !== "team" || frame.players.find((p) => p.id === m.from)?.team === team);
   return { ...frame, chat, playerChats: undefined, entities: frame.entities.map((e) => {
     if (e.owner === player) return e;
-    const { order, doing, carrying, training, ...publicEntity } = e;
+    const { order, orderSuspended, orderProgress, doing, actionResult, carrying, training, ...publicEntity } = e;
     return publicEntity;
   }), events: frame.events.filter((e) => e.type !== "chat" || (e.channel === "private"
     ? e.owner === player || e.to === player

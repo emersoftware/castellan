@@ -7,7 +7,7 @@ const root = new URL('../../../', import.meta.url).pathname;
 const sprites = `${root}packages/web/public/sprites`;
 const sources = `${root}assets/animations/buildings/collapse`;
 const manifest = JSON.parse(await readFile(`${sprites}/manifest.json`, 'utf8'));
-const files = { wall: 'wall', wallpost: 'wallpost', door: 'door', 'door-open': 'door-open', turret: 'tower', castle: 'castle' };
+const files = { wall: 'wall', wallpost: 'wallpost', door: 'door', 'door-open': 'door-open', tower: 'tower', castle: 'castle' };
 const prepare = process.argv.includes('--prepare');
 const onlyKind = process.argv.includes('--kind') ? process.argv[process.argv.indexOf('--kind') + 1] : undefined;
 const ff = (...args) => execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', ...args]);
@@ -27,7 +27,7 @@ for (const [kind, file] of Object.entries(files)) {
     console.log('castle: inward fall is owned by castle-damage.mjs; preserved newer atlas');
     continue;
   }
-  const dir = `${sources}/${kind}`;
+  const dir = `${sources}/${kind === "tower" ? "turret" : kind}`;
   await mkdir(dir, { recursive: true });
   if (prepare) {
     try {
@@ -39,11 +39,11 @@ for (const [kind, file] of Object.entries(files)) {
     const m = manifest.sprites[file];
     const source = await sharp(`${sprites}/${file}.${m.format ?? 'png'}`).ensureAlpha().png().toBuffer();
     const { width, height } = await sharp(source).metadata();
-    const extent = kind === 'turret' ? 300 : 380;
+    const extent = kind === 'tower' ? 300 : 380;
     const scale = Math.min(extent / width, extent / height);
     const w = Math.round(width * scale), h = Math.round(height * scale);
     const left = Math.round(272 - (m.anchorX ?? .5) * w);
-    const top = Math.round((kind === 'turret' ? 330 : 400) - m.anchorY * h);
+    const top = Math.round((kind === 'tower' ? 330 : 400) - m.anchorY * h);
     await writeFile(`${dir}/source.png`, source);
     await sharp({ create: { width: 544, height: 544, channels: 3, background: '#ff00ff' } })
       .composite([{ input: await sharp(source).resize(w, h).png().toBuffer(), left, top }])

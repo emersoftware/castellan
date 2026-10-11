@@ -51,12 +51,14 @@ export function setDroppedSeries(r: SeriesReplay) { droppedSeries = r; }
 export type LiveScripts = Record<string, Record<string, { code: string; custom: boolean } | null>>;
 
 export const api = {
+  /** A recorded match bundled with the landing, also available without an API. */
+  showcase: (id: string) => fetch(`/showcase/${id}.json`).then((r) => json<ReplayFile>(r)),
   series: () => fetch(seriesPath()).then((r) => json<SeriesSummary[]>(r)),
   seriesSummary: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries.series) : fetch(`${seriesPath()}/${id}`).then((r) => json<SeriesSummary>(r)),
   seriesReplay: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries) : fetch(`${seriesPath()}/${id}/replay.json`).then((r) => json<SeriesReplay>(r)),
   room: (id: string) => fetch(`/rooms/${id}`).then((r) => json<RoomSummary>(r)),
   /** Live room: the code each player's scriptable kinds run now. */
-  roomScripts: (id: string) => fetch(`/rooms/${id}/scripts`).then((r) => json<LiveScripts>(r)),
+  roomScripts: (id: string) => fetch(`/rooms/${id}/scripts`, { headers: spectatorToken() ? { authorization: `Bearer ${spectatorToken()}` } : {} }).then((r) => json<LiveScripts>(r)),
 
   /** Featured replays ship with the site; a local server adds yours. */
   async replays(): Promise<ReplaySummary[]> {
@@ -112,7 +114,12 @@ export async function readReplayFile(file: File): Promise<ReplayFile | SeriesRep
 
 export function spectateUrl(id: string) {
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  return `${proto}://${location.host}/spectate/${id}`;
+  return `${proto}://${location.host}/spectate/${id}${spectatorToken() ? `?spectator=${encodeURIComponent(spectatorToken()!)}` : ""}`;
+}
+
+/** The host capability is in the fragment, so it is not sent in page requests/referrers. */
+export function spectatorToken(): string | null {
+  return new URLSearchParams(location.hash.slice(1)).get("spectator");
 }
 
 export const fmtTime = (ms: number) => {
@@ -125,7 +132,7 @@ export function playerColors(players: { id: string }[]): Record<string, number> 
   return Object.fromEntries(players.map((p, i) => [p.id, i % 4]));
 }
 
-/** The winning players (empty = draw), for outcomes with or without teams. */
+/** The winning players (empty = no winner), for outcomes with or without teams. */
 export function winnersOf(o: Outcome): string[] {
   return o.winners ?? (o.winner ? [o.winner] : []);
 }

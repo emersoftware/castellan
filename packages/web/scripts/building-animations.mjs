@@ -6,7 +6,7 @@ const root = new URL('../../../', import.meta.url).pathname;
 const spriteDir = `${root}packages/web/public/sprites`;
 const settings = {
   castle: { file: 'castle', crop: {left:76,top:20,width:392,height:508}, width:180,height:234,pole:313, flagBottom:116, anchorX:0.5,anchorY:437/508 },
-  turret: { file: 'tower', crop: {left:150,top:20,width:254,height:508}, width:108,height:216,pole:287, flagBottom:116, anchorX:128/254,anchorY:440/508 },
+  tower: { file: 'tower', crop: {left:150,top:20,width:254,height:508}, width:108,height:216,pole:287, flagBottom:116, anchorX:128/254,anchorY:440/508 },
 };
 const manifest = JSON.parse(await readFile(`${spriteDir}/manifest.json`,'utf8'));
 function key(data) {
@@ -19,7 +19,7 @@ function key(data) {
  return data;
 }
 for(const [kind,s] of Object.entries(settings)) {
- const dir=`${root}assets/animations/buildings/${kind}`;
+ const dir=`${root}assets/animations/buildings/${kind === "tower" ? "turret" : kind}`;
  const out=`${spriteDir}/${kind}`;
  await mkdir(out,{recursive:true}); await mkdir(`${dir}/frames`,{recursive:true});
  const ref=key(await sharp(`${dir}/reference.png`).ensureAlpha().raw().toBuffer());

@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>AoA — Historial de versiones</title>
+  <style>
+    :root{--paper:#f4f7fc;--ink:#172b45;--blue:#284fba;--muted:#546478;--panel:#e4eaf6;--line:#cad4e6;--font:"Avenir Next",Avenir,"Segoe UI",sans-serif}
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth;scroll-padding-top:24px}
+    body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--font);-webkit-font-smoothing:antialiased}
+    a{color:var(--blue);text-underline-offset:3px;text-decoration-thickness:1px}
+    a:hover{text-decoration-thickness:2px}
+    button,input{font:inherit}
+    :focus-visible{outline:3px solid var(--blue);outline-offset:4px}
+    button,summary{cursor:pointer}
+    [hidden]{display:none!important}
+    .skip{position:absolute;left:20px;top:-70px;background:var(--paper);padding:12px;z-index:2}
+    .skip:focus{top:12px}
+    .wrap{width:min(1176px,100% - 80px);margin:auto}
+    .masthead{display:flex;align-items:center;justify-content:space-between;padding:30px 0 22px;border-bottom:2px solid var(--ink)}
+    .brand{font-weight:800;font-size:23px;letter-spacing:-1px}
+    .stamp{font-size:13px;color:var(--muted)}
+    .hero{padding:48px 0 35px;display:grid;grid-template-columns:1fr 265px;gap:40px;align-items:end}
+    h1,h2,h3,p{margin:0}
+    h1{font-size:clamp(37px,4.6vw,60px);line-height:1.06;letter-spacing:-2.5px;font-weight:650;max-width:720px}
+    .intro{max-width:64ch;margin-top:22px;font-size:17px;color:var(--muted)}
+    .edition{padding:0 0 4px 23px;border-left:3px solid var(--blue)}
+    .edition strong{display:block;font-size:30px;font-weight:650;letter-spacing:-1px}
+    .edition p{font-size:14px;color:var(--muted);margin-top:4px;max-width:28ch}
+    .edition a{display:inline-block;font-size:13px;margin-top:12px}
+    .latest{background:var(--panel);padding:27px 30px 24px;border-radius:4px 22px 4px 4px;display:grid;grid-template-columns:1fr 1.25fr;gap:44px}
+    .latest h2{font-size:24px;font-weight:600;line-height:1.25;letter-spacing:-.65px;max-width:20ch}
+    .latest p{font-size:14px;max-width:45ch;margin-top:12px}
+    .latest .caution{color:var(--muted);font-size:13px}
+    .comparison{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums;align-self:start}
+    .comparison th{font-size:12px;font-weight:600;text-align:right;padding:0 0 9px 14px;color:var(--muted)}
+    .comparison th:first-child{padding-left:0;text-align:left}
+    .comparison tbody tr{border-top:1px solid var(--line)}
+    .comparison td{padding:7px 0 7px 14px;text-align:right;white-space:nowrap}
+    .comparison td:first-child{text-align:left;padding-left:0;white-space:normal}
+    .comparison td:last-child{font-weight:650}
+    .comparison tfoot td{font-size:12px;font-weight:400!important;padding-top:12px;color:var(--muted);white-space:normal}
+    .toolbar{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:34px 0 16px;flex-wrap:wrap}
+    .filters{display:flex;gap:5px;flex-wrap:wrap}
+    .filter{border:0;background:none;padding:8px 13px;border-radius:5px;color:var(--muted);font-size:14px}
+    .filter[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+    .filter:hover:not([aria-pressed="true"]){background:var(--panel);color:var(--ink)}
+    .search{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+    .search input{width:245px;border:1px solid var(--line);background:transparent;border-radius:5px;padding:8px 11px;font-size:14px;color:var(--ink)}
+    .key{display:flex;justify-content:space-between;gap:18px;font-size:12px;color:var(--muted);margin-bottom:22px}
+    .key a{white-space:nowrap}
+    .history{width:100%;border-collapse:collapse;table-layout:fixed}
+    .history col:nth-child(1){width:16%}.history col:nth-child(2){width:43%}.history col:nth-child(3){width:41%}
+    .history thead th{text-align:left;color:var(--muted);font-size:12px;font-weight:500;padding:0 20px 13px 0}
+    .era th{text-align:left;padding:17px 0 14px;font-size:17px;font-weight:600;border-top:2px solid var(--ink)}
+    .era th span{font-weight:400;color:var(--muted);font-size:12px;margin-left:12px}
+    .version-row{border-top:1px solid var(--line)}
+    .version-row th,.version-row td{text-align:left;vertical-align:top;padding:18px 26px 18px 0;font-weight:400;font-size:14px}
+    .version-row td:last-child{padding-right:0}
+    .version-id{display:block;color:var(--blue);font-size:24px;font-weight:650;line-height:1;letter-spacing:-.8px;font-variant-numeric:tabular-nums}
+    .version-name{display:block;font-size:12px;color:var(--muted);margin-top:8px;line-height:1.3}
+    .version-row p{max-width:49ch}
+    .version-row strong{font-weight:650}
+    .unmeasured{color:var(--muted)}
+    .tag{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:3px;padding:1px 5px;line-height:1.45;vertical-align:1px;margin-left:5px;color:var(--muted)}
+    .current{background:var(--panel)}
+    .current th{padding-left:12px}.current td:last-child{padding-right:12px}
+    details{margin-top:7px}
+    summary{font-size:12px;color:var(--blue);width:fit-content}
+    details[open]>summary{margin-bottom:8px}
+    .detail{font-size:12px;color:var(--muted);line-height:1.6;max-width:55ch}
+    .detail p+p{margin-top:7px}
+    .ref{font-size:11px;vertical-align:2px;margin-left:3px;white-space:nowrap}
+    code{font-family:inherit;font-size:.92em;overflow-wrap:anywhere;background:var(--panel);padding:1px 4px;border-radius:3px}
+    .no-results{padding:40px 0;font-size:17px}
+    .section{padding-top:47px}
+    .section-heading{display:flex;justify-content:space-between;align-items:baseline;gap:25px;margin-bottom:18px}
+    .section h2{font-size:27px;line-height:1.2;letter-spacing:-.9px;font-weight:600}
+    .section-heading p{color:var(--muted);font-size:13px;max-width:45ch}
+    .notes{display:grid;grid-template-columns:1fr 1fr;gap:0 45px;border-top:2px solid var(--ink)}
+    .note{padding:19px 0;border-bottom:1px solid var(--line)}
+    .note h3{font-size:15px;font-weight:600;margin-bottom:5px}
+    .note p{font-size:14px;max-width:53ch}
+    .note .when{font-size:11px;font-weight:400;color:var(--muted);margin-left:9px}
+    .experiments{border-top:2px solid var(--ink)}
+    .experiment{display:grid;grid-template-columns:205px 1fr 1fr;gap:24px;padding:18px 0;border-bottom:1px solid var(--line);font-size:14px}
+    .experiment h3{font-size:15px;font-weight:600}
+    .experiment p{max-width:48ch}
+    .experiment .result{color:var(--muted)}
+    .closing{margin:34px 0 0;border-left:3px solid var(--blue);padding:3px 0 3px 20px;font-size:17px;max-width:75ch}
+    .closing strong{font-weight:600}
+    .sources{margin:36px 0 28px;padding:17px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+    .sources>summary{font-size:14px;font-weight:600}
+    .sources-intro{font-size:13px;color:var(--muted);max-width:80ch;margin-bottom:14px}
+    .source-list{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:16px 40px}
+    .source-list li{font-size:12px;color:var(--muted);scroll-margin-top:30px;overflow-wrap:anywhere}
+    .source-list li:target{outline:2px solid var(--blue);outline-offset:7px;border-radius:3px}
+    .source-list b{font-size:13px;display:block;color:var(--ink);margin-bottom:4px;font-weight:600}
+    footer{display:flex;justify-content:space-between;gap:20px;padding-bottom:35px;font-size:12px;color:var(--muted)}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    @media(min-width:1450px){.wrap{width:min(1200px,100% - 112px)}}
+    @media(max-width:800px){.wrap{width:calc(100% - 40px)}.hero{grid-template-columns:1fr 190px;gap:22px}h1{letter-spacing:-1.7px}.latest{gap:23px;padding:24px}.latest h2{font-size:22px}.history col:nth-child(1){width:16%}.history col:nth-child(2){width:44%}.history col:nth-child(3){width:40%}.version-row th,.version-row td{padding-right:16px}.experiment{grid-template-columns:165px 1fr 1fr;gap:18px}.notes{gap:0 25px}.search input{width:210px}}
+    @media(max-width:600px){.wrap{width:calc(100% - 32px)}.masthead{padding:21px 0 17px}.brand{font-size:21px}.stamp{font-size:11px}.hero{display:block;padding:30px 0 26px}h1{font-size:35px;max-width:none;letter-spacing:-1.4px}.intro{font-size:15px;margin-top:17px}.edition{margin-top:22px;padding-left:14px}.edition strong{font-size:22px}.edition p{max-width:none;font-size:12px}.edition a{margin-top:7px}.latest{display:block;padding:22px 18px}.latest h2{max-width:25ch;font-size:22px}.latest p{max-width:none}.comparison{margin-top:22px;font-size:13px}.comparison th{font-size:11px}.comparison td{padding-top:8px;padding-bottom:8px}.toolbar{padding-top:26px;gap:13px}.filters{gap:2px}.filter{padding:7px 10px;font-size:13px}.search{width:100%;justify-content:space-between}.search input{width:calc(100% - 58px)}.key{font-size:11px;gap:10px;margin-bottom:18px}.key span{max-width:27ch}.history,.history tbody{display:block}.history colgroup,.history thead{display:none}.era{display:block}.era th{display:block;font-size:18px;padding:18px 0 15px}.era th span{display:block;margin:3px 0 0}.version-row{display:grid;grid-template-columns:64px 1fr;gap:0 13px;padding:17px 0}.version-row th,.version-row td{display:block;padding:0;font-size:13px}.version-row th{grid-row:1/3}.version-id{font-size:23px}.version-name{font-size:10px;overflow-wrap:anywhere}.version-row td:last-child{grid-column:2;margin-top:11px;padding-top:8px;border-top:1px dashed var(--line)}.version-row td:last-child::before{content:"Vimos";display:block;font-size:10px;color:var(--muted);margin-bottom:4px}.version-row td.unmeasured:last-child{margin-top:4px;padding-top:0;border-top:0;font-size:11px}.version-row td.unmeasured:last-child::before{display:none}.current{padding:16px 10px}.current th,.current td:last-child{padding-left:0;padding-right:0}.section{padding-top:34px}.section h2{font-size:25px}.section-heading{display:block}.section-heading p{margin-top:8px}.notes{display:block}.note{padding:16px 0}.note p{font-size:13px}.note .when{display:block;margin:3px 0 0}.experiment{display:block;padding:17px 0}.experiment h3{margin-bottom:7px}.experiment p{font-size:13px}.experiment .result{margin-top:7px}.closing{font-size:15px;margin-top:26px;padding-left:15px}.source-list{grid-template-columns:1fr}.sources{margin-top:28px}footer{font-size:11px}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+    @media print{body{font-size:11px;background:white}.wrap{width:100%}.toolbar,.skip,footer a{display:none}.hero{padding:20px 0}.hero h1{font-size:36px}.latest{break-inside:avoid}.version-row,.note,.experiment{break-inside:avoid}.version-row th,.version-row td{font-size:11px;padding-top:10px;padding-bottom:10px}.version-id{font-size:20px}.section{padding-top:25px}.section h2{font-size:21px}.source-list li{font-size:10px}.history thead{display:table-header-group}}
+  </style>
+</head>
+<body>
+<a class="skip" href="#versiones">Saltar al historial</a>
+<div class="wrap">
+  <header class="masthead"><div class="brand">AoA</div><div class="stamp">26 sep – 9 oct 2026</div></header>
+  <main>
+    <section class="hero" aria-labelledby="title">
+      <div><h1 id="title">El juego,<br>versión por versión.</h1><p class="intro">Qué cambiamos y qué vimos. Reglas, contexto y pruebas, con sus límites a la vista.</p></div>
+      <aside class="edition"><strong>v24 actual</strong><p>28 versiones y variantes.<br>Cambios y evidencia.</p><a href="#sin-version">Cambios sin número de versión</a></aside>
+    </section>
+
+    <section class="latest" aria-labelledby="last-title">
+      <div><h2 id="last-title">Más combate.<br>¿Menos opciones?</h2><p>La FFA v24 de Opus tuvo más pelea y menos fortificaciones que la v23.</p><p class="caution">Una partida por versión. Mismo mapa, semilla, modelo y prompt; decisiones y latencias distintas. No demuestra mejor balance.<a class="ref" href="#f10" aria-label="Fuente 10, comparación Opus">[10]</a></p></div>
+      <table class="comparison"><caption class="sr-only">Comparación de dos FFA de cuatro Opus 5.5 low</caption><thead><tr><th scope="col">4 Opus 5.5, low</th><th scope="col"><a href="http://localhost:5173/replay/0fccbf5b">v23 · replay</a></th><th scope="col"><a href="http://localhost:5173/replay/04331fac">v24 · replay</a></th></tr></thead><tbody>
+        <tr><td>Resultado</td><td>Empate, 15:00</td><td>p2 gana, 9:58</td></tr>
+        <tr><td>Bajas militares en combate</td><td>3</td><td>108</td></tr>
+        <tr><td>Torretas construidas</td><td>27</td><td>0</td></tr>
+        <tr><td>Castillos adicionales</td><td>8</td><td>3</td></tr>
+        <tr><td>Mensajes</td><td>0</td><td>3</td></tr>
+      </tbody><tfoot><tr><td colspan="3">Replays verificados. Las bajas excluyen unidades retiradas al morir su rey.</td></tr></tfoot></table>
+    </section>
+
+    <section id="versiones" aria-label="Historial de versiones">
+      <div class="toolbar" id="toolbar" hidden>
+        <div class="filters" role="group" aria-label="Filtrar versiones"><button class="filter" type="button" data-filter="all" aria-pressed="true">Todas</button><button class="filter" type="button" data-filter="recent" aria-pressed="false">Desde v16</button><button class="filter" type="button" data-filter="observed" aria-pressed="false">Con observaciones</button></div>
+        <label class="search">Buscar <input id="search" type="search" placeholder="Versión o cambio" autocomplete="off"></label>
+      </div>
+      <div class="key"><span id="count" aria-live="polite">28 versiones. — Sin resultado aislado registrado.</span><a href="#experimentos">Pruebas dirigidas y descartadas</a></div>
+      <table class="history"><caption class="sr-only">Cambios y observaciones de cada versión</caption><colgroup><col><col><col></colgroup><thead><tr><th scope="col">Versión</th><th scope="col">Cambió</th><th scope="col">Vimos</th></tr></thead>
+        <tbody data-group="base">
+          <tr class="era"><th colspan="3" scope="colgroup">Construir el juego <span>v0–v15</span></th></tr>
+          <tr class="version-row" id="v0" data-version="0" data-observed="true"><th scope="row"><span class="version-id">v0</span><span class="version-name">Base</span></th><td><p>Economía, scripts y combate. Producción instantánea, sin niebla. Luego: exclusión de construcción a 8 casillas rivales.</p><details><summary>Detalle y fuente</summary><div class="detail"><p>Inicio: 200 de mineral, población 30, mapa 32×32 y 10 minutos. Ataque cada 1 s; daño mínimo 1. Distancia cuadrada. Ajustes iniciales: rey 400 de vida / 10 de defensa; ataque del nexus 10→6; torreta 150→200; preparación 30→60 s. Se corrigieron desempates direccionales y bloqueos entre workers.</p><p>Unidades: worker 40 de vida / 1 defensa / 3 ataque, costo 50; knight 80/4/12, costo 100; archer 50/2/12, costo 120; nexus 600/5/6; torreta 150/5/15; muro 300/10, costo 50. <a href="#f1">[1]</a> <a href="#f2">[2]</a></p></div></details></td><td><p><strong>Tower rush ganó en 1:24.</strong> La exclusión respondió a eso. También hubo una victoria con muros, torretas y workers.<a class="ref" href="#f2" aria-label="Fuente 2">[2]</a></p></td></tr>
+          <tr class="version-row" id="v1" data-version="1"><th scope="row"><span class="version-id">v1</span><span class="version-name">Mejoras</span></th><td><p>Investigaciones con duración, una a la vez: daño, cadencia y movilidad.</p><details><summary>Detalle y fuente</summary><div class="detail">Knight/archer: daño 14/16, cadencia 900/800 ms, movimiento mejorado 300 ms. Worker: daño 5/7. <a href="#f1">[1]</a></div></details></td><td class="unmeasured"><span aria-label="Sin resultado aislado registrado">—</span></td></tr>
+          <tr class="version-row" id="v2" data-version="2"><th scope="row"><span class="version-id">v2</span><span class="version-name">Expansión</span></th><td><p>Workers construyen nexus: 600 de mineral y 30 s. Deja de ser vital.</p><details><summary>Fuente</summary><div class="detail">Primer centro adicional de producción y entrega de recursos. <a href="#f1">[1]</a></div></details></td><td class="unmeasured"><span aria-label="Sin resultado aislado registrado">—</span></td></tr>
+          <tr class="version-row" id="v3" data-version="3"><th scope="row"><span class="version-id">v3</span><span class="version-name">Niebla y colas</span></th><td><p>Niebla con memoria. Entrenamiento con tiempo y cola de 5.</p><details><summary>Detalle y fuente</summary><div class="detail">Worker 5 s, knight 8 s, archer 10 s. Sustituye la producción instantánea. <a href="#f1">[1]</a></div></details></td><td class="unmeasured"><span aria-label="Sin resultado aislado registrado">—</span></td></tr>
+          <tr class="version-row" id="v4" data-version="4"><th scope="row"><span class="version-id">v4</span><span class="version-name">Victoria</span></th><td><p>Matar al agent decide la partida. Al límite de tiempo, empate.</p><details><summary>Fuente</summary><div class="detail">La condición vital queda centrada en el futuro rey. <a href="#f1">[1]</a></div></details></td><td class="unmeasured"><span aria-label="Sin resultado aislado registrado">—</span></td></tr>
+          <tr class="version-row" id="v5" data-version="5"><th scope="row"><span class="version-id">v5</span><span class="version-name">Proyectiles</span></th><td><p>Flechas físicas a 6 casillas/s; dejan de impactar instantáneamente.</p><details><summary>Fuente</summary><div class="detail"><a href="#f1">[1]</a></div></details></td><td class="unmeasured"><span aria-label="Sin resultado aislado registrado">—</span></td></tr>
+          <tr class="version-row" id="v6" data-version="6"><th scope="row"><span class="version-id">v6</span><span class="version-name">Flechas rápidas</span></th><td><p>Velocidad de proyectiles: 6→12 casillas/s.</p><details><summary>Fuente</summary><div class="detail"><a href="#f1">[1]</a></div></details></td><td class="unmeasured"><span aria-label="Sin resultado aislado registrado">—</span></td></tr>
+          <tr class="version-row" id="v7" data-version="7"><th scope="row"><span class="version-id">v7</span><span class="version-name">Puertas</span></th><td><p>Nexus pasa a llamarse castle. Puertas que permiten paso aliado.</p><details><summary>Detalle y fuente</summary><div class="detail">Puerta: 300 de vida, 10 de defensa y costo 75. <a href="#f1">[1]</a></div></details></td><td class="unmeasured"><span aria-label="Sin resultado aislado registrado">—</span></td></tr>
+          <tr class="version-row" id="v8" data-version="8"><th scope="row"><span class="version-id">v8</span><span class="version-name">Rey</span></th><td><p>Agent pasa a llamarse King.</p><details><summary>Fuente</summary><div class="detail">Cambio de nombre, sin ajuste de combate registrado para esta versión. <a href="#f1">[1]</a></div></details></td><td class="unmeasured"><span aria-label="Sin resultado aislado registrado">—</span></td></tr>
+          <tr class="version-row" id="v9" data-version="9"><th scope="row"><span class="version-id">v9</span><span class="version-name">Más scripts</span></th><td><p>Workers y rey programables. Rey: ataque 3 cada 3 s; información del último atacante.</p><details><summary>Detalle y fuente</summary><div class="detail">Permite reacciones desde scripts. Todavía no son los callbacks durante órdenes de v23. <a href="#f1">[1]</a> <a href="#f2">[2]</a></div></details></td><td class="unmeasured"><span aria-label="Sin resultado aislado registrado">—</span></td></tr>
+          <tr class="version-row" id="v10" data-version="10"><th scope="row"><span class="version-id">v10</span><span class="version-name">Ruinas</span></th><td><p>Los edificios de eliminados quedan como ruinas; se recuerda lo oculto por la niebla.</p><details><summary>Fuente</summary><div class="detail"><a href="#f1">[1]</a> Commit <code>36eb04b</code>. <a href="#f12">[12]</a></div></details></td><td class="unmeasured"><span aria-label="Sin resultado aislado registrado">—</span></td></tr>
+          <tr class="version-row" id="v11" data-version="11"><th scope="row"><span class="version-id">v11</span><span class="version-name">Alcance</span></th><td><p>Investigaciones de alcance: archer 5/6 y torreta 6/7.</p><details><summary>Fuente</summary><div class="detail"><a href="#f1">[1]</a></div></details></td><td class="unmeasured"><span aria-label="Sin resultado aislado registrado">—</span></td></tr>
+          <tr class="version-row" id="v12" data-version="12" data-observed="true"><th scope="row"><span class="version-id">v12</span><span class="version-name">Puntaje en FFA</span></th><td><p>Gana el puntaje al límite en FFA. Archer 120→100; movilidad 250→150.</p><details><summary>Detalle y fuente</summary><div class="detail">Motivo: 86% de empates FFA al revisar 30 partidas anteriores. El mineral guardado sumaba al puntaje. <a href="#f3">[3]</a></div></details></td><td><p><strong>Premió acumular mineral.</strong> En una serie de 3 FFA, el ganador guardó 2.000–3.800; nadie entrenó knights.<a class="ref" href="#f3" aria-label="Fuente 3">[3]</a></p></td></tr>
+          <tr class="version-row" id="v13" data-version="13"><th scope="row"><span class="version-id">v13</span><span class="version-name">Se retira el puntaje</span></th><td><p>Vuelve el empate. Cuatro jugadores: 15 min y mapa 44×44. Archer 110; movilidad 200.</p><details><summary>Detalle y fuente</summary><div class="detail">Mapas antes de 64×64. Depósitos compartidos recolocados. Jugadores identificados por id en el contexto del agente. <a href="#f1">[1]</a> <a href="#f3">[3]</a></div></details></td><td class="unmeasured"><span aria-label="Sin resultado aislado registrado">—</span></td></tr>
+          <tr class="version-row" id="v14" data-version="14"><th scope="row"><span class="version-id">v14</span><span class="version-name">Puntería</span></th><td><p>Archer apunta 300 ms. Flechas sobre muros y puertas; más alcance de torreta.</p><details><summary>Detalle y fuente</summary><div class="detail">Torreta: alcance 6 y visión 7. Se ajustan las investigaciones de alcance. <a href="#f1">[1]</a></div></details></td><td class="unmeasured"><span aria-label="Sin resultado aislado registrado">—</span></td></tr>
+          <tr class="version-row" id="v15" data-version="15"><th scope="row"><span class="version-id">v15</span><span class="version-name">Puertas rectas</span></th><td><p>Se corrige la geometría de las puertas.</p><details><summary>Fuente</summary><div class="detail">Registrado como <code>v15-doors</code>, “puertas rectas”. <a href="#f1">[1]</a></div></details></td><td class="unmeasured"><span aria-label="Sin resultado aislado registrado">—</span></td></tr>
+        </tbody>
+        <tbody data-group="combat">
+          <tr class="era"><th colspan="3" scope="colgroup">Ajustar el combate <span>v16–v21d</span></th></tr>
+          <tr class="version-row" id="v16" data-version="16" data-observed="true"><th scope="row"><span class="version-id">v16</span><span class="version-name">Pausa y geometría</span></th><td><p>Diagonal ×1,4; alcance circular; puntería antes de atacar. Knight más resistente; construcción con tiempo.</p><details><summary>Detalle y fuente</summary><div class="detail"><p>Knight: 100 de vida, defensa 6 y puntería 300 ms. Castle: alcance 6. Torreta: construcción 10 s; muro/puerta: 3 s. Flechas sobre rocas, muros y puertas. Alcance mejorado del archer: 5.</p><p>Se consolida un único ruleset y se archivan las versiones antiguas fuera del repositorio. Guía y prompt: ~40% menos palabras y sin sugerir estrategias. <a href="#f1">[1]</a> <a href="#f3">[3]</a></p></div></details></td><td><p>Los ajustes se midieron en peleas programadas de 11 knights contra 10 archers. <strong>Eso no evalúa el ciclo completo.</strong><a class="ref" href="#f3" aria-label="Fuente 3">[3]</a></p></td></tr>
+          <tr class="version-row" id="v17" data-version="17" data-observed="true"><th scope="row"><span class="version-id">v17</span><span class="version-name">Optimizador</span></th><td><p>Reajuste amplio de stats; torreta con zona ciega a menos de 2 casillas.</p><details><summary>Detalle y fuente</summary><div class="detail">Knight: vida 130 / defensa 8 / ataque 11. Archer: vida 60 / defensa 1 / alcance 5 / movimiento 360 ms. Torreta: costo 210 / vida 110 / defensa 8 / ataque 8 / alcance 7. Castle: defensa 4 / ataque 7. <a href="#f1">[1]</a></div></details></td><td><p>La simulación sugería equilibrio; las partidas registradas fueron <strong>~99% archers</strong>. 360 y 400 ms redondeaban igual a 10 Hz.<a class="ref" href="#f1" aria-label="Fuente 1">[1]</a></p></td></tr>
+          <tr class="version-row" id="v18" data-version="18" data-observed="true"><th scope="row"><span class="version-id">v18</span><span class="version-name">Costo igual</span></th><td><p>Knight y archer cuestan 100. Ajustes de daño, defensa y tiempos; daño mejorado +3 por nivel.</p><details><summary>Detalle y fuente</summary><div class="detail">Knight: ataque 14, defensa 6, movimiento 500 ms, puntería 100 ms. Archer: defensa 3, movimiento 400 ms. Torreta: vida 170 / defensa 7 / ataque 9. Castle: vida 500 / ataque 9. Tiempos de movimiento en múltiplos de 100 ms. El optimizador no mejoró en las peleas reservadas. <a href="#f1">[1]</a></div></details></td><td><p>En 8 duelos libres: <strong>2 knights y 232 archers</strong>. Obligar un lado a ≥70% knights dio 1 victoria de 4.<span class="tag">Prueba dirigida</span><a class="ref" href="#f1" aria-label="Fuente 1">[1]</a></p></td></tr>
+          <tr class="version-row" id="v19" data-version="19" data-observed="true"><th scope="row"><span class="version-id">v19</span><span class="version-name">Visión compartida</span></th><td><p>Scripts ven lo que ve el jugador; atacante revelado 2 s. Archer apunta 400 ms; daño mejorado +2.</p><details><summary>Detalle y fuente</summary><div class="detail">Visión del knight: 6. Antes podía recibir flechas sin que su script viera al atacante. Se cambiaron visión y stats juntos. <a href="#f1">[1]</a></div></details></td><td><p>Knights dirigidos: <strong>3 victorias de 4</strong>. En 4 duelos libres seguían 6 knights frente a 134 archers.<span class="tag">Prueba dirigida + libre</span><a class="ref" href="#f1" aria-label="Fuente 1">[1]</a></p></td></tr>
+          <tr class="version-row" id="v20" data-version="20" data-observed="true"><th scope="row"><span class="version-id">v20</span><span class="version-name">Desbloqueos</span></th><td><p>Archery y engineering: 100 de mineral y 3 s para abrir archer y torreta. Knight disponible desde el inicio.</p><details><summary>Detalle y fuente</summary><div class="detail">Se añade un costo de entrada distinto entre unidades. En series, la proporción de knights fue 22%. Otros 33 experimentos usaron mecánicas v20 con stats históricos: no son partidas de esas versiones antiguas. <a href="#f1">[1]</a></div></details></td><td><p>Astra/Sol: <strong>39% knights</strong> en las partidas sueltas. La apertura cambió más que en varios ajustes de stats.<a class="ref" href="#f1" aria-label="Fuente 1">[1]</a></p></td></tr>
+          <tr class="version-row" id="v21" data-version="21" data-observed="true"><th scope="row"><span class="version-id">v21</span><span class="version-name">Knight reforzado</span></th><td><p>Knight: ataque 14→17, vida 100→110. Castle: vida 500→600, defensa 4→7.</p><details><summary>Detalle y fuente</summary><div class="detail">Torreta: vida 170→160. Mejoras de daño: costo 250/350; knight llega a 19/21. Alcance de archer: costo 200; de torreta: 150/250. Nombre histórico: <code>v21-validated</code>; la revisión posterior encontró problemas en snapshots y selección del optimizador. Ese nombre no certifica balance. <a href="#f4">[4]</a> <a href="#f6">[6]</a></div></details></td><td><p>Opus ganó <strong>3 de 4</strong> duelos contra Sol, incluso con ambos usando knights. Muestra pequeña.<a class="ref" href="#f4" aria-label="Fuente 4">[4]</a></p></td></tr>
+          <tr class="version-row" id="v21b" data-version="21" data-observed="true"><th scope="row"><span class="version-id">v21b</span><span class="version-name">Ataque 16</span></th><td><p>Knight: ataque 17→16; con mejoras, 18/20.</p><details><summary>Detalle y fuente</summary><div class="detail">Los duelos Opus/Sol del commit quedaron 2–2. En otra muestra de 5 duelos se entrenaron 149 knights y ningún archer. <a href="#f4">[4]</a> <a href="#f5">[5]</a></div></details></td><td><p>Persistió la apertura de knights: <strong>0 archers en 5 duelos</strong>. En una FFA de Opus tampoco investigaron archery.<a class="ref" href="#f5" aria-label="Fuente 5">[5]</a></p></td></tr>
+          <tr class="version-row" id="v21c" data-version="21" data-observed="true"><th scope="row"><span class="version-id">v21c</span><span class="version-name">Entrada simétrica</span></th><td><p>Chivalry también desbloquea al knight: 100 de mineral y 3 s.</p><details><summary>Fuente</summary><div class="detail">Se lanzaron FFA de DeepSeek, Sol y Opus con el mismo costo de entrada para ambas unidades. <a href="#f5">[5]</a></div></details></td><td><p>La auditoría encontró bots de referencia que <strong>no investigaban</strong> y se quedaban sin ejército. No servían para medir este balance.<a class="ref" href="#f6" aria-label="Fuente 6">[6]</a></p></td></tr>
+          <tr class="version-row" id="v21d" data-version="21" data-observed="true"><th scope="row"><span class="version-id">v21d</span><span class="version-name">Sin desbloqueos</span></th><td><p>Se eliminan chivalry, archery y engineering. Quedan las mejoras de stats.</p><details><summary>Fuente</summary><div class="detail">Knight, archer y torreta disponibles desde el inicio. La FFA de Haiku <code>eb16c5f4</code> terminó con p3 ganador y sin chat; no hay comparación aislada para atribuirlo al cambio. <a href="#f5">[5]</a></div></details></td><td><p><strong>El chat no estaba bloqueado.</strong> Las dos partidas históricas con 46 y 107 mensajes llevaban instrucciones para conversar.<a class="ref" href="#f5" aria-label="Fuente 5">[5]</a></p></td></tr>
+        </tbody>
+        <tbody data-group="cycle">
+          <tr class="era"><th colspan="3" scope="colgroup">Mirar la partida completa <span>v22–v24</span></th></tr>
+          <tr class="version-row" id="v22" data-version="22" data-observed="true"><th scope="row"><span class="version-id">v22</span><span class="version-name">Expansión</span></th><td><p>Castle 600→300 y 30→20 s. Torreta 200→150; muro 50→25; puerta 75→40. Más recursos en flancos.</p><details><summary>Detalle y fuente</summary><div class="detail"><p>Mineral por asiento: base 2.000→1.200; flancos 2.000→2.800, o 3.200→4.000 en quad. Sin cambiar total, geometría, stats de combate ni prompt.</p><p>19 partidas Sol low: 15 libres y 4 con defensa/muros indicados; piloto Luna separado. Castle a 450 no produjo expansiones en 2 pruebas. Validación final: 3 partidas libres, 6 de 8 jugadores expandieron; los 6 castillos recibieron recursos y entrenaron. Ingreso bruto no equivale a retorno de inversión. <a href="#f7">[7]</a></p></div></details></td><td><p><strong>Expansión: 0/8 → 6/8 jugadores</strong> entre control y validación. Ningún muro nuevo en esas 3 validaciones. Hubo 12 mensajes de equipo sin pedir chat.<a class="ref" href="#f7" aria-label="Fuente 7">[7]</a></p></td></tr>
+          <tr class="version-row" id="v23" data-version="23" data-observed="true"><th scope="row"><span class="version-id">v23</span><span class="version-name">Órdenes reactivas</span></th><td><p>Scripts corren durante órdenes. Callbacks al recibir daño o ver enemigos; el script puede continuar, suspender o cancelar.</p><details><summary>Detalle y fuente</summary><div class="detail"><p><code>onTick</code>, <code>onAttacked</code>, <code>onEnemySeen</code> y <code>onOrderEnded</code>. No hay represalia obligatoria: la orden continúa salvo interrupción explícita. El mismo presupuesto y una acción por tick. Suspender construcción libera el sitio y reinicia el trabajo al retomarla. <a href="#f6">[6]</a></p><p>FFA Luna: empate; Sol: p1 gana; Terra: empate. Luego, con <code>orderProgress</code>: Haiku p3 gana a 7:13; Opus empata a 15:00. Una partida por modelo, sin control que aísle cada cambio. <a href="#f8">[8]</a> <a href="#f9">[9]</a></p></div></details></td><td><p>Hubo combate y retiradas útiles; también scripts que suspendían la retirada. <strong>Haiku peleó; Opus fortificó y empató.</strong><a class="ref" href="#f8" aria-label="Fuente 8">[8]</a><a class="ref" href="#f9" aria-label="Fuente 9">[9]</a></p></td></tr>
+          <tr class="version-row current" id="v24" data-version="24" data-observed="true"><th scope="row"><span class="version-id">v24</span><span class="version-name">Sin empate · actual</span></th><td><p>Si no hay ganador, todos pierden. También al empatar una serie. Stats y duración iguales.</p><details><summary>Detalle y fuente</summary><div class="detail">Incluye timeout y eliminación simultánea de todos. El puntaje sigue siendo informativo; los replays antiguos conservan sus resultados. Regla y explicación al agente cambian juntas. <a href="#f10">[10]</a></div></details></td><td><p><strong>Opus: victoria a 9:58.</strong> Más combate, ninguna torreta y menos expansiones. La variedad estratégica sigue por comprobar.<a class="ref" href="#f10" aria-label="Fuente 10">[10]</a></p></td></tr>
+        </tbody>
+      </table>
+      <p class="no-results" id="no-results" hidden>No hay versiones que coincidan. Prueba otra palabra o selecciona “Todas”.</p>
+    </section>
+
+    <section class="section" id="sin-version" aria-labelledby="context-title">
+      <div class="section-heading"><h2 id="context-title">También cambió el contexto</h2><p>No todo quedó asociado a una versión de reglas.</p></div>
+      <div class="notes">
+        <article class="note"><h3>Economía fuera de la base <span class="when">7–8 oct</span></h3><p>Primero se movió la mitad del mineral inicial a flancos; v22 movió más. <code>quad-contested</code> acerca una mina por jugador al vecino. Su efecto aislado no está medido.<a class="ref" href="#f11" aria-label="Fuente 11">[11]</a></p></article>
+        <article class="note"><h3>Información para decidir <span class="when">7–9 oct</span></h3><p>Costos, bloqueos, daño, avistamientos, cooldowns y acciones efectivas. <code>orderProgress</code> muestra edad, suspensión y avance de órdenes; sin recomendar estrategia.<a class="ref" href="#f6" aria-label="Fuente 6">[6]</a><a class="ref" href="#f9" aria-label="Fuente 9">[9]</a></p></article>
+        <article class="note"><h3>Continuidad sin wait <span class="when">7–8 oct</span></h3><p>Primero: espera corta que despierta por daño. Luego se retiró de MCP; el conector entrega una observación y vuelve a llamar al modelo.<a class="ref" href="#f6" aria-label="Fuente 6">[6]</a></p></article>
+        <article class="note"><h3>Sandbox y pruebas de scripts <span class="when">7–8 oct</span></h3><p>Contador protegido, límite externo y errores visibles. <code>script_test</code> permite probar sin instalar. Se corrigió una carrera del watchdog; dos cierres históricos siguen sin causa demostrada.<a class="ref" href="#f6" aria-label="Fuente 6">[6]</a></p></article>
+        <article class="note"><h3>Medición reproducible <span class="when">7–9 oct</span></h3><p>Bots actualizados, snapshots completos y conjuntos separados. Manifiestos con modelo, esfuerzo, prompt, contexto y código. El optimizador antiguo no era evidencia suficiente.<a class="ref" href="#f6" aria-label="Fuente 6">[6]</a></p></article>
+        <article class="note"><h3>Agentes aislados <span class="when">Desde las primeras pruebas</span></h3><p>Se retiraron advisor, memoria personal y herramientas ajenas al juego. Guía generada desde las reglas; espectador en vivo con acceso separado.<a class="ref" href="#f2" aria-label="Fuente 2">[2]</a><a class="ref" href="#f6" aria-label="Fuente 6">[6]</a></p></article>
+        <article class="note"><h3>Ver lo que realmente ocurrió <span class="when">29 sep–7 oct</span></h3><p>Perspectiva con niebla, timeline, scripts por unidad, biblioteca de replays y observador Electron. También animaciones diagonales, puertas, daño y destrucción.<a class="ref" href="#f12" aria-label="Fuente 12">[12]</a></p></article>
+        <article class="note"><h3>Pendientes que no son balance <span class="when">Auditoría</span></h3><p>La reserva de construcción y el consumo de eventos de un <code>run</code> fallido quedaron fuera de la corrección inicial. No figuran aquí como resueltos.<a class="ref" href="#f6" aria-label="Fuente 6">[6]</a></p></article>
+      </div>
+    </section>
+
+    <section class="section" id="experimentos" aria-labelledby="experiments-title">
+      <div class="section-heading"><h2 id="experiments-title">Dónde dirigimos la prueba</h2><p>Un comportamiento pedido no cuenta como espontáneo.</p></div>
+      <div class="experiments">
+        <article class="experiment"><h3>Elegir knights</h3><p>Se pidió ≥70% knights en v18/v19.</p><p class="result">Sirve para probar viabilidad; no demuestra preferencia natural.<a class="ref" href="#f1" aria-label="Fuente 1">[1]</a></p></article>
+        <article class="experiment"><h3>Chatear y engañar</h3><p>Dos partidas recibieron instrucciones de negociación o personajes: 46 y 107 mensajes.</p><p class="result">En las demás de esa muestra: 0–5. La directiva explica una diferencia de contexto.<a class="ref" href="#f5" aria-label="Fuente 5">[5]</a></p></article>
+        <article class="experiment"><h3>Amurallarse</h3><p>4 pruebas de v22 pidieron aperturas defensivas o muros; 15 fueron libres.</p><p class="result">El caso dirigido levantó 3 muros y una puerta, sin proteger la economía. No valida walling.<a class="ref" href="#f7" aria-label="Fuente 7">[7]</a></p></article>
+        <article class="experiment"><h3>Experimentos descartados</h3><p>Apuntar 700 ms dejó al knight sin golpear a un worker en fuga. Flechas a 16 no cumplieron el criterio en 2 pares de FFA.</p><p class="result">Quedaron 100 ms y 12 casillas/s. En las FFA también cambiaron los scripts; no se aisló solo la velocidad.<a class="ref" href="#f7" aria-label="Fuente 7">[7]</a><a class="ref" href="#f8" aria-label="Fuente 8">[8]</a></p></article>
+      </div>
+      <p class="closing"><strong>La duda sigue abierta:</strong> estamos cambiando tanto las opciones como los incentivos. Más bajas o más mensajes, por sí solos, no prueban una partida mejor.</p>
+    </section>
+
+    <details class="sources" id="fuentes"><summary>Fuentes y alcance</summary>
+      <p class="sources-intro">Resumen de cambios documentados en el repositorio y sesiones recuperadas con Pacifico. “Vimos” describe esas muestras, no causalidad. Los replays enlazados necesitan el servidor local. Corte: 9 de octubre de 2026.</p>
+      <ol class="source-list">
+        <li id="f1"><b>[1] Versiones v0–v20 y partidas</b><code>docs/experimentos-balance.md</code>, “Versiones de reglas”, “Resumen” y pruebas v17–v20. Incluye composición, peleas dirigidas y trasplantes de stats históricos sobre mecánicas v20.</li>
+        <li id="f2"><b>[2] Primeras partidas y aislamiento</b><code>docs/balance.md</code>, “Status (ruleset v0)”, “Archer” y “Harness fairness”. La victoria con defensas corresponde a <code>ef3532ef</code>; son observaciones históricas.</li>
+        <li id="f3"><b>[3] Puntaje, mapas y v16</b>Git: <code>4f6f333</code> (v12, revisión de 30 partidas), <code>74ed713</code> (v13, serie de 3 FFA), <code>13466d7</code> (v16, combate, construcción y guía).</li>
+        <li id="f4"><b>[4] v21 y v21b</b>Git: <code>34ab79e</code> y <code>a4f3038</code>. Diffs de <code>packages/shared/src/rules.ts</code> y resultados descritos en los commits. “Validated” era el nombre de la versión, no una conclusión vigente.</li>
+        <li id="f5"><b>[5] Desbloqueos y chat</b>Pacifico: sesión Claude <code>43242b18-28a2-40e3-b209-c24466d8f609</code>, mensajes sin herramientas 958–969; sesión <code>8cadc900-0ec5-4a82-a64f-3cec912bacba</code>, 50–62. Replays citados allí: <code>bd6acba5</code>, <code>eb16c5f4</code>, <code>796f00b9</code> y <code>7db68d33</code>. Resultados recuperados de esos registros.</li>
+        <li id="f6"><b>[6] Fiabilidad, estado y herramientas</b><code>docs/RELIABILITY.md</code>, <code>packages/sim/BALANCE-WORKFLOW.md</code> y <code>docs/CURRENT-RULES.md</code>. La revisión separa fallos operativos, datos de combate y decisiones del agente.</li>
+        <li id="f7"><b>[7] Expansión v22</b><code>BALANCE.md</code>, sección v22; <code>reports/balance-luna-20261008/</code>, selección, diferencias numéricas y resultados. Validación: <a href="http://localhost:5173/replay/2a3386d9">open</a>, <a href="http://localhost:5173/replay/65e1b1ec">ridge</a>, <a href="http://localhost:5173/replay/02101538">equipos</a>. La carpeta conserva “luna” aunque las 19 partidas fueron Sol.</li>
+        <li id="f8"><b>[8] v23 y candidato de proyectiles</b><code>reports/ffa-v23-20261008/manifest.json</code>; <code>reports/ffa-balance-20261009/review.json</code> y <code>comparison.json</code>. Replays: <a href="http://localhost:5173/replay/84c294f7">Luna</a>, <a href="http://localhost:5173/replay/da40e723">Sol</a>, <a href="http://localhost:5173/replay/cb2acb33">Terra</a>. A 16 casillas/s, el porcentaje de impactos cayó 41,4 y 48,8 puntos en los dos pares; también cambiaron las políticas de esquiva.</li>
+        <li id="f9"><b>[9] Progreso de órdenes y Claude</b><code>reports/order-progress-20261009/</code>; <code>reports/ffa-order-progress-claude-20261009/manifest.json</code> y auditorías. <a href="http://localhost:5173/replay/55c23a6c">Haiku</a> gana a 433,5 s; <a href="http://localhost:5173/replay/0fccbf5b">Opus</a> empata a 900 s. No hubo control sin el nuevo contexto.</li>
+        <li id="f10"><b>[10] Sin empates y revancha Opus</b><code>BALANCE.md</code>, sección v24; <code>reports/no-draws-20261009/</code>; <code>reports/ffa-no-draws-opus-20261009/comparison.json</code>. Mismo mapa quad-contested, semilla 419, posiciones, Opus 5.5 low y prompt; sesiones nuevas. Verificados 91 hashes del replay v23 y 61 del v24. Sin errores de scripts ni fallos operativos del sandbox.</li>
+        <li id="f11"><b>[11] Minas y mapa disputado</b><code>docs/RTS-DESIGN-RESEARCH.md</code>, “Economía fuera de la base”; <code>packages/shared/src/maps.ts</code>. Quad-contested mueve una mina de 700 por asiento desde (16,6) a (21,11), rotada por jugador; conserva 26.400 de mineral total.</li>
+        <li id="f12"><b>[12] Visor y experiencia</b>Git: <code>fc185ad</code> (animación diagonal), <code>36eb04b</code> (ruinas), <code>738da27</code> (watch/replay), <code>cbd2ae9</code> (niebla), <code>c84530b</code> (audio/puertas), <code>5dd0bfd</code> (selección/scripts), <code>31bf024</code> y <code>7cdcbd9</code> (Electron/biblioteca), <code>feec243</code> (daño/destrucción). También favicon, títulos y música propia: <code>a11ca40</code>, <code>7ff8c82</code>, <code>1a0f860</code>.</li>
+      </ol>
+    </details>
+  </main>
+  <footer><span>AoA / Bitácora local, 9 oct 2026</span><a href="#title">Volver arriba</a></footer>
+</div>
+<script>
+  (()=>{
+    const toolbar=document.getElementById('toolbar');
+    const search=document.getElementById('search');
+    const rows=[...document.querySelectorAll('.version-row')];
+    const groups=[...document.querySelectorAll('.history tbody')];
+    const buttons=[...document.querySelectorAll('.filter')];
+    const normalize=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    let filter='all';
+    const apply=()=>{
+      const query=normalize(search.value.trim());
+      let count=0;
+      rows.forEach(row=>{
+        const matchesFilter=filter==='all'||(filter==='recent'&&Number(row.dataset.version)>=16)||(filter==='observed'&&row.dataset.observed==='true');
+        const show=matchesFilter&&normalize(row.textContent).includes(query);
+        row.hidden=!show;if(show)count++;
+      });
+      groups.forEach(group=>group.hidden=![...group.querySelectorAll('.version-row')].some(row=>!row.hidden));
+      document.getElementById('count').textContent=`${count} de ${rows.length} versiones. — Sin resultado aislado registrado.`;
+      document.getElementById('no-results').hidden=count!==0;
+    };
+    buttons.forEach(button=>button.addEventListener('click',()=>{filter=button.dataset.filter;buttons.forEach(b=>b.setAttribute('aria-pressed',String(b===button)));apply();}));
+    search.addEventListener('input',apply);
+    const revealTarget=hash=>{
+      if(!hash||hash==='#')return;
+      const target=document.getElementById(decodeURIComponent(hash.slice(1)));
+      if(!target)return;
+      if(target.closest('.source-list'))document.getElementById('fuentes').open=true;
+      if(target.classList.contains('version-row')&&target.hidden){filter='all';search.value='';buttons.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.filter==='all')));apply();}
+      return target;
+    };
+    document.addEventListener('click',event=>{const a=event.target.closest('a[href^="#"]');if(a)revealTarget(a.hash);});
+    window.addEventListener('hashchange',()=>{const target=revealTarget(location.hash);if(target)target.scrollIntoView();});
+    toolbar.hidden=false;
+    apply();
+    const target=revealTarget(location.hash);if(target)requestAnimationFrame(()=>target.scrollIntoView());
+  })();
+</script>
+</body>
+</html>

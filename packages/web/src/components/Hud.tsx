@@ -1,6 +1,7 @@
-import { displayKind } from "../render/names";
+import { displayKind, displayGameText } from "../render/names";
 import { useSyncExternalStore, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { ChatMessage, DepositView, EntityView, GameEvent, PlayerStats, SpectatorView } from "@aoa/shared";
+import { mineralBalance, NEUTRAL_OWNER } from "@aoa/shared";
 import type { HoverInfo } from "../render/renderer";
 import { fmtTime, winnersOf } from "../api";
 import { Agent, Agents, agentText } from "./Agent";
@@ -11,7 +12,7 @@ import { highlightJs } from "../highlight";
 
 /**
  * The score list, as in Age of Empires: the clock (with the title on its left
- * in watch and replay), then every player in its colour with gold,
+ * in watch and replay), then every player in its colour with mineral,
  * population, kills and score, grouped by team in 2v2. With `onSelectPlayer`
  * a last column of eye buttons picks whose view the map shows, "all" at the bottom.
  */
@@ -33,7 +34,7 @@ export function PlayerList({ view, names, colors, selectedPlayer, onSelectPlayer
       {subtitle && <div className="scores-subtitle">{subtitle}</div>}
       <table>
         <thead>
-          <tr><th /><th>gold</th><th>pop</th><th>kills</th><th>score</th>{onSelectPlayer && <th className="view">view</th>}</tr>
+          <tr><th /><th>mineral</th><th>pop</th><th>kills</th><th>score</th>{onSelectPlayer && <th className="view">view</th>}</tr>
         </thead>
         {teams.map((t, i) => (
           <tbody key={t}>
@@ -65,7 +66,7 @@ function ViewButton({ on, label, onClick }: { on: boolean; label: string; onClic
 
 /** Always there, one line tall, so the list keeps its height when the first upgrade lands. */
 function UpgradesRow({ upgrades = {}, cols }: { upgrades?: Record<string, number>; cols: number }) {
-  const text = Object.entries(upgrades).map(([id, level]) => `${id.replaceAll("_", " ")} L${level}`).join(" · ");
+  const text = Object.entries(upgrades).map(([id, level]) => `${displayGameText(id).replaceAll("_", " ")} L${level}`).join(" · ");
   return <tr className="timing upgrades"><td colSpan={cols} title={text || undefined}>{text || "\u00a0"}</td></tr>;
 }
 
@@ -80,12 +81,19 @@ function PlayerRows({ p, cols, name, color, selected, onSelect }: { cols: number
             <span className="pid">({p.id})</span>
           </div>
         </td>
-        <td>{p.capital ?? "—"}</td>
+        <td>{mineralBalance(p) ?? "—"}</td>
         <td>{p.pop ?? "—"}/{p.popCap}{p.queuedPop ? ` (+${p.queuedPop})` : ""}</td>
         <td>{p.kills ?? "—"}</td>
         <td>{p.score ?? "—"}</td>
         {onSelect && <td className="view"><ViewButton on={!!selected} label={`View as ${name} (${p.id})`} onClick={onSelect} /></td>}
       </tr>
+      {(p.scriptRuntime || p.agentActivity) && <tr><td colSpan={cols}>
+        {p.scriptRuntime ? `Scripts stopped at tick ${p.scriptRuntime.tick}: ${p.scriptRuntime.message}`
+          : p.agentActivity?.state === "provider_wait" ? `Provider retry pending${p.agentActivity.retryAt ? ` until ${p.agentActivity.retryAt}` : ""}`
+          : p.agentActivity?.state === "connector_retry" ? "Connector retry pending"
+          : p.agentActivity?.state === "deciding" ? "Model deciding"
+          : p.agentActivity?.state === "stopped" ? "Connector stopped" : "Between decisions"}
+      </td></tr>}
       <UpgradesRow upgrades={p.upgrades} cols={cols} />
     </>
   );
@@ -109,15 +117,17 @@ function Who({ id, names, colors }: { id: string; names: Names; colors: Colors }
 
 function EventText({ e, names, colors }: { e: GameEvent; names: Names; colors: Colors }) {
   const who = "owner" in e ? <Who id={e.owner} names={names} colors={colors} /> : null;
+  const kind = "kind" in e ? displayKind(e.kind) : "";
+  const namedKind = `${/^[aeiou]/i.test(kind) ? "an" : "a"} ${kind}`;
   switch (e.type) {
-    case "death": return <>{who} lost a {displayKind(e.kind)}</>;
-    case "spawn": return <>{who} {["knight", "ranger", "worker"].includes(e.kind) ? "trained" : "built"} a {displayKind(e.kind)}</>;
+    case "death": return e.owner === NEUTRAL_OWNER ? <>Neutral wall destroyed</> : <>{who} lost {namedKind}</>;
+    case "spawn": return <>{who} {["knight", "archer", "worker"].includes(kind) ? "trained" : "built"} {namedKind}</>;
     case "chat": return <ChatText from={e.owner} text={e.text} channel={e.channel} to={e.to} names={names} colors={colors} />;
     case "eliminated": return <>{who} is out</>;
     case "match_end": return <b>The battle is over</b>;
-    case "construction_started": return <>{who} started building a {displayKind(e.kind)}</>;
-    case "research_started": return <>{who} researching {e.upgrade.replaceAll("_", " ")} L{e.level}</>;
-    case "upgrade_completed": return <>{who} completed {e.upgrade.replaceAll("_", " ")} L{e.level}</>;
+    case "construction_started": return <>{who} started building {namedKind}</>;
+    case "research_started": return <>{who} researching {displayGameText(e.upgrade).replaceAll("_", " ")} L{e.level}</>;
+    case "upgrade_completed": return <>{who} completed {displayGameText(e.upgrade).replaceAll("_", " ")} L{e.level}</>;
     default: return null;
   }
 }
@@ -260,19 +270,20 @@ export function Tooltip({ hover, names = {}, colors = {} }: { hover: HoverInfo |
       <span className="muted">({hover.x}, {hover.y})</span>{" "}
       {e && (
         <>
-          <b>{displayKind(e.kind)}</b> {e.id} · <Agent id={e.owner} name={names[e.owner]} color={colors[e.owner]} /> · {e.hp}/{e.maxHp} hp{e.order ? ` · ${e.order}` : ""}
+          <b>{displayKind(e.kind)}</b> {e.id} · <Agent id={e.owner} name={names[e.owner]} color={colors[e.owner]} /> · {e.hp}/{e.maxHp} hp{e.order ? ` · ${displayGameText(e.order)}${e.orderSuspended ? " (suspended)" : ""}` : ""}
           {e.vital ? " · VITAL" : ""}
-          {e.construction && ` · building ${e.construction.kind} (${e.construction.x},${e.construction.y})`}
+          {e.construction && ` · building ${displayKind(e.construction.kind)} (${e.construction.x},${e.construction.y})`}
           {e.stats && ` · atk ${e.stats.atk} · def ${e.stats.def} · range ${e.stats.range} · attack ${e.stats.attackMs}ms · move ${e.stats.moveMs}ms`}
-          {e.doing ? ` · ${e.doing}` : e.heading ? ` · ${e.heading}` : ""}
+          {e.doing ? ` · ${displayGameText(e.doing)}` : e.heading ? ` · ${e.heading}` : ""}
         </>
       )}
       {d && (
         <>
-          <b>gold mine</b> {d.id} · {d.amount} left
+          <b>mineral mine</b> {d.id} · {d.amount} left
         </>
       )}
       {hover.rock && <b>impassable rock</b>}
+      {hover.terrainWall && <b>indestructible terrain wall</b>}
     </div>
   );
 }
@@ -282,9 +293,9 @@ export function Tooltip({ hover, names = {}, colors = {} }: { hover: HoverInfo |
  * script its kind runs for its owner. `entity` is null while it is not visible (or dead);
  * `last` is the last time it was seen.
  */
-export function UnitPanel({ entity, last, script, tickMs, names = {}, colors = {}, onClose }: {
+export function UnitPanel({ entity, last, script, tickMs, names = {}, colors = {}, reactiveOrders = false, onClose }: {
   entity: EntityView | null; last: EntityView; script: LoadedScript | null | undefined; tickMs: number;
-  names?: Names; colors?: Colors; onClose: () => void;
+  names?: Names; colors?: Colors; reactiveOrders?: boolean; onClose: () => void;
 }) {
   const e = entity ?? last;
   const pct = Math.max(0, Math.min(100, (100 * e.hp) / Math.max(1, e.maxHp)));
@@ -293,24 +304,24 @@ export function UnitPanel({ entity, last, script, tickMs, names = {}, colors = {
     e.ruin && "ruin",
     e.stats && `atk ${e.stats.atk} · def ${e.stats.def} · range ${e.stats.range} · attack ${e.stats.attackMs}ms${e.stats.moveMs ? ` · move ${e.stats.moveMs}ms` : ""}`,
     e.carrying ? `carrying ${e.carrying}` : "",
-    e.construction && `building ${e.construction.kind} (${e.construction.x},${e.construction.y})`,
-    e.training?.length ? `training ${e.training.map((t) => t.kind).join(", ")}` : "",
+    e.construction && `building ${displayKind(e.construction.kind)} (${e.construction.x},${e.construction.y})`,
+    e.training?.length ? `training ${e.training.map((t) => displayKind(t.kind)).join(", ")}` : "",
   ].filter(Boolean);
   return (
     <div className="unit-panel">
       <button className="unit-close" onClick={onClose} aria-label="close" title="close (Esc)">×</button>
       <div className="unit-head">
         <b>{displayKind(e.kind)}</b> {e.id} · <Agent id={e.owner} name={names[e.owner]} color={colors[e.owner]} /> · ({e.x}, {e.y})
-        <span className="unit-hp"><span className={`unit-hp-bar bg${colors[e.owner] ?? 0}`} style={{ width: `${pct}%` }} /></span>{e.hp}/{e.maxHp} hp
+        <span className="unit-hp"><span className={`unit-hp-bar${e.owner === NEUTRAL_OWNER ? "" : ` bg${colors[e.owner] ?? 0}`}`} style={{ width: `${pct}%`, ...(e.owner === NEUTRAL_OWNER ? { background: "var(--grey)" } : {}) }} /></span>{e.hp}/{e.maxHp} hp
       </div>
       {!entity && <div className="muted">not visible from this view</div>}
-      {entity && <div>{e.order ? <>order: <b>{e.order}</b></> : "running its script"}{e.doing ? ` · now ${e.doing}` : e.heading ? ` · ${e.heading}` : ""}</div>}
+      {entity && <div>{e.ruin ? "Inert, destructible ruin" : e.order ? <>order: <b>{displayGameText(e.order)}</b>{e.orderSuspended ? " (suspended by script)" : ""}</> : "running its script"}{e.doing ? ` · now ${displayGameText(e.doing)}` : e.heading ? ` · ${e.heading}` : ""}</div>}
       {details.length > 0 && <div className="muted">{details.join(" · ")}</div>}
-      {script === undefined ? <div className="muted">loading script…</div> : script === null ? <div className="muted">no script</div> : (
+      {e.ruin ? null : script === undefined ? <div className="muted">loading script…</div> : script === null ? <div className="muted">no script</div> : (
         <div className="unit-script">
           <div className="muted">
             {displayKind(e.kind)} script of <Agent id={e.owner} name={names[e.owner]} color={colors[e.owner]} />: {script.custom ? `custom${script.sinceTick !== undefined ? `, loaded at ${fmtTime(script.sinceTick * tickMs)}` : ""}` : "default"}
-            {e.order ? " · paused while the order runs" : ""}
+            {e.order ? reactiveOrders ? " · runs during orders" : " · paused while the order runs" : ""}
           </div>
           <pre><code>{highlightJs(script.code.trim())}</code></pre>
         </div>
@@ -319,12 +330,12 @@ export function UnitPanel({ entity, last, script, tickMs, names = {}, colors = {
   );
 }
 
-/** A clicked gold mine: where it is and how much is left. */
+/** A clicked mineral mine: where it is and how much is left. */
 export function DepositPanel({ deposit, onClose }: { deposit: DepositView; onClose: () => void }) {
   return (
     <div className="unit-panel">
       <button className="unit-close" onClick={onClose} aria-label="close" title="close (Esc)">×</button>
-      <div className="unit-head"><b>gold mine</b> {deposit.id} · ({deposit.x}, {deposit.y}) · {deposit.amount} left</div>
+      <div className="unit-head"><b>mineral mine</b> {deposit.id} · ({deposit.x}, {deposit.y}) · {deposit.amount} left</div>
       {deposit.lastSeenMs !== undefined && <div className="muted">as last seen by this player at {fmtTime(deposit.lastSeenMs)}</div>}
     </div>
   );
@@ -336,8 +347,8 @@ export function OutcomeBanner({ view, names, colors = {}, dismissible, children 
   const o = view.outcome;
   if (!o) return null;
   const winners = winnersOf(o);
-  const title = winners.length ? <><Agents ids={winners} names={names} colors={colors} /> {winners.length > 1 ? "are" : "is"} victorious</> : "Stalemate";
-  const reason = o.reason === "vital_lost" ? "a vital unit has fallen" : o.reason === "timeout" ? (winners.length ? "time ran out: victory on score under this replay's rules" : "time limit reached: draw") : "forfeit";
+  const title = winners.length ? <><Agents ids={winners} names={names} colors={colors} /> {winners.length > 1 ? "are" : "is"} victorious</> : o.allDefeated ? "All players defeated" : "Stalemate";
+  const reason = o.reason === "vital_lost" ? (o.allDefeated ? "no surviving side: everyone loses" : "a vital unit has fallen") : o.reason === "timeout" ? (winners.length ? "time ran out: victory on score under this replay's rules" : o.allDefeated ? "time limit reached: everyone loses" : "time limit reached: draw") : "forfeit";
   if (!open) return <button className="banner-mini" onClick={() => setOpen(true)} title="show the result">{title}</button>;
   return (
     <div className="banner">

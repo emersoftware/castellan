@@ -1,4 +1,4 @@
-// Publish reviewed Knight/King/Worker animation exports. Ranger has its own release markers.
+// Publish reviewed Knight/King/Worker animation exports. Archer has its own release markers.
 // node packages/web/scripts/unit-animations.mjs
 import { mkdirSync, copyFileSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';

@@ -1,12 +1,14 @@
 import worker from '../../public/sprites/worker/manifest.json';
 import knight from '../../public/sprites/knight/manifest.json';
 import king from '../../public/sprites/king/manifest.json';
-import ranger from '../../public/sprites/ranger/manifest.json';
-import { rangerAnimation, SHOT_RECOVERY_MS, type RangerShot } from './rangerAnimation';
+import archer from '../../public/sprites/archer/manifest.json';
+import { archerAnimation, SHOT_RECOVERY_MS, type ArcherShot } from './archerAnimation';
 import type { AnimationFrame } from './sprites';
+import { displayKind } from './names';
 
 function unitAtlas(kind: string): Partial<Record<AnimationFrame['action'], { image: string; available?: boolean; impactFrames?: number[]; fps: number; frameCount: number }>> {
-  return kind === 'ranger' ? ranger : kind === 'knight' ? knight : kind === 'king' || kind === 'agent' ? king : kind === 'worker' ? worker : {};
+  kind = displayKind(kind);
+  return kind === 'archer' ? archer : kind === 'knight' ? knight : kind === 'king' || kind === 'agent' ? king : kind === 'worker' ? worker : {};
 }
 export function hasUnitAnimation(kind: string, action: AnimationFrame['action']): boolean {
   const atlas = unitAtlas(kind);
@@ -22,22 +24,24 @@ export function unitDeathAnimation(kind: string, elapsedMs: number): AnimationFr
 
 const ROW = [0, 1, 2, 3, 4, 3, 2, 1];
 export const MELEE_RECOVERY_MS = 400;
-export const animatedUnit = (kind: string) => ['ranger', 'knight', 'king', 'agent', 'worker'].includes(kind);
-export const recoveryMs = (kind: string) => kind === 'ranger' ? SHOT_RECOVERY_MS : MELEE_RECOVERY_MS;
+export const animatedUnit = (kind: string) => ['archer', 'knight', 'king', 'worker'].includes(displayKind(kind));
+export const recoveryMs = (kind: string) => displayKind(kind) === 'archer' ? SHOT_RECOVERY_MS : MELEE_RECOVERY_MS;
 
-// The source clips contain different numbers of steps: the Ranger loop covers
+// The source clips contain different numbers of steps: the Archer loop covers
 // roughly one tile of foot travel; Knight/King/Worker cover two. Drive phase by world
 // distance so faster units and diagonal moves take proportionally more steps.
 export function walkAnimation(kind: string, distance: number): AnimationFrame {
+  kind = displayKind(kind);
   const meta = unitAtlas(kind).walk!;
-  const tilesPerLoop = kind === 'ranger' ? 1 : 2;
+  const tilesPerLoop = kind === 'archer' ? 1 : 2;
   return { action: 'walk', frame: Math.floor(Math.max(0, distance) / tilesPerLoop * meta.frameCount) % meta.frameCount };
 }
 
 /** Attack events already applied damage: play from impact, never delay melee. */
-export function unitAnimation(kind: string, timeMs: number, moving: boolean, strike?: RangerShot, distance = 0): AnimationFrame | undefined {
-  if (kind === 'ranger') {
-    const frame = rangerAnimation(timeMs, moving, strike);
+export function unitAnimation(kind: string, timeMs: number, moving: boolean, strike?: ArcherShot, distance = 0): AnimationFrame | undefined {
+  kind = displayKind(kind);
+  if (kind === 'archer') {
+    const frame = archerAnimation(timeMs, moving, strike);
     return frame.action === 'walk' ? walkAnimation(kind, distance) : frame;
   }
   if (!animatedUnit(kind)) return undefined;

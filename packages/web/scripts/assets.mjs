@@ -35,13 +35,13 @@ const LAYOUT = {
     { name: "wallpost", cx: 1330, cy: 880, dw: 220, fw: 30 },
   ],
   "resources.png": [
-    { name: "gold", cx: 560, cy: 760, dw: 400, fw: 32 },
+    { name: "mineral", cx: 560, cy: 760, dw: 400, fw: 32 },
     { name: "rock", cx: 1100, cy: 760, dw: 400, fw: 34 },
   ],
   "king_sheet.png": unitRow("king", 29),
   "worker_sheet.png": unitRow("worker", 25),
   "knight_sheet.png": unitRow("knight", 29),
-  "ranger_sheet.png": unitRow("ranger", 28),
+  "ranger_sheet.png": unitRow("archer", 28),
 };
 const TEMPLATE_W = 1536;
 

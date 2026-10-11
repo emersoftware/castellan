@@ -26,8 +26,8 @@ export function Versus({ players }: { players: P[] }) {
   );
 }
 
-/** "a won", "a & b won" or "draw". */
+/** Winning side, everyone defeated, or a historical draw. */
 export function wonText(players: P[], o: Outcome): ReactNode {
   const w = winnersOf(o);
-  return w.length ? <><Agents ids={w} names={Object.fromEntries(players.map((p) => [p.id, p.name]))} colors={playerColors(players)} /> won</> : "draw";
+  return w.length ? <><Agents ids={w} names={Object.fromEntries(players.map((p) => [p.id, p.name]))} colors={playerColors(players)} /> won</> : o.allDefeated ? "all players defeated" : "draw";
 }

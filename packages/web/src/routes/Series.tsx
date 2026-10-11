@@ -51,13 +51,13 @@ function SeriesBadge({ series, number, live, following, onSelect }: {
   const colors = playerColors(series.players);
   const names = Object.fromEntries(series.players.map((p) => [p.id, p.name]));
   const result = series.status === "finished"
-    ? series.winners?.length ? `${series.winners.map((w) => agentText(w, names[w])).join(" + ")} wins the series` : "Series drawn"
+    ? series.winners?.length ? `${series.winners.map((w) => agentText(w, names[w])).join(" + ")} wins the series` : series.allDefeated ? "All players lost the series" : "Series drawn"
     : series.status === "error" ? "Series paused: unable to save progress" : `Game ${series.currentGame} of 3`;
   return (
     <span className="series-badge" title={result} aria-label={result}>
       <span className="series-label">series</span>
       <span className="series-score">
-        {series.players.map((p, i) => <Fragment key={p.id}>{i > 0 && "–"}<b className={`pc${colors[p.id]}`} title={agentText(p.id, p.name)}>{series.score[p.id]}</b></Fragment>)}
+        {series.players.map((p, i) => <Fragment key={p.id}>{i > 0 && "–"}<b className={`pc${colors[p.id]}`} title={agentText(p.id, p.name)}>{series.losses ? `${series.score[p.id]}W/${series.losses[p.id]}L` : series.score[p.id]}</b></Fragment>)}
       </span>
       {[1, 2, 3].map((n) => {
         const g = series.games.find((g) => g.number === n);

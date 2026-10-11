@@ -11,6 +11,7 @@ import { Rectangle, Texture } from "pixi.js";
 import { xrayMark } from "./xray";
 import { averageTerrainPatches } from "./terrain";
 import { isCharacter, normalizeCharacterContrast } from "./characterContrast";
+import { displayKind } from "./names";
 
 export const TILE_W = 32;
 export const TILE_H = 16;
@@ -38,8 +39,8 @@ export interface Facing {
 
 /** Game kind → sprite file. */
 const FILES: Record<string, string> = {
-  agent: "king", king: "king", worker: "worker", knight: "knight", ranger: "ranger",
-  castle: "castle", nexus: "castle", door: "door", turret: "tower", wall: "wall", wallpost: "wallpost", deposit: "minerals-full", rock: "rock",
+  agent: "king", king: "king", worker: "worker", knight: "knight", archer: "archer",
+  castle: "castle", nexus: "castle", door: "door", tower: "tower", wall: "wall", wallpost: "wallpost", deposit: "minerals-full", rock: "rock",
 };
 
 /**
@@ -98,7 +99,7 @@ async function buildSprites(base: string): Promise<SpriteSet> {
   );
   const fallback = arts.get("knight") ?? arts.get("knight_2") ?? [...arts.values()][0];
   const animations = new Map<string, SpriteArt[][]>();
-  await Promise.all(["ranger", "knight", "king", "worker", "castle", "turret", "wall", "wallpost", "door", "door-open", "wall-door-left", "wall-door-right", "wall-door-both"].map(async kind => {
+  await Promise.all(["archer", "knight", "king", "worker", "castle", "tower", "wall", "wallpost", "door", "door-open", "wall-door-left", "wall-door-right", "wall-door-both"].map(async kind => {
     const metadata = await fetch(`${base}/${kind}/manifest.json`).then((r) => r.json()) as Partial<Record<AnimationFrame["action"], {
       available?: boolean; masks?: boolean; image: string; frameCount: number; columns?: number; frameWidth: number; frameHeight: number; storedScale: number; anchorX: number; anchorY: number; rows: string[];
     }>>;
@@ -115,9 +116,10 @@ async function buildSprites(base: string): Promise<SpriteSet> {
     }));
   }));
   return (kind, dir = 2, animation) => {
+    kind = displayKind(kind);
     if (animation) {
       const canonical = kind === "agent" ? "king" : kind === "nexus" ? "castle" : kind;
-      const building = ["castle", "turret", "wall", "wallpost", "door", "door-open", "wall-door-left", "wall-door-right", "wall-door-both"].includes(canonical);
+      const building = ["castle", "tower", "wall", "wallpost", "door", "door-open", "wall-door-left", "wall-door-right", "wall-door-both"].includes(canonical);
       const frames = animations.get(`${canonical}:${animation.action}`)?.[building ? 0 : SHEET_VIEW[dir]];
       if (frames) return { art: frames[Math.max(0, Math.min(frames.length - 1, Math.floor(animation.frame)))], flip: building ? false : MIRRORED[dir] };
     }

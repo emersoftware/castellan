@@ -22,7 +22,7 @@ try {
     const renderer = await GameRenderer.create(host, { ...rules, map: { ...rules.map, width: 24, height: 24, walls: [], deposits: [], sharedDeposits: [] } },
       { a: 0, b: 1, c: 2, d: 3 }, { interactive: false });
     const clock = renderer.manualClock();
-    const kinds = ['castle', 'turret', 'wall', 'door'];
+    const kinds = ['castle', 'tower', 'wall', 'door'];
     const entities = kinds.flatMap((kind, row) => ['a', 'b', 'c', 'd'].map((owner, col) => ({ id: `${kind}-${col}`, kind, owner,
       x: 3 + row * 3 + col * 3, y: 12 + row * 3 - col * 3, hp: 100, maxHp: 100 })));
     const neighbors = entities.filter(e => e.kind === 'wall').map(e => ({ ...e, id: `${e.id}-neighbor`, y: e.y + 1 }));

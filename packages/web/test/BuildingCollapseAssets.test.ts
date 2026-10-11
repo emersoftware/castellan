@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import sharp from 'sharp';
 import { readFile } from 'node:fs/promises';
 
-it.each(['castle', 'turret', 'wall', 'wallpost', 'door', 'door-open', 'wall-door-left', 'wall-door-right', 'wall-door-both'])('%s collapse has clear borders, lower rubble and a held endpoint', async kind => {
+it.each(['castle', 'tower', 'wall', 'wallpost', 'door', 'door-open', 'wall-door-left', 'wall-door-right', 'wall-door-both'])('%s collapse has clear borders, lower rubble and a held endpoint', async kind => {
   const dir = new URL(`../public/sprites/${kind}/`, import.meta.url);
   const { death: m } = JSON.parse(await readFile(new URL('manifest.json', dir), 'utf8'));
   const { data, info } = await sharp(new URL(m.image, dir).pathname).ensureAlpha().raw().toBuffer({ resolveWithObject: true });

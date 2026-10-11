@@ -39,7 +39,7 @@ void main(void) {
   vec3 col;
   if (n.r > 0.9 && n.g > 0.32 && n.g < 0.6 && n.b < 0.15) col = ${pick(RAMPS.fire.steps)};
   else if (n.r > 0.6 && n.g > 0.6 && n.b > 0.6) col = ${pick(RAMPS.neutral.steps)};
-  else if (n.r > 0.6 && n.g > 0.6) col = ${pick(RAMPS.gold.steps)};
+  else if (n.r > 0.6 && n.g > 0.6) col = ${pick(RAMPS.mineral.steps)};
   else if (n.g > 0.6 && n.b > 0.6) col = ${pick(RAMPS.teamC.steps)};
   else if (n.r > 0.6 && n.b > 0.6) col = ${pick(RAMPS.teamD.steps)};
   else if (n.b >= n.r && n.b >= n.g) col = ${pick(RAMPS.teamA.steps)};

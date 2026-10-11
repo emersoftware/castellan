@@ -62,7 +62,7 @@ it("keeps ordinary outlines separate from building-only x-ray masks", () => {
     texture: Texture.EMPTY, silhouette: Texture.EMPTY, xray: Array(4).fill(Texture.EMPTY), outline: Array(4).fill(Texture.EMPTY),
     scale: 1, anchorX: 0.5, anchorY: 1,
   } });
-  const entities = ["worker", "king", "knight", "ranger", "castle", "turret", "wall"].flatMap((kind) =>
+  const entities = ["worker", "king", "knight", "archer", "castle", "tower", "wall"].flatMap((kind) =>
     ["p1", "p2"].map((owner) => ({ id: `${kind}-${owner}`, kind, owner, x: 4, y: 4, hp: 40, maxHp: 40, vital: false })),
   );
   renderer.setFrame({ tick: 1, entities, deposits: [], events: [] } as unknown as SpectatorView, 100);
@@ -110,7 +110,7 @@ it("uses each deposit's capacity across every rotated quad seat and shared depos
 });
 
 it.each(["shooter", "target"])("places a newly spawned or revealed %s before drawing its first arrow", (newEntity) => {
-  // Replay aca7a69c, tick 669: A1's ranger spawns and attacks four tiles away.
+  // Replay aca7a69c, tick 669: A1's archer spawns and attacks four tiles away.
   // Construct real Pixi scene objects without starting a browser/GPU ticker.
   const renderer = Reflect.construct(GameRenderer, [document.createElement("div"), rules, { p1: 0, p4: 3 }]) as GameRenderer;
   const internal = renderer as unknown as RendererInternals;
@@ -120,7 +120,7 @@ it.each(["shooter", "target"])("places a newly spawned or revealed %s before dra
     texture: Texture.EMPTY, silhouette: Texture.EMPTY, xray: Array(4).fill(Texture.EMPTY),
     scale: 1, anchorX: 0.5, anchorY: 1,
   } });
-  const shooter: EntityView = { id: "e43", kind: "ranger", owner: "p1", x: 59, y: 60, hp: 50, maxHp: 50, vital: false };
+  const shooter: EntityView = { id: "e43", kind: "archer", owner: "p1", x: 59, y: 60, hp: 50, maxHp: 50, vital: false };
   const target: EntityView = { id: "e34", kind: "worker", owner: "p4", x: 55, y: 61, hp: 2, maxHp: 40, vital: false };
   const existing = newEntity === "shooter" ? target : shooter;
   const frame = { tick: 669, entities: [existing], deposits: [], events: [] } as unknown as SpectatorView;

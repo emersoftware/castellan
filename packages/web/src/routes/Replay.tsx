@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { ChatMessage, GameEvent, SpectatorView } from "@aoa/shared";
+import { NEUTRAL_OWNER } from "@aoa/shared";
 import { api, playerColors, fmtTime } from "../api";
 import { playerPerspective } from "../perspective";
 import { sfx } from "../audio/sfx";
@@ -55,7 +56,7 @@ function upTo<T extends { tick: number }>(list: T[], tick: number): T[] {
   return list.slice(0, lo);
 }
 
-type Mark = { tick: number; kind: "death" | "eliminated" | "chat" | "end"; color: number; count: number; label: string };
+type Mark = { tick: number; kind: "death" | "eliminated" | "chat" | "end"; color?: number; count: number; label: string };
 
 /** Timeline marks, grouped in half-percent buckets so a battle is one mark, not a hundred. */
 function marksOf(events: GameEvent[], chat: ChatMessage[], total: number, colors: Record<string, number>, names: Record<string, string>): Mark[] {
@@ -64,10 +65,10 @@ function marksOf(events: GameEvent[], chat: ChatMessage[], total: number, colors
     const key = `${kind}:${owner ?? ""}:${Math.round((tick / Math.max(1, total - 1)) * 200)}`;
     const m = buckets.get(key);
     if (m) { m.count++; return; }
-    buckets.set(key, { tick, kind, color: colors[owner ?? ""] ?? 0, count: 1, label: `${owner ? `${agentText(owner, names[owner])} ` : ""}${what}` });
+    buckets.set(key, { tick, kind, color: owner === NEUTRAL_OWNER ? undefined : colors[owner ?? ""] ?? 0, count: 1, label: `${owner ? `${agentText(owner, names[owner])} ` : ""}${what}` });
   };
   for (const e of events) {
-    if (e.type === "death") add(e.tick, "death", e.owner, "lost units");
+    if (e.type === "death") add(e.tick, "death", e.owner, e.owner === NEUTRAL_OWNER ? "wall destroyed" : "lost units");
     else if (e.type === "eliminated") add(e.tick, "eliminated", e.owner, "is out");
     else if (e.type === "match_end") add(e.tick, "end", undefined, "the battle is over");
   }
@@ -206,7 +207,7 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
       <div className="stage">
         {replay.data && <GameCanvas key={selectedPlayer ?? "all"} ruleset={replay.data.ruleset} colors={colors} frame={display} tickMs={tickMs / speed} paused={!playing} jumpKey={jumpKey} onHover={setHover} selected={unit.selected} onSelect={unit.setSelected} sound={sound} />}
         {unit.deposit ? <DepositPanel deposit={unit.deposit} onClose={() => unit.setSelected(null)} />
-          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} tickMs={tickMs} names={names} colors={colors} onClose={() => unit.setSelected(null)} />
+          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} tickMs={tickMs} names={names} colors={colors} reactiveOrders={replay.data?.ruleset.reactiveOrders} onClose={() => unit.setSelected(null)} />
           : <Tooltip hover={hover} names={names} colors={colors} />}
         <div className="corner">
           <Link to="/battles"><Arrow dir="left" /> Battles</Link>
@@ -221,7 +222,7 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
         <div className="timeline">
           <div className="marks">
             {marks.map((m) => (
-              <button key={`${m.kind}-${m.tick}-${m.color}`} className={`mark ${m.kind} bg${m.color}`} style={{ left: pct(m.tick) }}
+              <button key={`${m.kind}-${m.tick}-${m.color}`} className={`mark ${m.kind}${m.color === undefined ? "" : ` bg${m.color}`}`} style={{ left: pct(m.tick), ...(m.color === undefined ? { background: "var(--grey)" } : {}) }}
                 title={`${fmtTime(m.tick * tickMs)} ${m.label}${m.count > 1 ? ` ×${m.count}` : ""}`} onClick={() => seekTo(m.tick)} />
             ))}
           </div>
@@ -239,7 +240,9 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
         </span>
         <SoundToggle />
         <span className={`check ${check ? (check.verified ? "ok" : "bad") : ""}`} title="the browser re-simulated the match and compared state hashes">
-          {error ? `error: ${error}` : !check ? `simulating ${loaded}/${total}` : check.verified ? "verified" : `desync at ${check.desyncAt}`}
+          {error ? `error: ${error}` : !check ? `simulating ${loaded}/${total}` : check.verified
+            ? `verified${replay.data?.experiment?.operationalFailures?.length ? ` · ${replay.data.experiment.operationalFailures.length} recorded script interruptions` : ""}`
+            : `desync at ${check.desyncAt}`}
         </span>
       </div>
 

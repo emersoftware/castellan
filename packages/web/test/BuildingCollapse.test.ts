@@ -8,7 +8,7 @@ import { PLAYER_RAMPS } from '../src/render/palette';
 import type { SpriteSet } from '../src/render/sprites';
 
 const cases = [
-  { kind: 'castle', art: 'castle' }, { kind: 'nexus', art: 'nexus' }, { kind: 'turret', art: 'turret' },
+  { kind: 'castle', art: 'castle' }, { kind: 'nexus', art: 'nexus' }, { kind: 'tower', art: 'tower' },
   { kind: 'wall', art: 'wallpost' },
   { kind: 'wall', art: 'wall', neighbor: 'wall' },
   { kind: 'wall', art: 'wall-door-left', neighbor: 'door' },
@@ -97,7 +97,7 @@ it('applies replay speed changes, completes after the final snapshot and cleans 
 });
 
 it('does not create a collapse when a building disappears into fog', () => {
-  const h = setup('turret');
+  const h = setup('tower');
   h.renderer.setFrame({ ...h.frame(2, []), visibility: Array(8).fill('00000000') }, 100);
   expect(h.sprite.destroyed).toBe(true);
   expect(h.internal.effects).toHaveLength(0);

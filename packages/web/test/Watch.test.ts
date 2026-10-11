@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Watch } from "../src/routes/Watch";
+import { api, spectateUrl } from "../src/api";
 
 vi.mock("@tanstack/react-router", () => ({ useParams: () => ({ id: "test" }), Link: () => null }));
 vi.mock("@tanstack/react-query", () => ({
@@ -37,6 +38,7 @@ afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   vi.unstubAllGlobals();
+  history.replaceState(null, "", "/");
 });
 
 it.each(["running", "finished"])("uses websocket %s over stale lobby prep status", async (status) => {
@@ -52,4 +54,20 @@ it("opens the saved replay when a finished room is no longer in server memory", 
   await act(async () => socket.onclose!({ code: 4404 }));
   expect(host.textContent).toContain("Saved replay test");
   expect(host.textContent).not.toContain("reconnecting");
+});
+
+it("explains denied live access without retrying or showing the prep countdown", async () => {
+  await act(async () => socket.onclose!({ code: 4403 }));
+  expect(host.textContent).toContain("Private live match");
+  expect(host.textContent).not.toContain("The battle begins in");
+  expect(host.textContent).not.toContain("reconnecting");
+});
+
+it("uses the host capability for both spectator endpoints", async () => {
+  history.replaceState(null, "", "/watch/test#spectator=host-capability");
+  expect(new URL(spectateUrl("test")).searchParams.get("spectator")).toBe("host-capability");
+  const request = vi.fn(async () => ({ ok: true, headers: new Headers({ "content-type": "application/json" }), json: async () => ({}) }));
+  vi.stubGlobal("fetch", request);
+  await api.roomScripts("test");
+  expect(request).toHaveBeenCalledWith("/rooms/test/scripts", { headers: { authorization: "Bearer host-capability" } });
 });

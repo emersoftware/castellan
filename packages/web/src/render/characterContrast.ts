@@ -35,4 +35,4 @@ export function normalizeCharacterContrast(pixels: Uint8ClampedArray): void {
   }
 }
 
-export const isCharacter = (name: string) => /^(agent|king|knight|ranger|worker)(?:_\d+)?$/.test(name);
+export const isCharacter = (name: string) => /^(agent|king|knight|archer|worker)(?:_\d+)?$/.test(name);

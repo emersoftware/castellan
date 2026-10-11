@@ -36,7 +36,7 @@ blds += diamond(1050, 880, 120);
 blds += diamond(1330, 880, 110);
 await sharp(Buffer.from(svg(W, H, blds))).png().toFile(resolve(OUT, "buildings.png"));
 
-// Resources and terrain: gold mine and rock outcrop on 1×1 tiles.
+// Resources and terrain: mineral deposit and rock outcrop on 1×1 tiles.
 let res = cube(110, 170, 60);
 res += diamond(560, 760, 200);
 res += diamond(1100, 760, 200);

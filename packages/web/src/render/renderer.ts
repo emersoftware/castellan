@@ -1,6 +1,6 @@
 /**
  * Isometric renderer in the spirit of Age of Empires, drawn through a
- * monochrome-ramp dither: each side, the grass, the gold and the rest each
+ * monochrome-ramp dither: each side, the grass, the mineral and the rest each
  * live on their own black-to-light ramp. Feed it one state per game tick with `setFrame`; it
  * interpolates movement, turns events into effects and sounds, and leaves
  * corpses on the field.
@@ -10,11 +10,13 @@ import type { DepositView, EntityView, GameEvent, ProjectileView, Ruleset, Spect
 import { TILE_H, TILE_W, loadSprites, screenDir, terrainTexture, type SpriteArt, type SpriteSet } from "./sprites";
 import { createXrayFilter, depthTint, occluderTint } from "./xray";
 import { createDitherFilter } from "./dither";
+import { createDissolveFilter } from "./dissolve";
 import { RAMPS, PLAYER_RAMPS, dim } from "./palette";
 import { depositSprite, initialDepositAmount } from "./deposits";
-import { type RangerShot } from "./rangerAnimation";
+import { type ArcherShot } from "./archerAnimation";
+import { displayKind } from "./names";
 
-import { barrierAxes } from "@aoa/shared";
+import { barrierAxes, NEUTRAL_OWNER } from "@aoa/shared";
 
 import { animatedUnit, unitAnimation, recoveryMs, hasUnitAnimation, unitDeathAnimation, unitMiningAnimation, miningStrikes } from "./unitAnimation";
 import { buildingCollapse } from "./buildingCollapse";
@@ -25,6 +27,7 @@ export interface HoverInfo {
   x: number;
   y: number;
   rock?: boolean;
+  terrainWall?: boolean;
   entity?: EntityView;
   deposit?: DepositView;
 }
@@ -44,7 +47,7 @@ interface Drawn {
   to: { x: number; y: number };
   /** Screen direction 0..7 (S, SE, E, NE, N, NW, W, SW) the unit faces. */
   dir: number;
-  shot?: RangerShot;
+  shot?: ArcherShot;
   /** Simulation time of the next possible tile step; unchanged ticks are not idle. */
   walkUntil?: number;
   step?: { at: number; ms: number };
@@ -213,6 +216,34 @@ export class GameRenderer {
     this.zoomLevel = next;
     this.world.scale.set(next);
     this.world.position.set(Math.round(cx - wx * next), Math.round(cy - wy * next));
+  }
+
+  /**
+   * Recordings: show units (and their shadows, marks and effects) or the whole world through a Bayer screen
+   * door, 0 hidden … 1 shown, so shots dissolve between games the way the game dithers. A player's fog can go
+   * with its units (`fog`).
+   */
+  dissolve(units: number, world = 1, fog = world) {
+    const set = (c: Container, shown: number) => {
+      if (shown >= 1) { if (c.filters?.length) c.filters = c.filters.filter((f) => !(f as { shown?: number }).hasOwnProperty("shown")); return; }
+      const f = (c.filters?.find((x) => Object.prototype.hasOwnProperty.call(x, "shown")) as (Filter & { shown: number }) | undefined) ?? createDissolveFilter();
+      f.shown = shown;
+      if (!c.filters?.includes(f)) c.filters = [...(c.filters ?? []), f];
+    };
+    for (const c of [this.objects, this.shadows, this.outlineLayer, this.xrayLayer, this.fx, this.hoverMark, this.selectMark]) set(c, Math.min(units, world));
+    set(this.ground, world);
+    set(this.fog, Math.min(fog, world));
+  }
+
+  /** Camera for recordings: tile (x, y) at the screen centre (`dy` pixels lower), `zoom` relative to the whole map fitting the screen (1). */
+  camera(x: number, y: number, zoom: number, dy = 0) {
+    const w = this.app.renderer.width, h = this.app.renderer.height;
+    const mapW = (this.width + this.height) * (TILE_W / 2) + 40;
+    const mapH = (this.width + this.height) * (TILE_H / 2) + 110;
+    this.zoomLevel = Math.min(w / mapW, h / mapH) * zoom;
+    this.world.scale.set(this.zoomLevel);
+    const c = iso(x, y);
+    this.world.position.set(Math.round(w / 2 - c.sx * this.zoomLevel), Math.round(h / 2 + dy - c.sy * this.zoomLevel));
   }
 
   /**
@@ -400,14 +431,15 @@ export class GameRenderer {
     const g = new Sprite(texture);
     g.position.set(-originX, -originY);
     this.ground.addChild(g);
-    const { art } = this.sprites("rock");
+    const terrainWall = this.ruleset.map.wallStyle === "wall";
+    const { art } = this.sprites(terrainWall ? "wall" : "rock");
     for (const w of this.ruleset.map.walls ?? []) {
       const { sx, sy } = iso(w.x, w.y);
       const r = new Sprite(art.texture);
       r.anchor.set(art.anchorX, art.anchorY);
-      r.scale.set(art.scale * (0.85 + ((w.x * 7 + w.y * 13) % 5) * 0.06));
+      r.scale.set(art.scale * (terrainWall ? 1 : 0.85 + ((w.x * 7 + w.y * 13) % 5) * 0.06));
       r.tint = RAMPS.neutral.key;
-      r.position.set(sx, sy + 3);
+      r.position.set(sx, sy + (terrainWall ? 0 : 3));
       r.zIndex = (w.x + w.y) * 10 + 4;
       this.objects.addChild(r);
       this.staticDepth.push({ sprite: r, depth: this.depthSprite(art), x: w.x, y: w.y });
@@ -484,7 +516,9 @@ export class GameRenderer {
     if (!recenter) return;
     const mapW = (this.width + this.height) * (TILE_W / 2) + 40;
     const mapH = (this.width + this.height) * (TILE_H / 2) + 110;
-    this.zoomLevel = Math.min(2, Math.max(0.35, Math.min(w / mapW, h / mapH)));
+    // Decorative previews fit the whole map even on narrow phone screens.
+    const minZoom = this.interactive ? 0.35 : 0;
+    this.zoomLevel = Math.min(2, Math.max(minZoom, Math.min(w / mapW, h / mapH)));
     this.world.scale.set(this.zoomLevel);
     const c = iso((this.width - 1) / 2, (this.height - 1) / 2);
     this.world.position.set(Math.round(w / 2 - c.sx * this.zoomLevel), Math.round(h / 2 + 18 - c.sy * this.zoomLevel));
@@ -501,7 +535,7 @@ export class GameRenderer {
     const sprite = new Sprite(art.texture);
     sprite.anchor.set(art.anchorX, art.anchorY);
     sprite.scale.set(art.scale);
-    sprite.tint = PLAYER_RAMPS[color].key;
+    sprite.tint = this.ownerTint(e.owner);
     // A spawn/reveal can attack in this same frame, before the animation ticker
     // runs. Arrow endpoints must already be on the map, never at Pixi's (0, 0).
     sprite.position.set(p.sx, p.sy + (spec?.building ? 0 : 3));
@@ -558,7 +592,7 @@ export class GameRenderer {
       }
       d.sprite.position.set(sx + ox, sy + oy + (building ? 0 : 3));
       d.sprite.zIndex = Math.round((x + y) * 10) + 5;
-      d.sprite.tint = this.fogDim(now < d.flashUntil ? RAMPS.neutral.key : PLAYER_RAMPS[d.color].key, d.to.x, d.to.y);
+      d.sprite.tint = this.fogDim(now < d.flashUntil ? RAMPS.neutral.key : this.ownerTint(d.view.owner), d.to.x, d.to.y);
       if (!building) {
         if (d.shot && animationMs >= d.shot.at + recoveryMs(d.view.kind)) d.shot = undefined;
         // Decide locomotion from confirmed simulation ticks, not the end of
@@ -603,7 +637,7 @@ export class GameRenderer {
           d.outline.zIndex = d.sprite.zIndex;
         }
       }
-      if (building && ["castle", "nexus", "turret"].includes(d.view.kind)) {
+      if (building && ["castle", "tower"].includes(displayKind(d.view.kind))) {
         const damage = castleMaterial(d.view.kind, d.view.hp, d.view.maxHp);
         const { art } = this.sprites(d.view.kind, 1, damage ?? { action: "idle", frame: Math.floor(Math.max(0, animationMs) * 12 / 1000) % 28 });
         d.sprite.texture = art.texture;
@@ -617,7 +651,7 @@ export class GameRenderer {
         else this.clearCastleFire(d);
       }
       // Colour separates overlapping units; only the building tag enables x-ray.
-      if (d.depth) this.syncDepth(d.sprite, d.depth, d.color, !!building);
+      if (d.depth) this.syncDepth(d.sprite, d.depth, d.view.owner === NEUTRAL_OWNER ? undefined : d.color, !!building);
       d.shadow.position.set(sx, sy + (building ? 2 : 3));
       this.drawBar(d, sx);
     }
@@ -628,7 +662,7 @@ export class GameRenderer {
       graphic.clear();
       const x = from.x + (to.x - from.x) * a, y = from.y + (to.y - from.y) * a;
       const head = iso(x, y), tail = iso(x - to.vx * 0.035, y - to.vy * 0.035);
-      // A ranger can shoot before its interpolated step finishes. Start the
+      // A archer can shoot before its interpolated step finishes. Start the
       // visible arrow at that sprite and join the real trajectory in one tick.
       if (shot.launchOffset) {
         const k = Math.max(0, 1 - (animationMs - shot.launchOffset.at) / this.gameTickMs);
@@ -663,7 +697,7 @@ export class GameRenderer {
       const { sx, sy } = iso(x, y);
       const big = d ? this.ruleset.kinds[d.view.kind]?.building : false;
       const w = (big ? 0.62 : 0.4) * TILE_W, h = (big ? 0.62 : 0.4) * TILE_H;
-      const color = !selected ? 0xffffff : d ? PLAYER_RAMPS[d.color].key : 0xffff55;
+      const color = !selected ? 0xffffff : d ? this.ownerTint(d.view.owner) : 0xffff55;
       this.selectMark.ellipse(sx, sy + 2, w, h).stroke({ width: 1, color, alpha: selected ? 0.95 : 0.6 });
       if (selected) this.selectMark.ellipse(sx, sy + 2, w + 2, h + 1).stroke({ width: 1, color: 0x000000, alpha: 0.5 });
     };
@@ -679,7 +713,7 @@ export class GameRenderer {
     const top = Math.round(d.sprite.y - d.sprite.height - 4);
     const left = Math.round(sx - w / 2);
     d.bar.rect(left - 0.5, top - 0.5, w + 1, 2.5).fill(0x000000);
-    d.bar.rect(left, top, (w * hp) / maxHp, 1.5).fill(hp / maxHp > 0.35 ? PLAYER_RAMPS[d.color].key : RAMPS.neutral.key);
+    d.bar.rect(left, top, (w * hp) / maxHp, 1.5).fill(hp / maxHp > 0.35 ? this.ownerTint(d.view.owner) : RAMPS.neutral.key);
   }
 
   // ───────────────────────── events → effects & sound ─────────────────────────
@@ -702,7 +736,7 @@ export class GameRenderer {
       const attackDir = b.sx !== a.sx || b.sy !== a.sy ? screenDir(b.sx - a.sx, b.sy - a.sy) : from.dir;
       if ((spec?.range ?? 1) > 1) {
         from.dir = attackDir;
-        if (from.view.kind === "ranger") {
+        if (displayKind(from.view.kind) === "archer") {
           const position = this.position(from, this.alpha(now), this.animationMs(now));
           const visible = iso(position.x, position.y);
           const shot = ev.projectile && this.shots.get(ev.projectile);
@@ -742,7 +776,7 @@ export class GameRenderer {
     } else if (ev.type === "death") {
       const vital = this.ruleset.kinds[ev.kind]?.vital;
       const building = this.ruleset.kinds[ev.kind]?.building;
-      this.play(vital ? "horn" : building ? "collapse" : "death", ev.x, ev.y, vital ? 1 : building ? 0.7 : 0.4);
+      this.play(vital ? "horn" : building ? "collapse" : "death", ev.x, ev.y, vital ? 0.8 : building ? 0.7 : 0.4);
       if (vital) this.effects.push(this.floatText(["king", "agent"].includes(ev.kind) ? "KING DOWN" : `${ev.kind.toUpperCase()} DESTROYED`, ev.x, ev.y, RAMPS.neutral.key, 3200, 12));
     } else if (ev.type === "spawn") {
       const building = this.ruleset.kinds[ev.kind]?.building;
@@ -755,7 +789,7 @@ export class GameRenderer {
         this.play("chat", king.to.x, king.to.y, 0.6);
       }
     } else if (ev.type === "match_end") {
-      this.play("fanfare", this.width / 2, this.height / 2, 1);
+      this.play("fanfare", this.width / 2, this.height / 2, 0.6);
     }
   }
 
@@ -783,7 +817,7 @@ export class GameRenderer {
     const facing = d.shot?.dir ?? d.dir;
     const barrierFlip = d.sprite.scale.x < 0;
     let previous = start, elapsed = 0;
-    d.sprite.tint = collapsing ? PLAYER_RAMPS[d.color].key : dim(PLAYER_RAMPS[d.color].key, 0.45);
+    d.sprite.tint = collapsing ? this.ownerTint(d.view.owner) : dim(this.ownerTint(d.view.owner), 0.45);
     if (building && !collapsing) this.effects.push(this.dust(d.to.x, d.to.y, 0xaaaaaa, 24, 14));
     else if (!animated) {
       d.sprite.anchor.set(0.5, 0.5);
@@ -1062,13 +1096,18 @@ export class GameRenderer {
     const entity = picked?.kind === "entity" ? picked.view : picked ? undefined : [...this.drawn.values()].find((d) => d.to.x === h.x && d.to.y === h.y)?.view;
     const deposit = picked?.kind === "deposit" ? picked.view : picked ? undefined : [...this.deposits.values()].find((d) => d.view.x === h.x && d.view.y === h.y)?.view;
     const rock = (this.ruleset.map.walls ?? []).some((w) => w.x === h.x && w.y === h.y);
-    this.hoverCb({ x: h.x, y: h.y, entity, deposit, rock });
+    this.hoverCb({ x: h.x, y: h.y, entity, deposit,
+      rock: rock && this.ruleset.map.wallStyle !== "wall", terrainWall: rock && this.ruleset.map.wallStyle === "wall" });
   }
 
   // ───────────────────────── helpers ─────────────────────────
 
   private colorOf(owner: string): number {
     return (this.colors[owner] ?? 0) % PLAYER_RAMPS.length;
+  }
+
+  private ownerTint(owner: string): number {
+    return owner === NEUTRAL_OWNER ? RAMPS.neutral.key : PLAYER_RAMPS[this.colorOf(owner)].key;
   }
 
 }

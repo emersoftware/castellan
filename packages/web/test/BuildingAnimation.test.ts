@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import sharp from 'sharp';
 import { readFile } from 'node:fs/promises';
 
-it.each(['castle', 'turret'])('%s has a moving flag, fixed masonry and transparent cell borders', async kind => {
+it.each(['castle', 'tower'])('%s has a moving flag, fixed masonry and transparent cell borders', async kind => {
   const base = new URL(`../public/sprites/${kind}/`, import.meta.url);
   const { idle: m } = JSON.parse(await readFile(new URL('manifest.json', base), 'utf8'));
   const { data, info } = await sharp(await readFile(new URL(m.image, base))).raw().toBuffer({resolveWithObject:true});

@@ -44,7 +44,7 @@ it.each(['knight','king','agent','worker'])('keeps %s walking between tile updat
   h.renderer.setFrame(h.frame(1),100,true);h.internal.animate();expect(h.last()[2]?.action).toBe('idle');
 });
 
-it.each(['ranger','knight','king','worker'])('ties %s foot motion to traveled distance rather than elapsed time',kind=>{
+it.each(['archer','knight','king','worker'])('ties %s foot motion to traveled distance rather than elapsed time',kind=>{
   const sample=(moveMs:number,ticks:number,diagonal=false)=>{
     const h=setup(kind);h.renderer.setFrame(h.frame(1),100);
     const moved={...h.unit,x:5,y:diagonal?5:4,stats:{atk:0,def:0,range:0,attackMs:1000,moveMs}};
@@ -55,7 +55,7 @@ it.each(['ranger','knight','king','worker'])('ties %s foot motion to traveled di
     h.internal.animate();return h.last()[2];
   };
   expect(sample(200,1)).toEqual(sample(400,2)); // half a tile at either speed
-  expect(sample(200,1)).toEqual({action:'walk',frame:kind==='ranger'?14:7});
+  expect(sample(200,1)).toEqual({action:'walk',frame:kind==='archer'?14:7});
   expect(sample(400,2,true)).toEqual(sample(400,2)); // a diagonal step keeps the orthogonal cadence
 });
 it.each([false,true])('faces the melee target immediately, including lethal hits (dead=%s)',dead=>{
@@ -129,7 +129,7 @@ it('keeps the existing melee lunge when an attack atlas has not been published',
   } finally {available.mockRestore();}
 });
 
-it.each(['ranger','knight','king','worker'].flatMap(kind=>[0,1,2,3,4,5,6,7].map(dir=>({kind,dir}))))('plays $kind death once in direction $dir, freezes on pause and retains the corpse',({kind,dir})=>{
+it.each(['archer','knight','king','worker'].flatMap(kind=>[0,1,2,3,4,5,6,7].map(dir=>({kind,dir}))))('plays $kind death once in direction $dir, freezes on pause and retains the corpse',({kind,dir})=>{
   const h=setup(kind);h.renderer.setFrame(h.frame(1),100);
   const drawn=h.internal.drawn.get('u')!;
   Object.assign(drawn,{dir});
@@ -146,13 +146,13 @@ it.each(['ranger','knight','king','worker'].flatMap(kind=>[0,1,2,3,4,5,6,7].map(
 });
 
 it('holds the death endpoint and preserves static fallback for unsupported units',()=>{
-  expect(unitDeathAnimation('ranger',100_000)).toEqual({action:'death',frame:27});
+  expect(unitDeathAnimation('archer',100_000)).toEqual({action:'death',frame:27});
   expect(unitDeathAnimation('wall',1000)).toBeUndefined();
 });
 
 it('scales the fall with replay speed and completes after the final snapshot',()=>{
-  const h=setup('ranger');h.renderer.setFrame(h.frame(1),200);
-  h.renderer.setFrame({...h.frame(2,[h.target]),events:[{tick:1,type:'death',id:'u',kind:'ranger',owner:'a',x:4,y:4}]},200);
+  const h=setup('archer');h.renderer.setFrame(h.frame(1),200);
+  h.renderer.setFrame({...h.frame(2,[h.target]),events:[{tick:1,type:'death',id:'u',kind:'archer',owner:'a',x:4,y:4}]},200);
   h.internal.animate();
   h.time(2000);h.internal.animate();expect(h.last()[2]?.frame).toBe(6); // 0.5x
   h.renderer.setFrame(h.frame(3,[h.target]),50); // switch to 2x
@@ -161,9 +161,9 @@ it('scales the fall with replay speed and completes after the final snapshot',()
 });
 
 it('removes the old corpse when seeking back to a living unit',()=>{
-  const h=setup('ranger');h.renderer.setFrame(h.frame(1),100);
+  const h=setup('archer');h.renderer.setFrame(h.frame(1),100);
   const oldSprite=h.internal.drawn.get('u')!.sprite;
-  h.renderer.setFrame({...h.frame(2,[h.target]),events:[{tick:1,type:'death',id:'u',kind:'ranger',owner:'a',x:4,y:4}]},100);
+  h.renderer.setFrame({...h.frame(2,[h.target]),events:[{tick:1,type:'death',id:'u',kind:'archer',owner:'a',x:4,y:4}]},100);
   h.internal.animate();expect(oldSprite.destroyed).toBe(false);
   h.renderer.setFrame(h.frame(1),100,true);h.internal.animate();
   expect(oldSprite.destroyed).toBe(true);

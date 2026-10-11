@@ -16,7 +16,7 @@ it('selects the two approved states and ignites at half health', () => {
   expect(castleDamageStage('castle',26,100)).toBe(25);
   expect(castleFire('castle',25,100,1000)).toEqual({action:'fire50',frame:12});
   expect(castleFire('nexus',25,100,1000)).toEqual({action:'fire50',frame:12});
-  expect(castleFire('turret',25,100,1000)).toBeUndefined();
+  expect(castleFire('tower',25,100,1000)).toBeUndefined();
   expect(castleFire('castle',1,0,1000)).toBeUndefined();
 });
 

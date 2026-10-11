@@ -93,6 +93,7 @@ button.on { color: var(--black); background: var(--light-grey); border-color: va
 .unit h4 { color: var(--white); margin: 0 0 6px; font-weight: 400; text-transform: uppercase; font-size: 14px; }
 .unit p { margin: 0 0 6px; font-size: 16px; line-height: 1.4; }
 .unit .stat { font-family: var(--sans); font-size: 12px; color: var(--yellow); }
+.units-intro { max-width: 640px; margin: -12px auto 36px; text-align: center; line-height: 1.55; }
 .host { text-align: center; }
 .host pre { text-align: left; display: inline-block; background: var(--panel); border: 1px solid var(--line); padding: 18px 22px; color: var(--cyan); max-width: 100%; overflow-x: auto; }
 .host p { max-width: 640px; margin: 0 auto 20px; line-height: 1.5; }

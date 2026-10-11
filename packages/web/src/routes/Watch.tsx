@@ -34,6 +34,7 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series 
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(initialPlayer);
   const [playerEvents, setPlayerEvents] = useState<Record<string, GameEvent[]>>({});
   const [lost, setLost] = useState(false);
+  const [denied, setDenied] = useState(false);
 
   useEffect(() => sfx.holdAmbient(), []);
   useEffect(() => sfx.holdMusic("battle"), []);
@@ -64,6 +65,7 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series 
       ws.onclose = (event) => {
         if (closed) return;
         if (event.code === 4404) { setArchived(true); return; }
+        if (event.code === 4403) { setDenied(true); return; }
         setLost(true);
         reconnect = setTimeout(connect, 1500);
       };
@@ -98,14 +100,15 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series 
   return (
     <div className="game viewer" onPointerDown={() => !sfx.muted && sfx.unlock()}>
       <div className="stage">
+        {denied && <div className="banner small"><div className="big">Private live match</div><div className="sub">Open the spectator link provided when the match was created, or watch the replay after it finishes.</div></div>}
         {ruleset && Object.keys(colors).length > 0 && <GameCanvas key={selectedPlayer ?? "all"} ruleset={ruleset} colors={colors} frame={display} tickMs={tickMs} onHover={setHover} selected={unit.selected} onSelect={unit.setSelected} sound={sfx.play} />}
         {unit.deposit ? <DepositPanel deposit={unit.deposit} onClose={() => unit.setSelected(null)} />
-          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} tickMs={tickMs} names={names} colors={colors} onClose={() => unit.setSelected(null)} />
+          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} tickMs={tickMs} names={names} colors={colors} reactiveOrders={ruleset?.reactiveOrders} onClose={() => unit.setSelected(null)} />
           : <Tooltip hover={hover} names={names} colors={colors} />}
         <div className="corner">
           <Link to="/battles"><Arrow dir="left" /> Battles</Link>
         </div>
-        {status === "waiting" && (
+        {!denied && status === "waiting" && (
           <div className="banner small">
             <div className="big">Waiting for the agents</div>
             <div className="sub">
@@ -113,13 +116,13 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series 
             </div>
           </div>
         )}
-        {status === "prep" && room.data?.prepEndsAt && <PrepBanner until={room.data.prepEndsAt} />}
+        {!denied && status === "prep" && room.data?.prepEndsAt && <PrepBanner until={room.data.prepEndsAt} />}
         {frame?.outcome && <OutcomeBanner view={frame} names={names} colors={colors} dismissible>
           <Link to="/replay/$id" params={{ id }}>Watch the replay <Arrow dir="right" /></Link>
         </OutcomeBanner>}
       </div>
       <div className="controls">
-        <span className={`live${lost ? " lost" : ""}`}>{status === "running" ? "● live" : status}</span>
+        <span className={`live${lost ? " lost" : ""}`}>{denied ? "private" : status === "running" ? "● live" : status}</span>
         {lost && <span className="reconnecting">reconnecting…</span>}
         <span className="time">{frame?.timeMs !== undefined && `${fmtTime(frame.timeMs)} / ${fmtTime(frame.matchMs)}`}</span>
         <span className="spacer" />
