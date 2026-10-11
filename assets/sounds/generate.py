@@ -27,14 +27,15 @@ SOUNDS = {
     'pick': (f'Soft ASMR tap of a pick into a rock, a gentle muffled stone crack and tiny pebbles crumbling, no metallic ring. {DRY}', 1.5, SEEDS),
     # Single steps come out as hiss; a slow walk gives clean steps that process.py slices apart.
     'footstep': ('Slow footsteps of a man walking on a grass meadow in leather boots, one step per second. Close, quiet background, no music, no voices.', 8, SEEDS[:2]),
-    # No voices: a fall is a soft body thud on grass.
-    'death': (f'A body softly falling onto grass, one short muffled thud with a light rustle of cloth, gentle, low intensity. {DRY}', 1.5, SEEDS + [5, 6]),
+    # No voices: a fall is a soft, dull thump; anything with a body in the prompt risks a cry.
+    'death': (f'A soft cloth sack dropping onto thick grass, one dull muffled thump, gentle, very low intensity. {DRY}', 1.5, SEEDS + [5, 6]),
+    # The end moments stay calm: a distant bell for a fallen King, a quiet phrase for the match end.
+    'horn': ('One single soft bronze bell toll heard from far away, deep, warm and mellow, slow gentle decay, low intensity. No music, no voices.', 4, SEEDS),
+    'fanfare': ('A short calm medieval phrase on a lute and a soft wooden flute, gentle and warm, resolving quietly on a long soft note, low intensity. No drums, no voices.', 5, SEEDS),
     'collapse': ('A wooden and stone building collapsing, timbers cracking and rubble falling. No music.', 4, SEEDS[:2]),
     'build': (f'Soft ASMR wooden mallet tapping on wood three times, muffled and warm. {DRY}', 2, SEEDS[:3]),
     # A rustle is noise; a single warm tuned note reads as "someone is ready" and fits the harmony.
     'spawn': (f'A single soft warm note on a wooden hang drum, gentle and round, close-mic ASMR. {DRY}', 2, SEEDS),
-    'horn': ('A deep medieval war horn blowing one long low note outdoors.', 4, SEEDS[:2]),
-    'fanfare': ('A short medieval brass trumpet fanfare announcing victory.', 5, SEEDS[:2]),
     'chat': (f'Soft ASMR page of old paper turning, a gentle warm rustle. {DRY}', 1, SEEDS[:3]),
     'ambient': ('Gentle wind blowing across open grassland with distant birds chirping, calm outdoor ambience. No music, no voices.', 30, SEEDS[:2]),
 }

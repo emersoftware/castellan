@@ -49,7 +49,7 @@ const PITCHED = new Set(["sword", "spawn", "horn", "fanfare"]);
 
 /** Which samples each sound layers; by default a sound is its own sample. */
 const MIX: Partial<Record<SoundName, Layer[]>> = {
-  // An arrow is only its flight; a turret bolt is a slower, deeper swish.
+  // An arrow is only its flight; a tower bolt is a slower, deeper swish.
   arrow: [{ sample: "whoosh" }],
   tower: [{ sample: "whoosh", rate: 0.75 }],
 };

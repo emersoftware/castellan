@@ -1,6 +1,7 @@
 """Turn raw MOSS candidates into game samples. Run with uv run --with numpy --with scipy --with soundfile python FILE.
 
-One-shots: trim the silence before the onset, cut to the sound's length, fade the tail and peak-normalize.
+One-shots: trim the silence before the onset, cut to the sound's length, fade the tail and peak-normalize
+(sustained ones, see LOUDNESS, are levelled by RMS instead).
 Everything is softened on the way out: a low-pass takes the edge off and the attack is rounded, for a warm,
 ASMR-like mix rather than sharp clicks. Candidates with too much energy above 3 kHz (shrill) are left out.
 Pitched sounds are tuned to D or A (A = 440 Hz), the game's key, so overlapping sounds never clash: the
@@ -27,15 +28,25 @@ LENGTH = dict(sword=0.8, hit=0.6, whoosh=0.2, pick=0.7, footstep=0.35, death=0.5
               collapse=3.5, build=1.8, spawn=1.2, horn=4, fanfare=5, chat=0.8)
 # Low-pass cutoff (Hz) and attack (s) per sound; blows get the softest treatment.
 SOFT = dict(sword=(3000, 0.012), hit=(3500, 0.01), pick=(4500, 0.008), build=(4500, 0.008),
-            footstep=(4000, 0.008), whoosh=(3500, 0.02), spawn=(4000, 0.008), chat=(6500, 0.005), death=(5500, 0.01),
-            collapse=(5500, 0.02), horn=(8000, 0.01), fanfare=(8000, 0.01), ambient=(8500, 0))
+            footstep=(4000, 0.008), whoosh=(3500, 0.02), spawn=(4000, 0.008), chat=(6500, 0.005), death=(3000, 0.02),
+            collapse=(5500, 0.02), horn=(5000, 0.04), fanfare=(5000, 0.06), ambient=(8500, 0))
 # Pitched sounds and the band their main partial is searched in (Hz). Fanfare is tuned by its key instead.
 TUNED = dict(sword=(150, 1500), spawn=(60, 1200), horn=(50, 400))
 NOTES = (2, 9)  # pitch classes D and A
 # Most energy above 3 kHz that blows may keep (fraction); shriller candidates are left out.
 SHRILL = dict(sword=0.12, whoosh=0.15, spawn=0.15, hit=0.2, death=0.15)
+# Sustained sounds are levelled by RMS (dBFS) instead of by peak: a horn or fanfare peak-normalized for
+# seconds is some 20 dB louder than a blow and plays like a jump scare.
+LOUDNESS = dict(horn=-24, fanfare=-24, collapse=-24)
 PAD = 0.05
 CROSSFADE = 2.0
+
+
+def level(clip, target_db):
+    """Scale `clip` to an RMS of `target_db` dBFS, never past the usual 0.89 peak."""
+    rms = np.sqrt(np.mean(clip ** 2))
+    gain = min(10 ** (target_db / 20) / max(1e-9, rms), 0.89 / max(1e-6, np.abs(clip).max()))
+    return clip * gain
 
 
 def encode(samples, rate, target, cutoff):
@@ -160,6 +171,8 @@ def main():
                     notes.append(f'agudos {hf:.0%}')
                 if name in TUNED or name == 'fanfare':
                     clip, shift = tune(name, clip, rate)
+                if name in LOUDNESS:
+                    clip = level(clip, LOUDNESS[name])
                 encode(clip, rate, OUT / file, SOFT[name][0])
                 cents = 0
                 if (name in TUNED or name == 'fanfare') and shift != 'noise':

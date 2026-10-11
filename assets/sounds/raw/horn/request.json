@@ -1,12 +1,14 @@
 {
   "space": "OpenMOSS-Team/MOSS-SoundEffect-v2.0",
-  "prompt": "A deep medieval war horn blowing one long low note outdoors.",
+  "prompt": "One single soft bronze bell toll heard from far away, deep, warm and mellow, slow gentle decay, low intensity. No music, no voices.",
   "seconds": 4,
   "steps": 50,
   "cfg_scale": 4.0,
   "sigma_shift": 5.0,
   "seeds": [
     1,
-    2
+    2,
+    3,
+    4
   ]
 }

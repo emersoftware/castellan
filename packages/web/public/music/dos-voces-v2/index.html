@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dos voces · estudio 02</title>
+<style>
+  :root { color-scheme:dark; font:16px system-ui,sans-serif; background:#171817; color:#e9e6de }
+  body { max-width:620px; margin:12vh auto; padding:24px }
+  h1 { font-size:32px; font-weight:500; margin-bottom:8px }
+  p { color:#aaa99f; line-height:1.6 }
+  button,select { font:inherit; background:#2c2e2a; color:inherit; border:1px solid #5a5c51; border-radius:6px; padding:10px 14px }
+  button { cursor:pointer; min-width:115px }
+  .controls { display:flex; gap:12px; flex-wrap:wrap; margin:26px 0 20px }
+  input { width:100%; accent-color:#c4cbaa }
+  .time { display:flex; justify-content:space-between; color:#bcbcaf; font-variant-numeric:tabular-nums; margin-top:8px }
+  a { color:#c4cbaa }
+  label { color:#c9c9bd; display:block; margin-top:26px }
+</style>
+<h1>Dos voces</h1>
+<p>Estudio 02 · Re dórico · 84 BPM · 80 segundos<br>
+Roygbiv × AoK: sinte tipo SH-101 y flauta dulce, con bajo, pad y percusión suaves.</p>
+<div class="controls">
+  <button id="play" type="button">Escuchar</button>
+  <select id="part" aria-label="Qué escuchar">
+    <option value="tema">Tema completo</option>
+    <option value="sinte">Solo sinte</option>
+    <option value="flauta">Solo flauta</option>
+    <option value="acompanamiento">Bajo, pad y percusión</option>
+  </select>
+</div>
+<input id="seek" type="range" min="0" max="80" step=".1" value="0" aria-label="Posición">
+<div class="time"><span id="elapsed">0:00</span><span>1:20 · loop</span></div>
+<label>Volumen <input id="volume" type="range" min="0" max="1" step=".01" value=".65" aria-label="Volumen"></label>
+<p id="status" role="status">El sinte entra en 0:11, la flauta en 0:34 y las dos juntas desde 0:57.</p>
+<p><a href="tema.mp3" download>Descargar MP3</a> · <a href="tema.flac" download>Descargar FLAC</a></p>
+<script type="module">
+const play = document.querySelector('#play'), part = document.querySelector('#part');
+const seek = document.querySelector('#seek'), elapsed = document.querySelector('#elapsed');
+const status = document.querySelector('#status'), volume = document.querySelector('#volume');
+let context, gain, source, playing=false, offset=0, started=0, duration=80, busy=false;
+const buffers = new Map();
+function position() { return playing ? (offset + context.currentTime - started) % duration : offset; }
+async function load(name) {
+  if (!context) {
+    context = new AudioContext(); gain = context.createGain();
+    gain.gain.value = Number(volume.value); gain.connect(context.destination);
+  }
+  await context.resume();
+  if (!buffers.has(name)) {
+    const response = await fetch(`${name}.flac`);
+    if (!response.ok) throw new Error('No se pudo cargar el audio.');
+    buffers.set(name, await context.decodeAudioData(await response.arrayBuffer()));
+  }
+  return buffers.get(name);
+}
+function stop() { if (source) { source.stop(); source.disconnect(); source = null; } }
+function start(buffer) {
+  duration=buffer.duration; seek.max=duration;
+  source=context.createBufferSource(); source.buffer=buffer; source.loop=true;
+  source.connect(gain); source.start(0, offset % duration); started=context.currentTime;
+}
+async function perform(action) {
+  if (busy) return;
+  busy=true; play.disabled=true; part.disabled=true;
+  try { await action(); status.textContent='Repite automáticamente. Puedes escuchar cada voz por separado.'; }
+  catch(error) { stop(); playing=false; play.textContent='Escuchar'; status.textContent=error.message; }
+  finally { busy=false; play.disabled=false; part.disabled=false; }
+}
+play.addEventListener('click', () => perform(async () => {
+  if (playing) { offset=position(); playing=false; stop(); play.textContent='Escuchar'; }
+  else { status.textContent='Cargando…'; const buffer=await load(part.value); start(buffer); playing=true; play.textContent='Pausar'; }
+}));
+part.addEventListener('change', () => perform(async () => {
+  if (!playing) return;
+  offset=position(); playing=false; stop(); status.textContent='Cargando…';
+  const buffer=await load(part.value); start(buffer); playing=true;
+}));
+seek.addEventListener('input', () => {
+  if (busy) return;
+  offset=Number(seek.value);
+  if (playing) { stop(); start(buffers.get(part.value)); }
+});
+volume.addEventListener('input', () => { if(gain) gain.gain.setTargetAtTime(Number(volume.value),context.currentTime,.02); });
+function update() {
+  const value=position(); if(playing) seek.value=value;
+  elapsed.textContent=`${Math.floor(value/60)}:${String(Math.floor(value%60)).padStart(2,'0')}`;
+  requestAnimationFrame(update);
+}
+update();
+</script>
+</html>

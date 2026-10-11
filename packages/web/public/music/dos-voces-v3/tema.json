@@ -1,0 +1,23 @@
+{
+ "title": "Dos voces — estudio 03",
+ "bpm": 84,
+ "key": "D dorian",
+ "bars": 28,
+ "loop": 80.0,
+ "pad": 0,
+ "sampleRate": 44100,
+ "voices": [
+  "Roygbiv's melody, SH-101-style synth",
+  "AoK track 1's line, recorder"
+ ],
+ "rms": {
+  "sinte": 0.1158012410766178,
+  "flauta": 0.12479176912033614,
+  "acompanamiento": 0.08045486933120706,
+  "tema": 0.1818944791878414
+ },
+ "references": [
+  "https://www.hooktheory.com/theorytab/view/boards-of-canada/roygbiv",
+  "https://www.youtube.com/watch?v=Rxbcp2AK-2Y"
+ ]
+}

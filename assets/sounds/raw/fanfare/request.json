@@ -1,12 +1,14 @@
 {
   "space": "OpenMOSS-Team/MOSS-SoundEffect-v2.0",
-  "prompt": "A short medieval brass trumpet fanfare announcing victory.",
+  "prompt": "A short calm medieval phrase on a lute and a soft wooden flute, gentle and warm, resolving quietly on a long soft note, low intensity. No drums, no voices.",
   "seconds": 5,
   "steps": 50,
   "cfg_scale": 4.0,
   "sigma_shift": 5.0,
   "seeds": [
     1,
-    2
+    2,
+    3,
+    4
   ]
 }

@@ -1,0 +1,26 @@
+{
+  "title": "Dos voces \u2014 estudio 01",
+  "bpm": 95,
+  "key": "D dorian",
+  "bars": 32,
+  "loop": 80.84209375,
+  "pad": 0,
+  "sampleRate": 32000,
+  "samples": 2586947,
+  "voices": [
+    "upper-register analogue synth",
+    "upper-register flute"
+  ],
+  "accompaniment": [
+    "supporting bass",
+    "soft broken beat and hand drum"
+  ],
+  "references": [
+    "https://boardsofcanada.bandcamp.com/track/roygbiv",
+    "https://www.youtube.com/watch?v=Rxbcp2AK-2Y"
+  ],
+  "peak": 0.6663237914493257,
+  "rms": 0.111826016561825,
+  "boundaryJump": 0.020403734401383676,
+  "gain": 3.093935975686849
+}
