@@ -19,7 +19,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await mcp?.close();
-  await srv.app.close();
+  await srv?.close();
 });
 
 describe("aoa-mcp", () => {

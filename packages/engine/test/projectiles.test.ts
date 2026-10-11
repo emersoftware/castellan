@@ -6,7 +6,7 @@ import { segmentCircleHit } from "../src/projectiles";
 const live: Match[] = [];
 afterEach(() => { for (const m of live.splice(0)) m.dispose(); });
 const players = [{ id: "a", name: "A" }, { id: "b", name: "B" }];
-async function setup(options: { speed?: number; range?: number; fog?: boolean; wall?: boolean; rate?: number; start?: Ruleset["map"]["start"] } = {}) {
+async function setup(options: { speed?: number; range?: number; wall?: boolean; rate?: number; start?: Ruleset["map"]["start"] } = {}) {
   const base = rules;
   const ruleset: Ruleset = { ...base, matchMs: 5000,
     ...(options.speed ? { projectiles: { ...rules.projectiles!, speed: options.speed } } : {}),
@@ -47,7 +47,7 @@ it("misses a target that dodges after launch; the destination never tracks", asy
 });
 
 it("lets a sandbox script perceive and dodge a real incoming shot", async () => {
-  const { m, b, fire } = await setup({ fog: true });
+  const { m, b, fire } = await setup();
   m.step([...fire, { player: "b", order: { type: "script", kind: "archer", code:
     'if (self.projectiles().some(p => p.owner !== "b")) self.move("N"); else self.hold();' } }]);
   advance(m, 8);
@@ -98,7 +98,7 @@ it("keeps shots alive after the shooter dies and records the owner of the kill",
 });
 
 it("filters projectile state by current team vision", async () => {
-  const { m, fire } = await setup({ fog: true });
+  const { m, fire } = await setup();
   m.step(fire);
   const internals = m as unknown as { visible: Map<string, Set<number>> };
   internals.visible.set("b", new Set());
@@ -124,7 +124,7 @@ it("uses swept collision rather than testing only the segment endpoint", () => {
 });
 
 it("does not leak hidden impact events to the shooter", async () => {
-  const { m, fire } = await setup({ fog: true });
+  const { m, fire } = await setup();
   m.step(fire);
   const internals = m as unknown as { ents: Map<string, { owner: string; spec: { vision: number } }> };
   for (const e of internals.ents.values()) if (e.owner === "a") e.spec = { ...e.spec, vision: 0 };
@@ -134,7 +134,8 @@ it("does not leak hidden impact events to the shooter", async () => {
   expect(m.spectate().perspectives!.b.events.some(e => e.type === "projectile_end")).toBe(true);
 });
 
-it.each([10, 20, 40].flatMap(rate => [rules, rules].map(rules => [rate, rules.projectiles!.speed])))("keeps flight speed independent of tick rate (%s Hz, %s tiles/s)", async (rate, speed) => {
+it.each([10, 20, 40])("keeps flight speed independent of tick rate (%s Hz)", async (rate) => {
+  const speed = rules.projectiles!.speed;
   const { m, fire } = await setup({ rate, speed });
   m.step(fire);
   while (m.spectate().projectiles!.length) m.step([]);

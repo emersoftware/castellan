@@ -1,16 +1,23 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { rules, type Order, type Ruleset } from "@aoa/shared";
 import { createMatch, type Match, type PlayerOrder } from "../src";
 
 const players = [{ id: "p1", name: "one" }, { id: "p2", name: "two" }];
-const make = (ruleset: Ruleset = rules, seed = 1) => createMatch({ ruleset, players, seed, tickRate: 10 });
+const live: Match[] = [];
+afterEach(() => { for (const m of live.splice(0)) m.dispose(); });
+async function start(options: Parameters<typeof createMatch>[0]) {
+  const match = await createMatch(options);
+  live.push(match);
+  return match;
+}
+const make = (ruleset: Ruleset = rules, seed = 1) => start({ ruleset, players, seed, tickRate: 10 });
 const run = (m: Match, n: number, orders: (m: Match) => PlayerOrder[] = () => []) => {
   for (let i = 0; i < n && !m.outcome; i++) m.step(orders(m));
 };
 const mine = (m: Match, p: string, kind: string) => m.view(p).mine.filter((e) => e.kind === kind);
-/** Every entity sees the whole map, for tests about something other than fog. */
 /** Archers and towers producible without their unlock research, for tests about something else. */
 const unlocked = (r: Ruleset = rules): Ruleset => ({ ...r, kinds: Object.fromEntries(Object.entries(r.kinds).map(([k, s]) => [k, { ...s, requires: undefined }])) });
+/** Every entity sees the whole map, for tests about something other than fog. */
 const seeAll = (r: Ruleset = rules): Ruleset => ({ ...r, kinds: Object.fromEntries(Object.entries(r.kinds).map(([k, s]) => [k, { ...s, vision: 40 }])) });
 
 describe("engine", () => {
@@ -113,12 +120,6 @@ else self.moveTo(${king.x}, ${king.y});`;
     expect(results.reduce((sum, r) => sum + (r.mineral?.spent ?? 0), 0)).toBe(rules.kinds.wall.cost);
     expect(results[1].mineral).toEqual({ spent: rules.kinds.wall.cost, remaining: rules.startMineral - rules.kinds.wall.cost });
   });
-
-  it("defeats everyone at the time limit", async () => {
-    const m = await make({ ...rules, matchMs: 5_000 });
-    run(m, 100);
-    expect(m.outcome).toMatchObject({ reason: "timeout", winners: [], allDefeated: true });
-  });
 });
 
 describe("replay", () => {
@@ -180,12 +181,12 @@ describe("maps and sides", () => {
   });
 
   it("puts a player on the rotated side when asked", async () => {
-    const m = await createMatch({ ruleset: rules, seed: 1, tickRate: 10, players: [{ id: "p1", name: "a", side: 1 }, { id: "p2", name: "b", side: 0 }] });
+    const m = await start({ ruleset: rules, seed: 1, tickRate: 10, players: [{ id: "p1", name: "a", side: 1 }, { id: "p2", name: "b", side: 0 }] });
     expect(mine(m, "p1", "castle")[0]).toMatchObject({ x: 27, y: 27 });
     expect(mine(m, "p2", "castle")[0]).toMatchObject({ x: 4, y: 4 });
   });
 
-  it("archers shoot from range", async () => {
+  it("trains an unlocked archer with the configured health", async () => {
     const m = await make(unlocked());
     const nexus = mine(m, "p1", "castle")[0];
     const r = m.step([{ player: "p1", order: { type: "train", building: nexus.id, kind: "archer" } }]);

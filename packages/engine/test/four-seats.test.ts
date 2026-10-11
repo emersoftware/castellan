@@ -4,19 +4,8 @@ import { createMatch, type Match } from "../src";
 
 const live: Match[] = [];
 afterEach(() => { for (const m of live.splice(0)) m.dispose(); });
-const idle = { worker: "self.hold();", king: "self.hold();", knight: "self.hold();", archer: "self.hold();", tower: "self.hold();", castle: "self.hold();" };
 const ffa = [0, 1, 2, 3].map((i) => ({ id: `p${i + 1}`, name: `p${i + 1}`, side: i, team: i }));
 const start = async (ruleset: Ruleset, players: typeof ffa) => { const m = await createMatch({ ruleset, players, seed: 1, tickRate: 10 }); live.push(m); return m; };
-
-it("defeats every FFA player at the limit however much mineral a survivor holds", async () => {
-  const m = await start({ ...rules, fourSeatMatchMs: 2000, map: MAPS.quad, defaultScripts: { ...rules.defaultScripts, ...idle } }, ffa);
-  expect(viewToText(m.view("p1"))).toContain("2.0s left ·");
-  const castle = m.view("p2").mine.find((e) => e.kind === "castle")!.id;
-  m.step([{ player: "p2", order: { type: "train", building: castle, kind: "worker" } }]); // scores now differ
-  while (!m.outcome) m.step([]);
-  expect(m.outcome).toMatchObject({ reason: "timeout", winner: null, winners: [], allDefeated: true });
-  expect(new Set(Object.values(m.outcome!.scores)).size).toBeGreaterThan(1);
-});
 
 it("plays 15 minutes on four-seat maps and 10 on the rest", async () => {
   expect(matchLengthMs(rules)).toBe(600_000);

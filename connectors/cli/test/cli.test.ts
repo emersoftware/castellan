@@ -5,10 +5,11 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { ApiError, act, chat, client, getScript, newRoom, putScript, rooms, rules, run, state, status, wait, watch } from "../src/index";
 import { startServer } from "./server";
+import { waitForReplay } from "../../../packages/server/test/support/readiness";
 
 let srv: Awaited<ReturnType<typeof startServer>>;
 beforeAll(async () => void (srv = await startServer()));
-afterAll(() => srv.app.close());
+afterAll(() => srv?.close());
 
 describe("aoa commands", () => {
   it("continues after successful short decisions without counting them as failures", async () => {
@@ -112,6 +113,7 @@ describe("aoa commands", () => {
     expect(lines.some((l) => l.endsWith("status finished"))).toBe(true);
     expect(lines.at(-1)).toMatch(/match_end/);
     expect(await status(c1)).toBe("finished");
+    await waitForReplay(srv.app, room.id);
     expect(await run(c1, [process.execPath, "-e", ""], { log: () => {} })).toBe(0);
   });
 

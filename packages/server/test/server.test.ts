@@ -1,5 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
@@ -8,15 +8,19 @@ import { buildServer } from "../src/app";
 
 let app: FastifyInstance;
 let base = "";
-const dir = mkdtempSync(join(tmpdir(), "aoa-"));
+let dir: string;
 
-beforeAll(async () => {
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), "aoa-http-"));
   app = await buildServer({ replayDir: dir, ruleset: { ...rules, matchMs: 4000 }, tickRate: 20, prepMs: 300 });
   await app.listen({ port: 0, host: "127.0.0.1" });
   const addr = app.server.address();
   base = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}`;
 });
-afterAll(() => app.close());
+afterEach(async () => {
+  await app?.close();
+  await rm(dir, { recursive: true, force: true });
+});
 
 const call = async (path: string, token?: string, init: RequestInit = {}) => {
   const res = await fetch(base + path, {
@@ -28,6 +32,12 @@ const call = async (path: string, token?: string, init: RequestInit = {}) => {
   try { body = JSON.parse(text); } catch {}
   return { status: res.status, body };
 };
+
+const running = async (token: string) => vi.waitFor(async () => {
+  const response = await call("/status", token);
+  expect(response.status).toBe(200);
+  expect(response.body.status).toBe("running");
+}, { timeout: 6000, interval: 20 });
 
 describe("server", () => {
   it("plays a match over the HTTP API and saves a replay", async () => {
@@ -48,7 +58,7 @@ describe("server", () => {
     await call("/state", t2); // both connected → prep → running
     const w = await call(`/wait?since=0&max=5`, t1);
     expect(["prep", "running"]).toContain(w.body.status);
-    await new Promise((r) => setTimeout(r, 400));
+    await running(t1);
 
     // Once running: TS is accepted and stripped; syntax errors are rejected.
     const put = await call("/scripts/knight", t1, { method: "PUT", body: tsScript });
@@ -79,7 +89,10 @@ describe("server", () => {
     }
     const summary = (await call(`/rooms/${room.id}`)).body;
     expect(summary.status).toBe("finished");
-    await new Promise((r) => setTimeout(r, 200));
+    await vi.waitFor(async () => {
+      expect((await call(`/replays/${room.id}`)).status).toBe(200);
+      expect((await call("/replays")).body).toContainEqual(expect.objectContaining({ id: room.id }));
+    }, { timeout: 6000, interval: 20 });
     const replays = (await call("/replays")).body;
     expect(replays[0].id).toBe(room.id);
     const replay = (await call(`/replays/${room.id}`)).body;
@@ -89,8 +102,9 @@ describe("server", () => {
   it("runs bot practice rooms without tokens", async () => {
     const room = (await call("/rooms", undefined, { method: "POST", body: JSON.stringify({ players: [{ bot: "eco" }, { bot: "rush" }] }) })).body;
     expect(room.players.every((p: any) => p.token === undefined)).toBe(true);
-    await new Promise((r) => setTimeout(r, 300));
-    expect((await call(`/rooms/${room.id}`)).body.status).toBe("running");
+    await vi.waitFor(async () => {
+      expect((await call(`/rooms/${room.id}`)).body.status).toBe("running");
+    }, { timeout: 6000, interval: 20 });
   });
 });
 
@@ -101,11 +115,10 @@ describe("chat and timing", () => {
     const [a, b] = on.players.map((p: any) => p.token);
     await call("/state", a);
     await call("/state", b);
-    await new Promise((r) => setTimeout(r, 200));
+    await running(a);
     const sent = await call("/chat", a, { method: "POST", body: JSON.stringify({ text: "gg, your nexus is mine" }) });
     expect(sent.body).toMatchObject({ ok: true, view: { you: "p1" } });
     expect((await call("/chat", a, { method: "POST", body: JSON.stringify({ text: "again" }) })).status).toBe(400); // rate limit
-    await new Promise((r) => setTimeout(r, 200));
     const seen = (await call("/state?since=0", b)).body as PlayerView;
     expect(seen.events.some((e) => e.type === "chat" && e.text === "gg, your nexus is mine")).toBe(true);
     // Without `since`, events are "since my last view": the message is not repeated.
@@ -130,7 +143,7 @@ describe("chat and timing", () => {
     const c = off.players[0].token;
     await call("/state", c);
     await call("/state", off.players[1].token);
-    await new Promise((r) => setTimeout(r, 200));
+    await running(c);
     const denied = await call("/chat", c, { method: "POST", body: JSON.stringify({ text: "hello?" }) });
     expect(denied.body.error).toMatch(/chat is off/);
   });
@@ -141,7 +154,7 @@ describe("one-shot player scripts", () => {
     const room = (await call("/rooms", undefined, { method: "POST", body: JSON.stringify({ players: [{ name: "a" }, { name: "b" }], prepMs: 0 }) })).body;
     const [a, b] = room.players.map((p: any) => p.token);
     await call("/state", a); await call("/state", b);
-    await new Promise((r) => setTimeout(r, 150));
+    await running(a);
     const run = (code: string, format = "") => call(`/run${format}`, a, { method: "POST", body: JSON.stringify({ code }) });
     const ok = (await run(`const base = view.mine.find(e => rules.kinds[e.kind].trains);
       act({ type: "stop", unit: view.mine.find(e => !rules.kinds[e.kind].building).id });

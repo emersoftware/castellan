@@ -1,16 +1,23 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdir, mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
 import { rules, type SeriesSummary } from "@aoa/shared";
 import { runReplay } from "@aoa/engine";
 import { buildServer } from "../src/app";
+import { waitForStatus } from "./support/readiness";
 
 let app: FastifyInstance;
-afterEach(async () => { await app?.close(); });
+const directories = new Set<string>();
+afterEach(async () => {
+  await app?.close();
+  for (const dir of directories) await rm(dir, { recursive: true, force: true });
+  directories.clear();
+});
 async function start(dir?: string, matchMs = 800) {
   const replayDir = dir ?? await mkdtemp(join(tmpdir(), "aoa-series-test-"));
+  directories.add(replayDir);
   const webDir = join(replayDir, "web");
   await mkdir(webDir, { recursive: true });
   await writeFile(join(webDir, "index.html"), "<!doctype html><title>Series viewer</title>");
@@ -22,18 +29,16 @@ async function request(url: string, token?: string, payload?: unknown, method: "
   return { status: response.statusCode, body: response.json() };
 }
 async function poll<T>(get: () => Promise<T>, ready: (value: T) => boolean): Promise<T> {
-  const end = Date.now() + 6000;
-  for (;;) {
+  return vi.waitFor(async () => {
     const value = await get();
-    if (ready(value)) return value;
-    if (Date.now() > end) throw new Error("poll timed out");
-    await new Promise((r) => setTimeout(r, 20));
-  }
+    expect(ready(value), `Not ready: ${JSON.stringify(value)}`).toBe(true);
+    return value;
+  }, { timeout: 6000, interval: 20 });
 }
 const current = async (token: string): Promise<{ series: SeriesSummary; game: { id: string; number: number; token: string; status: string } }> => (await request("/series/current", token)).body;
 async function connect(tokens: string[]) {
   await Promise.all(tokens.map((token) => request("/state", token)));
-  await poll(() => request("/state", tokens[0]), (r) => r.body.status === "running");
+  await waitForStatus(app, tokens[0]);
 }
 
 describe("three-game series", () => {

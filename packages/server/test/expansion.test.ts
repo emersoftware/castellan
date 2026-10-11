@@ -1,9 +1,10 @@
 import { expect, it } from "vitest";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rules, type PlayerView } from "@aoa/shared";
 import { buildServer } from "../src/app";
+import { waitForStatus } from "./support/readiness";
 
 it("restores an in-progress castle build and charges only once after completion", async () => {
   const replayDir = await mkdtemp(join(tmpdir(), "aoa-expansion-"));
@@ -18,11 +19,9 @@ it("restores an in-progress castle build and charges only once after completion"
       (await app.inject({ url: "/series/current", headers: { authorization: `Bearer ${p.token}` } })).json()));
     const headers = current.map((c) => ({ authorization: `Bearer ${c.game.token}` }));
     await app.inject({ url: "/state", headers: headers[1] });
-    let state: PlayerView;
-    do {
-      state = (await app.inject({ url: "/state", headers: headers[0] })).json();
-      if (state.status !== "running") await new Promise((r) => setTimeout(r, 10));
-    } while (state.status !== "running");
+    await app.inject({ url: "/state", headers: headers[0] });
+    await waitForStatus(app, current[0].game.token);
+    const state = (await app.inject({ url: "/state", headers: headers[0] })).json<PlayerView>();
     const workers = state.mine.filter((e) => e.kind === "worker");
     const order = await app.inject({ method: "POST", url: "/act", headers: headers[0], payload: { orders: [
       ...workers.map((w) => ({ type: "stop", unit: w.id })),
@@ -40,5 +39,5 @@ it("restores an in-progress castle build and charges only once after completion"
     expect(completed.mine.filter((e: { kind: string }) => e.kind === "castle")).toHaveLength(2);
     expect(completed.players[0].mineral).toBe(ruleset.startMineral - ruleset.kinds.castle.cost);
     expect(completed.mine.filter((e: { kind: string }) => e.kind === "castle").every((e: { vital: boolean }) => !e.vital)).toBe(true);
-  } finally { await app.close(); }
+  } finally { await app.close(); await rm(replayDir, { recursive: true, force: true }); }
 });

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildServer } from "@aoa/server";
@@ -35,5 +35,5 @@ it("runs three fresh agent processes with game-scoped credentials and API histor
       expect(call.resume).toBeUndefined();
       expect(call.args).toEqual(["--model", "fixture", "--effort", "low"]);
     }
-  } finally { await app.close(); }
+  } finally { await app.close(); await rm(dir, { recursive: true, force: true }); }
 });

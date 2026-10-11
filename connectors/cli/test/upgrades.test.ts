@@ -1,12 +1,13 @@
 import { expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildServer } from "@aoa/server";
 import { rules } from "@aoa/shared";
+import { waitForStatus } from "../../../packages/server/test/support/readiness";
 
 it("researches through the real MCP schema, reports mineral and persists pending research across a server restart", async () => {
   const replayDir = await mkdtemp(join(tmpdir(), "aoa-upgrade-api-"));
@@ -31,11 +32,8 @@ it("researches through the real MCP schema, reports mineral and persists pending
     const guide = await mcp.callTool({ name: "rules", arguments: {} });
     expect(JSON.stringify(guide.content)).toContain("worker_damage");
     await app.inject({ url: "/state", headers: headers[1] });
-    for (let i = 0; i < 100; i++) {
-      const state = (await app.inject({ url: "/state", headers: headers[0] })).json();
-      if (state.status === "running") break;
-      await new Promise((r) => setTimeout(r, 10));
-    }
+    await app.inject({ url: "/state", headers: headers[0] });
+    await waitForStatus(app, tokens[0]);
     const answer = await mcp.callTool({ name: "act", arguments: { orders: [{ type: "upgrade", upgrade: "worker_damage" }] } });
     expect(answer.isError, JSON.stringify(answer.content)).toBeFalsy();
     expect(JSON.stringify(answer.content)).toContain("mineral spent 150, remaining 50");
@@ -50,5 +48,5 @@ it("researches through the real MCP schema, reports mineral and persists pending
     const completed = (await app.inject({ url: "/wait?max=5&until=upgrade_completed", headers: headers[0] })).json();
     expect(completed.players[0].upgrades).toEqual({ worker_damage: 1 });
     expect(completed.mine.filter((e: { kind: string }) => e.kind === "worker").every((e: { stats: { atk: number } }) => e.stats.atk === 5)).toBe(true);
-  } finally { await mcp.close(); await app.close(); }
+  } finally { await mcp.close(); await app.close(); await rm(replayDir, { recursive: true, force: true }); }
 }, 15_000);

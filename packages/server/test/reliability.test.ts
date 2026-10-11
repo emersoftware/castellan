@@ -9,6 +9,7 @@ import { rules, type Ruleset } from "@aoa/shared";
 import { Room } from "../src/room";
 import { runReplay } from "@aoa/engine";
 import { buildServer } from "../src/app";
+import { waitForReplay, waitForStatus } from "./support/readiness";
 
 afterEach(() => vi.useRealTimers());
 
@@ -54,8 +55,9 @@ it("separates host spectators, player tokens and other-room capabilities; releas
     const trusted = await app.injectWS(`/spectate/${room.id}?spectator=${token}`);
     trusted.close();
     for (const p of room.players) await app.inject({ url: "/state", headers: { authorization: `Bearer ${p.token}` } });
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await waitForStatus(app, room.players[0].token, "finished");
     expect((await app.inject(path)).statusCode).toBe(200);
+    await waitForReplay(app, room.id);
   } finally { await app.close(); await rm(dir, { recursive: true, force: true }); }
 });
 
@@ -82,7 +84,7 @@ it("records reproducible manifests and errors without credentials, and probes wi
       const waited = await app.inject({ url: "/wait?until=match_end&max=2", headers });
       if (waited.json().status === "finished") break;
     }
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await waitForReplay(app, created.id);
     const replay = (await app.inject(`/replays/${created.id}`)).json();
     expect(replay.experiment).toMatchObject({ schema: 1, mode: "independent", droppedCalls: 0,
       players: { p1: { configuration: { model: "test-model", effort: "low" } }, p2: { configuration: { model: null } } } });
