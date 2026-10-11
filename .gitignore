@@ -5,7 +5,15 @@ replays
 .DS_Store
 videos
 # design notes and art not used by the build
-docs/
+docs/*
+!docs/CURRENT-RULES.md
+!docs/generate-rules.mts
+!docs/RTS-DESIGN-RESEARCH.md
+!docs/RELIABILITY.md
+!docs/gdd.md
+!docs/components/
+docs/components/*
+!docs/components/sandbox.md
 files.zip
 /*.png
 assets/raw/v1/
@@ -28,3 +36,15 @@ assets/animations/**/result.json
 .wrangler/
 .dev.vars*
 cloudflare/worker-configuration.d.ts
+
+# Local experiments, session tooling and generated evidence.
+/reports/
+/research_notes/
+/work/
+/runs/
+/.agents/
+/.claude/
+/agent/
+/skills-lock.json
+connectors/*/evidence/
+*.tmp.*
