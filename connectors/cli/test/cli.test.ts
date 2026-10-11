@@ -11,6 +11,12 @@ beforeAll(async () => void (srv = await startServer()));
 afterAll(() => srv.app.close());
 
 describe("aoa commands", () => {
+  it("continues after successful short decisions without counting them as failures", async () => {
+    let polls = 0;
+    const c = { ...client(), get: async () => ({ status: ++polls >= 7 ? "finished" : "running" }) } as ReturnType<typeof client>;
+    expect(await run(c, [process.execPath, "-e", ""], { fastMs: 60_000, maxFastFailures: 2, backoffMs: 1, log: () => {} })).toBe(0);
+    expect(polls).toBe(7);
+  });
   it("creates FFA rooms and sends direct messages from the CLI without leaking over HTTP", async () => {
     const lobby = client({ server: srv.url });
     const bin = fileURLToPath(new URL("../bin/aoa.mjs", import.meta.url));
@@ -95,9 +101,9 @@ describe("aoa commands", () => {
     const out = await act(c1, [{ type: "train", building: nexus.id, kind: "knight" }, { type: "move", unit: "zzz", x: 1, y: 1 }]);
     expect(out).toMatch(/order 0: ok[\s\S]*order 1: FAILED/);
 
-    // The agent keeps exiting at once while the match runs: the keeper gives up.
+    // Repeated process failures still stop the keeper; successful decisions do not.
     const log: string[] = [];
-    expect(await run(c1, [process.execPath, "-e", ""], { fastMs: 60_000, maxFastFailures: 2, backoffMs: 10, log: (l) => log.push(l) })).toBe(1);
+    expect(await run(c1, [process.execPath, "-e", "process.exit(1)"], { fastMs: 60_000, maxFastFailures: 2, backoffMs: 10, log: (l) => log.push(l) })).toBe(1);
     expect(log.join("\n")).toContain("relaunching with AOA_RESUME=1");
 
     const lines: string[] = [];

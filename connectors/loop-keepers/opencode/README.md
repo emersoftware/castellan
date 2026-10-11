@@ -31,6 +31,13 @@ AOA_TOKEN=<series-participant-token> pnpm aoa run-series -- \
   node connectors/loop-keepers/opencode/agent.mjs --model <provider/model>
 ```
 
+When OpenRouter returns a temporary `in_flight_budget_exhausted` (402) or a
+rate limit (429) with `Retry-After`, the launcher waits that long before handing
+control back to `aoa run`. This keeps fast retries from abandoning the player
+before the provider's cooldown expires. The match and installed unit scripts
+continue during the wait; match completion or a termination signal cancels it.
+Permanent credit/authentication errors are not treated as this temporary limit.
+
 Flags: `--model <provider/model>`, `--variant <name>` (provider-specific
 reasoning effort, passed to `opencode run --variant`). For OpenRouter models,
 `--variant none` turns reasoning off (`reasoning.effort: "none"`); OpenCode's

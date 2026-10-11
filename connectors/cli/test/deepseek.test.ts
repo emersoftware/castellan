@@ -83,7 +83,7 @@ describe("DeepSeek connector", () => {
           { type: "tool_use", id: "act-1", name: "mcp__aoa__act", input: { orders: [{ type: "train", building: view.mine.find((e: any) => e.kind === "castle").id, kind: "worker" }] } },
           { type: "tool_use", id: "history-1", name: "mcp__aoa__history", input: {} },
         ];
-      } else if (turn === 3) content = [{ type: "tool_use", id: "wait-1", name: "mcp__aoa__wait", input: { max_s: 3, until: "match_end" } }];
+      } else if (turn === 3) content = [{ type: "tool_use", id: "state-2", name: "mcp__aoa__state", input: {} }];
       else content = [{ type: "text", text: "Finished." }];
       res.writeHead(200, { "content-type": "text/event-stream" });
       const send = (type: string, data: any) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
@@ -100,15 +100,16 @@ describe("DeepSeek connector", () => {
     try {
       const baseURL = `http://127.0.0.1:${(provider.address() as { port: number }).port}`;
       const player = await preparePlayer({ root: join(root, "player"), token, server, key: "test-key", baseURL, effort });
-      const result = await exec(process.execPath, [...player.args, "--json", "Play using AoA tools until finished."], { cwd: player.workspace, env: player.env, timeout: 25000, maxBuffer: 2_000_000 });
+      const result = await exec(process.execPath, [...player.args, "--json", "Make one decision using AoA tools, then end your response."], { cwd: player.workspace, env: player.env, timeout: 25000, maxBuffer: 2_000_000 });
       expect(result.stdout).toContain('"type":"final"');
       expect(requests.length).toBe(4);
       for (const req of requests) {
         expect(req.model).toBe("deepseek-flash");
         if (effort === "off") expect(req.thinking).toEqual({ type: "disabled" });
         else expect(req.output_config.effort).toBe("low");
-        expect(req.tools.map((t: any) => t.name).sort()).toEqual(["act", "chat", "history", "rules", "run", "script", "state", "wait"].map((t) => `mcp__aoa__${t}`));
+        expect(req.tools.map((t: any) => t.name).sort()).toEqual(["act", "chat", "history", "rules", "run", "script", "script_test", "state"].map((t) => `mcp__aoa__${t}`));
       }
+      await game.inject({ url: "/wait?max=3&until=match_end", headers: { authorization: `Bearer ${token}` } }); // operator waits; no LLM wait tool
       const final = (await game.inject({ url: "/state", headers: { authorization: `Bearer ${token}` } })).json();
       expect(final.status).toBe("finished");
       expect(final.mine.find((e: any) => e.kind === "castle").training).toEqual([expect.objectContaining({ kind: "worker" })]); // ordered, still training

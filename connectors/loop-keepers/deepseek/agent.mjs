@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { cli, runtimeDir, VERSION, verifyRuntime } from "./runtime.mjs";
 import { loadKey } from "./key.mjs";
+import { launchConfiguration, reportConfiguration } from "../metadata.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export function options(args) {
@@ -95,6 +96,8 @@ export async function main(args = process.argv.slice(2), env = process.env) {
     await writeFile(join(root, "run.json"), JSON.stringify({ ...player.metadata, directive: env.AOA_DIRECTIVE }, null, 2), { mode: 0o600 });
   }
   console.error(`aoa deepseek: ${opts.model} (${opts.effort}), dsh ${VERSION}; logs ${root}${env.AOA_DIRECTIVE ? `; directive: ${env.AOA_DIRECTIVE}` : ""}`);
+  if (!opts.check) await reportConfiguration(launchConfiguration({ connector: "deepseek-harness", model: opts.model,
+    effort: opts.effort, connectorVersion: VERSION, prompt, env }), { env });
   const launchArgs = opts.check ? [...player.args, "--dump-config"] : [...player.args, "--json", prompt];
   const child = spawn(process.execPath, launchArgs, { cwd: player.workspace, env: player.env, stdio: ["ignore", opts.check ? "pipe" : "inherit", "inherit"] });
   if (opts.check) child.stdout.resume(); // Composed config contains a game token; never print it.

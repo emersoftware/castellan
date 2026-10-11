@@ -20,7 +20,7 @@ const order = z.object({
   type: z.enum(["move", "attack", "gather", "build", "train", "upgrade", "stop"]),
   unit: z.string().optional().describe("id of the unit (except train and upgrade)"),
   building: z.string().optional().describe("train: id of any completed castle you own"),
-  kind: z.string().optional().describe("train: worker|knight|ranger; build: turret|wall|door|castle (see rules for availability and construction time)"),
+  kind: z.string().optional().describe("train: worker|knight|archer; build: tower|wall|door|castle (see rules for availability and construction time)"),
   upgrade: z.string().optional().describe("upgrade: research id from rules, e.g. knight_damage; buys its next level"),
   target: z.string().optional().describe("attack: enemy id"),
   deposit: z.string().optional().describe("gather: deposit id (optional, nearest if omitted)"),
@@ -28,7 +28,7 @@ const order = z.object({
   y: z.number().int().optional(),
 });
 
-export function createServer(c: aoa.Client = aoa.client()): McpServer {
+export function createServer(c: aoa.Client = aoa.client({ connector: process.env.AOA_CONNECTOR ?? "mcp" })): McpServer {
   const server = new McpServer({ name: "aoa", version: "0.1.0" });
 
   server.registerTool("history", {
@@ -50,7 +50,7 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
   server.registerTool(
     "state",
     {
-      description: "Your view under fog of war: tick, status (waiting|prep|running|finished), time left, capital, ASCII map, your entities, visible enemies with owner ids, deposits, script errors, the last 5 visible chat messages, damage your entities took (under attack) and events since your last call (or since tick `since`).",
+      description: "Your view under fog of war: tick, status (waiting|prep|running|finished), time left, mineral, ASCII map, your entities, visible enemies with owner ids, deposits, script errors, the last 5 visible chat messages, damage your entities took (under attack) and events since your last call (or since tick `since`).",
       inputSchema: { since: z.number().int().optional().describe("events from this tick (default: since your last call)") },
     },
     ({ since }) => reply(() => aoa.state(c, { since })),
@@ -61,9 +61,9 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
     {
       description:
         "Send a batch of orders (max 50), applied next tick; only while running. Shapes: " +
-        "{type:'train',building,kind:'worker'|'knight'|'ranger'} {type:'build',unit,kind:'turret'|'wall'|'door'|'castle',x,y} {type:'move',unit,x,y} " +
+        "{type:'train',building,kind:'worker'|'knight'|'archer'} {type:'build',unit,kind:'tower'|'wall'|'door'|'castle',x,y} {type:'move',unit,x,y} " +
         "{type:'attack',unit,target} {type:'gather',unit,deposit?} {type:'stop',unit} {type:'upgrade',upgrade:'<id from rules>'}. " +
-        "Returns ok/FAILED per order, capital spent and remaining, and your view. A queued unit gets its id when it spawns; durations and limits are in rules.",
+        "Returns ok/FAILED per order, mineral spent and remaining, and your view. A queued unit gets its id when it spawns; durations and limits are in rules.",
       inputSchema: { orders: z.array(order).min(1).max(50) },
     },
     ({ orders }) => reply(() => aoa.act(c, orders)),
@@ -73,10 +73,10 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
     "script",
     {
       description:
-        "Read (omit code) or replace the script every unit of `kind` (worker, king, knight, ranger, turret, castle; see rules) runs each tick when it has no order. " +
-        "code = JS function body with `self` in scope (see rules), max 4 KB; only while running. Uploading returns the result and your view.",
+        "Read (omit code) or replace the script every unit of `kind` (worker, king, knight, archer, tower, castle; see rules) runs each tick. " +
+        "code = JS function body with `self` in scope, max 4 KB; current rules support callbacks and explicit order suspension (see rules for this match's precedence). Only while running. Uploading returns the result and your view.",
       inputSchema: {
-        kind: z.string().describe("worker | king | knight | ranger | turret | castle (availability depends on rules)"),
+        kind: z.string().describe("worker | king | knight | archer | tower | castle (availability depends on rules)"),
         code: z.string().optional(),
         lang: z.enum(["js", "ts"]).optional().describe("default js; ts types are stripped"),
       },
@@ -107,19 +107,10 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
     ({ code, lang }) => reply(() => aoa.runScript(c, code, { lang })),
   );
 
-  server.registerTool(
-    "wait",
-    {
-      description:
-        "Block until there are new events since tick `since` (only types in `until`, if given) or max_s seconds pass, then return your view. The game and unit scripts keep running meanwhile. Never required: orders can be sent at any time.",
-      inputSchema: {
-        since: z.number().int().optional().describe("default: since your last call"),
-        max_s: z.number().int().min(0).max(30).optional().describe("seconds, ≤30 (default 20)"),
-        until: z.string().optional().describe("comma-separated event types, e.g. death,spawn,match_end"),
-      },
-    },
-    ({ since, max_s, until }) => reply(() => aoa.wait(c, { since, seconds: max_s === undefined ? undefined : Math.min(30, max_s), until })),
-  );
+  server.registerTool("script_test", {
+    description: "Probe a unit script on your current owned units in a separate VM with fresh memory. Returns proposed actions, logs, errors and gas. Does not install code, simulate action success, consume observations or advance the game.",
+    inputSchema: { kind: z.string(), code: z.string().min(1).max(4096), lang: z.enum(["js", "ts"]).optional() },
+  }, ({ kind, code, lang }) => reply(() => aoa.testScript(c, kind, code, { lang })));
 
   server.registerTool(
     "chat",
@@ -127,7 +118,7 @@ export function createServer(c: aoa.Client = aoa.client()): McpServer {
       description:
         "Messages, when the room has chat. With `text`: send it (max 200 chars, one per 3 s across channels); public by default, " +
         "private with `to` (a player id), or to your team with channel team (not with to). Private and team messages are hidden from live spectators and appear in the replay. " +
-        "Returns your view. Without `text`: every message you can see. New ones also arrive as chat events (wait until=chat).",
+        "Returns your view. Without `text`: every message you can see. New ones also arrive in subsequent observations.",
       inputSchema: {
         text: z.string().min(1).max(200).optional(),
         channel: z.enum(["all", "team", "private"]).optional().describe("all = public, team = allies, private = one recipient; omitted with to implies private; ignored when reading"),

@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { createServer } from "node:http";
 // @ts-expect-error Plain Node launcher shared with external harnesses.
-import { DEFAULT_MODEL, loadKey, options, preparePlayer, usage, watchFinish } from "../../loop-keepers/opencode/agent.mjs";
+import { DEFAULT_MODEL, loadKey, options, preparePlayer, providerRetryAfter, usage, watchFinish } from "../../loop-keepers/opencode/agent.mjs";
 
 const exec = promisify(execFile);
 const dirs: string[] = [];
@@ -70,6 +71,54 @@ describe("OpenCode connector", () => {
     const step = (input: number, output: number, read: number, cost: number) => JSON.stringify({ type: "step_finish", part: { type: "step-finish", tokens: { input, output, reasoning: 1, cache: { read, write: 0 } }, cost } });
     expect(usage([step(10, 2, 100, 0.5), "not json", JSON.stringify({ type: "text", part: { type: "text" } }), step(5, 1, 50, 0.25)]))
       .toEqual({ steps: 2, input: 15, output: 3, reasoning: 2, cacheRead: 150, cacheWrite: 0, cost: 0.75 });
+  });
+
+  const providerError = (status = 402, reason = "in_flight_budget_exhausted", retryAfter = "120") => JSON.stringify({
+    type: "error", error: { name: "APIError", data: { statusCode: status, isRetryable: false,
+      responseHeaders: { "retry-after": retryAfter }, responseBody: JSON.stringify({ error: { metadata: { reason } } }) } },
+  });
+
+  it("honors the temporary budget cooldown despite OpenCode marking the 402 non-retryable", () => {
+    expect(providerRetryAfter(["partial json", providerError(), ""])).toEqual({ delayMs: 120_000, reason: "in_flight_budget_exhausted" });
+    expect(providerRetryAfter([providerError(429, "rate_limit", "30")])).toEqual({ delayMs: 30_000, reason: "rate_limited" });
+    const now = Date.parse("2026-10-08T05:37:56Z");
+    expect(providerRetryAfter([providerError(429, "rate_limit", "Thu, 08 Oct 2026 05:39:56 GMT")], now)?.delayMs).toBe(120_000);
+    expect(providerRetryAfter([providerError(402, "insufficient_credits")])).toBeNull();
+    expect(providerRetryAfter([providerError(401, "unauthorized")])).toBeNull();
+    expect(providerRetryAfter([providerError(), providerError(402, "insufficient_credits")])).toBeNull();
+    for (const bad of ["", "0", "-1", "not a date"]) expect(providerRetryAfter([providerError(402, "in_flight_budget_exhausted", bad)])).toBeNull();
+  });
+
+  it("delays a real launcher exit and lets a signal cancel a long provider cooldown", async () => {
+    const root = await temp();
+    const binary = join(root, "opencode");
+    const server = createServer((req, res) => {
+      req.resume();
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ status: "running" }));
+    });
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("missing server address");
+    const agent = new URL("../../loop-keepers/opencode/agent.mjs", import.meta.url).pathname;
+    const env = { ...process.env, HOME: root, OPENROUTER_API_KEY: "test-key", AOA_TOKEN: "game-test",
+      AOA_CONNECTOR_VERSION: "test", AOA_OPENCODE_BIN: binary, AOA_SERVER: `http://127.0.0.1:${address.port}` };
+    try {
+      for (const cancel of [false, true]) {
+        const event = providerError(402, "in_flight_budget_exhausted", cancel ? "120" : "1");
+        await writeFile(binary, `#!${process.execPath}\nprocess.stdout.write(${JSON.stringify(event + "\n")}); process.exitCode=1;\n`, { mode: 0o700 });
+        const start = performance.now();
+        const run = exec(process.execPath, [agent], { env, timeout: 8000, killSignal: "SIGKILL" });
+        if (cancel) run.child.stderr!.on("data", chunk => {
+          if (String(chunk).includes("before allowing a relaunch")) run.child.kill("SIGTERM");
+        });
+        await expect(run).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining(cancel ? "waiting 120s (Retry-After)" : "waiting 1s (Retry-After)") });
+        if (!cancel) expect(performance.now() - start).toBeGreaterThanOrEqual(1000);
+      }
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
   });
 
   it("stops the agent after the match finishes, not before", async () => {

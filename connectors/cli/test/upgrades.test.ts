@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { buildServer } from "@aoa/server";
 import { rules } from "@aoa/shared";
 
-it("researches through the real MCP schema, reports capital and persists pending research across a server restart", async () => {
+it("researches through the real MCP schema, reports mineral and persists pending research across a server restart", async () => {
   const replayDir = await mkdtemp(join(tmpdir(), "aoa-upgrade-api-"));
   const ruleset = { ...rules, matchMs: 15_000, upgrades: {
     worker_damage: { ...rules.upgrades!.worker_damage, levels: [{ cost: 150, researchMs: 3000, value: 5 }] },
@@ -38,14 +38,14 @@ it("researches through the real MCP schema, reports capital and persists pending
     }
     const answer = await mcp.callTool({ name: "act", arguments: { orders: [{ type: "upgrade", upgrade: "worker_damage" }] } });
     expect(answer.isError, JSON.stringify(answer.content)).toBeFalsy();
-    expect(JSON.stringify(answer.content)).toContain("capital spent 150, remaining 50");
+    expect(JSON.stringify(answer.content)).toContain("mineral spent 150, remaining 50");
     expect(JSON.stringify(answer.content)).toContain("researching worker_damage L1");
     await mcp.close();
     await app.close();
     app = await buildServer({ replayDir, ruleset, prepMs: 0 });
     const restored = (await app.inject({ url: "/state", headers: headers[0] })).json();
     expect(restored.players[0].research.upgrade).toBe("worker_damage");
-    expect(restored.players[0].capital).toBe(50);
+    expect(restored.players[0].mineral).toBe(50);
     await app.inject({ url: "/state", headers: headers[1] });
     const completed = (await app.inject({ url: "/wait?max=5&until=upgrade_completed", headers: headers[0] })).json();
     expect(completed.players[0].upgrades).toEqual({ worker_damage: 1 });

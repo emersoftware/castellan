@@ -40,7 +40,7 @@ describe("Antigravity connector", () => {
       const client = new Client({ name: "agy-config-test", version: "0" });
       try {
         await client.connect(new StdioClientTransport({ ...mcp.mcpServers.aoa, cwd: workspace }));
-        expect((await client.listTools()).tools.map((t) => t.name).sort()).toEqual(["act", "chat", "history", "rules", "run", "script", "state", "wait"]);
+        expect((await client.listTools()).tools.map((t) => t.name).sort()).toEqual(["act", "chat", "history", "rules", "run", "script", "script_test", "state"]);
       } finally {
         await client.close();
       }
@@ -69,7 +69,7 @@ describe("Antigravity connector", () => {
       expect(called.args).not.toContain("--dangerously-skip-permissions");
       expect(called.args).not.toContain("--continue");
       expect(called.args[called.args.indexOf("--conversation") + 1]).toBe(conversation);
-      expect(called.args.at(-1)).toContain("Continue playing autonomously until status is finished");
+      expect(called.args.at(-1)).toContain("The connector will automatically provide another observation");
       expect(called.args.at(-1).startsWith("You were restarted")).toBe(resumed);
       const grants = JSON.parse(await readFile(projectPath, "utf8")).permissionGrants.permissionGrants;
       expect(grants.allow).toEqual(["mcp(aoa/*)", `read_file(${join(homedir(), ".gemini/antigravity-cli/mcp/aoa")})`, `read_file(${join(homedir(), ".gemini/antigravity-cli/brain", conversation, ".system_generated/steps")})`]);

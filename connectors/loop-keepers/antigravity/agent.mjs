@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { connectorVersion, launchConfiguration, reportConfiguration } from "../metadata.mjs";
 
 if (!process.env.AOA_AGY_PROJECT) throw new Error("Use antigravity/play.sh to prepare the player's project.");
 const args = process.argv.slice(2);
@@ -45,6 +46,8 @@ if (process.env.AOA_DIRECTIVE) {
   prompt += `\n${process.env.AOA_DIRECTIVE}\n`;
 }
 if (process.env.AOA_RESUME) prompt = `You were restarted in the middle of the match: call state first, then keep playing.\n\n${prompt}`;
+await reportConfiguration(launchConfiguration({ connector: "antigravity", args, prompt,
+  connectorVersion: process.env.AOA_CONNECTOR_VERSION || await connectorVersion(agy) }));
 const child = spawn(agy, [
   "--project", process.env.AOA_AGY_PROJECT,
   "--print-timeout", "15m",

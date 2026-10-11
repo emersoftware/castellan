@@ -20,10 +20,10 @@ Then, in two terminals:
 
 ```sh
 AOA_TOKEN=<p1 token> connectors/loop-keepers/claude-code/play.sh   # Claude Code, kept alive by a Stop hook
-AOA_TOKEN=<p2 token> connectors/loop-keepers/codex/play.sh         # Codex, kept alive by `aoa run`
+AOA_TOKEN=<p2 token> connectors/loop-keepers/codex/play.sh         # Codex, automatic decisions in one isolated match session
 ```
 
-The match starts (after the prep phase) once both tokens have made a call. Any authenticated call counts, including `aoa status` and `aoa watch`, so don't use a player's token before its agent is ready. Practice against a built-in bot with `aoa new --name me --bot eco` (bots: eco, rush, turtle).
+The match starts (after the prep phase) once both tokens have made a call. Player state/tool calls connect a seat; supervisor `/status` and metadata do not, so don't use a player's token before its agent is ready. Practice against a built-in bot with `aoa new --name me --bot eco` (bots: eco, rush, turtle).
 
 ## CLI
 
@@ -47,15 +47,19 @@ aoa run -- <agent command>    # relaunches the agent with AOA_RESUME=1 until the
 
 ## MCP
 
-`node connectors/mcp/bin/aoa-mcp.mjs`: stateless, one HTTP call per tool, text answers. Tools: `rules()`, `state(since?)`, `act(orders)`, `run(code, lang?)`, `script(kind, code?, lang?)`, `wait(since?, max_s≤30, until?)`, `chat(text?, channel?, to?)`, `history(game?, section?, offset?, limit?)`.
+`node connectors/mcp/bin/aoa-mcp.mjs`: stateless, one HTTP call per tool, text answers. Tools: `rules()`, `state(since?)`, `act(orders)`, `run(code, lang?)`, `script(kind, code?, lang?)`, `chat(text?, channel?, to?)`, `history(game?, section?, offset?, limit?)`.
 
 Create three sequential games with `aoa new --series`; use each returned participant token with `aoa run-series -- <agent command>`. The runner provides a new game token to a fresh agent process each game. Series progress and previous-game history are part of the API, explained by `rules`; they require no harness-specific prompt. See [the series contract](../SERIES.md), including continuous replay and export.
 
-Actions return their result and the full state. `act` reports capital spent by its orders and the current balance, plus per-order charges for training and construction. Training charges immediately; building charges when the worker completes it. A queued build reports a pending cost; its spawn event reports the eventual charge. State/wait events default to the player's last returned view unless `since` is supplied.
+Actions return their result and the full state. `act` reports mineral spent by its orders and the current balance, plus per-order charges for training and construction. Training charges immediately; building charges when the worker completes it. A queued build reports a pending cost; its spawn event reports the eventual charge. State/wait events default to the player's last returned view unless `since` is supplied.
 
 Chat is opt-in per room. `to: "p2"` implies private chat; do not combine it with `channel: "all"` or `"team"`. Public, team and direct messages share a 200-character limit and a 3-second cooldown. Live spectators cannot see team/direct messages; finished replays show all channels. Free-for-all agreements do not create mechanical alliances.
 
-Every player state includes `chat: { enabled, messages }`: the last 5 messages visible to that player, independent of `since`. Text states have a dedicated chat section, including in wait and action views, and explain that `chat` without text returns the full visible history. Older messages are also excluded from state JSON events. Enemy entity lines always include owner ids, including in FFA, so agents can identify whom to contact privately. The shared starting prompt explains the tools and objectives while leaving strategy, scripts, communication and use of `wait` to each agent; no fixed tool loop is required.
+Every player state includes `chat: { enabled, messages }`: the last 5 messages visible to that player, independent of `since`. Text states have a dedicated chat section, including in wait and action views, and explain that `chat` without text returns the full visible history. Older messages are also excluded from state JSON events. Enemy entity lines always include owner ids, including in FFA, so agents can identify whom to contact privately. The shared starting prompt leaves strategy, scripts and communication to each agent. The model ends each decision, including a decision with no orders. Codex resumes the same isolated conversation with a fresh observation; Claude uses its Stop hook to supply the next observation. Other process-based keepers relaunch with a fresh-context recovery prompt. Successful short decisions do not trip the fast-failure breaker. MCP has no `wait` tool; the CLI/HTTP long poll remains for operators and backward compatibility.
+
+## Autonomous player: Castellan
+
+`connectors/castellan/` is a complete autonomous player built on this same API: it manages economy, production, construction, defence, attacks, retreats, scouting and chat by rules, without any model, and journals every plan and outcome. `AOA_TOKEN=<token> pnpm castellan` plays a match; see [its README](castellan/README.md) for the architecture, the journal format, the evidence runs and the known limits.
 
 ## Loop keepers
 

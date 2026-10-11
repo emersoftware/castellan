@@ -2,7 +2,7 @@
 // at execution as well as filtering the model-visible catalog.
 export const name = "aoa-game-tools";
 export const inject = ["tools"];
-export const TOOLS = ["act", "chat", "history", "rules", "run", "script", "state", "wait"].map((t) => `mcp__aoa__${t}`);
+export const TOOLS = ["act", "chat", "history", "rules", "run", "script", "script_test", "state"].map((t) => `mcp__aoa__${t}`);
 export function apply(ctx) {
   ctx.tools.guard((call) => TOOLS.includes(call.name) ? undefined : "Only AoA game tools are available to this player.");
   ctx.on("agent/created", ({ agent }) => {

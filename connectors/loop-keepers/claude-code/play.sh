@@ -26,6 +26,7 @@ trap 'rm -rf "$work"' EXIT
 trap 'kill -TERM "$pid" 2>/dev/null' INT TERM
 sed "s|\.\./\.\./mcp/bin/aoa-mcp.mjs|$here/../../mcp/bin/aoa-mcp.mjs|" "$here/.mcp.json" > "$work/mcp.json"
 sed "s|\$CLAUDE_PROJECT_DIR|$here|" "$here/settings.json" > "$work/settings.json"
+printf '%s' "$prompt" | node "$here/../metadata.mjs" claude-code "$@"
 cd "$work"
 claude -p "$prompt" \
   --setting-sources "" --tools "" --disable-slash-commands \

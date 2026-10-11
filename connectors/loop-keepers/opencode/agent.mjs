@@ -4,6 +4,8 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { setTimeout as sleep } from "node:timers/promises";
+import { connectorVersion, launchConfiguration, reportConfiguration, reportActivity } from "../metadata.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_MODEL = "openrouter/~deepseek/deepseek-flash-latest";
@@ -82,6 +84,29 @@ export function usage(lines) {
   return totals;
 }
 
+// OpenCode labels even OpenRouter's temporary in-flight budget error as
+// non-retryable. Preserve its Retry-After instead of spending aoa run's fast
+// failure allowance on requests the provider has already asked us to defer.
+export function providerRetryAfter(lines, now = Date.now()) {
+  for (const line of [...lines].reverse()) {
+    let event; try { event = JSON.parse(line); } catch { continue; }
+    if (event?.type !== "error") continue;
+    const data = event.error?.data;
+    if (!data) return null;
+    let body; try { body = JSON.parse(data.responseBody); } catch { /* optional */ }
+    const metadata = body?.error?.metadata;
+    if (data.statusCode !== 429 && !(data.statusCode === 402 && metadata?.reason === "in_flight_budget_exhausted")) return null;
+    const retryHeader = headers => Object.entries(headers ?? {}).find(([key]) => key.toLowerCase() === "retry-after")?.[1];
+    const value = retryHeader(data.responseHeaders) ?? retryHeader(metadata?.headers);
+    if (typeof value !== "string" || !value.trim()) return null;
+    const seconds = Number(value);
+    const delay = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(value) - now;
+    if (!Number.isFinite(delay) || delay <= 0 || delay > 2_147_483_647) return null;
+    return { delayMs: Math.ceil(delay), reason: data.statusCode === 402 ? "in_flight_budget_exhausted" : "rate_limited" };
+  }
+  return null;
+}
+
 // Polls the player's match status; once finished, gives the agent a short grace period, then stops it.
 export function watchFinish({ server = "http://localhost:4400", token, onFinished, everyMs = 10_000, graceMs = 15_000, fetchImpl = fetch }) {
   let timer, stopped = false;
@@ -113,6 +138,9 @@ export async function main(args = process.argv.slice(2), env = process.env) {
     await writeFile(join(root, "run.json"), JSON.stringify({ ...player.metadata, directive: env.AOA_DIRECTIVE }, null, 2), { mode: 0o600 });
   }
   console.error(`aoa opencode: ${opts.model}${opts.variant ? ` (${opts.variant})` : ""}; logs ${root}${env.AOA_DIRECTIVE ? `; directive: ${env.AOA_DIRECTIVE}` : ""}`);
+  await reportConfiguration(launchConfiguration({ connector: "opencode", model: opts.model, effort: opts.variant,
+    connectorVersion: env.AOA_CONNECTOR_VERSION || await connectorVersion(env.AOA_OPENCODE_BIN || "opencode"), prompt, env }), { env });
+  await reportActivity("deciding", { env });
   const child = spawn(env.AOA_OPENCODE_BIN || "opencode", [...player.args, prompt], { cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "inherit"] });
   const lines = [];
   let pending = "";
@@ -122,19 +150,28 @@ export async function main(args = process.argv.slice(2), env = process.env) {
     pending = parts.pop();
     lines.push(...parts);
   });
-  const interrupt = () => child.kill("SIGINT"), terminate = () => child.kill("SIGTERM");
+  const retryAbort = new AbortController();
+  let stopped = false, finished = false;
+  const stop = (signal) => { stopped = true; retryAbort.abort(); child.kill(signal); };
+  const interrupt = () => stop("SIGINT"), terminate = () => stop("SIGTERM");
   process.on("SIGINT", interrupt); process.on("SIGTERM", terminate);
   // A model request in flight when the match ends would otherwise keep the process alive.
-  const watch = watchFinish({ server: env.AOA_SERVER, token: env.AOA_TOKEN, onFinished: terminate });
-  let code;
-  try { code = await new Promise((resolve, reject) => { child.on("error", reject); child.on("exit", (code) => resolve(code ?? 1)); }); }
-  finally { watch.stop(); process.off("SIGINT", interrupt); process.off("SIGTERM", terminate); }
-  lines.push(pending);
-  const totals = usage(lines);
-  await writeFile(join(root, "events.jsonl"), lines.join("\n"), { mode: 0o600 });
-  await writeFile(join(root, "usage.json"), JSON.stringify(totals, null, 2), { mode: 0o600 });
-  console.error(`aoa opencode usage: ${JSON.stringify(totals)}`);
-  return code;
+  const watch = watchFinish({ server: env.AOA_SERVER, token: env.AOA_TOKEN, onFinished: () => { finished = true; terminate(); } });
+  try {
+    const code = await new Promise((resolve, reject) => { child.on("error", reject); child.on("close", (code) => resolve(code ?? 1)); });
+    lines.push(pending);
+    const totals = usage(lines);
+    await writeFile(join(root, "events.jsonl"), lines.join("\n"), { mode: 0o600 });
+    await writeFile(join(root, "usage.json"), JSON.stringify(totals, null, 2), { mode: 0o600 });
+    console.error(`aoa opencode usage: ${JSON.stringify(totals)}`);
+    const retry = code !== 0 ? providerRetryAfter(lines) : null;
+    if (retry && !stopped) {
+      await reportActivity("provider_wait", { env, retryAt: new Date(Date.now() + retry.delayMs).toISOString() });
+      console.error(`aoa opencode: ${retry.reason}; waiting ${retry.delayMs / 1000}s (Retry-After) before allowing a relaunch; the match keeps running`);
+      await sleep(retry.delayMs, undefined, { signal: retryAbort.signal }).catch(error => { if (error.name !== "AbortError") throw error; });
+    }
+    return finished ? 0 : code;
+  } finally { watch.stop(); process.off("SIGINT", interrupt); process.off("SIGTERM", terminate); }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().then((code) => { process.exitCode = code; }, (error) => { console.error(error.message); process.exitCode = 1; });

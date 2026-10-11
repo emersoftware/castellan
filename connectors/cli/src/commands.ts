@@ -4,7 +4,7 @@
  * connectors can call them without spawning processes.
  */
 import { spawn } from "node:child_process";
-import { eventLine, type ChatChannel, type MatchStatus, type Outcome, type PlayerView, type SeriesSummary } from "@aoa/shared";
+import { eventLine, outcomeText, type ChatChannel, type MatchStatus, type Outcome, type PlayerView, type SeriesSummary } from "@aoa/shared";
 import { ApiError, client, query, type Client } from "./client";
 
 export interface Fmt {
@@ -56,6 +56,10 @@ export async function getScript(c: Client, kind: string, o: Fmt = {}): Promise<s
 export async function putScript(c: Client, kind: string, code: string | null, o: Fmt & { lang?: "js" | "ts" } = {}): Promise<string> {
   const r = await c.put(`/scripts/${encodeURIComponent(kind)}${query({ format: format(o.json) })}`, { code, lang: o.lang ?? "js" });
   return o.json ? pretty(r) : (r as string);
+}
+
+export async function testScript(c: Client, kind: string, code: string, o: { lang?: "js" | "ts" } = {}): Promise<string> {
+  return pretty(await c.post(`/scripts/${encodeURIComponent(kind)}/test`, { code, lang: o.lang ?? "js" }));
 }
 
 /** With text: sends publicly, to the team, or to one player. Without: visible history. */
@@ -140,7 +144,7 @@ export async function rooms(c: Client, o: Fmt = {}): Promise<string> {
   return list
     .map((r) => {
       const who = r.players.map((p) => `${p.id}:${p.name}${p.bot ? "(bot)" : ""}`).join(" vs ");
-      const result = r.outcome ? ` · winner ${r.outcome.winner ?? "draw"} (${r.outcome.reason})` : "";
+      const result = r.outcome ? ` · ${outcomeText(r.outcome)} (${r.outcome.reason})` : "";
       return `${r.id} ${r.status} tick ${r.tick} · ${who}${result}`;
     })
     .join("\n");
@@ -168,7 +172,9 @@ export async function run(c: Client, cmd: string[], o: RunOptions = {}): Promise
     const code = await exec(cmd, attempt ? { ...env, AOA_RESUME: "1" } : env);
     let s: MatchStatus | "unreachable";
     try {
-      s = await status(c);
+      const current = await c.get<{ status: MatchStatus; alive?: boolean }>("/status");
+      if (current.alive === false) { log("aoa run: player eliminated"); return 0; }
+      s = current.status;
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         log(`aoa run: ${e.message}`);
@@ -180,7 +186,7 @@ export async function run(c: Client, cmd: string[], o: RunOptions = {}): Promise
       log("aoa run: match finished");
       return 0;
     }
-    fast = Date.now() - started < fastMs ? fast + 1 : 0;
+    fast = code !== 0 && Date.now() - started < fastMs ? fast + 1 : 0;
     if (fast >= maxFastFailures) {
       log(`aoa run: ${fast} fast exits in a row with the match ${s}; giving up`);
       return 1;
