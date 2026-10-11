@@ -1,4 +1,4 @@
-// Searches combat values and costs so knights, rangers and turrets trade evenly (value destroyed per value lost)
+// Searches combat values and costs so knights, archers and towers trade evenly (value destroyed per value lost)
 // across every recorded battle and its variants, with the castle (economy, not defense) trading below all three
 // but not far below,
 // staying close to the current rules. (1+λ) evolution on the
@@ -11,22 +11,30 @@
 //   BATTLES=file, VARIANTS=n (first n stagings: as recorded, open, jittered), FROM=values.json (search start),
 //   STARTS=a.json,b.json,… (fight each, start from the most balanced; distance is then measured from it)
 import { spawn } from "node:child_process";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { PARAMS, legal, start as snapped, type Values } from "./balance-params";
 import { SCENARIOS, SYNTHETIC_COUNT, scenarioOf } from "./synthetic";
+import { splitReplays } from "./experiment-split";
+import type { Snapshot } from "./battles";
 
 const WORKERS = 8, LAMBDA = 6, GENERATIONS = Number(process.argv[2] ?? 25), DEADLINE = Date.now() + Number(process.argv[3] ?? 1000) * 3_600_000,
   STAGINGS = Number(process.env.VARIANTS ?? 3), REG = 0.01;
-const KINDS: [string, number][] = [["knight", 1], ["ranger", 1], ["turret", 0.5]];
+const OUT_DIR = process.env.OUT_DIR ?? "/tmp/aoa-opt";
+if (!Number.isInteger(STAGINGS) || STAGINGS < 1 || STAGINGS > 3) throw new Error("VARIANTS must be 1, 2, or 3");
+const KINDS: [string, number][] = [["knight", 1], ["archer", 1], ["tower", 0.5]];
 /** The castle must trade below the weakest fighter (by CASTLE_MARGIN, log scale) but not under CASTLE_FLOOR of their
  *  average (v16: ~0.55), so the search can't meet it by weakening a fighter. */
 const OBJECTIVE = process.env.OBJECTIVE ?? "parity";
 const CASTLE_MARGIN = 0.05, CASTLE_FLOOR = 0.5, CASTLE_WEIGHT = 1;
-const recordedIds: string[] = JSON.parse(readFileSync(process.env.BATTLES ?? "/tmp/aoa-opt/battles.json", "utf8")).map((b: { id: string }) => b.id);
+const recorded: Snapshot[] = JSON.parse(readFileSync(process.env.BATTLES ?? "/tmp/aoa-opt/battles.json", "utf8"));
+for (const s of recorded) if (s.format !== "aoa-battle-v2" || !s.continuation) throw new Error(`Battle ${s.id} is a lossy legacy snapshot; re-extract with extract-recent.mts`);
+const recordedIds = recorded.map((b) => b.id);
 const battles = recordedIds.length;
-/** About 30% of recorded games are held out (all their battles): the search never sees them; the result is checked on them. */
-const heldOut = (b: number) => { const g = recordedIds[b].split("#")[0]; let h = 0; for (const c of g) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 10 < 3; };
+const partitions = splitReplays(recordedIds);
+const partition = (b: number) => partitions.get(recordedIds[b].split("#")[0]);
+mkdirSync(OUT_DIR, { recursive: true });
+writeFileSync(`${OUT_DIR}/split.json`, JSON.stringify({ format: "aoa-balance-split-v1", replays: Object.fromEntries(partitions) }, null, 2));
 let jobs: [number, number][] = [];
 for (let b = 0; b < battles; b++) for (let v = 0; v < STAGINGS; v++) jobs.push([b, v]);
 const SYNTH = process.env.SYNTHETIC !== "0";
@@ -35,9 +43,15 @@ const designed = (j: number) => jobs[j][0] >= battles;
 const workers = Array.from({ length: WORKERS }, () => {
   const child = spawn(process.execPath, ["--import", "tsx", new URL("./balance-worker.mts", import.meta.url).pathname], { stdio: ["pipe", "pipe", "inherit"] });
   const lines = createInterface({ input: child.stdout! })[Symbol.asyncIterator]();
-  return { child, ask: async (msg: unknown) => { child.stdin!.write(JSON.stringify(msg) + "\n"); return JSON.parse(String((await lines.next()).value)); } };
+  return { child, ask: async (msg: unknown) => {
+    child.stdin!.write(JSON.stringify(msg) + "\n");
+    const response = await lines.next();
+    if (response.done) throw new Error(`Balance worker exited (${child.exitCode ?? child.signalCode}); check its error above`);
+    return JSON.parse(String(response.value));
+  } };
 });
-const log = (s: string) => { console.log(s); appendFileSync("/tmp/aoa-opt/opt.log", s + "\n"); };
+process.on("exit", () => { for (const w of workers) w.child.kill(); });
+const log = (s: string) => { console.log(s); appendFileSync(`${OUT_DIR}/opt.log`, s + "\n"); };
 
 type Stats = { destroyed: Record<string, number>; lost: Record<string, number>; loss?: [number, number] };
 /** Fights the given jobs on all workers, a few at a time so none sits idle; returns stats by job index. */
@@ -57,7 +71,7 @@ async function fight(values: Values, which: number[]): Promise<Map<number, Stats
 const load = (file: string): Values => {
   const raw = JSON.parse(readFileSync(file, "utf8"));
   const v = raw.values ?? raw;
-  if (v.aimMs !== undefined) { v["knight.aimMs"] ??= v.aimMs; v["ranger.aimMs"] ??= v.aimMs; }
+  if (v.aimMs !== undefined) { v["knight.aimMs"] ??= v.aimMs; v["archer.aimMs"] ??= v.aimMs; }
   return legal({ ...snapped(), ...v });
 };
 let start = snapped();
@@ -105,14 +119,17 @@ const fmtT = (t: Record<string, number>, rps?: number, d?: Record<string, number
   + (rps !== undefined ? ` | designed ${OBJECTIVE === "rps" ? "rps miss" : "parity"} ${rps.toFixed(3)}` : "")
   + (d ? ` (${KINDS.map(([k]) => `${k} ${d[k].toFixed(2)}`).join(" · ")})` : "");
 
-// Drop battles where nothing fights, then fix the racing subset (every third active battle).
-const first = await fight(from, jobs.map((_, j) => j));
-let active = jobs.map((_, j) => j).filter((j) => designed(j) || Object.values(first.get(j)!.destroyed).some((v) => v > 0) || Object.values(first.get(j)!.lost).some((v) => v > 0));
-const test = active.filter((j) => !designed(j) && heldOut(jobs[j][0]));
-active = active.filter((j) => !test.includes(j));
+// Partition before running anything. Final-test games are never used for contact filtering,
+// racing, choosing starting values, candidate selection, or stopping the search.
+const search = jobs.map((_, j) => j).filter((j) => designed(j) || partition(jobs[j][0]) === "search");
+const validation = jobs.map((_, j) => j).filter((j) => !designed(j) && partition(jobs[j][0]) === "validation");
+const test = jobs.map((_, j) => j).filter((j) => !designed(j) && partition(jobs[j][0]) === "test");
+const first = await fight(from, search);
+const active = search.filter((j) => designed(j) || Object.values(first.get(j)!.destroyed).some((v) => v > 0) || Object.values(first.get(j)!.lost).some((v) => v > 0));
+if (!active.some((j) => !designed(j))) throw new Error("No recorded search battles made contact; cannot optimize an uninformative dataset");
 const head = active.filter((_, i) => i % 3 === 0), tail = active.filter((_, i) => i % 3 !== 0);
 const RACE = 1.25;
-log(`battles ${jobs.length}, searching on ${active.length} (racing on ${head.length}), held out ${test.length}`);
+log(`battles ${jobs.length}, search ${active.length} (racing ${head.length}), validation ${validation.length}, untouched final test ${test.length}`);
 const seen = new Set<string>();
 
 // SEED=n changes the sequence of candidates (a resumed run with the same seed and start repeats its tries).
@@ -132,9 +149,9 @@ if (process.env.STARTS) {
   from = start = top.values; firstStats = top.stats;
 }
 let best = { values: from, head: score(from, firstStats, head).score, ...score(from, firstStats, active) };
-const validate = async (values: Values) => score(values, await fight(values, test), test);
+const validate = async (values: Values) => score(values, await fight(values, validation), validation);
 let validated = { values: from, balance: (await validate(from)).balance };
-log(`held out at start ${validated.balance.toFixed(4)}`);
+log(`validation at start ${validated.balance.toFixed(4)}`);
 log(`start score ${best.score.toFixed(4)} (balance ${best.balance.toFixed(4)}) trades ${fmtT(best.trade, best.rps, best.designedTrade)}\n  ${fmt(best.values)}`);
 const uniform = () => (rnd = (Math.imul(rnd, 1103515245) + 12345) >>> 0) / 2 ** 32;
 seen.add(JSON.stringify(best.values));
@@ -162,23 +179,24 @@ for (let g = 1, stale = 0; g <= GENERATIONS && Date.now() < DEADLINE && stale < 
     log(`  try ${changed}: ${res.score.toFixed(4)} (balance ${res.balance.toFixed(4)}) ${fmtT(res.trade, res.rps, res.designedTrade)}`);
     if (res.score < best.score) {
       best = { values, head: headScore, ...res };
-      // Every new best is also checked on the held-out games; the one that does best there is the result.
+      // Validation selects candidates; it is explicitly not an independent test estimate.
       const held = (await validate(values)).balance;
-      log(`  held out ${held.toFixed(4)} (best so far ${validated.balance.toFixed(4)})`);
+      log(`  validation ${held.toFixed(4)} (best so far ${validated.balance.toFixed(4)})`);
       if (held < validated.balance) validated = { values, balance: held };
     }
   }
   log(`gen ${g}: best ${best.score.toFixed(4)} (balance ${best.balance.toFixed(4)}, drift ${best.drift.toFixed(3)}) trades ${fmtT(best.trade, best.rps, best.designedTrade)}\n  ${fmt(best.values)}`);
-  writeFileSync("/tmp/aoa-opt/best.json", JSON.stringify(best, null, 1));
+  writeFileSync(`${OUT_DIR}/best.json`, JSON.stringify(best, null, 1));
   stale = best.score < before ? 0 : stale + 1;
 }
-// The result on the held-out games, against where the search started; the accepted result is the best there.
-const check = async (label: string, values: Values) => {
-  const res = await validate(values);
-  log(`held out, ${label}: balance ${res.balance.toFixed(4)} ${fmtT(res.trade)}`);
-};
-await check("start", from);
-await check("search best", best.values);
-await check("held-out best", validated.values);
-writeFileSync("/tmp/aoa-opt/validated.json", JSON.stringify({ ...validated, improved: validated.values !== from }, null, 1));
+// Freeze the winner before the single final test stage. Baseline is measured alongside it
+// for comparison, never used to choose another candidate after seeing test performance.
+writeFileSync(`${OUT_DIR}/validated.json`, JSON.stringify({ ...validated, improved: JSON.stringify(validated.values) !== JSON.stringify(from) }, null, 1));
+const baselineTest = score(from, await fight(from, test), test);
+const selectedTest = JSON.stringify(validated.values) === JSON.stringify(from) ? baselineTest
+  : score(validated.values, await fight(validated.values, test), test);
+log(`final test baseline: ${baselineTest.balance.toFixed(4)}; frozen selected candidate: ${selectedTest.balance.toFixed(4)}`);
+writeFileSync(`${OUT_DIR}/final-test.json`, JSON.stringify({ values: validated.values, baseline: baselineTest, selected: selectedTest,
+  replays: [...partitions].filter(([, p]) => p === "test").map(([id]) => id),
+  note: "Diagnostic objective only. Do not tune candidates against this report; use new games for the next independent test." }, null, 2));
 for (const w of workers) w.child.kill();

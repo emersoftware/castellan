@@ -1,5 +1,5 @@
 import { createMatch, type PlayerOrder } from "@aoa/engine";
-import { MAPS, rules, type Outcome, type Ruleset } from "@aoa/shared";
+import { MAPS, rules, type OrderResult, type Outcome, type Ruleset } from "@aoa/shared";
 import type { Bot } from "./bots";
 
 export * from "./bots";
@@ -16,6 +16,8 @@ export interface SimResult {
   /** Recorded orders and state hashes, for writing a replay. */
   orders: { tick: number; player: string; order: PlayerOrder["order"] }[];
   hashes: Record<number, string>;
+  /** Every rejected order, retained alongside the submitted replay inputs. */
+  rejectedOrders: { tick: number; player: string; order: PlayerOrder["order"]; result: OrderResult }[];
 }
 
 /** Plays a whole match as fast as possible, without real time. */
@@ -37,6 +39,7 @@ export async function simulate(a: SimSide, b: SimSide, opts: { seed?: number; ru
   const sides = [side("p1", a), side("p2", b)];
   const orders: SimResult["orders"] = [];
   const hashes: Record<number, string> = {};
+  const rejectedOrders: SimResult["rejectedOrders"] = [];
   try {
     while (!m.outcome) {
       const input: PlayerOrder[] = [];
@@ -46,11 +49,12 @@ export async function simulate(a: SimSide, b: SimSide, opts: { seed?: number; ru
       }
       for (const o of input) orders.push({ tick: m.tick, ...o });
       const t = m.tick;
-      m.step(input);
+      const step = m.step(input);
+      step.results.forEach((result, i) => { if (!result.ok) rejectedOrders.push({ tick: t, ...input[i], result }); });
       if (t % 100 === 0) hashes[t] = m.hash();
     }
     hashes[m.tick] = m.hash();
-    return { outcome: m.outcome!, ticks: m.tick, orders, hashes };
+    return { outcome: m.outcome!, ticks: m.tick, orders, hashes, rejectedOrders };
   } finally {
     m.dispose();
   }

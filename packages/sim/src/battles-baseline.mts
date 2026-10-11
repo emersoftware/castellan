@@ -12,4 +12,4 @@ for (const b of battles) for (const variant of [{}, { open: true }]) {
   sum(destroyed, res.destroyedBy); sum(lost, res.lostKind); sum(engaged, res.engaged);
 }
 console.log(`${n} battles in ${((Date.now() - t0) / 1000).toFixed(1)} s, ${ticks} ticks`);
-for (const k of ["knight", "ranger", "turret", "castle", "worker", "king", "wall"]) console.log(k.padEnd(8), "engaged", String(engaged[k] ?? 0).padStart(7), "destroyed", String(destroyed[k] ?? 0).padStart(7), "lost", String(lost[k] ?? 0).padStart(7), "trade", ((destroyed[k] ?? 0) / Math.max(1, lost[k] ?? 0)).toFixed(2));
+for (const k of ["knight", "archer", "tower", "castle", "worker", "king", "wall"]) console.log(k.padEnd(8), "engaged", String(engaged[k] ?? 0).padStart(7), "destroyed", String(destroyed[k] ?? 0).padStart(7), "lost", String(lost[k] ?? 0).padStart(7), "trade", ((destroyed[k] ?? 0) / Math.max(1, lost[k] ?? 0)).toFixed(2));

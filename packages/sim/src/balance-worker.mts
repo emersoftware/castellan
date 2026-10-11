@@ -15,7 +15,9 @@ for await (const line of createInterface({ input: process.stdin })) {
   for (const [b, v] of jobs) {
     const destroyed: Record<string, number> = {}, lost: Record<string, number> = {};
     // Indexes past the recorded battles are designed ones, built for these costs.
-    const res = await runBattle(b < battles.length ? battles[b] : scenario(b - battles.length, ruleset), ruleset, VARIANTS[v]);
+    const fixture = b < battles.length ? battles[b] : scenario(b - battles.length, ruleset);
+    const res = await runBattle(fixture, ruleset, VARIANTS[v]);
+    if (res.errors || res.rejectedOrders) throw new Error(`Battle ${fixture.id} is not a valid balance sample: ${res.errors} script errors, ${res.rejectedOrders} rejected setup orders`);
     // Numbers decide part of a fight: a side with r times the enemy's army is expected to deal r times the
     // damage value it takes (Lanchester). So each kind's damage taken is scaled by r, and destroyed ÷ lost
     // reads as performance against what its side's numbers predicted (1 = as expected).

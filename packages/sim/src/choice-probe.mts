@@ -16,13 +16,13 @@ const targets = process.argv.slice(2).filter((a) => a.includes("="));
 
 /** Situations, stated as facts only. */
 const SITUATIONS = [
-  "Minute 0:30. You have your castle, your king, 3 workers gathering and 150 capital. No enemy seen yet.",
-  "Minute 2:00. You have 6 workers, 500 capital and no combat units yet. Seen near your base: 6 enemy rangers.",
-  "Minute 2:00. You have 6 workers, 500 capital and no combat units yet. Seen near your base: 6 enemy knights.",
-  "Minute 4:00. You have 8 workers, 800 capital, 4 knights and 4 rangers. The enemy has 8 rangers with damage and range research, and 2 turrets next to its castle.",
+  "Minute 0:30. You have your castle, your king, 3 workers gathering and 150 mineral. No enemy seen yet.",
+  "Minute 2:00. You have 6 workers, 500 mineral and no combat units yet. Seen near your base: 6 enemy archers.",
+  "Minute 2:00. You have 6 workers, 500 mineral and no combat units yet. Seen near your base: 6 enemy knights.",
+  "Minute 4:00. You have 8 workers, 800 mineral, 4 knights and 4 archers. The enemy has 8 archers with damage and range research, and 2 towers next to its castle.",
 ];
 const ASK = `Decide what you spend on during the next minute. Reply with JSON only, no other text:
-{"train":{"worker":0,"knight":0,"ranger":0},"build":{"turret":0,"wall":0},"research":["upgrade ids"],"why":"one sentence"}`;
+{"train":{"worker":0,"knight":0,"archer":0},"build":{"tower":0,"wall":0},"research":["upgrade ids"],"why":"one sentence"}`;
 
 function rulesOf(source: string): Ruleset {
   if (source.endsWith(".json")) return JSON.parse(readFileSync(source, "utf8"));
@@ -66,19 +66,19 @@ for (const target of targets) {
     }
   }));
   writeFileSync(`${OUT}/${label}.json`, JSON.stringify({ version: ruleset.version, results }, null, 1));
-  // Share of the combat capital each model puts in knights, rangers and turrets.
+  // Share of the combat mineral each model puts in knights, archers and towers.
   const cost = (k: string) => ruleset.kinds[k]?.cost ?? 0;
   for (const model of MODELS) {
-    const spent = { knight: 0, ranger: 0, turret: 0 };
+    const spent = { knight: 0, archer: 0, tower: 0 };
     let answered = 0;
     for (const r of results.filter((r) => r.model === model && r.answer)) {
       answered++;
       spent.knight += (r.answer!.train?.knight ?? 0) * cost("knight");
-      spent.ranger += (r.answer!.train?.ranger ?? 0) * cost("ranger");
-      spent.turret += (r.answer!.build?.turret ?? 0) * cost("turret");
+      spent.archer += (r.answer!.train?.archer ?? 0) * cost("archer");
+      spent.tower += (r.answer!.build?.tower ?? 0) * cost("tower");
     }
-    const total = spent.knight + spent.ranger + spent.turret || 1;
+    const total = spent.knight + spent.archer + spent.tower || 1;
     const pct = (x: number) => `${Math.round((100 * x) / total)}%`;
-    console.log(`${label} (${ruleset.version}) ${model}: knights ${pct(spent.knight)} · rangers ${pct(spent.ranger)} · turrets ${pct(spent.turret)} (${answered}/${REPS * SITUATIONS.length} answers)`);
+    console.log(`${label} (${ruleset.version}) ${model}: knights ${pct(spent.knight)} · archers ${pct(spent.archer)} · towers ${pct(spent.tower)} (${answered}/${REPS * SITUATIONS.length} answers)`);
   }
 }
