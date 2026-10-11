@@ -59,9 +59,9 @@ describe("server", () => {
     const nexus = s1.mine.find((e) => e.kind === "castle")!;
     const act = await call("/act", t1, { method: "POST", body: JSON.stringify({ orders: [{ type: "train", building: nexus.id, kind: "knight" }, { type: "move", unit: "zzz", x: 1, y: 1 }] }) });
     expect(act.body.results[0]).toMatchObject({ ok: true });
-    expect(act.body.capital.spent).toBe(rules.kinds.knight.cost);
-    expect(act.body.capital.remaining).toBe(act.body.view.players.find((p: any) => p.id === "p1").capital);
-    expect(act.body.results[0].capital.spent).toBe(rules.kinds.knight.cost);
+    expect(act.body.mineral.spent).toBe(rules.kinds.knight.cost);
+    expect(act.body.mineral.remaining).toBe(act.body.view.players.find((p: any) => p.id === "p1").mineral);
+    expect(act.body.results[0].mineral.spent).toBe(rules.kinds.knight.cost);
     expect(act.body.results[1]).toMatchObject({ ok: false });
     expect(act.body.view.mine.find((e: any) => e.kind === "castle").training).toEqual([expect.objectContaining({ kind: "knight" })]);
 
@@ -146,13 +146,13 @@ describe("one-shot player scripts", () => {
     const ok = (await run(`const base = view.mine.find(e => rules.kinds[e.kind].trains);
       act({ type: "stop", unit: view.mine.find(e => !rules.kinds[e.kind].building).id });
       act({ type: "chat", text: "not from run" });
-      log("capital", view.players.find(p => p.id === view.you).capital);
+      log("mineral", view.players.find(p => p.id === view.you).mineral);
       return { base: base.id, kinds: Object.keys(rules.kinds).length };`)).body;
     expect(ok.error).toBeUndefined();
     expect(ok.results).toEqual([{ ok: true }]);
     expect(ok.rejected).toBe(1);
     expect(ok.value).toMatchObject({ base: expect.any(String) });
-    expect(ok.logs[0]).toMatch(/^capital \d+$/);
+    expect(ok.logs[0]).toMatch(/^mineral \d+$/);
     const failed = (await run(`act({ type: "stop", unit: "e1" }); throw new Error("boom");`)).body;
     expect(failed).toMatchObject({ error: "boom", orders: [], results: [] });
     expect((await run("while (true) {}")).body.error).toMatch(/out of gas/);

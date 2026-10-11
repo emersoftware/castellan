@@ -3,7 +3,7 @@ import { rules, type Order, type Ruleset, type ReplayFile } from "@aoa/shared";
 import { createMatch, runReplay, type Match } from "../src";
 
 const players = [{ id: "p1", name: "one" }, { id: "p2", name: "two" }];
-const setupRules = (): Ruleset => ({ ...rules, startCapital: 2000,
+const setupRules = (): Ruleset => ({ ...rules, startMineral: 2000,
   map: { ...rules.map, deposits: [], sharedDeposits: [] } });
 const make = (r = setupRules()) => createMatch({ ruleset: r, players, seed: 7, tickRate: 10 });
 const mine = (m: Match, kind: string, player = "p1") => m.view(player).mine.filter((e) => e.kind === kind);
@@ -16,7 +16,7 @@ describe("timed production", () => {
     try {
       const b = mine(m, "castle")[0].id;
       const result = next(m, [{ type: "train", building: b, kind: "worker" }, { type: "train", building: b, kind: "knight" }]);
-      expect(result.results).toMatchObject([{ ok: true, capital: { spent: 50, remaining: 1950 } }, { ok: true, capital: { spent: rules.kinds.knight.cost, remaining: 1950 - rules.kinds.knight.cost! } }]);
+      expect(result.results).toMatchObject([{ ok: true, mineral: { spent: 50, remaining: 1950 } }, { ok: true, mineral: { spent: rules.kinds.knight.cost, remaining: 1950 - rules.kinds.knight.cost! } }]);
       expect(result.results[0]).not.toHaveProperty("id");
       expect(mine(m, "castle")[0].training).toEqual([{ kind: "worker", completesAtMs: 5000 }, { kind: "knight" }]);
       expect(m.view("p1").players[0].queuedPop).toBe(2);
@@ -25,7 +25,7 @@ describe("timed production", () => {
       expect(mine(m, "castle")[0].training).toEqual([{ kind: "knight", completesAtMs: 13000 }]);
       advance(m, 130); expect(mine(m, "knight")).toHaveLength(0);
       m.step([]); expect(mine(m, "knight")).toHaveLength(1);
-      expect(m.view("p1").players[0]).toMatchObject({ capital: 1950 - rules.kinds.knight.cost!, pop: 6, queuedPop: 0 });
+      expect(m.view("p1").players[0]).toMatchObject({ mineral: 1950 - rules.kinds.knight.cost!, pop: 6, queuedPop: 0 });
     } finally { m.dispose(); }
   });
 
@@ -37,7 +37,7 @@ describe("timed production", () => {
         const results = next(m, Array.from({ length: 6 }, () => ({ type: "train", building: b, kind: "worker" }))).results;
         const accepted = popCap === 30 ? 5 : 2;
         expect(results.filter((r) => r.ok)).toHaveLength(accepted);
-        expect(results.at(-1)).toMatchObject({ ok: false, capital: { spent: 0, remaining: 2000 - 50 * accepted } });
+        expect(results.at(-1)).toMatchObject({ ok: false, mineral: { spent: 0, remaining: 2000 - 50 * accepted } });
       } finally { m.dispose(); }
     }
   });
@@ -53,7 +53,7 @@ describe("timed production", () => {
       advance(m, 100);
       expect(mine(m, "worker")).toHaveLength(3);
       expect(mine(m, "castle")[0].training).toEqual([{ kind: "worker", completesAtMs: 5000 }, { kind: "worker" }]);
-      expect(m.view("p1").players[0].capital).toBe(1900);
+      expect(m.view("p1").players[0].mineral).toBe(1900);
     } finally { m.dispose(); }
     // A mobile blocker can leave, unlike the rock enclosure above.
     const open = setupRules();
@@ -68,7 +68,7 @@ describe("timed production", () => {
       m2.step([]);
       expect(mine(m2, "worker")).toHaveLength(4);
       expect(mine(m2, "castle")[0].training?.[0].completesAtMs).toBe(15100);
-      expect(m2.view("p1").players[0].capital).toBe(1900);
+      expect(m2.view("p1").players[0].mineral).toBe(1900);
     } finally { m2.dispose(); }
   });
 
@@ -83,7 +83,7 @@ describe("timed production", () => {
       next(m, [{ type: "attack", unit: mine(m, "worker", "p2")[0].id, target: nexus.id }], "p2");
       for (let i = 0; i < 30 && mine(m, "castle").length; i++) m.step([]); // the shot flies before it lands
       expect(mine(m, "castle")).toHaveLength(0);
-      expect(m.view("p1").players[0]).toMatchObject({ alive: true, queuedPop: 0, capital: 1950 });
+      expect(m.view("p1").players[0]).toMatchObject({ alive: true, queuedPop: 0, mineral: 1950 });
       advance(m, 100); expect(mine(m, "worker")).toHaveLength(1);
     } finally { m.dispose(); }
   });

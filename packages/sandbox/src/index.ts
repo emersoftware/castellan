@@ -9,7 +9,7 @@
  */
 import { newQuickJSWASMModuleFromVariant, type QuickJSContext, type QuickJSHandle, type QuickJSRuntime, type QuickJSWASMModule } from "quickjs-emscripten-core";
 import variant from "@jitl/quickjs-singlefile-mjs-release-sync";
-import type { ProjectileView, ScriptLimits } from "@aoa/shared";
+import type { ProjectileView, ScriptLimits, UnitOrder } from "@aoa/shared";
 import { PRELUDE } from "./prelude";
 
 let quickjs: QuickJSWASMModule | null = null;
@@ -21,6 +21,7 @@ export async function initSandbox(): Promise<void> {
 
 /** What a script's unit can perceive: every entity, compact. */
 export interface ScriptWorld {
+  reactiveOrders?: boolean;
   deposits?: { id: string; x: number; y: number; amount: number; tie: number }[];
   projectiles?: ProjectileView[];
   tick: number;
@@ -32,11 +33,25 @@ export interface ScriptWorld {
    * All entities: [id, kind, owner, relation (0 enemy, 1 mine, 2 ally), x, y,
    * hp, maxHp, isBuilding (0|1), tie-break key (position in the player's own reading order)].
    */
-  all: [string, string, string, number, number, number, number, number, number, number][];
+  all: [string, string, string, number, number, number, number, number, number, number, ScriptVisibleStats?][];
   myBase: { x: number; y: number } | null;
   enemyBase: { x: number; y: number } | null;
   /** What perception helpers return: everything the player sees, or (older rules) only within the unit's vision. */
   sight?: "player" | "unit";
+}
+
+/** Public combat information only; never includes an opponent's cooldowns or orders. */
+export interface ScriptVisibleStats {
+  atk: number; def: number; range: number; minRange: number; vision: number;
+  attackMs: number; moveMs: number; ruin: boolean;
+}
+
+export interface ScriptActionResult {
+  tick: number;
+  action: ScriptAction;
+  status: "acted" | "blocked" | "cooldown" | "aiming" | "held" | "invalid" | "arrived";
+  effect?: "move" | "attack" | "gather" | "unload";
+  reason?: string;
 }
 
 export interface ScriptUnit {
@@ -54,11 +69,28 @@ export interface ScriptUnit {
   vision: number;
   attackMs?: number;
   moveMs?: number;
+  /** Remaining ticks at the beginning of this decision, before any unit moves. */
+  attackReadyInTicks?: number;
+  moveReadyInTicks?: number;
+  aimReadyInTicks?: number;
+  gatherReadyInTicks?: number;
+  lastActionResult?: ScriptActionResult | null;
+  /** Local occupancy now, independent of cooldown. null means outside current vision. */
+  moves?: Record<string, boolean | null>;
   carrying?: number;
   carryCapacity?: number;
   lastAttacker?: string | null;
   lastAttackedTick?: number | null;
+  order?: UnitOrder | null;
+  orderSuspended?: boolean;
+  events?: ScriptEvent[];
 }
+
+/** Engine-provided facts; IDs are resolved to visible entities by the sandbox. */
+export type ScriptEvent =
+  | { type: "attacked"; tick: number; damage: number; attacker: string | null }
+  | { type: "enemy_seen"; tick: number; enemy: string }
+  | { type: "order_ended"; tick: number; order: UnitOrder; reason: string };
 
 /** The single action a unit chose. Validated by the engine, never trusted. */
 export type ScriptAction =
@@ -72,8 +104,14 @@ export type ScriptAction =
 
 export interface UnitRun {
   action: ScriptAction;
+  /** Independent of the single physical action: first explicit order control wins. */
+  orderControl?: "continue" | "suspend" | "cancel";
   error?: string;
   log?: string;
+  /** Deterministic QuickJS interrupt cycles used, including result serialization. */
+  gasUsed?: number;
+  /** Trusted host failure only; never parsed from player code's result. */
+  operationalFailure?: true;
 }
 
 export interface ScriptHost {
@@ -85,6 +123,8 @@ export interface ScriptHost {
   dispose(): void;
 }
 
+export type ScriptHostFactory = (limits: ScriptLimits, seed: number) => ScriptHost;
+
 /** One isolated VM per player per match. */
 export function createScriptHost(limits: ScriptLimits, seed: number): ScriptHost {
   if (!quickjs) throw new Error("call initSandbox() first");
@@ -92,13 +132,16 @@ export function createScriptHost(limits: ScriptLimits, seed: number): ScriptHost
   runtime.setMemoryLimit(limits.heapBytes);
   runtime.setMaxStackSize(256 * 1024);
 
-  // Gas accounting. `metering` is off while we load the world so only script work counts.
-  let metering = false;
+  // No VM execution after bootstrap is exempt: even world loading or error
+  // formatting can reach player-controlled accessors/prototypes. Load/compile
+  // use the player budget; each unit additionally has its own budget.
+  let bootstrapping = true;
+  let meteringUnit = false;
   let unitCycles = 0;
   let playerCycles = 0;
   runtime.setInterruptHandler(() => {
-    if (!metering) return false;
-    unitCycles++;
+    if (bootstrapping) return false;
+    if (meteringUnit) unitCycles++;
     playerCycles++;
     return unitCycles > limits.gasPerUnit || playerCycles > limits.gasPerPlayer;
   });
@@ -108,24 +151,27 @@ export function createScriptHost(limits: ScriptLimits, seed: number): ScriptHost
   const loadFn = ctx.getProp(api, "load");
   const runFn = ctx.getProp(api, "run");
   api.dispose();
+  bootstrapping = false;
   const scripts = new Map<string, QuickJSHandle>();
 
   return {
     setScript(kind, code) {
-      scripts.get(kind)?.dispose();
-      scripts.delete(kind);
-      if (code === null) return { ok: true };
+      if (code === null) {
+        scripts.get(kind)?.dispose();
+        scripts.delete(kind);
+        return { ok: true };
+      }
       if (new TextEncoder().encode(code).length > limits.maxBytes) return { ok: false, error: `script over ${limits.maxBytes} bytes` };
-      metering = true;
+      meteringUnit = false;
       unitCycles = 0;
       playerCycles = 0;
       const r = ctx.evalCode(`(function (self) {"use strict";\n${code}\n})`, `${kind}.js`);
-      metering = false;
       if (r.error) {
         const error = describe(ctx, r.error);
         r.error.dispose();
         return { ok: false, error };
       }
+      scripts.get(kind)?.dispose();
       scripts.set(kind, r.value);
       return { ok: true };
     },
@@ -135,17 +181,20 @@ export function createScriptHost(limits: ScriptLimits, seed: number): ScriptHost
     run(world, unitIds) {
       const out: Record<string, UnitRun> = {};
       if (unitIds.length === 0) return out;
+      playerCycles = 0;
+      unitCycles = 0;
+      meteringUnit = false;
       const json = ctx.newString(JSON.stringify(world));
       const loaded = ctx.callFunction(loadFn, ctx.undefined, json);
       json.dispose();
       if (loaded.error) {
+        const error = playerCycles > limits.gasPerPlayer ? "player gas exhausted loading world" : describe(ctx, loaded.error);
         loaded.error.dispose();
-        for (const id of unitIds) out[id] = { action: { a: "hold" }, error: "sandbox out of memory" };
+        for (const id of unitIds) out[id] = { action: { a: "hold" }, error, gasUsed: 0 };
         return out;
       }
       loaded.value.dispose();
 
-      playerCycles = 0;
       for (const id of unitIds) {
         const fn = scripts.get(world.units[id].type);
         if (!fn) {
@@ -158,17 +207,18 @@ export function createScriptHost(limits: ScriptLimits, seed: number): ScriptHost
         }
         const idH = ctx.newString(id);
         unitCycles = 0;
-        metering = true;
+        meteringUnit = true;
         const r = ctx.callFunction(runFn, ctx.undefined, idH, fn);
-        metering = false;
         idH.dispose();
         if (r.error) {
-          const msg = describe(ctx, r.error);
+          const msg = unitCycles > limits.gasPerUnit ? "out of gas"
+            : playerCycles > limits.gasPerPlayer ? "player gas exhausted this tick" : describe(ctx, r.error);
           r.error.dispose();
-          out[id] = { action: { a: "hold" }, error: unitCycles > limits.gasPerUnit ? "out of gas" : msg };
+          out[id] = { action: { a: "hold" }, error: msg, gasUsed: unitCycles };
           continue;
         }
         out[id] = parseRun(ctx.getString(r.value));
+        out[id].gasUsed = unitCycles;
         r.value.dispose();
       }
       return out;
@@ -184,9 +234,23 @@ export function createScriptHost(limits: ScriptLimits, seed: number): ScriptHost
   };
 }
 
+/** Run finite decision scenarios in a fresh VM without changing a live match. */
+export function testScript(code: string, kind: string, worlds: ScriptWorld[], limits: ScriptLimits, seed = 0, factory: ScriptHostFactory = createScriptHost):
+  { ok: false; error: string } | { ok: true; frames: { tick: number; runs: Record<string, UnitRun> }[] } {
+  const host = factory(limits, seed);
+  try {
+    const compiled = host.setScript(kind, code);
+    if (!compiled.ok) return compiled;
+    return { ok: true, frames: worlds.map(world => ({ tick: world.tick,
+      runs: host.run(world, Object.keys(world.units).filter(id => world.units[id].type === kind)) })) };
+  } finally {
+    host.dispose();
+  }
+}
+
 export interface RunLimits { maxBytes: number; heapBytes: number; gas: number; maxOrders: number; maxOutputBytes: number }
 export const RUN_LIMITS: RunLimits = { maxBytes: 16 * 1024, heapBytes: 32 * 1024 * 1024, gas: 2_500, maxOrders: 50, maxOutputBytes: 32 * 1024 };
-export interface RunResult { orders: unknown[]; logs: string[]; value: unknown; error?: string }
+export interface RunResult { orders: unknown[]; logs: string[]; value: unknown; error?: string; operationalFailure?: true }
 
 /**
  * Runs a player's one-shot script in a fresh VM: `code` is a function body with
@@ -274,6 +338,7 @@ function parseRun(raw: string): UnitRun {
   const out: UnitRun = { action: { a: "hold" } };
   if (typeof r?.err === "string") out.error = r.err.slice(0, 300);
   if (typeof r?.log === "string") out.log = r.log.slice(0, 200);
+  if (["continue", "suspend", "cancel"].includes(r?.orderControl)) out.orderControl = r.orderControl;
   const int = (n: unknown) => typeof n === "number" && Number.isInteger(n);
   if (a.a === "move" && DIRS.has(a.dir)) out.action = { a: "move", dir: a.dir };
   else if (a.a === "moveTo" && int(a.x) && int(a.y)) out.action = { a: "moveTo", x: a.x, y: a.y };

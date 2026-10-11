@@ -1,0 +1,442 @@
+{
+  "format": 1,
+  "ruleset": {
+    "version": "v25-castle-knight",
+    "matchMs": 15000,
+    "fourSeatMatchMs": 900000,
+    "drawsAreLosses": true,
+    "prepMs": 60000,
+    "startCapital": 2000,
+    "popCap": 30,
+    "gather": {
+      "carry": 10,
+      "ms": 200
+    },
+    "buildExclusion": 0,
+    "trainingQueueLimit": 5,
+    "diagonalMove": 1.4,
+    "revealAttackerMs": 2000,
+    "scriptSight": "player",
+    "reactiveOrders": true,
+    "projectiles": {
+      "speed": 12,
+      "unitRadius": 0.35,
+      "buildingRadius": 0.5,
+      "flyOver": [
+        "wall",
+        "door"
+      ]
+    },
+    "kinds": {
+      "worker": {
+        "building": false,
+        "symbol": "W",
+        "enemySymbol": "w",
+        "hp": 40,
+        "def": 1,
+        "vision": 3,
+        "cost": 50,
+        "moveMs": 500,
+        "atk": 3,
+        "range": 1,
+        "attackMs": 1000,
+        "gathers": true,
+        "builds": [
+          "turret",
+          "wall",
+          "door",
+          "castle"
+        ],
+        "trainMs": 5000,
+        "scriptable": true
+      },
+      "knight": {
+        "building": false,
+        "symbol": "K",
+        "enemySymbol": "k",
+        "hp": 110,
+        "def": 6,
+        "vision": 6,
+        "cost": 100,
+        "moveMs": 400,
+        "atk": 16,
+        "range": 1,
+        "attackMs": 1000,
+        "scriptable": true,
+        "trainMs": 8000,
+        "aimMs": 100
+      },
+      "ranger": {
+        "building": false,
+        "symbol": "R",
+        "enemySymbol": "r",
+        "hp": 60,
+        "def": 3,
+        "vision": 7,
+        "cost": 100,
+        "moveMs": 400,
+        "atk": 12,
+        "range": 5,
+        "attackMs": 1000,
+        "scriptable": true,
+        "trainMs": 10000,
+        "aimMs": 400
+      },
+      "turret": {
+        "building": true,
+        "symbol": "T",
+        "enemySymbol": "t",
+        "hp": 160,
+        "def": 7,
+        "vision": 8,
+        "cost": 150,
+        "atk": 9,
+        "range": 7,
+        "minRange": 2,
+        "attackMs": 1000,
+        "scriptable": true,
+        "buildMs": 10000
+      },
+      "wall": {
+        "building": true,
+        "symbol": "#",
+        "enemySymbol": "%",
+        "hp": 300,
+        "def": 10,
+        "vision": 1,
+        "cost": 25,
+        "buildMs": 3000
+      },
+      "castle": {
+        "building": true,
+        "symbol": "C",
+        "enemySymbol": "c",
+        "hp": 600,
+        "def": 7,
+        "vision": 7,
+        "cost": 300,
+        "vital": false,
+        "trains": [
+          "worker",
+          "knight",
+          "ranger"
+        ],
+        "dropoff": true,
+        "atk": 9,
+        "range": 5,
+        "attackMs": 1000,
+        "scriptable": true,
+        "buildMs": 20000
+      },
+      "door": {
+        "building": true,
+        "symbol": "D",
+        "enemySymbol": "d",
+        "hp": 300,
+        "def": 10,
+        "vision": 1,
+        "cost": 40,
+        "alliedPassage": true,
+        "buildMs": 3000
+      },
+      "king": {
+        "building": false,
+        "symbol": "V",
+        "enemySymbol": "v",
+        "hp": 400,
+        "def": 10,
+        "vision": 6,
+        "cost": 0,
+        "vital": true,
+        "moveMs": 500,
+        "scriptable": true,
+        "atk": 3,
+        "range": 1,
+        "attackMs": 3000
+      }
+    },
+    "upgrades": {
+      "knight_damage": {
+        "kind": "knight",
+        "stat": "atk",
+        "levels": [
+          {
+            "cost": 250,
+            "researchMs": 10000,
+            "value": 18
+          },
+          {
+            "cost": 350,
+            "researchMs": 15000,
+            "value": 20
+          }
+        ]
+      },
+      "knight_cadence": {
+        "kind": "knight",
+        "stat": "attackMs",
+        "levels": [
+          {
+            "cost": 150,
+            "researchMs": 10000,
+            "value": 900
+          },
+          {
+            "cost": 250,
+            "researchMs": 15000,
+            "value": 800
+          }
+        ]
+      },
+      "knight_mobility": {
+        "kind": "knight",
+        "stat": "moveMs",
+        "levels": [
+          {
+            "cost": 150,
+            "researchMs": 15000,
+            "value": 300
+          }
+        ]
+      },
+      "ranger_damage": {
+        "kind": "ranger",
+        "stat": "atk",
+        "levels": [
+          {
+            "cost": 250,
+            "researchMs": 10000,
+            "value": 14
+          },
+          {
+            "cost": 350,
+            "researchMs": 15000,
+            "value": 16
+          }
+        ]
+      },
+      "ranger_cadence": {
+        "kind": "ranger",
+        "stat": "attackMs",
+        "levels": [
+          {
+            "cost": 150,
+            "researchMs": 10000,
+            "value": 900
+          },
+          {
+            "cost": 250,
+            "researchMs": 15000,
+            "value": 800
+          }
+        ]
+      },
+      "ranger_mobility": {
+        "kind": "ranger",
+        "stat": "moveMs",
+        "levels": [
+          {
+            "cost": 150,
+            "researchMs": 15000,
+            "value": 300
+          }
+        ]
+      },
+      "worker_damage": {
+        "kind": "worker",
+        "stat": "atk",
+        "levels": [
+          {
+            "cost": 150,
+            "researchMs": 10000,
+            "value": 5
+          },
+          {
+            "cost": 250,
+            "researchMs": 15000,
+            "value": 7
+          }
+        ]
+      },
+      "ranger_range": {
+        "kind": "ranger",
+        "stat": "range",
+        "levels": [
+          {
+            "cost": 200,
+            "researchMs": 15000,
+            "value": 6,
+            "vision": 8
+          }
+        ]
+      },
+      "turret_range": {
+        "kind": "turret",
+        "stat": "range",
+        "levels": [
+          {
+            "cost": 150,
+            "researchMs": 15000,
+            "value": 8,
+            "vision": 9
+          },
+          {
+            "cost": 250,
+            "researchMs": 20000,
+            "value": 9,
+            "vision": 10
+          }
+        ]
+      }
+    },
+    "score": {
+      "unit": 10,
+      "building": 25,
+      "capital": 1,
+      "kill": 15,
+      "buildingKill": 30
+    },
+    "script": {
+      "maxBytes": 4096,
+      "memoryBytes": 1024,
+      "gasPerUnit": 20,
+      "gasPerPlayer": 300,
+      "heapBytes": 8388608
+    },
+    "defaultScripts": {
+      "knight": "// Built-in: fight what comes close, otherwise stay.\nconst e = self.nearestEnemy();\nif (e && self.distanceTo(e) <= self.range) self.attack(e);\nelse if (e) self.moveTo(e.x, e.y);\nelse self.hold();\n",
+      "ranger": "// Built-in: shoot the weakest enemy in range.\nconst targets = self.enemiesInRange();\nif (targets.length === 0) self.hold();\nelse self.attack(targets.reduce((a, b) => (b.hp < a.hp ? b : a)));\n",
+      "turret": "// Built-in: shoot the weakest enemy in range.\nconst targets = self.enemiesInRange();\nif (targets.length === 0) self.hold();\nelse self.attack(targets.reduce((a, b) => (b.hp < a.hp ? b : a)));\n",
+      "castle": "// Built-in: shoot the weakest enemy in range.\nconst targets = self.enemiesInRange();\nif (targets.length === 0) self.hold();\nelse self.attack(targets.reduce((a, b) => (b.hp < a.hp ? b : a)));\n",
+      "worker": "// Mine automatically; upload a script to choose combat or escape.\nself.gather();",
+      "king": "// Defend against a recent attacker in reach; never chase.\nconst enemy = self.lastAttacker();\nif (enemy && self.distanceTo(enemy) <= self.range) self.attack(enemy);\nelse self.hold();"
+    },
+    "legend": {
+      "\u00b7": "empty",
+      "$": "mineral deposit",
+      "W": "worker",
+      "K": "knight",
+      "R": "ranger",
+      "T": "turret",
+      "#": "wall",
+      "^": "rock (impassable terrain)",
+      "lowercase": "enemy (enemy wall is %)",
+      "+": "allied unit (2v2)",
+      "=": "allied building (2v2)",
+      "?": "unexplored",
+      ":": "explored ground outside current vision",
+      "C": "castle (production and resource dropoff; not vital)",
+      "D": "door (one tile; allied passage only)",
+      "V": "king (vital)"
+    },
+    "map": {
+      "width": 20,
+      "height": 20,
+      "start": [
+        {
+          "kind": "castle",
+          "x": 4,
+          "y": 4
+        },
+        {
+          "kind": "king",
+          "x": 2,
+          "y": 2
+        },
+        {
+          "kind": "worker",
+          "x": 6,
+          "y": 5
+        },
+        {
+          "kind": "worker",
+          "x": 5,
+          "y": 6
+        },
+        {
+          "kind": "worker",
+          "x": 6,
+          "y": 6
+        }
+      ],
+      "deposits": [],
+      "name": "legacy-names",
+      "description": "Flat island. Each corner has 1,200 mineral at home and 2,800 at two exposed flank expansions; two rich deposits lie in the center.",
+      "walls": [],
+      "sharedDeposits": []
+    }
+  },
+  "players": [
+    {
+      "id": "a",
+      "name": "A",
+      "side": 0
+    },
+    {
+      "id": "b",
+      "name": "B",
+      "side": 1
+    }
+  ],
+  "seed": 31,
+  "tickRate": 10,
+  "orders": [
+    {
+      "tick": 0,
+      "player": "a",
+      "order": {
+        "type": "train",
+        "building": "e1",
+        "kind": "ranger"
+      }
+    },
+    {
+      "tick": 0,
+      "player": "a",
+      "order": {
+        "type": "build",
+        "unit": "e5",
+        "kind": "turret",
+        "x": 7,
+        "y": 5
+      }
+    },
+    {
+      "tick": 0,
+      "player": "a",
+      "order": {
+        "type": "upgrade",
+        "upgrade": "ranger_damage"
+      }
+    }
+  ],
+  "hashes": {
+    "0": "af7fa9fd",
+    "10": "97a77737",
+    "20": "97816b21",
+    "30": "8b38125b",
+    "40": "54a9a1f5",
+    "50": "81bc4a2f",
+    "60": "8daaa8b9",
+    "70": "bcef20b3",
+    "80": "9f3eb20d",
+    "90": "32e12a87",
+    "100": "98ed07b2",
+    "110": "ef663891",
+    "120": "7e918a93",
+    "130": "86d5a96d",
+    "140": "e7f7a8df",
+    "150": "1f7ca40c"
+  },
+  "finalTick": 150,
+  "outcome": {
+    "winner": null,
+    "winners": [],
+    "reason": "timeout",
+    "scores": {
+      "a": 1600,
+      "b": 2065
+    },
+    "allDefeated": true
+  }
+}

@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { createScriptHost, initSandbox, validateScript, type ScriptWorld } from "../src";
+import { createScriptHost, initSandbox, testScript, validateScript, type ScriptWorld } from "../src";
 import { rules } from "@aoa/shared";
 
 const world: ScriptWorld = {
@@ -27,6 +27,75 @@ describe("sandbox", () => {
 
   it("reports syntax errors", () => {
     expect(validateScript("self.hold(", rules.script).ok).toBe(false);
+  });
+
+  it("keeps the working script after a rejected replacement", () => {
+    const h = createScriptHost(rules.script, 1);
+    try {
+      h.setScript("knight", "self.move('N');");
+      expect(h.setScript("knight", "self.hold(").ok).toBe(false);
+      expect(h.run(world, ["e1"]).e1.action).toEqual({ a: "move", dir: "N" });
+    } finally { h.dispose(); }
+  });
+
+  it("prevents poisoned loader intrinsics from running outside the unit budget on later ticks", () => {
+    const h = createScriptHost(rules.script, 1);
+    try {
+      // Finite payload: the old loader called a player-replaced Array.map with
+      // metering off. It must neither install nor run on the next world load.
+      h.setScript("knight", `Array.prototype.map = function () {
+        let n = 0; for (let i = 0; i < 1000000; i++) n += i;
+        return [];
+      }; self.hold();`);
+      expect(h.run(world, ["e1"]).e1.error).toMatch(/read.only/);
+      h.setScript("knight", "self.attack(self.nearestEnemy());");
+      expect(h.run(world, ["e1"]).e1).toMatchObject({ action: { a: "attack", id: "e2" } });
+      for (const code of [
+        "globalThis.Object = {};", "Object.keys = function () { return []; };",
+        "Object.prototype.toJSON = function () { return {}; };", "Math.round = function () { return 0; };",
+        "Object.getPrototypeOf([][Symbol.iterator]()).next = function () { let n=0; for(let i=0;i<1000000;i++) n+=i; return {done:true}; };",
+      ]) {
+        h.setScript("knight", code);
+        expect(h.run(world, ["e1"]).e1.error).toBeTruthy();
+      }
+    } finally { h.dispose(); }
+  });
+
+  it("meters player-controlled memory serialization and error formatting", () => {
+    const h = createScriptHost(rules.script, 1);
+    const work = "let n=0; for(let i=0;i<1000000;i++) n+=i; return n;";
+    try {
+      for (const code of [
+        `self.memory.toJSON = function () { ${work} };`,
+        `throw { get message() { ${work} } };`,
+      ]) {
+        h.setScript("knight", code);
+        const result = h.run(world, ["e1"]).e1;
+        expect(result.error).toMatch(/gas/);
+        expect(result.gasUsed).toBeGreaterThan(rules.script.gasPerUnit);
+        h.setScript("knight", "self.memory = {}; self.hold();");
+        expect(h.run(world, ["e1"]).e1.error).toBeUndefined();
+      }
+    } finally { h.dispose(); }
+  });
+
+  it("charges world loading to the player budget", () => {
+    const h = createScriptHost({ ...rules.script, gasPerPlayer: 0 }, 1);
+    try {
+      const largeWorld = { ...world, all: Array.from({ length: 5000 }, () => world.all[0]) };
+      expect(h.run(largeWorld, ["e1"]).e1.error).toBe("player gas exhausted loading world");
+    } finally { h.dispose(); }
+  });
+
+  it("probes finite scenarios in an isolated VM and reports requested actions and gas", () => {
+    const frames = [world, { ...world, tick: 6 }];
+    const code = "self.memory.n=(self.memory.n||0)+1; self.log(self.memory.n); self.move('N');";
+    const result = testScript(code, "knight", frames, rules.script);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.frames.map(f => f.runs.e1.log)).toEqual(["1", "2"]);
+    expect(result.frames[0].runs.e1).toMatchObject({ action: { a: "move", dir: "N" }, gasUsed: expect.any(Number) });
+    expect(testScript("self.hold(", "knight", frames, rules.script).ok).toBe(false);
   });
 
   it("stops infinite loops with gas and keeps working", () => {

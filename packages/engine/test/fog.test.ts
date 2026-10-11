@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { rules, viewToText, type Order, type Ruleset, type ReplayFile } from "@aoa/shared";
 import { createMatch, runReplay, type Match, type MatchConfig } from "../src";
 const players = [{ id: "p1", name: "one" }, { id: "p2", name: "two" }];
-const setupRules = (): Ruleset => ({ ...rules, startCapital: 2000,
+const setupRules = (): Ruleset => ({ ...rules, startMineral: 2000,
   kinds: Object.fromEntries(Object.entries(rules.kinds).map(([id, spec]) => [id, { ...spec, vision: 2, atk: 0 }])),
   map: { ...rules.map, width: 20, height: 20, deposits: [], sharedDeposits: [],
     start: [{ kind: "king", x: 2, y: 2 }, { kind: "castle", x: 2, y: 3 }, { kind: "worker", x: 3, y: 3 }] },
@@ -24,7 +24,7 @@ describe("fog of war", () => {
       expect(v.players[1]).toEqual({ id: "p2", name: "p2", team: 1, alive: true, popCap: 30 });
       expect(m.spectate().players[1].name).toBe("two");
       expect(m.spectate().perspectives!.p1.players[1].name).toBe("two");
-      expect(viewToText(v)).toContain("capital hidden");
+      expect(viewToText(v)).toContain("mineral hidden");
       const enemy = own(m, "p2", "king");
       expect(next(m, "p1", [{ type: "attack", unit: own(m, "p1", "worker").id, target: enemy.id }]).results[0].ok).toBe(false);
       expect(next(m, "p1", [{ type: "build", unit: own(m, "p1", "worker").id, kind: "wall", x: 15, y: 15 }]).results[0]).toMatchObject({ ok: false, reason: "build site must be visible" });
@@ -68,7 +68,7 @@ describe("fog of war", () => {
       const remote = own(m, "p2", "king");
       expect(m.view("p1").visibility?.[remote.y][remote.x]).toBe("2");
       expect(m.view("p1").allies).toHaveLength(3);
-      expect(m.view("p1").players[1].capital).toBe(2000);
+      expect(m.view("p1").players[1].mineral).toBe(2000);
     } finally { m.dispose(); }
     const hostile = await make();
     try {

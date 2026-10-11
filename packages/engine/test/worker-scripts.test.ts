@@ -18,14 +18,14 @@ it('mines, unloads and resumes with the default worker script and no permanent o
  expect(worker.order).toBeUndefined();
  const events=step(m,50);
  expect(events.some(e=>e.type==='unload')).toBe(true);
- expect(m.view('a').players.find(p=>p.id==='a')!.capital).toBeGreaterThan(rules.startCapital);
+ expect(m.view('a').players.find(p=>p.id==='a')!.mineral).toBeGreaterThan(rules.startMineral);
  expect(entity(m,'a','worker').doing).toContain('gather');
  expect(entity(m,'a','worker').gathering).toEqual({x:3,y:2});
 });
 it('lets scripts unload early and manual orders override them until stopped',async()=>{
  const m=await setup();const w=entity(m,'a','worker');
  m.step([{player:'a',order:{type:'script',kind:'worker',code:'if (self.carrying >= 2) self.unload(); else self.gather(self.nearestDeposit());'}}]);
- step(m,12);expect(m.view('a').players.find(p=>p.id==='a')!.capital).toBeGreaterThan(rules.startCapital);
+ step(m,12);expect(m.view('a').players.find(p=>p.id==='a')!.mineral).toBeGreaterThan(rules.startMineral);
  m.step([{player:'a',order:{type:'script',kind:'worker',code:'self.hold();'}},{player:'a',order:{type:'gather',unit:w.id}}]);
  expect(entity(m,'a','worker').doing).toContain('gather');
  m.step([{player:'a',order:{type:'stop',unit:w.id}}]);
@@ -57,8 +57,8 @@ it('gives the King weak melee, retaliates in range, and never pursues by default
 });
 
 it('records projectile damage at impact and replays reactive scripts deterministically',async()=>{
- const m=await setup({matchMs:5000,map:{...rules.map,width:9,height:9,walls:[],deposits:[],sharedDeposits:[],start:[{kind:'king',x:0,y:0},{kind:'ranger',x:2,y:4}]},defaultScripts:{...rules.defaultScripts,ranger:'self.log(String(self.lastAttackedTick)); self.hold();'}});
- const a=entity(m,'a','ranger'),b=entity(m,'b','ranger');
+ const m=await setup({matchMs:5000,map:{...rules.map,width:9,height:9,walls:[],deposits:[],sharedDeposits:[],start:[{kind:'king',x:0,y:0},{kind:'archer',x:2,y:4}]},defaultScripts:{...rules.defaultScripts,archer:'self.log(String(self.lastAttackedTick)); self.hold();'}});
+ const a=entity(m,'a','archer'),b=entity(m,'b','archer');
  const order={type:'attack' as const,unit:a.id,target:b.id};
  const hashes:Record<number,string>={};
  const first=m.step([{player:'a',order}]);hashes[0]=m.hash();

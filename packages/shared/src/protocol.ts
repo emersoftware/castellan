@@ -1,6 +1,8 @@
 /** Everything that crosses the wire between the server and its clients. */
 
 export type PlayerId = string;
+/** Reserved entity owner for inert scenario walls; never a participant or winner. */
+export const NEUTRAL_OWNER = "neutral";
 export type ChatChannel = "all" | "team" | "private";
 
 export interface ChatMessage {
@@ -12,7 +14,7 @@ export interface ChatMessage {
   to?: PlayerId;
 }
 
-/** A player's instruction. Unit orders override the unit's script until they end. */
+/** A player's instruction. Scripts can explicitly interrupt unit orders under reactiveOrders rules. */
 export type Order =
   | { type: "move"; unit: string; x: number; y: number }
   | { type: "attack"; unit: string; target: string }
@@ -20,7 +22,7 @@ export type Order =
   | { type: "gather"; unit: string; deposit?: string }
   | { type: "build"; unit: string; kind: string; x: number; y: number }
   | { type: "train"; building: string; kind: string }
-  /** Research the next level of a ruleset upgrade. Capital is charged on acceptance. */
+  /** Research the next level of a ruleset upgrade. Mineral is charged on acceptance. */
   | { type: "upgrade"; upgrade: string }
   /** Drop the unit's order; it goes back to its script or stays idle. */
   | { type: "stop"; unit: string }
@@ -29,8 +31,15 @@ export type Order =
   /** Chat on required. `to` implies private; otherwise omitted channel means public. */
   | { type: "chat"; text: string; channel?: ChatChannel; to?: PlayerId };
 
-export interface CapitalChange { spent: number; remaining: number; pending?: number }
-export type OrderResult = ({ ok: true; id?: string } | { ok: false; reason: string }) & { capital?: CapitalChange };
+/** A persistent instruction on one unit, also exposed privately to its script. */
+export type UnitOrder =
+  | { type: "move"; x: number; y: number }
+  | { type: "attack"; target: string }
+  | { type: "gather"; deposit?: string }
+  | { type: "build"; kind: string; x: number; y: number };
+
+export interface MineralChange { spent: number; remaining: number; pending?: number }
+export type OrderResult = ({ ok: true; id?: string } | { ok: false; reason: string }) & { mineral?: MineralChange };
 
 export type MatchStatus = "waiting" | "prep" | "running" | "finished";
 
@@ -40,6 +49,8 @@ export interface SeriesProgress {
   totalGames: 3;
   status: "running" | "finished" | "error";
   score: Record<PlayerId, number>;
+  /** Game losses; absent in older published series. */
+  losses?: Record<PlayerId, number>;
   previousGames: number[];
 }
 
@@ -53,7 +64,11 @@ export interface SeriesSummary {
   currentGame: number;
   players: { id: PlayerId; name: string; team: number; bot?: string }[];
   score: Record<PlayerId, number>;
+  /** Game losses; surviving a match does not imply winning it. */
+  losses?: Record<PlayerId, number>;
   winners?: PlayerId[];
+  /** Finished without a winning side under rules that count draws as losses. */
+  allDefeated?: true;
   games: { number: number; roomId: string; status: MatchStatus; outcome?: Outcome }[];
 }
 
@@ -64,10 +79,12 @@ export interface SeriesReplay {
 }
 
 export interface Outcome {
-  /** The sole winner; null for a draw or when a team won (see `winners`). */
+  /** The sole winner; null for no winner or when a team won (see `winners`). */
   winner: PlayerId | null;
-  /** Every player on the winning side (empty = draw). Absent in replays older than teams. */
+  /** Every player on the winning side; empty means no winner, see `allDefeated`. Absent in replays older than teams. */
   winners?: PlayerId[];
+  /** No winning side and every player loses. Absent in historical draws. */
+  allDefeated?: true;
   reason: "vital_lost" | "timeout" | "forfeit";
   scores: Record<PlayerId, number>;
 }
@@ -92,17 +109,80 @@ export interface EntityView {
   training?: { kind: string; completesAtMs?: number }[];
   /** Current order in words, e.g. "move 10,5", "gather d3". Absent = script/idle. */
   order?: string;
+  /** The owner's script suspended this order; it can explicitly resume or cancel it. */
+  orderSuspended?: boolean;
+  /** History of the current manual order, private to its owner and spectators. */
+  orderProgress?: OrderProgress;
   /** What the unit did last tick, e.g. "→ 20,20", "attack e17", "gather d9", "hold". Only for your own units. */
   doing?: string;
+  /** Latest completed tick: intent and actual outcome, private to the owner. */
+  actionResult?: ActionFeedback;
   /** Direction of its last step (↑ ↗ → ↘ ↓ ↙ ← ↖) if it moved in the last second. Everyone sees it. */
   heading?: string;
-  /** Its owner was eliminated: an inert ruin that blocks and can be destroyed. */
+  /** An inert ruin that blocks and can be destroyed: eliminated owner or neutral scenario wall. */
   ruin?: boolean;
   /** Observer perspectives only: a remembered building outside this player's vision, as last seen at this time. */
   lastSeenMs?: number;
   /** Visible mining activity, facing the resource; no private order is exposed. */
   gathering?: { x: number; y: number };
   carrying?: number;
+}
+
+export interface ActionFeedback {
+  tick: number;
+  source: "order" | "script";
+  intent: string;
+  status: "acted" | "blocked" | "cooldown" | "aiming" | "held" | "invalid" | "arrived" | "working";
+  effect?: "move" | "attack" | "gather" | "unload";
+  reason?: string;
+}
+
+/** Counters since the latest accepted manual unit order; absent after it ends. */
+export interface OrderProgress {
+  ageMs: number;
+  /** Total time suspended, including earlier pauses of this order. */
+  suspendedMs: number;
+  /** Duration of the current uninterrupted suspension, or zero while running. */
+  currentSuspensionMs: number;
+  suspensions: number;
+  movement: {
+    /** Successful tile changes, including movement chosen by the script. */
+    steps: number;
+    /** Chebyshev displacement from the position where the order was issued. */
+    netTiles: number;
+    stationaryMs: number;
+    /** Move orders only: initial minus current distance to the commanded point.
+     * Positive = closer, negative = farther; this is not path length. */
+    towardDestination?: number;
+  };
+  /** Successful script actions while this order was suspended; attacks count
+   * launches/strikes, not hits. Cooldown/aiming/blocked attempts are excluded. */
+  scriptActions: Partial<Record<NonNullable<ActionFeedback["effect"]>, number>>;
+  /** Time with a blocked action result, excluding cooldown and aiming. */
+  blockedMs: number;
+}
+
+export interface ActionAvailability {
+  /** Current checks only; acceptance can change before the next tick. */
+  train: { building: string; kind: string; cost: number; queue: number; queueLimit: number; blockedBy: string[]; exitBlocked: boolean }[];
+  build: { kind: string; cost: number; blockedBy: string[]; siteCheckRequired: true }[];
+  research: { upgrade: string; level: number; cost: number | null; blockedBy: string[] }[];
+}
+
+export interface CombatSummary {
+  sinceTick: number;
+  throughTick: number;
+  /** Older observations exceeded the retained two-minute window. */
+  truncated: boolean;
+  encounters: { x: number; y: number; fromTick: number; toTick: number;
+    damage: Record<PlayerId, number>;
+    losses: { id: string; kind: string; owner: PlayerId; x: number; y: number }[] }[];
+}
+
+export interface AgentActivity {
+  state: "deciding" | "provider_wait" | "connector_retry" | "between_decisions" | "stopped";
+  at: string;
+  retryAt?: string;
 }
 
 /** A visible shot, in map coordinates; velocity is tiles/s, destination never tracks. */
@@ -130,7 +210,7 @@ export interface DepositView {
 export interface PlayerStats {
   id: PlayerId;
   name: string;
-  capital?: number;
+  mineral?: number;
   pop?: number;
   popCap: number;
   /** Paid training reservations; included when enforcing the population cap. */
@@ -140,6 +220,9 @@ export interface PlayerStats {
   /** Players with the same team are allies. In 1v1 each player is its own team. */
   team: number;
   alive: boolean;
+  /** Operational state, never inferred from a lack of orders. Owner/observer only. */
+  scriptRuntime?: { status: "stopped"; tick: number; message: string };
+  agentActivity?: AgentActivity;
   /** Present only in rulesets with research; public to both players and spectators. */
   upgrades?: Record<string, number>;
   research?: { upgrade: string; level: number; completesAtMs: number };
@@ -148,16 +231,16 @@ export interface PlayerStats {
 export type GameEvent =
   | { tick: number; type: "training_queued"; owner: PlayerId; building: string; kind: string; position: number }
   | { tick: number; type: "construction_started"; owner: PlayerId; builder: string; kind: string; x: number; y: number; completesAtMs: number }
-  | { tick: number; type: "research_started"; owner: PlayerId; upgrade: string; level: number; completesAtMs: number; capital: CapitalChange }
+  | { tick: number; type: "research_started"; owner: PlayerId; upgrade: string; level: number; completesAtMs: number; mineral: MineralChange }
   | { tick: number; type: "upgrade_completed"; owner: PlayerId; upgrade: string; level: number }
   | { tick: number; type: "attack"; from: string; to: string; dmg: number; projectile?: string }
   | { tick: number; type: "projectile_end"; id: string; x: number; y: number; target?: string; dmg: number; reason: "hit" | "blocked" | "miss" }
   | { tick: number; type: "death"; id: string; kind: string; owner: PlayerId; x: number; y: number; by?: PlayerId }
-  | { tick: number; type: "spawn"; id: string; kind: string; owner: PlayerId; x: number; y: number; builder?: string; capital?: CapitalChange }
+  | { tick: number; type: "spawn"; id: string; kind: string; owner: PlayerId; x: number; y: number; builder?: string; mineral?: MineralChange }
   | { tick: number; type: "unload"; id: string; owner: PlayerId; amount: number }
   | { tick: number; type: "depleted"; id: string }
   | { tick: number; type: "order_end"; id: string; owner: PlayerId; reason: string }
-  | { tick: number; type: "script_error"; owner: PlayerId; kind: string; unit?: string; message: string }
+  | { tick: number; type: "script_error"; owner: PlayerId; kind: string; unit?: string; message: string; operationalFailure?: true }
   | { tick: number; type: "log"; owner: PlayerId; unit: string; message: string }
   | { tick: number; type: "chat"; owner: PlayerId; text: string; channel?: ChatChannel; to?: PlayerId }
   /** A player lost its vital entity while its team plays on: its units are gone (and its buildings, unless the rules keep ruins). */
@@ -165,7 +248,7 @@ export type GameEvent =
   | { tick: number; type: "match_end"; outcome: Outcome };
 
 export type LastSeen =
-  | { id: string; kind: string; owner: PlayerId; x: number; y: number; hp: number; maxHp: number; ruin?: boolean; seenMs: number }
+  | { id: string; kind: string; owner: PlayerId; x: number; y: number; hp: number; maxHp: number; ruin?: boolean; entityType?: "unit"; positionCleared?: boolean; seenMs: number }
   | { id: string; kind: "deposit"; x: number; y: number; amount: number; seenMs: number };
 
 export interface UnderAttack {
@@ -187,6 +270,8 @@ export interface PlayerView {
   tick: number;
   timeMs: number;
   matchMs: number;
+  /** If time expires without a winner, everyone loses. Absent in historical views. */
+  drawsAreLosses?: boolean;
   status: MatchStatus;
   you: PlayerId;
   players: PlayerStats[];
@@ -201,6 +286,8 @@ export interface PlayerView {
   projectiles: ProjectileView[];
   deposits: DepositView[];
   scripts: Record<string, { custom: boolean; errors: string[] }>;
+  availableActions?: ActionAvailability;
+  combat?: CombatSummary;
   events: GameEvent[];
   /**
    * Your entities that took damage in the same window as `events` (attack events themselves are not listed).
@@ -208,8 +295,8 @@ export interface PlayerView {
    */
   underAttack?: UnderAttack[];
   /**
-   * Fog of war memory: enemy buildings and deposits as you last saw them, for those outside your vision now.
-   * Cleared when you see the tile again and the thing is gone. Buildings may since have changed or fallen.
+   * Fog of war memory: enemy units, buildings and deposits as last seen. Unit sightings are historical positions, not current occupancy.
+   * Building/deposit memories clear when their empty tile is seen again. Unit sightings mark positionCleared if the old position is visibly empty; observed deaths remove them.
    */
   lastSeen: LastSeen[];
   /** Added by the room: last 5 visible messages, independent of the events cursor. Full history via /chat. */
@@ -241,6 +328,8 @@ export interface SpectatorView {
 
 /** A finished match: enough to re-simulate it exactly. */
 export interface ReplayFile {
+  /** Reproduction metadata; absent in historical files, unknown values are null. */
+  experiment?: ExperimentManifest;
   series?: { id: string; gameNumber: number; totalGames: 3 };
   format: 1;
   id: string;
@@ -267,6 +356,12 @@ export interface ReplayFile {
  * call: model latency plus harness overhead, everything outside the game.
  */
 export interface PlayerTiming {
+  toolErrors?: number;
+  rejectedOrders?: number;
+  observationAgeTicksTotal?: number;
+  observationAgeTicksMax?: number;
+  /** Running time since the most recent accepted order (or match start). */
+  maxActionGapMs?: number;
   /** Authenticated API calls. */
   calls: number;
   /** Calls that sent orders or scripts. */
@@ -281,6 +376,33 @@ export interface PlayerTiming {
   waitMs: number;
   /** From the start of the match to the player's first order or script. */
   firstActionMs: number | null;
+}
+
+/** Declared by the harness, never inferred from a display name. No credentials or raw prompts. */
+export interface AgentConfiguration {
+  model: string | null;
+  effort: string | null;
+  connector: string | null;
+  connectorVersion: string | null;
+  promptSha256: string | null;
+  memoryPolicy: string | null;
+  contextPolicy: string | null;
+}
+
+export interface ExperimentManifest {
+  agentActivity?: { tick: number; player: PlayerId; activity: AgentActivity }[];
+  /** Emergency wall-clock/worker failures invalidate deterministic balance evidence. */
+  operationalFailures?: { tick: number; player: PlayerId; message: string }[];
+  schema: 1;
+  engine: { revision: string | null; sourceSha256: string | null; runtime: string };
+  rulesSha256: string;
+  /** Static guide without the changing series score/history header. */
+  baseGuideSha256: string;
+  mode: "independent" | "series";
+  players: Record<PlayerId, { configuration: AgentConfiguration; changes: { tick: number; configuration: AgentConfiguration }[] }>;
+  /** Bounded trace without request bodies, prompts, tokens or private chat. */
+  calls: { player: PlayerId; tool: string; startedTick: number; answeredTick: number | null; observationTick: number; durationMs: number | null; status: number | null; failed?: boolean }[];
+  droppedCalls: number;
 }
 
 /** Messages on the spectator WebSocket. */

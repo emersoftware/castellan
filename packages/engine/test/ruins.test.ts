@@ -25,7 +25,7 @@ describe("ruins", () => {
     expect(m.outcome).toBeNull();
     const left = m.spectate().entities.filter((e) => e.owner === "p3");
     expect(left.length).toBeGreaterThan(0);
-    expect(left.every((e) => e.kind === "castle" || e.kind === "turret" || e.kind === "wall" || e.kind === "door")).toBe(true);
+    expect(left.every((e) => e.kind === "castle" || e.kind === "tower" || e.kind === "wall" || e.kind === "door")).toBe(true);
     const ruin = m.view("p4").allies.find((e) => e.id === castle.id)!;
     expect(ruin.ruin).toBe(true);
     expect(viewToText(m.view("p4"))).toContain(`${castle.id} castle (${castle.x},${castle.y}) hp ${castle.hp}/${castle.maxHp} · RUIN`);

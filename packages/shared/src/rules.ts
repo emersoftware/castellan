@@ -9,11 +9,12 @@ import { MAPS } from "./maps";
 import type { Ruleset } from "./ruleset";
 
 export const rules: Ruleset = {
-  version: "v21b-knight-16",
+  version: "v25-mineral-archer-tower",
   matchMs: 600000,
   fourSeatMatchMs: 900000,
+  drawsAreLosses: true,
   prepMs: 60000,
-  startCapital: 200,
+  startMineral: 200,
   popCap: 30,
   gather: { carry: 10, ms: 200 },
   buildExclusion: 0,
@@ -21,6 +22,7 @@ export const rules: Ruleset = {
   diagonalMove: 1.4,
   revealAttackerMs: 2000,
   scriptSight: "player",
+  reactiveOrders: true,
   projectiles: { speed: 12, unitRadius: 0.35, buildingRadius: 0.5, flyOver: ["wall", "door"] },
   kinds: {
     worker: {
@@ -36,7 +38,7 @@ export const rules: Ruleset = {
       range: 1,
       attackMs: 1000,
       gathers: true,
-      builds: ["turret", "wall", "door", "castle"],
+      builds: ["tower", "wall", "door", "castle"],
       trainMs: 5000,
       scriptable: true,
     },
@@ -48,7 +50,7 @@ export const rules: Ruleset = {
       def: 6,
       vision: 6,
       cost: 100,
-      moveMs: 500,
+      moveMs: 400,
       atk: 16,
       range: 1,
       attackMs: 1000,
@@ -56,7 +58,7 @@ export const rules: Ruleset = {
       trainMs: 8000,
       aimMs: 100,
     },
-    ranger: {
+    archer: {
       building: false,
       symbol: "R",
       enemySymbol: "r",
@@ -67,29 +69,27 @@ export const rules: Ruleset = {
       moveMs: 400,
       atk: 12,
       range: 5,
-      requires: "archery",
       attackMs: 1000,
       scriptable: true,
       trainMs: 10000,
       aimMs: 400,
     },
-    turret: {
+    tower: {
       building: true,
       symbol: "T",
       enemySymbol: "t",
       hp: 160,
       def: 7,
       vision: 8,
-      cost: 200,
+      cost: 150,
       atk: 9,
       range: 7,
       minRange: 2,
-      requires: "engineering",
       attackMs: 1000,
       scriptable: true,
       buildMs: 10000,
     },
-    wall: { building: true, symbol: "#", enemySymbol: "%", hp: 300, def: 10, vision: 1, cost: 50, buildMs: 3000 },
+    wall: { building: true, symbol: "#", enemySymbol: "%", hp: 300, def: 10, vision: 1, cost: 25, buildMs: 3000 },
     castle: {
       building: true,
       symbol: "C",
@@ -97,15 +97,15 @@ export const rules: Ruleset = {
       hp: 600,
       def: 7,
       vision: 7,
-      cost: 600,
+      cost: 300,
       vital: false,
-      trains: ["worker", "knight", "ranger"],
+      trains: ["worker", "knight", "archer"],
       dropoff: true,
       atk: 9,
-      range: 6,
+      range: 5,
       attackMs: 1000,
       scriptable: true,
-      buildMs: 30000,
+      buildMs: 20000,
     },
     door: {
       building: true,
@@ -114,7 +114,7 @@ export const rules: Ruleset = {
       hp: 300,
       def: 10,
       vision: 1,
-      cost: 75,
+      cost: 40,
       alliedPassage: true,
       buildMs: 3000,
     },
@@ -135,8 +135,7 @@ export const rules: Ruleset = {
     },
   },
   upgrades: {
-    archery: { kind: "ranger", stat: "unlock", levels: [{ cost: 100, researchMs: 3000, value: 1 }] },
-    engineering: { kind: "turret", stat: "unlock", levels: [{ cost: 100, researchMs: 3000, value: 1 }] },
+    // No unit needs research to be produced (v21d); research only improves them.
     knight_damage: {
       kind: "knight",
       stat: "atk",
@@ -147,26 +146,26 @@ export const rules: Ruleset = {
       stat: "attackMs",
       levels: [{ cost: 150, researchMs: 10000, value: 900 }, { cost: 250, researchMs: 15000, value: 800 }],
     },
-    knight_mobility: { kind: "knight", stat: "moveMs", levels: [{ cost: 150, researchMs: 15000, value: 400 }] },
-    ranger_damage: {
-      kind: "ranger",
+    knight_mobility: { kind: "knight", stat: "moveMs", levels: [{ cost: 150, researchMs: 15000, value: 300 }] },
+    archer_damage: {
+      kind: "archer",
       stat: "atk",
       levels: [{ cost: 250, researchMs: 10000, value: 14 }, { cost: 350, researchMs: 15000, value: 16 }],
     },
-    ranger_cadence: {
-      kind: "ranger",
+    archer_cadence: {
+      kind: "archer",
       stat: "attackMs",
       levels: [{ cost: 150, researchMs: 10000, value: 900 }, { cost: 250, researchMs: 15000, value: 800 }],
     },
-    ranger_mobility: { kind: "ranger", stat: "moveMs", levels: [{ cost: 150, researchMs: 15000, value: 300 }] },
+    archer_mobility: { kind: "archer", stat: "moveMs", levels: [{ cost: 150, researchMs: 15000, value: 300 }] },
     worker_damage: {
       kind: "worker",
       stat: "atk",
       levels: [{ cost: 150, researchMs: 10000, value: 5 }, { cost: 250, researchMs: 15000, value: 7 }],
     },
-    ranger_range: { kind: "ranger", stat: "range", levels: [{ cost: 200, researchMs: 15000, value: 6, vision: 8 }] },
-    turret_range: {
-      kind: "turret",
+    archer_range: { kind: "archer", stat: "range", levels: [{ cost: 200, researchMs: 15000, value: 6, vision: 8 }] },
+    tower_range: {
+      kind: "tower",
       stat: "range",
       levels: [
         { cost: 150, researchMs: 15000, value: 8, vision: 9 },
@@ -174,7 +173,7 @@ export const rules: Ruleset = {
       ],
     },
   },
-  score: { unit: 10, building: 25, capital: 1, kill: 15, buildingKill: 30 },
+  score: { unit: 10, building: 25, mineral: 1, kill: 15, buildingKill: 30 },
   script: { maxBytes: 4096, memoryBytes: 1024, gasPerUnit: 20, gasPerPlayer: 300, heapBytes: 8388608 },
   defaultScripts: {
     knight: `// Built-in: fight what comes close, otherwise stay.
@@ -183,12 +182,12 @@ if (e && self.distanceTo(e) <= self.range) self.attack(e);
 else if (e) self.moveTo(e.x, e.y);
 else self.hold();
 `,
-    ranger: `// Built-in: shoot the weakest enemy in range.
+    archer: `// Built-in: shoot the weakest enemy in range.
 const targets = self.enemiesInRange();
 if (targets.length === 0) self.hold();
 else self.attack(targets.reduce((a, b) => (b.hp < a.hp ? b : a)));
 `,
-    turret: `// Built-in: shoot the weakest enemy in range.
+    tower: `// Built-in: shoot the weakest enemy in range.
 const targets = self.enemiesInRange();
 if (targets.length === 0) self.hold();
 else self.attack(targets.reduce((a, b) => (b.hp < a.hp ? b : a)));
@@ -207,11 +206,11 @@ else self.hold();`,
   },
   legend: {
     "·": "empty",
-    $: "capital deposit",
+    $: "mineral deposit",
     W: "worker",
     K: "knight",
-    R: "ranger",
-    T: "turret",
+    R: "archer",
+    T: "tower",
     "#": "wall",
     "^": "rock (impassable terrain)",
     lowercase: "enemy (enemy wall is %)",

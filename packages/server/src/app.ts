@@ -11,11 +11,12 @@ import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { transform } from "esbuild";
-import { runOnce, validateScript } from "@aoa/sandbox";
-import { MAPS, playerGuide, rules, viewToText, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { MAPS, playerGuide, rules, viewToText, type ExperimentManifest, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
 import { BOTS } from "@aoa/sim";
 import { Room } from "./room";
 import { SeriesStore, type HistorySection } from "./series";
+import { agentConfiguration } from "./experiment";
+import { runOnceIsolated, validateScriptIsolated } from "./script-isolation";
 
 export interface ServerOptions {
   replayDir: string;
@@ -40,7 +41,9 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   const series = new SeriesStore(join(opts.replayDir, "series"), register, (replay) => saveReplay(opts.replayDir, replay));
   await series.load();
 
-  const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 64 * 1024 });
+  // Player/spectator capabilities can be in WebSocket/query URLs. Never log
+  // queries, headers or bodies, including when LOG=1 enables access logging.
+  const app = Fastify({ logger: opts.logger ? { serializers: { req: (req) => ({ method: req.method, url: req.url?.split("?")[0] }) } } : false, bodyLimit: 64 * 1024 });
   await app.register(cors, { origin: true });
   await app.register(websocket);
 
@@ -52,15 +55,25 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
       reply.code(401).send({ error: "missing or invalid token (Authorization: Bearer <token>)" });
       return null;
     }
+    try {
+      const declared = req.headers["x-aoa-agent"];
+      if (typeof declared === "string") who.room.configureAgent(who.player, agentConfiguration(JSON.parse(decodeURIComponent(declared))), true);
+    } catch (error) { reply.code(400).send({ error: (error as Error).message }); return null; }
     who.room.touch(who.player);
     who.room.beginCall(who.player);
-    (req as FastifyRequest & { aoa?: typeof who }).aoa = who;
+    Object.assign(req, { aoa: who, aoaCall: { entry: who.room.openCall(who.player, `${req.method} ${req.routeOptions.url}`), startedAt: Date.now() } });
     return who;
   };
   // Every answered call closes the player's timing window (see Room.beginCall).
-  app.addHook("onResponse", async (req) => {
+  app.addHook("onResponse", async (req, reply) => {
     const who = (req as FastifyRequest & { aoa?: { room: Room; player: string }; waitedMs?: number }).aoa;
-    if (who) who.room.endCall(who.player, (req as FastifyRequest & { waitedMs?: number }).waitedMs ?? 0);
+    if (who) {
+      who.room.endCall(who.player, (req as FastifyRequest & { waitedMs?: number }).waitedMs ?? 0);
+      const call = (req as FastifyRequest & { aoaCall: { entry: ExperimentManifest["calls"][number]; startedAt: number } }).aoaCall;
+      Object.assign(call.entry, { answeredTick: who.room.tick, durationMs: Date.now() - call.startedAt, status: reply.statusCode,
+        failed: reply.statusCode >= 400 || (req as FastifyRequest & { toolFailed?: boolean }).toolFailed === true });
+      who.room.recordCall(call.entry);
+    }
   });
   const int = (v: unknown, fallback: number) => (v === undefined || v === "" || !Number.isFinite(Number(v)) ? fallback : Math.trunc(Number(v)));
   const wantsText = (req: FastifyRequest) => (req.query as Record<string, string>)?.format === "text";
@@ -69,9 +82,30 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
 
   app.get("/health", async () => ({ ok: true }));
 
+  // Harness metadata must not connect/start a player or consume its observation cursor.
+  app.post("/agent-config", async (req, reply) => {
+    const token = (req.headers.authorization ?? "").replace(/^Bearer /, "");
+    const who = tokens.get(token);
+    if (!who) return reply.code(401).send({ error: "a valid player token is required" });
+    if (who.room.state === "finished") return reply.code(409).send({ error: "match over" });
+    try { who.room.configureAgent(who.player, agentConfiguration(req.body)); }
+    catch (error) { return reply.code(400).send({ error: (error as Error).message }); }
+    return { ok: true };
+  });
+
+  app.post("/agent-status", async (req, reply) => {
+    const token = (req.headers.authorization ?? "").replace(/^Bearer /, "");
+    const who = tokens.get(token);
+    if (!who) return reply.code(401).send({ error: "a valid player token is required" });
+    if (who.room.state === "finished") return reply.code(409).send({ error: "match over" });
+    try { who.room.recordAgentActivity(who.player, req.body); }
+    catch (error) { return reply.code(400).send({ error: (error as Error).message }); }
+    return { ok: true };
+  });
+
   const createRoom = async (req: FastifyRequest, reply: FastifyReply) => {
     const body = (req.body ?? {}) as {
-      players?: { name?: string; bot?: string; team?: number }[]; seed?: number; prepMs?: number; tickRate?: number; botLatencyMs?: number;
+      players?: { name?: string; bot?: string; team?: number; agent?: unknown }[]; seed?: number; prepMs?: number; tickRate?: number; botLatencyMs?: number;
       map?: string; sides?: "random" | "fixed"; chat?: boolean; mode?: "teams" | "ffa";
       stats?: { label: string; kinds: Record<string, Record<string, unknown>>; upgrades: Ruleset["upgrades"] };
     };
@@ -83,10 +117,12 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     if (body.mode === "ffa" && body.players?.some((p) => p.team !== undefined)) return reply.code(400).send({ error: "ffa does not accept teams" });
     // One player per seat; four-seat maps support 2v2 (default) or free-for-all.
     const seats = map.seats ?? 2;
-    const players = (body.players ?? []).slice(0, seats).map((p, i) => ({
+    let players;
+    try { players = (body.players ?? []).slice(0, seats).map((p, i) => ({
       name: String(p.name ?? p.bot ?? `player${i + 1}`).slice(0, 32), bot: p.bot, team: seats === 4 ? p.team : undefined,
-    }));
-    while (players.length < seats) players.push({ name: `player${players.length + 1}`, bot: undefined, team: undefined });
+      agent: p.agent === undefined ? undefined : agentConfiguration(p.agent),
+    })); } catch (error) { return reply.code(400).send({ error: (error as Error).message }); }
+    while (players.length < seats) players.push({ name: `player${players.length + 1}`, bot: undefined, team: undefined, agent: undefined });
     if (seats === 4 && players.some((p) => p.team !== undefined)) {
       const count = (t: number) => players.filter((p) => p.team === t).length;
       if (count(0) !== 2 || count(1) !== 2) return reply.code(400).send({ error: "4-seat maps are 2v2: give two players team 0 and two team 1 (or no teams: list order)" });
@@ -109,7 +145,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return {
       ...room.summary(),
       players: room.players.map((p) => ({ id: p.id, name: p.name, bot: p.bot?.name, side: p.side, team: p.team, token: p.bot ? undefined : p.token })),
-      watch: `/watch/${room.id}`,
+      watch: `/watch/${room.id}#spectator=${room.spectatorToken}`,
     };
   };
   app.post("/rooms", createRoom);
@@ -126,7 +162,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return series.replay(id) ?? reply.code(409).send({ error: "series replay is available after all three games finish" });
   });
 
-  app.get("/maps", async () => Object.values(maps).map(({ name, description, width, height, walls, seats }) => ({ name, description, width, height, walls, players: seats ?? 2 })));
+  app.get("/maps", async () => Object.values(maps).map(({ name, description, width, height, walls, wallStyle, neutralWalls, seats }) => ({ name, description, width, height, walls, ...(wallStyle ? { wallStyle } : {}), ...(neutralWalls?.length ? { neutralWalls } : {}), players: seats ?? 2 })));
 
   app.get("/rooms", async () => [...rooms.values()].map((r) => r.summary()).reverse());
 
@@ -139,6 +175,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   app.get("/rooms/:id/scripts", async (req, reply) => {
     const room = rooms.get((req.params as { id: string }).id);
     if (!room) return reply.code(404).send({ error: "no such room" });
+    if (room.state !== "finished" && !spectatorAllowed(req, room)) return reply.code(403).send({ error: "live observation requires the host spectator link" });
     const kinds = Object.entries(room.ruleset.kinds).filter(([, k]) => k.scriptable).map(([kind]) => kind);
     return Object.fromEntries(room.players.map((p) => [p.id, Object.fromEntries(kinds.map((kind) => [kind, room.script(p.id, kind)]))]));
   });
@@ -160,9 +197,16 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   app.get("/spectate/:id", { websocket: true }, (socket, req) => {
     const room = rooms.get((req.params as { id: string }).id);
     if (!room) return socket.close(4404, "no such room");
+    if (room.state !== "finished" && !spectatorAllowed(req, room)) return socket.close(4403, "live observation requires the host spectator link");
     const off = room.addSpectator({ send: (m) => socket.readyState === 1 && socket.send(JSON.stringify(m)) });
     socket.on("close", off);
   });
+
+  function spectatorAllowed(req: FastifyRequest, room: Room): boolean {
+    const header = req.headers.authorization ?? "";
+    const token = header.startsWith("Bearer ") ? header.slice(7) : (req.query as Record<string, string>)?.spectator;
+    return typeof token === "string" && token === room.spectatorToken;
+  }
 
   // ───────────────────────── players ─────────────────────────
 
@@ -181,7 +225,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const h = req.headers.authorization ?? "";
     const who = tokens.get(h.startsWith("Bearer ") ? h.slice(7) : "");
     if (!who) return reply.code(401).send({ error: "missing or invalid token (Authorization: Bearer <token>)" });
-    return { room: who.room.id, player: who.player, status: who.room.state, tick: who.room.tick };
+    return { room: who.room.id, player: who.player, status: who.room.state, tick: who.room.tick, alive: who.room.isAlive(who.player) };
   });
 
   app.get("/state", async (req, reply) => {
@@ -220,10 +264,11 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const scripts = await Promise.all(orders.map((o) => (o?.type === "script" ? prepareScript(o.code, "js", ruleset) : null)));
     const prepared = orders.map((o, i) => (scripts[i]?.ok ? { ...o, code: scripts[i]!.code } : o)) as Order[];
     const { results, tick } = await who.room.act(who.player, prepared);
+    (req as FastifyRequest & { toolFailed?: boolean }).toolFailed = results.some((r) => !r.ok);
     const view = who.room.view(who.player, body?.since);
-    const capital = { spent: results.reduce((n, r) => n + (r.capital?.spent ?? 0), 0), remaining: view.players.find((p) => p.id === who.player)!.capital };
-    const line = results.map((r, i) => `order ${i}: ${r.ok ? "ok" + ("id" in r && r.id ? " " + r.id : "") : "FAILED " + r.reason}${r.capital ? ` · capital spent ${r.capital.spent}, remaining ${r.capital.remaining}${r.capital.pending !== undefined ? ` · build cost ${r.capital.pending} pending until completion` : ""}` : ""}`).join("\n");
-    return wantsText(req) ? `${line}\ncapital spent by these orders: ${capital.spent} · remaining now: ${capital.remaining}\n\n${viewToText(view)}` : { results, capital, view };
+    const mineral = { spent: results.reduce((n, r) => n + (r.mineral?.spent ?? 0), 0), remaining: view.players.find((p) => p.id === who.player)!.mineral };
+    const line = results.map((r, i) => `order ${i}: ${r.ok ? "ok" + ("id" in r && r.id ? " " + r.id : "") : "FAILED " + r.reason}${r.mineral ? ` · mineral spent ${r.mineral.spent}, remaining ${r.mineral.remaining}${r.mineral.pending !== undefined ? ` · build cost ${r.mineral.pending} pending until completion` : ""}` : ""}`).join("\n");
+    return wantsText(req) ? `${line}\nmineral spent by these orders: ${mineral.spent} · remaining now: ${mineral.remaining}\n\n${viewToText(view)}` : { results, mineral, view };
   });
 
   // A one-shot player script: reads the full JSON view and rules, returns orders applied like /act.
@@ -238,12 +283,14 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
       catch (e) { return reply.code(400).send({ error: String((e as Error).message).slice(0, 300) }); }
     }
     const view = who.room.view(who.player);
-    const out = runOnce(code, { view, rules: who.room.ruleset ?? ruleset });
+    const out = await runOnceIsolated(code, { view, rules: who.room.ruleset ?? ruleset });
+    if (out.operationalFailure && out.error) who.room.recordOperationalFailure(who.player, out.error);
     const allowed = new Set(["move", "attack", "gather", "build", "train", "upgrade", "stop"]);
     const orders = out.orders.filter((o): o is Order => !!o && typeof o === "object" && allowed.has((o as Order).type));
     const rejected = out.orders.length - orders.length;
     const { results, tick } = orders.length ? await who.room.act(who.player, orders) : { results: [], tick: who.room.tick };
     const result = { ...(out.error ? { error: out.error } : {}), tick, orders, results, ...(rejected ? { rejected } : {}), value: out.value, logs: out.logs };
+    (req as FastifyRequest & { toolFailed?: boolean }).toolFailed = !!out.error || rejected > 0 || results.some((r) => !r.ok);
     if (!wantsText(req)) return result;
     return [
       out.error ? `run FAILED: ${out.error} (no orders applied)` : `run ok · ${orders.length} order(s)${rejected ? ` · ${rejected} ignored (run accepts move, attack, gather, build, train, upgrade, stop)` : ""}`,
@@ -295,12 +342,26 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return answer(req, reply, who, line, { ok: r.ok, error: r.ok ? undefined : r.reason, appliedAt: r.ok ? tick : undefined }, r.ok ? 200 : who.room.state === "running" ? 400 : 409);
   });
 
+  app.post("/scripts/:kind/test", async (req, reply) => {
+    const who = auth(req, reply);
+    if (!who) return;
+    const kind = (req.params as { kind: string }).kind;
+    const body = (req.body ?? {}) as { code?: unknown; lang?: string };
+    if (typeof body.code !== "string") return reply.code(400).send({ error: "code must be a script body" });
+    const prepared = await prepareScript(body.code, body.lang === "ts" ? "ts" : "js", who.room.ruleset);
+    if (!prepared.ok) return reply.code(400).send({ ok: false, error: prepared.error });
+    const result = who.room.testScript(who.player, kind, prepared.code!);
+    if (!result.ok) reply.code(400);
+    return { ...result, freshMemory: true, actionsApplied: false,
+      note: "Probe of owned units in the current visible context with fresh memory; proposed actions only. Does not advance the game or install the script." };
+  });
+
   app.get("/wait", async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
     const q = req.query as Record<string, string>;
     const since = int(q.since, who.room.cursor(who.player));
-    const maxMs = Math.min(30, Math.max(0, int(q.max, 20))) * 1000;
+    const maxMs = Math.min(30, Math.max(0, int(q.max, 5))) * 1000;
     const started = Date.now();
     await who.room.wait(who.player, since, maxMs, q.until ? q.until.split(",") : null);
     (req as FastifyRequest & { waitedMs?: number }).waitedMs = Date.now() - started;
@@ -343,7 +404,7 @@ async function prepareScript(code: string | null, lang: "js" | "ts", ruleset: Ru
       return { ok: false, error: String((e as Error).message).slice(0, 300) };
     }
   }
-  const check = validateScript(js, ruleset.script);
+  const check = await validateScriptIsolated(js, ruleset.script);
   return check.ok ? { ok: true, code: js } : { ok: false, error: check.error };
 }
 

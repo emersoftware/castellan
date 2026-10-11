@@ -10,7 +10,7 @@ const step = (m: Match, n = 1) => { for (let i = 0; i < n; i++) m.step([]); };
 const move = (m: Match, id: string, x: number, y: number, player = "a") => m.step([{ player, order: { type: "move", unit: id, x, y } }]);
 async function setup(team = false, corridor = true) {
   // Instant walls and doors: these tests are about passage, not construction time.
-  const ruleset: Ruleset = { ...rules, matchMs: 10000, startCapital: 1000,
+  const ruleset: Ruleset = { ...rules, matchMs: 10000, startMineral: 1000,
     kinds: Object.fromEntries(Object.entries(rules.kinds).map(([k, s]) => [k, k === "wall" || k === "door" ? { ...s, buildMs: undefined } : s])),
     defaultScripts: { ...rules.defaultScripts, castle: "self.hold();" },
     map: { name: "doors", description: "", width: 9, height: 9,
@@ -36,9 +36,10 @@ it("uses castle consistently in current maps, rules, text, training and script A
 });
 
 it("builds a one-tile door with the advertised charge; allies cross and it closes behind them", async () => {
-  const { m, build } = await setup();
+  const { m, build, ruleset } = await setup();
   const result = m.step([build]);
-  expect(result.events).toContainEqual(expect.objectContaining({ type:"spawn", kind:"door", x:2,y:4,capital:{spent:75,remaining:925} }));
+  const price = ruleset.kinds.door.cost;
+  expect(result.events).toContainEqual(expect.objectContaining({ type:"spawn", kind:"door", x:2,y:4,mineral:{spent:price,remaining:ruleset.startMineral-price} }));
   expect(entity(m,"door")).toMatchObject({ open:false,hp:300 });
   const worker = entity(m,"worker");
   move(m,worker.id,4,4);

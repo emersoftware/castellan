@@ -10,14 +10,14 @@ async function setup(options: { speed?: number; range?: number; fog?: boolean; w
   const base = rules;
   const ruleset: Ruleset = { ...base, matchMs: 5000,
     ...(options.speed ? { projectiles: { ...rules.projectiles!, speed: options.speed } } : {}),
-    defaultScripts: { knight: "self.hold();", ranger: "self.hold();" },
-    kinds: { ...base.kinds, ranger: { ...base.kinds.ranger, range: options.range ?? 8, def: 0, attackMs: 10000, moveMs: 100 } },
+    defaultScripts: { knight: "self.hold();", archer: "self.hold();" },
+    kinds: { ...base.kinds, archer: { ...base.kinds.archer, range: options.range ?? 8, def: 0, attackMs: 10000, moveMs: 100 } },
     map: { ...base.map, width: 9, height: 9, deposits: [], sharedDeposits: [], walls: options.wall ? [{ x: 4, y: 4 }] : [],
-      start: options.start ?? [{ kind: "ranger", x: 2, y: 4 }, { kind: "king", x: 0, y: 0 }] } };
+      start: options.start ?? [{ kind: "archer", x: 2, y: 4 }, { kind: "king", x: 0, y: 0 }] } };
   const m = await createMatch({ ruleset, players, seed: 1, tickRate: options.rate ?? 10 });
   live.push(m);
-  const a = m.view("a").mine.find(e => e.kind === "ranger")!;
-  const b = m.view("b").mine.find(e => e.kind === "ranger")!;
+  const a = m.view("a").mine.find(e => e.kind === "archer")!;
+  const b = m.view("b").mine.find(e => e.kind === "archer")!;
   const fire: PlayerOrder[] = [{ player: "a", order: { type: "attack", unit: a.id, target: b.id } }];
   return { m, a, b, fire, ruleset };
 }
@@ -48,7 +48,7 @@ it("misses a target that dodges after launch; the destination never tracks", asy
 
 it("lets a sandbox script perceive and dodge a real incoming shot", async () => {
   const { m, b, fire } = await setup({ fog: true });
-  m.step([...fire, { player: "b", order: { type: "script", kind: "ranger", code:
+  m.step([...fire, { player: "b", order: { type: "script", kind: "archer", code:
     'if (self.projectiles().some(p => p.owner !== "b")) self.move("N"); else self.hold();' } }]);
   advance(m, 8);
   expect(hp(m, b.id)).toBe(b.hp);
@@ -57,7 +57,7 @@ it("lets a sandbox script perceive and dodge a real incoming shot", async () => 
 
 it("intercepts the first hostile unit, even with a segment crossing several tiles", async () => {
   const { m, b, fire } = await setup({ speed: 100, start: [
-    { kind: "ranger", x: 2, y: 4 }, { kind: "worker", x: 4, y: 3 }, { kind: "king", x: 0, y: 0 },
+    { kind: "archer", x: 2, y: 4 }, { kind: "worker", x: 4, y: 3 }, { kind: "king", x: 0, y: 0 },
   ] });
   m.step(fire);
   const worker = m.view("b").mine.find(e => e.kind === "worker")!;
@@ -73,7 +73,7 @@ it("ignores friendly units and flies over rock terrain", async () => {
   expect(m.step([]).events).toContainEqual(expect.objectContaining({ type: "projectile_end", reason: "hit", target: b.id }));
   expect(hp(m, b.id)).toBeLessThan(b.hp);
   const second = await setup({ speed: 100, start: [
-    { kind: "ranger", x: 2, y: 4 }, { kind: "worker", x: 4, y: 3 }, { kind: "king", x: 0, y: 0 },
+    { kind: "archer", x: 2, y: 4 }, { kind: "worker", x: 4, y: 3 }, { kind: "king", x: 0, y: 0 },
   ] });
   second.m.step(second.fire);
   const worker = second.m.view("a").mine.find(e => e.kind === "worker")!;
@@ -84,7 +84,7 @@ it("ignores friendly units and flies over rock terrain", async () => {
 
 it("keeps shots alive after the shooter dies and records the owner of the kill", async () => {
   const { m, a, b, fire } = await setup({ start: [
-    { kind: "ranger", x: 2, y: 4 }, { kind: "worker", x: 6, y: 5 }, { kind: "king", x: 0, y: 0 },
+    { kind: "archer", x: 2, y: 4 }, { kind: "worker", x: 6, y: 5 }, { kind: "king", x: 0, y: 0 },
   ] });
   const internals = m as unknown as { ents: Map<string, { hp: number }> };
   internals.ents.get(a.id)!.hp = 1;
@@ -148,12 +148,12 @@ it("tells the victim what hit its units, from landed shots, but not the attacker
   const since = m.view("b").tick;
   m.step(fire);
   advance(m, 4);
-  expect(m.view("b", since).underAttack).toEqual([{ id: b.id, kind: "ranger", x: b.x, y: b.y, hp: b.hp - 12, maxHp: b.hp, damage: 12,
-    attackers: [{ id: a.id, kind: "ranger", owner: "a" }], unseenAttackers: 0 }]);
+  expect(m.view("b", since).underAttack).toEqual([{ id: b.id, kind: "archer", x: b.x, y: b.y, hp: b.hp - 12, maxHp: b.hp, damage: 12,
+    attackers: [{ id: a.id, kind: "archer", owner: "a" }], unseenAttackers: 0 }]);
   expect(m.view("a", since).underAttack).toEqual([]);
   const text = viewToText(m.view("b", since));
-  expect(text).toContain(`under attack since your last view:\n  ${b.id} ranger (${b.x},${b.y}) -12 hp by ${a.id} ranger a`);
-  expect(text).toContain("4.5s left, then draw · running");
+  expect(text).toContain(`under attack since your last view:\n  ${b.id} archer (${b.x},${b.y}) -12 hp by ${a.id} archer a`);
+  expect(text).toContain("4.5s left · running");
   // Later views only report new damage.
   expect(m.view("b", m.view("b").tick).underAttack).toEqual([]);
 

@@ -28,10 +28,33 @@ export const PRELUDE = String.raw`
   const stringify = JSON.stringify;
   const parse = JSON.parse;
   const freeze = Object.freeze;
-  const memory = {};
+  // User code must not replace the builtins used by this trusted prelude on
+  // later ticks. Recursively lock intrinsic objects, prototypes and methods,
+  // including the global property bindings, after installing seeded random.
+  const locked = new Set();
+  function lock(value) {
+    if ((typeof value !== "object" && typeof value !== "function") || value === null || locked.has(value)) return;
+    locked.add(value);
+    for (const key of Reflect.ownKeys(value)) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (descriptor && "value" in descriptor) lock(descriptor.value);
+      if (descriptor && descriptor.get) lock(descriptor.get);
+      if (descriptor && descriptor.set) lock(descriptor.set);
+    }
+    lock(Object.getPrototypeOf(value));
+    freeze(value);
+  }
+  // Iterator prototypes are not reachable from constructors' own properties.
+  // The loader's for..of loops still use them, so include those roots explicitly.
+  lock(Object.getPrototypeOf([][Symbol.iterator]()));
+  lock(Object.getPrototypeOf(""[Symbol.iterator]()));
+  lock(Object.getPrototypeOf(new Map()[Symbol.iterator]()));
+  lock(Object.getPrototypeOf(new Set()[Symbol.iterator]()));
+  lock(G);
+  const memory = Object.create(null);
   let world = null;
   let others = [];
-  let tie = {};
+  let tie = Object.create(null);
 
   // Game distance: Euclidean rounded to the nearest tile (same integer math as the engine).
   function dist(a, b) {
@@ -42,12 +65,12 @@ export const PRELUDE = String.raw`
 
   function load(json) {
     world = parse(json);
-    tie = {};
+    tie = Object.create(null);
     others = world.all.map(function (r) {
       tie[r[0]] = r[9];
-      return freeze({ id: r[0], type: r[1], owner: r[2], mine: r[3] === 1, ally: r[3] === 2, x: r[4], y: r[5], hp: r[6], maxHp: r[7], isBuilding: r[8] === 1 });
+      return freeze({ id: r[0], type: r[1], owner: r[2], mine: r[3] === 1, ally: r[3] === 2, x: r[4], y: r[5], hp: r[6], maxHp: r[7], isBuilding: r[8] === 1, ...r[10] });
     });
-    const alive = {};
+    const alive = Object.create(null);
     for (const o of others) alive[o.id] = true;
     for (const k of Object.keys(memory)) if (!alive[k]) delete memory[k];
     return true;
@@ -73,6 +96,7 @@ export const PRELUDE = String.raw`
   function run(id, fn) {
     const u = world.units[id];
     let action = null;
+    let orderControl;
     let log;
     const act = function (a) { if (action === null) action = a; };
     const idOf = function (t) { return typeof t === "string" ? t : t && t.id; };
@@ -86,6 +110,12 @@ export const PRELUDE = String.raw`
       id: u.id, type: u.type, x: u.x, y: u.y, hp: u.hp, maxHp: u.maxHp,
       atk: u.atk, def: u.def, range: u.range, minRange: u.minRange || 0, vision: u.vision, tick: world.tick,
       ...(u.attackMs !== undefined ? { attackMs: u.attackMs, moveMs: u.moveMs } : {}),
+      ...(u.attackReadyInTicks !== undefined ? {
+        attackReadyInTicks: u.attackReadyInTicks, moveReadyInTicks: u.moveReadyInTicks,
+        aimReadyInTicks: u.aimReadyInTicks, gatherReadyInTicks: u.gatherReadyInTicks,
+        lastActionResult: u.lastActionResult ? parse(stringify(u.lastActionResult)) : null,
+        canMove: function (dir) { return u.moves && DIRS.indexOf(dir) >= 0 ? u.moves[dir] : false; },
+      } : {}),
       memory: memory[id],
       projectiles: function () { return (world.projectiles || []).map(function (p) { return { ...p }; }); },
       nearbyEnemies: function () { return visible(hostile); },
@@ -105,6 +135,19 @@ export const PRELUDE = String.raw`
       flee: function (t) { act({ a: "flee", id: idOf(t) }); },
       hold: function () { act({ a: "hold" }); },
     };
+    if (world.reactiveOrders) {
+      self.order = u.order ? freeze(parse(stringify(u.order))) : null;
+      self.orderSuspended = !!u.orderSuspended;
+      const enemies = visible(hostile);
+      self.events = freeze((u.events || []).map(function (event) {
+        if (event.type === "attacked") return freeze({ ...event, attacker: enemies.find(function (e) { return e.id === event.attacker; }) || null });
+        if (event.type === "enemy_seen") return freeze({ ...event, enemy: enemies.find(function (e) { return e.id === event.enemy; }) || null });
+        return freeze({ ...event, order: freeze({ ...event.order }) });
+      }));
+      self.continueOrder = function () { if (orderControl === undefined) orderControl = "continue"; };
+      self.suspendOrder = function () { if (orderControl === undefined) orderControl = "suspend"; };
+      self.cancelOrder = function () { if (orderControl === undefined) orderControl = "cancel"; };
+    }
     if (u.lastAttackedTick !== undefined) {
       self.lastAttackedTick = u.lastAttackedTick;
       self.lastAttacker = function () {
@@ -125,7 +168,16 @@ export const PRELUDE = String.raw`
     }
     let err;
     try {
-      fn(self);
+      const handlers = fn(self);
+      if (world.reactiveOrders && handlers && typeof handlers === "object") {
+        // Events already have deterministic engine order. Event handlers and
+        // onTick share the same metered invocation and one physical action.
+        for (const event of self.events) {
+          const name = event.type === "attacked" ? "onAttacked" : event.type === "enemy_seen" ? "onEnemySeen" : "onOrderEnded";
+          if (typeof handlers[name] === "function") handlers[name](event);
+        }
+        if (typeof handlers.onTick === "function") handlers.onTick();
+      }
     } catch (e) {
       err = String((e && e.message) || e).slice(0, 300);
     }
@@ -139,7 +191,7 @@ export const PRELUDE = String.raw`
       memory[id] = {};
       err = err || "self.memory over " + MEMLIMIT + " bytes, reset";
     }
-    return stringify({ a: action || { a: "hold" }, err: err, log: log });
+    return stringify({ a: action || { a: "hold" }, orderControl: orderControl, err: err, log: log });
   }
 
   return { load: load, run: run };

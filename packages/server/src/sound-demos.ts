@@ -1,6 +1,6 @@
 /**
  * Writes bot-vs-bot replays where every sound of the game plays: mining, walking,
- * melee, arrows and turrets, building, collapses, chat, a king's fall and the end.
+ * melee, arrows and towers, building, collapses, chat, a king's fall and the end.
  * The sim bots never find the enemy base under fog, so these march on its
  * mirrored position. "mixed" ends with the king's fall in under 4 minutes;
  * "archers" is a long volley test that never takes the castle.
@@ -21,8 +21,8 @@ const TICK_RATE = 10;
 const LATENCY_TICKS = 30;
 /** [attacker, defender]: army size that marches out (0 = never), worker count, army cap and what it trains. */
 const SETUPS: { name: string; sides: [Demo, Demo] }[] = [
-  { name: "mixed", sides: [{ attackAt: 6, workers: 8, maxArmy: 30, army: ["knight", "ranger"] }, { attackAt: 0, workers: 5, maxArmy: 3, army: ["knight", "ranger"] }] },
-  { name: "archers", sides: [{ attackAt: 6, workers: 8, maxArmy: 30, army: ["ranger", "ranger", "knight"] }, { attackAt: 0, workers: 5, maxArmy: 3, army: ["ranger"] }] },
+  { name: "mixed", sides: [{ attackAt: 6, workers: 8, maxArmy: 30, army: ["knight", "archer"] }, { attackAt: 0, workers: 5, maxArmy: 3, army: ["knight", "archer"] }] },
+  { name: "archers", sides: [{ attackAt: 6, workers: 8, maxArmy: 30, army: ["archer", "archer", "knight"] }, { attackAt: 0, workers: 5, maxArmy: 3, army: ["archer"] }] },
 ];
 
 interface Demo {
@@ -43,7 +43,7 @@ else if (self.distanceToPos(${hx}, ${hy}) > 3) self.moveTo(${hx}, ${hy});
 else self.hold();
 `;
 
-/** Workers, one turret, then knights and rangers in turn. */
+/** Workers, one tower, then knights and archers in turn. */
 function demo({ attackAt, workers, maxArmy, army: kinds }: Demo): Bot {
   const set: Record<string, string> = {};
   let go = false;
@@ -53,23 +53,23 @@ function demo({ attackAt, workers, maxArmy, army: kinds }: Demo): Bot {
     if (!home) return [];
     const out: Order[] = [];
     const flip = home.x > 15;
-    const army = count(v, "knight") + count(v, "ranger");
+    const army = count(v, "knight") + count(v, "archer");
     go ||= attackAt > 0 && army >= attackAt;
     const code = script(go, 31 - home.x, 31 - home.y, home.x, home.y);
-    for (const kind of ["knight", "ranger"]) if (set[kind] !== code) out.push({ type: "script", kind, code: (set[kind] = code) });
-    let cap = v.players.find((p) => p.id === v.you)!.capital ?? 0;
+    for (const kind of ["knight", "archer"]) if (set[kind] !== code) out.push({ type: "script", kind, code: (set[kind] = code) });
+    let cap = v.players.find((p) => p.id === v.you)!.mineral ?? 0;
     const building = v.mine.some((e) => e.order?.startsWith("build"));
     const builder = v.mine.find((e) => e.kind === "worker");
-    if (count(v, "turret") === 0 && !building && builder && count(v, "worker") >= workers) {
+    if (count(v, "tower") === 0 && !building && builder && count(v, "worker") >= workers) {
       if (cap < 200) return out;
-      out.push({ type: "build", unit: builder.id, kind: "turret", x: flip ? 24 : 7, y: flip ? 24 : 7 });
+      out.push({ type: "build", unit: builder.id, kind: "tower", x: flip ? 24 : 7, y: flip ? 24 : 7 });
       cap -= 200;
     }
     for (let w = count(v, "worker"); w < workers && cap >= 50; w++, cap -= 50) out.push({ type: "train", building: home.id, kind: "worker" });
     if (count(v, "worker") < workers) return out;
     for (let n = army; n < maxArmy; n++) {
       const kind = kinds[next % kinds.length];
-      const cost = kind === "ranger" ? 110 : 100;
+      const cost = kind === "archer" ? 110 : 100;
       if (cap < cost) break;
       out.push({ type: "train", building: home.id, kind });
       cap -= cost;
@@ -118,13 +118,13 @@ async function play(a: Demo, b: Demo, seed: number) {
 }
 
 function note(e: GameEvent, kinds: Map<string, string>, heard: Set<string>) {
-  const building = (k?: string) => ["turret", "wall", "castle", "door"].includes(k ?? "");
+  const building = (k?: string) => ["tower", "wall", "castle", "door"].includes(k ?? "");
   if (e.type === "spawn") {
     kinds.set(e.id, e.kind);
     heard.add(building(e.kind) && e.builder ? "build" : "spawn");
   } else if (e.type === "attack") {
     const k = kinds.get(e.from);
-    heard.add(k === "turret" ? "tower" : k === "ranger" ? "arrow" : "sword");
+    heard.add(k === "tower" ? "tower" : k === "archer" ? "arrow" : "sword");
   } else if (e.type === "projectile_end" && e.reason !== "miss") heard.add("hit");
   else if (e.type === "death") heard.add(e.kind === "king" ? "horn" : building(e.kind) ? "collapse" : "death");
   else if (e.type === "chat") heard.add("chat");

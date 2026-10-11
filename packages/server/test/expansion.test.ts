@@ -7,7 +7,7 @@ import { buildServer } from "../src/app";
 
 it("restores an in-progress castle build and charges only once after completion", async () => {
   const replayDir = await mkdtemp(join(tmpdir(), "aoa-expansion-"));
-  const ruleset = { ...rules, startCapital: 1200, matchMs: 15_000,
+  const ruleset = { ...rules, startMineral: 1200, matchMs: 15_000,
     map: { ...rules.map, deposits: [], sharedDeposits: [] },
     kinds: { ...rules.kinds, castle: { ...rules.kinds.castle, buildMs: 1000 } },
   };
@@ -28,17 +28,17 @@ it("restores an in-progress castle build and charges only once after completion"
       ...workers.map((w) => ({ type: "stop", unit: w.id })),
       { type: "build", unit: workers[0].id, kind: "castle", x: 7, y: 5 },
     ] } });
-    expect(order.json().results.at(-1)).toMatchObject({ ok: true, capital: { spent: 0, remaining: 1200, pending: 600 } });
+    expect(order.json().results.at(-1)).toMatchObject({ ok: true, mineral: { spent: 0, remaining: 1200, pending: ruleset.kinds.castle.cost } });
     expect(order.json().view.mine.find((e: { id: string }) => e.id === workers[0].id).construction).toBeDefined();
     await app.close();
     app = await buildServer({ replayDir, ruleset, prepMs: 0 });
     const restored = (await app.inject({ url: "/state", headers: headers[0] })).json();
     expect(restored.mine.find((e: { id: string }) => e.id === workers[0].id).construction).toBeDefined();
-    expect(restored.players[0].capital).toBe(1200);
+    expect(restored.players[0].mineral).toBe(1200);
     await app.inject({ url: "/state", headers: headers[1] });
     const completed = (await app.inject({ url: "/wait?max=3&until=spawn", headers: headers[0] })).json();
     expect(completed.mine.filter((e: { kind: string }) => e.kind === "castle")).toHaveLength(2);
-    expect(completed.players[0].capital).toBe(600);
+    expect(completed.players[0].mineral).toBe(ruleset.startMineral - ruleset.kinds.castle.cost);
     expect(completed.mine.filter((e: { kind: string }) => e.kind === "castle").every((e: { vital: boolean }) => !e.vital)).toBe(true);
   } finally { await app.close(); }
 });

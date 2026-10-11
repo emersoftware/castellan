@@ -3,7 +3,10 @@ import { rules, playerGuide, viewToText, type Order, type ReplayFile, type Rules
 import { createMatch, runReplay, type Match } from "../src";
 
 const players = [{ id: "p1", name: "one" }, { id: "p2", name: "two" }];
-const r = (): Ruleset => ({ ...rules, startCapital: 1200,
+const r = (): Ruleset => ({ ...rules, startMineral: 1200,
+  // Pin the fixture's price and timer so economy tuning does not change these
+  // construction, cancellation and replay scenarios.
+  kinds: { ...rules.kinds, castle: { ...rules.kinds.castle, cost: 600, buildMs: 30000 } },
   map: { ...rules.map, deposits: [], sharedDeposits: [{ x: 10, y: 5, amount: 5000 }] },
 });
 const make = (ruleset = r()) => createMatch({ ruleset, players, seed: 42, tickRate: 10 });
@@ -46,7 +49,7 @@ describe("Castle expansion", () => {
     const m = await make();
     try {
       stopWorkers(m);
-      expect(build(m).results[0]).toMatchObject({ ok: true, capital: { spent: 0, remaining: 1200, pending: 600 } });
+      expect(build(m).results[0]).toMatchObject({ ok: true, mineral: { spent: 0, remaining: 1200, pending: 600 } });
       expect(units(m, "worker")[0].construction).toMatchObject({ kind: "castle", x: 7, y: 5, completesAtMs: 30100 });
       expect(viewToText(m.view("p1"))).toContain("building castle (7,5)");
       // Reissuing the same build must not reset the timer.
@@ -55,11 +58,11 @@ describe("Castle expansion", () => {
       const completed = m.step([]);
       const expansion = units(m, "castle").find((e) => e.x === 7 && e.y === 5)!;
       expect(expansion).toMatchObject({ hp: rules.kinds.castle.hp, vital: false });
-      expect(completed.events).toContainEqual(expect.objectContaining({ type: "spawn", id: expansion.id, capital: { spent: 600, remaining: 600 } }));
+      expect(completed.events).toContainEqual(expect.objectContaining({ type: "spawn", id: expansion.id, mineral: { spent: 600, remaining: 600 } }));
       expect(units(m, "worker")[0].construction).toBeUndefined();
       const trained = m.step([{ player: "p1", order: { type: "train", building: expansion.id, kind: "worker" } },
         { player: "p1", order: { type: "script", kind: "worker", code: "self.gather();" } }]);
-      expect(trained.results[0]).toMatchObject({ ok: true, capital: { spent: 50, remaining: 550 } });
+      expect(trained.results[0]).toMatchObject({ ok: true, mineral: { spent: 50, remaining: 550 } });
       let workerId = "";
       let unloaded = false;
       for (let i = 0; i < 250; i++) {
@@ -76,7 +79,7 @@ describe("Castle expansion", () => {
     } finally { m.dispose(); }
   });
 
-  it("cancels without charge on changed orders or insufficient capital, and rejects unaffordable orders", async () => {
+  it("cancels without charge on changed orders or insufficient mineral, and rejects unaffordable orders", async () => {
     const m = await make();
     try {
       stopWorkers(m); build(m); stepTo(m, 100);
@@ -84,7 +87,7 @@ describe("Castle expansion", () => {
       m.step([{ player: "p1", order: { type: "stop", unit: worker.id } }]);
       stepTo(m, 350);
       expect(units(m, "castle")).toHaveLength(1);
-      expect(m.view("p1").players[0].capital).toBe(1200);
+      expect(m.view("p1").players[0].mineral).toBe(1200);
       build(m);
       expect(units(m, "worker")[0].construction!.completesAtMs).toBe(65000);
       // Spend below the castle's 600: five knights fill the queue, research takes the rest.
@@ -94,9 +97,9 @@ describe("Castle expansion", () => {
       stepTo(m, 660);
       expect(units(m, "castle")).toHaveLength(1);
     } finally { m.dispose(); }
-    for (const ruleset of [{ ...r(), startCapital: 599 }]) {
+    for (const ruleset of [{ ...r(), startMineral: 599 }]) {
       const invalid = await make(ruleset);
-      try { expect(build(invalid).results[0]).toMatchObject({ ok: false, capital: { spent: 0 } }); }
+      try { expect(build(invalid).results[0]).toMatchObject({ ok: false, mineral: { spent: 0 } }); }
       finally { invalid.dispose(); }
     }
   });
@@ -127,7 +130,7 @@ describe("Castle expansion", () => {
       expect(m.outcome).toMatchObject({ winner: "p1", reason: "vital_lost" });
       const guide = playerGuide(rules);
       expect(guide).toContain("Only the King is vital");
-      expect(guide).toContain('"kind":"turret"|"wall"|"door"|"castle"');
+      expect(guide).toContain('"kind":"tower"|"wall"|"door"|"castle"');
     } finally { m.dispose(); }
   });
 

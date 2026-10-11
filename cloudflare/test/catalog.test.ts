@@ -63,8 +63,40 @@ it("publishes only complete, correctly ordered series and computes the team scor
   const summary = completeSeries(entries)[0].summary;
   expect(summary.games.map((g) => g.roomId)).toEqual(["game1", "game2", "game3"]);
   expect(summary.score).toEqual({ p1: 2, p2: 1 });
+  expect(summary.losses).toEqual({ p1: 1, p2: 2 });
   expect(summary.winners).toEqual(["p1"]);
+  expect(summary.allDefeated).toBeUndefined();
   expect(completeSeries([entries[0], entries[0], entries[1]])).toEqual([]);
+});
+
+it.each([true, undefined])("publishes losses while preserving historical tied series (%s)", (drawsAreLosses) => {
+  const entries = [1, 2, 3].map(n => {
+    const replay = structuredClone(fixture);
+    replay.id = `tied${n}`;
+    replay.series = { id: "tied", gameNumber: n, totalGames: 3 };
+    replay.ruleset.drawsAreLosses = drawsAreLosses;
+    replay.outcome = { winner: null, winners: [], reason: "timeout", scores: {},
+      ...(drawsAreLosses ? { allDefeated: true as const } : {}) };
+    return entry(publicReplay(replay));
+  });
+  const summary = completeSeries(entries)[0].summary;
+  expect(summary.score).toEqual({ p1: 0, p2: 0 });
+  expect(summary.losses).toEqual({ p1: drawsAreLosses ? 3 : 0, p2: drawsAreLosses ? 3 : 0 });
+  expect(summary.winners).toEqual([]);
+  expect(summary.allDefeated).toBe(drawsAreLosses);
+  expect(summary.games.every(g => g.outcome?.allDefeated === drawsAreLosses)).toBe(true);
+});
+
+it("counts a shared loss in addition to each side's one win and one defeat", () => {
+  const entries = [1, 2, 3].map(n => {
+    const replay = structuredClone(fixture);
+    replay.id = `mixed${n}`;
+    replay.series = { id: "mixed", gameNumber: n, totalGames: 3 };
+    if (n < 3) replay.outcome = { winner: `p${n}`, winners: [`p${n}`], reason: "vital_lost", scores: {} };
+    return entry(replay);
+  });
+  expect(completeSeries(entries)[0].summary).toMatchObject({ score: { p1: 1, p2: 1 },
+    losses: { p1: 2, p2: 2 }, winners: [], allDefeated: true });
 });
 
 it("reads fresh local payloads, keeps editorial metadata, excludes bots/demos and does not copy credentials", async () => {

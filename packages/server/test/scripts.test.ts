@@ -18,10 +18,17 @@ it("lists the script every player's scriptable kinds run in a live room", async 
       await new Promise((r) => setTimeout(r, 50));
     }
     expect(put!.statusCode).toBe(200);
-    const scripts = (await app.inject({ url: `/rooms/${room.id}/scripts` })).json();
+    const spectator = new URLSearchParams(room.watch.split("#")[1]).get("spectator");
+    const scripts = (await app.inject({ url: `/rooms/${room.id}/scripts`, headers: { authorization: `Bearer ${spectator}` } })).json();
     expect(scripts[a.id].knight).toEqual({ code: "self.hold(); // mine", custom: true });
     expect(scripts.p2.knight).toEqual({ code: rules.defaultScripts.knight, custom: false });
     expect(scripts.p2.wall).toBeUndefined();
     expect((await app.inject({ url: "/rooms/nope/scripts" })).statusCode).toBe(404);
+    const probe = await app.inject({ method: "POST", url: "/scripts/king/test", headers: { authorization: `Bearer ${a.token}` },
+      payload: { lang: "ts", code: "return {onTick(): void {self.suspendOrder();self.hold();self.log(typeof self.order);}};" } });
+    expect(probe.statusCode).toBe(200);
+    const result = probe.json();
+    expect(result).toMatchObject({ ok: true, actionsApplied: false, freshMemory: true });
+    expect(Object.values(result.frames[0].runs)[0]).toMatchObject({ action: { a: "hold" }, orderControl: "suspend", log: "object" });
   } finally { await app.close(); }
 });

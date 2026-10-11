@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { BOTS, simulate } from "@aoa/sim";
-import { rules } from "@aoa/shared";
+import { rules, outcomeText } from "@aoa/shared";
 import { saveReplay } from "./app";
 
 const root = resolve(fileURLToPath(import.meta.url), "../../../..");
@@ -18,5 +18,5 @@ for (const [a, b] of pairs) {
     players: [{ id: "p1", name: `bot:${a}` }, { id: "p2", name: `bot:${b}` }],
     orders: r.orders, hashes: r.hashes, finalTick: r.ticks, outcome: r.outcome,
   });
-  console.log(`replay ${id}: ${a} vs ${b} → ${r.outcome.winner ?? "draw"} (${r.outcome.reason}, ${(r.ticks / 600).toFixed(1)} min)`);
+  console.log(`replay ${id}: ${a} vs ${b} → ${outcomeText(r.outcome)} (${r.outcome.reason}, ${(r.ticks / 600).toFixed(1)} min)`);
 }

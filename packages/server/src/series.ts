@@ -3,6 +3,7 @@ import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createMatch } from "@aoa/engine";
 import type { GameEvent, ReplayFile, SeriesProgress, SeriesReplay, SeriesSummary } from "@aoa/shared";
+import { playerResult } from "@aoa/shared";
 import { Room, type RoomCheckpoint, type RoomOptions } from "./room";
 
 type Config = Omit<RoomOptions, "onFinish" | "id" | "createdAt" | "deferredStart">;
@@ -61,13 +62,14 @@ export class SeriesStore {
   }
 
   async create(config: Config) {
+    config = { ...config, spectatorToken: randomBytes(24).toString("hex") };
     const entry: Entry = { format: 1, id: randomBytes(8).toString("hex"), createdAt: new Date().toISOString(), config,
       participants: [], games: [], pending: Promise.resolve(), readyGames: 0, committedGames: 0 };
     this.entries.set(entry.id, entry);
     try {
       entry.pending = this.next(entry);
       await entry.pending;
-      return { ...this.summary(entry.id)!, players: entry.participants.map((p) => ({ ...p, token: p.bot ? undefined : p.token })), watch: `/series/${entry.id}/watch`, replay: `/series/${entry.id}/replay` };
+      return { ...this.summary(entry.id)!, players: entry.participants.map((p) => ({ ...p, token: p.bot ? undefined : p.token })), watch: `/series/${entry.id}/watch#spectator=${config.spectatorToken}`, replay: `/series/${entry.id}/replay` };
     } catch (error) { this.entries.delete(entry.id); for (const room of entry.games) room.close(); throw error; }
   }
 
@@ -126,7 +128,7 @@ export class SeriesStore {
     const m = this.memberships.get(roomId);
     if (!m) return;
     const s = this.summary(m.entry.id)!;
-    return { id: s.id, gameNumber: m.gameNumber, totalGames: 3, status: s.status, score: s.score,
+    return { id: s.id, gameNumber: m.gameNumber, totalGames: 3, status: s.status, score: s.score, losses: s.losses,
       previousGames: s.games.filter((g) => g.number < m.gameNumber && g.status === "finished").map((g) => g.number) };
   }
 
@@ -134,18 +136,21 @@ export class SeriesStore {
     const entry = this.entries.get(id);
     if (!entry) return;
     const score = Object.fromEntries(entry.participants.map((p) => [p.id, 0]));
+    const losses = Object.fromEntries(entry.participants.map((p) => [p.id, 0]));
     const games = entry.games.map((room, i) => {
       const outcome = room.outcome ?? undefined;
       for (const p of outcome?.winners ?? (outcome?.winner ? [outcome.winner] : [])) score[p]++;
+      if (outcome) for (const p of entry.participants) if (playerResult(outcome, p.id) === "loss") losses[p.id]++;
       return { number: i + 1, roomId: room.id, status: room.state, outcome };
     });
     const finished = entry.committedGames === 3 && games.length === 3 && games.every((g) => g.status === "finished");
     const max = Math.max(0, ...Object.values(score));
     const leaders = entry.participants.filter((p) => score[p.id] === max);
-    // A tie between opposing sides is a draw; teammates win together.
+    // Teammates win together; tied opposing sides have no series winner.
     const winners = finished ? (new Set(leaders.map((p) => p.team)).size === 1 ? leaders.map((p) => p.id) : []) : undefined;
     return { id, createdAt: entry.createdAt, totalGames: 3, currentGame: games.length,
-      status: entry.error ? "error" : finished ? "finished" : "running", score, winners,
+      status: entry.error ? "error" : finished ? "finished" : "running", score, losses, winners,
+      ...(finished && !winners?.length && entry.config.ruleset.drawsAreLosses ? { allDefeated: true as const } : {}),
       players: entry.participants.map(({ token: _, ...p }) => p), games };
   }
 

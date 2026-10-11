@@ -10,7 +10,7 @@ it("serves consistent castle/door rules and default maps for duels and FFA", asy
   try {
     const { ruleset, guide } = (await app.inject({ method: "GET", url: "/rules" })).json();
     expect(ruleset.version).toBe(rules.version);
-    expect(ruleset.kinds.worker.builds).toEqual(["turret", "wall", "door", "castle"]);
+    expect(ruleset.kinds.worker.builds).toEqual(["tower", "wall", "door", "castle"]);
     expect(JSON.stringify({ruleset,guide})).not.toMatch(/nexus/i);
     for (const map of ["open","quad","fortress","fortress-quad"]) {
       const room = (await app.inject({method:"POST",url:"/rooms",payload:{map,...(map.endsWith("quad")?{mode:"ffa"}:{}),players:[{name:"A"},{name:"B"}]}})).json();

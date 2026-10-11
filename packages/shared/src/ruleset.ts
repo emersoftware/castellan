@@ -1,16 +1,18 @@
 /**
  * The shape of the rules (see rules.ts): every number, every kind of entity and the
  * starting map. Times are in milliseconds; the engine converts them to ticks.
- * At the time limit, if more than one side survives, the match is a draw.
+ * Matches without a winner use `drawsAreLosses` to classify their result.
  */
 export interface Ruleset {
   version: string;
   /** Match length before the time limit; four-seat maps use `fourSeatMatchMs` (see `matchLengthMs`). */
   matchMs: number;
   fourSeatMatchMs: number;
+  /** Everyone loses when a match ends without a winner. Absent/false preserves historical draws. */
+  drawsAreLosses?: boolean;
   /** Clock-stopped phase where players may read rules and upload scripts. */
   prepMs: number;
-  startCapital: number;
+  startMineral: number;
   /** Max living units per player (buildings don't count). */
   popCap: number;
   gather: { carry: number; ms: number };
@@ -27,6 +29,8 @@ export interface Ruleset {
   revealAttackerMs: number;
   /** Scripts perceive everything the player sees ("player"), or only within the unit's own vision ("unit", older rules). */
   scriptSight: "player" | "unit";
+  /** Run scripts during orders, with explicit interruption controls and event callbacks. Absent in older replays. */
+  reactiveOrders?: boolean;
   /**
    * Ranged attacks are real projectiles (Euclidean tiles/s). Only hostile entities stop
    * them, never rock; `flyOver` building kinds are hit only by a shot aimed at them.
@@ -37,7 +41,7 @@ export interface Ruleset {
   upgrades: Record<string, UpgradeSpec>;
   map: MapSpec;
   script: ScriptLimits;
-  score: { unit: number; building: number; capital: number; kill: number; buildingKill: number };
+  score: { unit: number; building: number; mineral: number; kill: number; buildingKill: number };
   /** Script each scriptable kind runs until the player uploads its own. */
   defaultScripts: Record<string, string>;
   /** ASCII legend shown to players. */
@@ -70,7 +74,7 @@ export interface KindSpec {
   hp: number;
   def: number;
   vision: number;
-  /** Capital to train (units) or build (buildings). 0 = not producible. */
+  /** Mineral to train (units) or build (buildings). 0 = not producible. */
   cost: number;
   /** Research that must be completed before this kind can be trained or built, or its other research started. */
   requires?: string;
@@ -85,20 +89,20 @@ export interface KindSpec {
   /** Present on kinds that attack. */
   atk?: number;
   range?: number;
-  /** Blind spot: targets closer than this can't be attacked (a turret can't shoot at its own foot). */
+  /** Blind spot: targets closer than this can't be attacked (a tower can't shoot at its own foot). */
   minRange?: number;
   attackMs?: number;
   /** After a step, a mobile attacker must stand still this long before it attacks. */
   aimMs?: number;
-  /** Runs a player script when it has no order. */
+  /** Runs a player script; reactiveOrders also runs it during a persistent order. */
   scriptable?: boolean;
-  /** Can extract capital from deposits. */
+  /** Can extract mineral from deposits. */
   gathers?: boolean;
   /** Building kinds this unit can place. */
   builds?: string[];
   /** Unit kinds this building produces. */
   trains?: string[];
-  /** Gatherers unload capital next to it. */
+  /** Gatherers unload mineral next to it. */
   dropoff?: boolean;
 }
 
@@ -114,6 +118,10 @@ export interface MapSpec {
   seats?: 2 | 4;
   /** Impassable terrain (rock walls). Full list; keep it symmetric under every seat's rotation. */
   walls: { x: number; y: number }[];
+  /** Visual skin only; these terrain tiles are always impassable and cannot be attacked. */
+  wallStyle?: "rock" | "wall";
+  /** Destructible wall ruins owned by the scenario, never a competing player. Absolute coordinates, placed once. */
+  neutralWalls?: { x: number; y: number }[];
   /** The first seat's corner. Every other seat gets the same layout, rotated. */
   start: { kind: string; x: number; y: number }[];
   deposits: { x: number; y: number; amount: number }[];

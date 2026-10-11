@@ -9,7 +9,7 @@ const run = (m: Match, n: number, orders: (m: Match) => PlayerOrder[] = () => []
 };
 const mine = (m: Match, p: string, kind: string) => m.view(p).mine.filter((e) => e.kind === kind);
 /** Every entity sees the whole map, for tests about something other than fog. */
-/** Rangers and turrets producible without their unlock research, for tests about something else. */
+/** Archers and towers producible without their unlock research, for tests about something else. */
 const unlocked = (r: Ruleset = rules): Ruleset => ({ ...r, kinds: Object.fromEntries(Object.entries(r.kinds).map(([k, s]) => [k, { ...s, requires: undefined }])) });
 const seeAll = (r: Ruleset = rules): Ruleset => ({ ...r, kinds: Object.fromEntries(Object.entries(r.kinds).map(([k, s]) => [k, { ...s, vision: 40 }])) });
 
@@ -26,11 +26,11 @@ describe("engine", () => {
     expect(m.view("p2").grid[n2.y][n2.x]).toBe("C");
   });
 
-  it("workers gather capital on their own", async () => {
+  it("workers gather mineral on their own", async () => {
     const m = await make();
     run(m, 300);
     const p = m.view("p1").players.find((x) => x.id === "p1")!;
-    expect(p.capital).toBeGreaterThan(rules.startCapital + 50);
+    expect(p.mineral).toBeGreaterThan(rules.startMineral + 50);
   });
 
   it("rejects malformed and foreign orders without throwing", async () => {
@@ -66,7 +66,7 @@ else self.moveTo(${king.x}, ${king.y});`;
     const p2workers = mine(m, "p2", "worker").map((w) => ({ player: "p2", order: { type: "stop", unit: w.id } as Order }));
     m.step([{ player: "p1", order: { type: "script", kind: "knight", code: attack } }, ...p2workers]);
     run(m, 6000, (mm) => {
-      const cap = mm.view("p1").players[0].capital;
+      const cap = mm.view("p1").players[0].mineral;
       return (cap ?? 0) >= 100 ? [{ player: "p1", order: { type: "train", building: nexus.id, kind: "knight" } }] : [];
     });
     expect(m.outcome).toMatchObject({ winner: "p1", reason: "vital_lost" });
@@ -88,17 +88,17 @@ else self.moveTo(${king.x}, ${king.y});`;
   });
 
   it("builds once the worker has worked the construction time next to the site", async () => {
-    const r = unlocked({ ...rules, startCapital: 400 });
+    const r = unlocked({ ...rules, startMineral: 400 });
     const m = await make(r);
     const w = mine(m, "p1", "worker")[0];
-    const ordered = m.step([{ player: "p1", order: { type: "build", unit: w.id, kind: "turret", x: 7, y: 7 } }]);
-    expect(ordered.results[0].capital).toEqual({ spent: 0, remaining: r.startCapital, pending: rules.kinds.turret.cost });
+    const ordered = m.step([{ player: "p1", order: { type: "build", unit: w.id, kind: "tower", x: 7, y: 7 } }]);
+    expect(ordered.results[0].mineral).toEqual({ spent: 0, remaining: r.startMineral, pending: rules.kinds.tower.cost });
     run(m, 40);
-    expect(mine(m, "p1", "turret")).toHaveLength(0); // still under construction
-    run(m, rules.kinds.turret.buildMs! / 100);
-    expect(mine(m, "p1", "turret")).toHaveLength(1);
+    expect(mine(m, "p1", "tower")).toHaveLength(0); // still under construction
+    run(m, rules.kinds.tower.buildMs! / 100);
+    expect(mine(m, "p1", "tower")).toHaveLength(1);
     expect(mine(m, "p1", "worker").find((x) => x.id === w.id)!.doing).not.toBe("hold");
-    expect(m.events("p1", 0)).toContainEqual(expect.objectContaining({ type: "spawn", builder: w.id, capital: { spent: rules.kinds.turret.cost, remaining: expect.any(Number) } }));
+    expect(m.events("p1", 0)).toContainEqual(expect.objectContaining({ type: "spawn", builder: w.id, mineral: { spent: rules.kinds.tower.cost, remaining: expect.any(Number) } }));
   });
 
   it("reports one actual charge when repeated build orders complete in the same tick", async () => {
@@ -110,14 +110,14 @@ else self.moveTo(${king.x}, ${king.y});`;
     const order: Order = { type: "build", unit: w.id, kind: "wall", ...pos };
     const { results } = m.step([{ player: "p1", order }, { player: "p1", order }]);
     expect(mine(m, "p1", "wall")).toHaveLength(1);
-    expect(results.reduce((sum, r) => sum + (r.capital?.spent ?? 0), 0)).toBe(rules.kinds.wall.cost);
-    expect(results[1].capital).toEqual({ spent: rules.kinds.wall.cost, remaining: rules.startCapital - rules.kinds.wall.cost });
+    expect(results.reduce((sum, r) => sum + (r.mineral?.spent ?? 0), 0)).toBe(rules.kinds.wall.cost);
+    expect(results[1].mineral).toEqual({ spent: rules.kinds.wall.cost, remaining: rules.startMineral - rules.kinds.wall.cost });
   });
 
-  it("draws at the time limit", async () => {
+  it("defeats everyone at the time limit", async () => {
     const m = await make({ ...rules, matchMs: 5_000 });
     run(m, 100);
-    expect(m.outcome).toMatchObject({ reason: "timeout", winners: [] });
+    expect(m.outcome).toMatchObject({ reason: "timeout", winners: [], allDefeated: true });
   });
 });
 
@@ -138,26 +138,26 @@ describe("replay", () => {
 
 describe("building rules", () => {
   it("allows a tower rush to build next to the enemy castle and fight its base", async () => {
-    const m = await make(seeAll(unlocked({ ...rules, startCapital: 400 })));
+    const m = await make(seeAll(unlocked({ ...rules, startMineral: 400 })));
     const w = mine(m, "p1", "worker")[0];
     const enemyNexus = mine(m, "p2", "castle")[0];
     // The farthest free tile in range west of the castle.
     let r;
-    for (let d = rules.kinds.turret.range!; d > 2; d--) {
-      r = m.step([{ player: "p1", order: { type: "build", unit: w.id, kind: "turret", x: enemyNexus.x - d, y: enemyNexus.y } }]);
+    for (let d = rules.kinds.tower.range!; d > 2; d--) {
+      r = m.step([{ player: "p1", order: { type: "build", unit: w.id, kind: "tower", x: enemyNexus.x - d, y: enemyNexus.y } }]);
       if (r.results[0].ok) break;
     }
     expect(r!.results[0]).toMatchObject({ ok: true });
     run(m, 600);
-    expect(mine(m, "p1", "turret")).toHaveLength(1);
-    expect(mine(m, "p2", "worker")).toHaveLength(0); // the turret shoots the weakest target in range first
+    expect(mine(m, "p1", "tower")).toHaveLength(1);
+    expect(mine(m, "p2", "worker")).toHaveLength(0); // the tower shoots the weakest target in range first
   });
 
   it("preserves build exclusion when enabled by a saved ruleset", async () => {
-    const m = await make(seeAll(unlocked({ ...rules, startCapital: 400, buildExclusion: 8 })));
+    const m = await make(seeAll(unlocked({ ...rules, startMineral: 400, buildExclusion: 8 })));
     const w = mine(m, "p1", "worker")[0];
     const enemyNexus = mine(m, "p2", "castle")[0];
-    const r = m.step([{ player: "p1", order: { type: "build", unit: w.id, kind: "turret", x: enemyNexus.x - 5, y: enemyNexus.y } }]);
+    const r = m.step([{ player: "p1", order: { type: "build", unit: w.id, kind: "tower", x: enemyNexus.x - 5, y: enemyNexus.y } }]);
     expect(r.results[0]).toMatchObject({ ok: false });
     expect((r.results[0] as { reason: string }).reason).toMatch(/too close/);
   });
@@ -185,12 +185,12 @@ describe("maps and sides", () => {
     expect(mine(m, "p2", "castle")[0]).toMatchObject({ x: 4, y: 4 });
   });
 
-  it("rangers shoot from range", async () => {
+  it("archers shoot from range", async () => {
     const m = await make(unlocked());
     const nexus = mine(m, "p1", "castle")[0];
-    const r = m.step([{ player: "p1", order: { type: "train", building: nexus.id, kind: "ranger" } }]);
+    const r = m.step([{ player: "p1", order: { type: "train", building: nexus.id, kind: "archer" } }]);
     expect(r.results[0]).toMatchObject({ ok: true });
-    run(m, rules.kinds.ranger.trainMs! / 100 + 1);
-    expect(mine(m, "p1", "ranger")[0].maxHp).toBe(rules.kinds.ranger.hp);
+    run(m, rules.kinds.archer.trainMs! / 100 + 1);
+    expect(mine(m, "p1", "archer")[0].maxHp).toBe(rules.kinds.archer.hp);
   });
 });

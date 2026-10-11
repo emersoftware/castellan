@@ -14,6 +14,7 @@ export interface ReplayCheck {
  * after every tick (frame 0 is the initial state). Checks the recorded hashes.
  */
 export async function runReplay(replay: ReplayFile, onFrame: (view: SpectatorView) => void): Promise<ReplayCheck> {
+  if (replay.experiment?.operationalFailures?.length) throw new Error("Replay has a sandbox operational failure; wall-clock termination cannot be reconstructed deterministically. Exclude it from balance evaluation.");
   const m = await createMatch({ ruleset: replay.ruleset, seed: replay.seed, tickRate: replay.tickRate, players: replay.players });
   const byTick = new Map<number, PlayerOrder[]>();
   for (const o of replay.orders) {

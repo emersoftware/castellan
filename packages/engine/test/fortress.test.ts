@@ -17,7 +17,8 @@ it("starts both players in symmetric, sealed corner fortresses with two allied e
     }
     for(const e of mine) expect(frame.entities).toContainEqual(expect.objectContaining({kind:e.kind,owner:"b",x:31-e.x,y:31-e.y}));
     const inside=(x:number,y:number)=>x<13&&y<13;
-    expect(map.deposits.every(d=>inside(d.x,d.y))).toBe(true);
+    expect(map.deposits.filter(d=>inside(d.x,d.y)).reduce((sum,d)=>sum+d.amount,0)).toBe(1200);
+    expect(map.deposits.filter(d=>!inside(d.x,d.y)).reduce((sum,d)=>sum+d.amount,0)).toBe(2800);
     const barriers=mine.filter(e=>e.kind==="wall"||e.kind==="door");
     const grid:Grid={width:32,height:32,isStatic:(x,y)=>barriers.some(e=>e.x===x&&e.y===y)};
     // No path around the ends of either wall via the map edge, including diagonals.

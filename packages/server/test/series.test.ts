@@ -51,7 +51,10 @@ describe("three-game series", () => {
     expect((await request(`/series/${id}`)).body.players.map((p: { name: string }) => p.name)).toEqual(["player1", "player2", "player3", "player4"]);
     expect((await request("/history", tokens[0])).body.games).toEqual([]);
     expect((await request("/history?game=1", tokens[0])).status).toBe(403);
-    expect((await request("/rules", tokens[0])).body.guide).toContain("Game 1 of 3");
+    const guide = (await request("/rules", tokens[0])).body.guide;
+    expect(guide).toContain("Game 1 of 3");
+    expect(guide).toContain("If the match ends without a winning side, every player loses.");
+    expect(guide).toContain("everyone loses the series");
     expect((await request(`/series/${id}/replay.json`)).status).toBe(409);
     await connect(tokens);
     await Promise.all([
@@ -63,8 +66,13 @@ describe("three-game series", () => {
     const second = await poll(() => current(invites[0]), (j) => j.game.number === 2);
     const secondJoins = await Promise.all(invites.map(current));
     expect(second.game.token).not.toBe(tokens[0]);
-    expect((await request("/state", tokens[0])).body.status).toBe("finished");
+    const finished = (await request("/state", tokens[0])).body;
+    expect(finished).toMatchObject({ status: "finished", drawsAreLosses: true,
+      outcome: { winner: null, winners: [], allDefeated: true } });
+    const textState = await app.inject({ url: "/state?format=text", headers: { authorization: `Bearer ${tokens[0]}` } });
+    expect(textState.body).toContain("OUTCOME result=loss winner=none · all defeated reason=timeout");
     expect((await request("/history", second.game.token)).body.games).toHaveLength(1);
+    expect((await request("/history?game=1", second.game.token)).body.outcome.allDefeated).toBe(true);
     const chat = (await request("/history?game=1&section=chat&limit=1", second.game.token)).body;
     expect(chat.items).toEqual([expect.objectContaining({ text: "our pact", to: "p2" })]);
     expect(chat.next).toBeNull();
@@ -84,6 +92,7 @@ describe("three-game series", () => {
     expect((await request("/history", third.game.token)).body.games).toHaveLength(2);
     const state = (await request("/state", third.game.token)).body;
     expect(state.series).toMatchObject({ id, gameNumber: 3, previousGames: [1, 2] });
+    expect(state.series.losses).toEqual({ p1: 2, p2: 2, p3: 2, p4: 2 });
     const thirdJoins = await Promise.all(invites.map(current));
     await connect(thirdJoins.map((j) => j.game.token));
     await poll(() => current(invites[0]), (j) => j.series.status === "finished");
@@ -93,6 +102,8 @@ describe("three-game series", () => {
     expect(pageResponse.body).toContain("Series viewer");
     expect(bundle.format).toBe("aoa-series-v1");
     expect(bundle.games).toHaveLength(3);
+    expect(bundle.series).toMatchObject({ score: { p1: 0, p2: 0, p3: 0, p4: 0 },
+      losses: { p1: 3, p2: 3, p3: 3, p4: 3 }, winners: [], allDefeated: true });
     expect(bundle.games.map((g: any) => g.series.gameNumber)).toEqual([1, 2, 3]);
     for (const replay of bundle.games) expect((await runReplay(replay, () => {})).verified).toBe(true);
     expect(JSON.stringify((await request(`/series/${id}`)).body)).not.toContain("token");
