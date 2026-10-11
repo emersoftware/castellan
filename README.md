@@ -9,7 +9,7 @@ pnpm build                 # web client → served by the server
 pnpm server                # http://localhost:4400
 pnpm seed-replays          # optional: a few bot-vs-bot replays to watch
 ```
-Open http://localhost:4400 for the landing and the battles. Matches are created from the CLI (`pnpm aoa new`), and `/watch/<id>` shows them live on your machine.
+Open http://localhost:4400 for the landing and the battles. Matches are created from the CLI (`pnpm aoa new`), which prints a private spectator link. Keep that link with the host: player tokens cannot view the opponent's live state or scripts. Finished replays are public.
 
 Play Claude Code vs Codex:
 ```bash
@@ -33,16 +33,21 @@ pnpm aoa new --series --chat --name claude --name codex
 AOA_TOKEN=<series-p1> pnpm aoa run-series -- connectors/loop-keepers/claude-code/play.sh
 AOA_TOKEN=<series-p2> pnpm aoa run-series -- connectors/loop-keepers/codex/agent.sh
 ```
-Run each player in its own terminal. `/series/<id>/watch` follows the games;
+Run each player in its own terminal. The private series spectator link follows the games;
 `/series/<id>/replay` plays all three and exports one portable file.
 See [SERIES.md](SERIES.md) for the API, history visibility and recovery behavior.
 
-Use `--map fortress` for a 1v1 with prebuilt corner defenses: two owned wall lines and two one-tile doors per player, with the map edges closing the other two sides. Starting mines are inside; central deposits are outside. Use `--map fortress-quad --mode ffa` for the four-player version, with the same defenses rotated into all four corners.
+Use `--map fortress` for a 1v1 with prebuilt corner defenses: two owned wall lines and two one-tile doors per player, with the map edges closing the other two sides. Home mines are inside; expansion and central deposits are outside. Use `--map fortress-quad --mode ffa` for the four-player version, with the same defenses rotated into all four corners.
 
-There is one set of rules, in `packages/shared/src/rules.ts` (`v16-pause`): dodgeable ranged projectiles (12 tiles/s, damage on collision) that fly over rock, walls and doors and are stopped only by castles and turrets, knights and rangers that must stand still 300 ms after moving before they attack, diagonal steps that take 1.4× as long, unit upgrades, timed unit training, shared team vision with fog, worker-built Castle expansions,
-and victory only by King elimination. At the limit (10 minutes, 15 with four players), surviving opponents draw; score never decides the winner. Click a player name in watch/replay to see their perspective; use **View all** to return to the observer view.
-See [BALANCE.md](BALANCE.md) for costs, construction
-times and the experimental balance notes. Replays embed the rules they were played with, but only the current rules are supported.
+There is one set of rules, in `packages/shared/src/rules.ts`: dodgeable ranged projectiles, aim time after moving, slower diagonal steps, unit upgrades, timed unit training, shared team vision with fog, worker-built Castle expansions,
+and victory only by King elimination. Any match ending without a winning side counts as a loss for every player, including those whose King survives the limit (10 minutes, 15 with four players). Score never decides the winner. Historical replays retain their original outcomes. Click a player name in watch/replay to see their perspective; use **View all** to return to the observer view.
+
+The current numeric candidate, `v25-castle-knight`, gives Castles range 5 and
+Knights a 400 ms movement step (300 ms with mobility research). It is a targeted
+mechanics adjustment; broader army diversity still needs full-game validation.
+`quad-crossroads` is a four-player map with solid, indestructible terrain wedges
+and routes through the center. Player-built walls remain destructible.
+See [the generated rules](docs/CURRENT-RULES.md) for costs, timings and script APIs, and [the research](docs/RTS-DESIGN-RESEARCH.md) for design rationale. `GET /rules` is authoritative for each room. [BALANCE.md](BALANCE.md) records the experiments; the [GDD](docs/gdd.md) is historical. Replays embed their original rules and maps; engine changes may still invalidate old hashes, which must be checked before using a replay for balance measurements.
 
 Workers mine by default. Both Worker and King accept per-kind scripts; the King
 has a weak melee hit (attack 3, range 1, every 3 s) and only retaliates in reach by
@@ -50,8 +55,9 @@ default. Scripts can use `self.lastAttacker()` to fight or flee. Workers can sel
 known resources with `self.deposits()` / `self.gather(deposit)`, inspect
 `self.carrying`, and return early with `self.unload()`. `self.gather()` handles the
 whole mining/dropoff cycle. Upload with `aoa script worker worker.js` or
-`aoa script king king.js`; explicit orders override scripts until they finish or
-are cleared with `stop`. The live rules guide includes examples.
+`aoa script king king.js`; scripts keep running during explicit orders. They can
+react to events and suspend, resume or cancel an order; otherwise the order takes
+priority. `stop` clears an order. The live rules guide includes examples.
 
 Web dev with hot reload: `pnpm web` (http://localhost:5173, proxies the API to :4400).
 
@@ -72,4 +78,4 @@ Public site: `pnpm publish:replays` publishes finished agent recordings to D1;
 ## Tests
 `pnpm test` · `pnpm typecheck`
 
-Unit animations: Ranger (idle/walk/shoot/death), Knight (idle/walk/attack/death), King (idle/walk/attack/death) and Worker (walk/mine/attack/death) use eight directions. See [the animation pipeline](assets/animations/README.md). The King replaces the former in-game Agent name; historical replay data stays compatible.
+Unit animations: Archer (idle/walk/shoot/death), Knight (idle/walk/attack/death), King (idle/walk/attack/death) and Worker (walk/mine/attack/death) use eight directions. See [the animation pipeline](assets/animations/README.md). The King replaces the former in-game Agent name; historical replay data stays compatible.

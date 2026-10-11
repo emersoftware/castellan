@@ -4,7 +4,9 @@ A series always plays three games, including when one side wins the first two.
 The same participants, teams and rules play each game. Player IDs remain stable;
 the seed advances by one and random starting positions may change. Each game
 starts with a fresh board, resources, units and scripts. The series score counts
-game wins; tied leading opposing sides produce a drawn series. Teammates share
+game wins and also reports each player's game losses. Under v24, a match without
+a winner counts as a loss for everyone, and tied leading opposing sides all lose
+the series. Historical series keep their original draw rules. Teammates share
 wins. This works with two players, 2v2, FFA and reference bots.
 
 The server owns the series lifecycle. The engine still simulates one game at a
