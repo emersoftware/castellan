@@ -8,6 +8,8 @@ import { playRecordedReplay } from "../src/replayPlayback";
 // Actual four-model FFA: player VMs stopped at ticks 5167 and 5692.
 const recording = (): ReplayFile => JSON.parse(gunzipSync(readFileSync(new URL("./fixtures/9cf148fb.json.gz", import.meta.url))).toString());
 
+// This fixture simulates 7,187 ticks with all spectator perspectives. Keep the
+// full regression; shared CI CPUs can exceed the suite's 60-second default.
 it("recovers the recorded match, including both shutdowns, while strict evaluation still rejects it", async () => {
   const replay = recording();
   const before = JSON.stringify(replay);
@@ -22,7 +24,7 @@ it("recovers the recorded match, including both shutdowns, while strict evaluati
   expect(last?.outcome).toEqual(replay.outcome);
   expect(last?.outcome?.winner).toBe("p2");
   expect(JSON.stringify(replay)).toBe(before);
-});
+}, 180_000);
 
 it("rejects interruptions whose effect is not recorded precisely enough", async () => {
   const replay = recording();

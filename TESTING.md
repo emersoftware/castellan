@@ -55,6 +55,8 @@ For bug fixes, demonstrate that the regression fails before the fix.
   the real CLI/MCP transport. Keep both where those risks differ.
 * Security, replay hashes, protocol tool lists and sprite byte equivalence are
   independent contracts. Do not remove them merely because they are exact or slow.
+  The full recorded-match recovery test keeps all 7,187 ticks, 73 hashes and
+  spectator perspectives, with a scoped 180-second timeout for shared CI CPUs.
 * Name a test for what it actually observes. A training test does not prove
   ranged combat. Do not manufacture expected output with the function under test.
 
