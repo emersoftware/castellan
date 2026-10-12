@@ -8,8 +8,9 @@
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
     "assets:runtime": "node scripts/runtime-assets.mjs",
-    "predev": "pnpm assets:runtime",
-    "prebuild": "pnpm assets:runtime"
+    "predev": "pnpm assets:runtime && pnpm showcase:build",
+    "prebuild": "pnpm assets:runtime && pnpm showcase:build",
+    "showcase:build": "tsx scripts/build-showcase.ts"
   },
   "dependencies": {
     "@aoa/engine": "workspace:*",

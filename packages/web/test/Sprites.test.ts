@@ -36,3 +36,14 @@ it("shares atlas sources across frames and preserves cell anchors in every pass"
     expect(layer.frame).toMatchObject(frame);
   }
 });
+
+it("keeps a reduced odd-sized animation cell at its original world size and ground anchor", () => {
+  const texture = new Texture({ source: new TextureSource({ width: 28 * 56, height: 5 * 60 }) });
+  const art = { texture, silhouette: texture, xray: Array(4).fill(texture), outline: Array(4).fill(texture), scale: 1 / 1.5, anchorX: 0.5, anchorY: 0.8529411764705882 };
+  const cell = animationCell(art, { x: 56, y: 60, width: 56, height: 60, displayWidth: 56, displayHeight: 59.5 });
+  for (const layer of [cell.texture, cell.silhouette, ...cell.xray, ...cell.outline!]) {
+    expect(layer.frame.height).toBe(60);
+    expect(layer.height * cell.scale).toBe(119 / 3);
+    expect(layer.height * cell.anchorY * cell.scale).toBeCloseTo(119 * art.anchorY / 3);
+  }
+});

@@ -15,6 +15,8 @@ import { displayKind } from "./names";
 
 export const TILE_W = 32;
 export const TILE_H = 16;
+/** Half-resolution distribution for the landing's fixed, whole-map view. */
+export const HERO_SPRITE_BASE = "/game-assets/hero-sprites";
 
 export interface SpriteArt {
   texture: Texture;
@@ -54,13 +56,19 @@ export interface AnimationFrame { action: "idle" | "walk" | "shoot" | "attack" |
 export type SpriteSet = (kind: string, dir?: number, animation?: AnimationFrame) => Facing;
 
 /** Atlas cells have a local ground anchor, shared by all texture passes. */
-export function animationCell(art: SpriteArt, frame: { x: number; y: number; width: number; height: number }): SpriteArt {
+export function animationCell(art: SpriteArt, frame: { x: number; y: number; width: number; height: number; displayWidth?: number; displayHeight?: number }): SpriteArt {
   return { ...cropSpriteArt(art, frame), anchorX: art.anchorX, anchorY: art.anchorY };
 }
 
 /** Select one sprite from a source image without moving its ground anchor. */
-export function cropSpriteArt(art: SpriteArt, frame: { x: number; y: number; width: number; height: number }): SpriteArt {
-  const crop = (texture: Texture) => new Texture({ source: texture.source, frame: new Rectangle(frame.x, frame.y, frame.width, frame.height) });
+export function cropSpriteArt(art: SpriteArt, frame: { x: number; y: number; width: number; height: number; displayWidth?: number; displayHeight?: number }): SpriteArt {
+  const crop = (texture: Texture) => new Texture({
+    source: texture.source,
+    frame: new Rectangle(frame.x, frame.y, frame.width, frame.height),
+    // Reduced atlases round each cell up to whole pixels. Its display rectangle
+    // keeps the original footprint and ground anchor despite that rounding.
+    orig: new Rectangle(0, 0, frame.displayWidth ?? frame.width, frame.displayHeight ?? frame.height),
+  });
   return {
     ...art,
     anchorX: (art.anchorX * art.texture.width - frame.x) / frame.width,
@@ -87,34 +95,36 @@ export function loadSprites(base = "/game-assets/sprites"): Promise<SpriteSet> {
 async function buildSprites(base: string): Promise<SpriteSet> {
   const manifest = (await fetch(`${base}/manifest.json`).then((r) => r.json())) as {
     scale: number;
-    sprites: Record<string, { format?: "svg" | "webp"; anchorX?: number; anchorY: number; rasterWidth?: number; rasterHeight?: number; frame?: { x: number; y: number; width: number; height: number } }>;
+    sprites: Record<string, { format?: "svg" | "webp"; anchorX?: number; anchorY: number; rasterWidth?: number; rasterHeight?: number; displayWidth?: number; displayHeight?: number; frame?: { x: number; y: number; width: number; height: number } }>;
   };
   const arts = new Map<string, SpriteArt>();
-  await Promise.all(
+  const statics = Promise.all(
     Object.entries(manifest.sprites).map(async ([name, m]) => {
       const img = await loadImage(`${base}/${name}.${m.format ?? "png"}`);
-      const art = { ...derive(img, m.rasterWidth, m.rasterHeight, isCharacter(name)), scale: 1 / manifest.scale, anchorX: m.anchorX ?? 0.5, anchorY: m.anchorY };
+      let art = { ...derive(img, m.rasterWidth, m.rasterHeight, isCharacter(name), true, Math.round(manifest.scale)), scale: 1 / manifest.scale, anchorX: m.anchorX ?? 0.5, anchorY: m.anchorY };
+      if (m.displayWidth !== undefined) art = animationCell(art, { x: 0, y: 0, width: art.texture.width, height: art.texture.height, displayWidth: m.displayWidth, displayHeight: m.displayHeight });
       arts.set(name, m.frame ? cropSpriteArt(art, m.frame) : art);
     }),
   );
-  const fallback = arts.get("knight") ?? arts.get("knight_2") ?? [...arts.values()][0];
   const animations = new Map<string, SpriteArt[][]>();
-  await Promise.all(["archer", "knight", "king", "worker", "castle", "tower", "wall", "wallpost", "door", "door-open", "wall-door-left", "wall-door-right", "wall-door-both"].map(async kind => {
+  const animated = Promise.all(["archer", "knight", "king", "worker", "castle", "tower", "wall", "wallpost", "door", "door-open", "wall-door-left", "wall-door-right", "wall-door-both"].map(async kind => {
     const metadata = await fetch(`${base}/${kind}/manifest.json`).then((r) => r.json()) as Partial<Record<AnimationFrame["action"], {
-      available?: boolean; masks?: boolean; image: string; frameCount: number; columns?: number; frameWidth: number; frameHeight: number; storedScale: number; anchorX: number; anchorY: number; rows: string[];
+      available?: boolean; masks?: boolean; image: string; frameCount: number; columns?: number; frameWidth: number; frameHeight: number; displayWidth?: number; displayHeight?: number; storedScale: number; anchorX: number; anchorY: number; rows: string[];
     }>>;
     await Promise.all(Object.entries(metadata).map(async ([action, m]) => {
       if (m.available === false) return;
       const img = await loadImage(`${base}/${kind}/${m.image}`);
       // Collapsed buildings no longer participate in depth/x-ray passes. Their
       // larger debris cells need only color, avoiding six unused atlas masks.
-      const atlas = { ...derive(img, undefined, undefined, isCharacter(kind), m.masks ?? (action !== 'death' || isCharacter(kind))), scale: 1 / m.storedScale, anchorX: m.anchorX, anchorY: m.anchorY };
+      const atlas = { ...derive(img, undefined, undefined, isCharacter(kind), m.masks ?? (action !== 'death' || isCharacter(kind)), Math.round(m.storedScale)), scale: 1 / m.storedScale, anchorX: m.anchorX, anchorY: m.anchorY };
       const columns = m.columns ?? m.frameCount;
       animations.set(`${kind}:${action}`, m.rows.map((_, row) => Array.from({ length: m.frameCount }, (_, frame) => animationCell(atlas, {
-        x: (frame % columns) * m.frameWidth, y: (row * Math.ceil(m.frameCount / columns) + Math.floor(frame / columns)) * m.frameHeight, width: m.frameWidth, height: m.frameHeight,
+        x: (frame % columns) * m.frameWidth, y: (row * Math.ceil(m.frameCount / columns) + Math.floor(frame / columns)) * m.frameHeight, width: m.frameWidth, height: m.frameHeight, displayWidth: m.displayWidth, displayHeight: m.displayHeight,
       }))));
     }));
   }));
+  await Promise.all([statics, animated]);
+  const fallback = arts.get("knight") ?? arts.get("knight_2") ?? [...arts.values()][0];
   return (kind, dir = 2, animation) => {
     kind = displayKind(kind);
     if (animation) {
@@ -148,7 +158,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /** Builds the sprite texture plus its silhouette and x-ray variants. */
-function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHeight = Math.round(img.naturalHeight * rasterWidth / img.naturalWidth), character = false, needsMasks = true): Pick<SpriteArt, "texture" | "silhouette" | "xray" | "outline"> {
+function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHeight = Math.round(img.naturalHeight * rasterWidth / img.naturalWidth), character = false, needsMasks = true, maskRadius = 3): Pick<SpriteArt, "texture" | "silhouette" | "xray" | "outline"> {
   // Generated source art can be large. Rasterize once at game resolution before
   // deriving the masks, preserving alpha and a consistent on-screen footprint.
   const w = rasterWidth;
@@ -168,7 +178,7 @@ function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHei
   const texture = Texture.from(base);
   texture.source.scaleMode = "linear";
   if (!needsMasks) return { texture, silhouette: texture, xray: [] };
-  const masks = spriteMasks(src, w, h);
+  const masks = spriteMasks(src, w, h, maskRadius);
   const make = (pixels: Uint8ClampedArray<ArrayBuffer>) => {
     const cv = document.createElement("canvas");
     cv.width = w;
@@ -191,7 +201,7 @@ function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHei
  * (ring or interior) and per-colour exterior rings. The ring holds pixels
  * within 3 stored px (1 screen px) of the edge along either axis.
  */
-export function spriteMasks(src: Uint8ClampedArray, w: number, h: number) {
+export function spriteMasks(src: Uint8ClampedArray, w: number, h: number, radius = 3) {
   const n = w * h;
   const solid = new Uint8Array(n);
   for (let i = 0; i < n; i++) solid[i] = src[i * 4 + 3] > 127 ? 1 : 0;
@@ -205,21 +215,21 @@ export function spriteMasks(src: Uint8ClampedArray, w: number, h: number) {
   const outline = colours.map(() => new Uint32Array(n));
   const [x0, x1, x2, x3] = xray;
   const [o0, o1, o2, o3] = outline;
-  // Solid pixels in the 7-px row and column windows around each pixel; outside
-  // the image counts as empty. A full window means no edge within 3 px.
+  // Keep approximately one world-pixel of outline at each distribution scale.
+  const diameter = radius * 2 + 1;
   const column = new Uint8Array(w);
-  for (let y = 0; y < Math.min(3, h); y++) for (let x = 0; x < w; x++) column[x] += solid[y * w + x];
+  for (let y = 0; y < Math.min(radius, h); y++) for (let x = 0; x < w; x++) column[x] += solid[y * w + x];
   for (let y = 0; y < h; y++) {
     let row = 0;
-    for (let x = 0; x < Math.min(3, w); x++) row += solid[y * w + x];
+    for (let x = 0; x < Math.min(radius, w); x++) row += solid[y * w + x];
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
       const s = solid[i];
-      if (x + 3 < w) row += solid[i + 3];
-      if (y + 3 < h) column[x] += solid[i + 3 * w];
-      const edge = s ? row < 7 || column[x] < 7 : row > 0 || column[x] > 0;
-      if (x >= 3) row -= solid[i - 3];
-      if (y >= 3) column[x] -= solid[i - 3 * w];
+      if (x + radius < w) row += solid[i + radius];
+      if (y + radius < h) column[x] += solid[i + radius * w];
+      const edge = s ? row < diameter || column[x] < diameter : row > 0 || column[x] > 0;
+      if (x >= radius) row -= solid[i - radius];
+      if (y >= radius) column[x] -= solid[i - radius * w];
       if (s) {
         silhouette[i] = 0xffffffff;
         const mark = edge ? ring : core;

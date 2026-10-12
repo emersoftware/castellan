@@ -1,49 +1,30 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { rules, type SpectatorView } from "@aoa/shared";
+import { rules } from "@aoa/shared";
 import { api, playerColors } from "../api";
 import { GameCanvas } from "../components/GameCanvas";
 import { Portrait } from "../components/Portrait";
-import { useReplayFrames } from "../useReplay";
-import { loadSprites } from "../render/sprites";
+import { useShowcase } from "../useShowcase";
+import { HERO_SPRITE_BASE, loadSprites } from "../render/sprites";
 import { sfx } from "../audio/sfx";
 import { currentBattles, replayFileDate } from "../replayCatalog";
 import { BattleCard } from "../components/BattleCard";
 import { LoadState } from "../components/LoadState";
-import { showcaseStart } from "../showcase";
 import { SoundToggle } from "../components/Hud";
 
 const SHOWCASE = "81483a0b";
 
 export function Landing() {
   const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays });
-  const showcase = useQuery({ queryKey: ["showcase", SHOWCASE], queryFn: () => api.showcase(SHOWCASE), staleTime: Infinity });
-  const { frames, loaded, check } = useReplayFrames(showcase.data, 0, { includePerspectives: false });
-  const [frame, setFrame] = useState<SpectatorView | null>(null);
+  const showcase = useShowcase(SHOWCASE);
 
-  // Prepare the unit art while the replay downloads and re-simulates.
-  useEffect(() => { loadSprites().catch(() => {}); }, []);
+  // Art, playback data and Pixi prepare in parallel. The playback clock waits
+  // for the canvas's first paint, so the opening is never consumed offscreen.
+  useEffect(() => { loadSprites(HERO_SPRITE_BASE).catch(() => {}); }, []);
   useEffect(() => sfx.holdMusic("theme"), []);
 
-  const start = useMemo(() => (showcaseStart(frames.current, showcase.data?.tickRate ?? 10) ?? (check ? 0 : null)), [loaded, showcase.data, frames, check]);
-  // Start before the first casualty and loop only after reaching the recorded end.
-  useEffect(() => {
-    if (start === null && !check) return;
-    const first = start ?? 0;
-    let i = first;
-    const motion = matchMedia("(prefers-reduced-motion: reduce)");
-    setFrame(frames.current[first] ?? null);
-    const t = setInterval(() => {
-      if (document.hidden || motion.matches) return;
-      if (i + 1 < frames.current.length) i++;
-      else if (frames.current.length > (showcase.data?.finalTick ?? Infinity)) i = first;
-      setFrame(frames.current[i] ?? null);
-    }, 1000 / (showcase.data?.tickRate ?? 10));
-    return () => clearInterval(t);
-  }, [start, frames, showcase.data]);
-
-  const colors = useMemo(() => playerColors(showcase.data?.players ?? []), [showcase.data]);
+  const colors = useMemo(() => playerColors(showcase.manifest?.players ?? []), [showcase.manifest]);
   const k = rules.kinds;
   const recent = useMemo(() => currentBattles(replays.data ?? [], rules.version)
     .sort((a, b) => replayFileDate(b).localeCompare(replayFileDate(a))).slice(0, 4), [replays.data]);
@@ -55,7 +36,8 @@ export function Landing() {
       <div className="page-sound"><SoundToggle /></div>
       <section className="hero">
         <div className="hero-field" role="img" aria-label="Fortress free-for-all: Astra, Sol, Opus and Fable">
-          {showcase.data && frame && <GameCanvas ruleset={showcase.data.ruleset} colors={colors} frame={frame ?? frames.current[0] ?? null} tickMs={1000 / showcase.data.tickRate} sound={sfx.play} bare interactive={false} />}
+          {showcase.manifest && <GameCanvas key={showcase.attempt} ruleset={showcase.manifest.ruleset} colors={colors} frame={showcase.frame} tickMs={1000 / showcase.manifest.tickRate} jumpKey={showcase.jumpKey} onReady={showcase.onReady} spriteBase={HERO_SPRITE_BASE} sound={sfx.play} bare interactive={false} />}
+          <LoadState error={showcase.error} onRetry={showcase.retry} />
         </div>
         <div className="hero-content">
           <div className="hero-copy">

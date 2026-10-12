@@ -138,23 +138,34 @@ export class GameRenderer {
   /** Wall clock by default; a virtual one while recording video. */
   private now: () => number = () => performance.now();
 
-  private constructor(private host: HTMLElement, private ruleset: Ruleset, private colors: Record<string, number>, private fitOnResize = false, private interactive = true) {
+  private constructor(private host: HTMLElement, private ruleset: Ruleset, private colors: Record<string, number>, private fitOnResize = false, private interactive = true, private spriteBase?: string) {
     this.width = ruleset.map.width;
     this.height = ruleset.map.height;
   }
 
   /** `colors`: each player's colour index (0..3). */
-  static async create(host: HTMLElement, ruleset: Ruleset, colors: Record<string, number>, options: { fitOnResize?: boolean; interactive?: boolean } = {}): Promise<GameRenderer> {
-    const r = new GameRenderer(host, ruleset, colors, options.fitOnResize, options.interactive);
-    await r.init();
+  static async create(host: HTMLElement, ruleset: Ruleset, colors: Record<string, number>, options: { fitOnResize?: boolean; interactive?: boolean; spriteBase?: string } = {}): Promise<GameRenderer> {
+    const r = new GameRenderer(host, ruleset, colors, options.fitOnResize, options.interactive, options.spriteBase);
+    try { await r.init(); }
+    catch (error) {
+      // Initialization may fail after WebGL is ready but before assets arrive.
+      if (r.app?.renderer) r.destroy();
+      throw error;
+    }
     return r;
   }
 
   private async init() {
-    // Fail before attaching a canvas if distribution assets cannot be loaded.
-    this.sprites = await loadSprites();
     this.app = new Application();
-    await this.app.init({ preference: "webgl", antialias: false, resolution: 1, background: "#000000", width: 320, height: 200 });
+    // Fetch/derive art while WebGL initializes. Settle both before cleanup, so a
+    // rejected image cannot leak an application that finishes a moment later.
+    const [sprites, application] = await Promise.allSettled([
+      loadSprites(this.spriteBase),
+      this.app.init({ preference: "webgl", antialias: false, resolution: 1, background: "#000000", width: 320, height: 200, autoStart: false }),
+    ]);
+    if (sprites.status === "rejected") throw sprites.reason;
+    if (application.status === "rejected") throw application.reason;
+    this.sprites = sprites.value;
     const cv = this.app.canvas;
     Object.assign(cv.style, { width: "100%", height: "100%", imageRendering: "pixelated", display: "block" });
     this.host.appendChild(cv);
@@ -177,6 +188,7 @@ export class GameRenderer {
     this.resize.observe(this.host);
     if (this.interactive) this.bindInput();
     this.app.ticker.add(() => this.animate());
+    this.app.start();
   }
 
   onSelect(cb: (id: string | null) => void) {

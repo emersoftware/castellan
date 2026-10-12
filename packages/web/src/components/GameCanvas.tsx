@@ -20,14 +20,17 @@ interface Props {
   bare?: boolean;
   /** Decorative previews should not consume wheel or drag gestures. */
   interactive?: boolean;
+  /** Distribution appropriate for this viewport; interactive views use full art. */
+  spriteBase?: string;
   /** Called once the first frame is on screen. */
   onReady?: () => void;
 }
 
 /** Mounts the Pixi renderer and feeds it frames. */
-export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jumpKey = 0, onHover, selected = null, onSelect, sound, bare, interactive = true, onReady }: Props) {
+export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jumpKey = 0, onHover, selected = null, onSelect, sound, bare, interactive = true, spriteBase, onReady }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
+  const [presented, setPresented] = useState(false);
   const [attempt, setAttempt] = useState(0);
   // Clear synchronously on cleanup: a reconnect can replace the ruleset and
   // deliver a frame in the same render, before the next Pixi instance is ready.
@@ -37,12 +40,15 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
   const readyCb = useRef(onReady);
   readyCb.current = onReady;
   const shown = useRef(false);
+  const readyRaf = useRef(0);
 
   useEffect(() => {
     let r: GameRenderer | null = null;
     let cancelled = false;
     setFailed(false);
-    GameRenderer.create(host.current!, ruleset, colors, { fitOnResize: bare, interactive }).then((x) => {
+    setPresented(false);
+    shown.current = false;
+    GameRenderer.create(host.current!, ruleset, colors, { fitOnResize: bare, interactive, spriteBase }).then((x) => {
       if (cancelled) return x.destroy();
       r = x;
       renderer.current = x;
@@ -50,10 +56,11 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
     }).catch(() => { if (!cancelled) setFailed(true); });
     return () => {
       cancelled = true;
+      cancelAnimationFrame(readyRaf.current);
       renderer.current = null;
       r?.destroy();
     };
-  }, [ruleset, JSON.stringify(colors), bare, interactive, attempt]);
+  }, [ruleset, JSON.stringify(colors), bare, interactive, spriteBase, attempt]);
 
   useEffect(() => {
     if (onHover) renderer.current?.onHover(onHover);
@@ -80,14 +87,17 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
     const jump = lastJump.current !== jumpKey;
     lastJump.current = jumpKey;
     renderer.current.setFrame(frame, tickMs, jump);
+    setPresented(true);
     if (shown.current) return;
     shown.current = true;
     // Pixi draws on the next animation frame; report after it is painted.
-    requestAnimationFrame(() => requestAnimationFrame(() => readyCb.current?.()));
+    readyRaf.current = requestAnimationFrame(() => {
+      readyRaf.current = requestAnimationFrame(() => readyCb.current?.());
+    });
   }, [rendererVersion, frame, tickMs, jumpKey]);
 
   return (
-    <div className="canvas-host" ref={host}>
+    <div className="canvas-host" ref={host} style={{ visibility: !presented && !failed ? "hidden" : undefined }}>
       {failed && <div className="load-state" role="alert"><p>Couldn’t load the battlefield.</p><button onClick={() => setAttempt(a => a + 1)}>Try again</button></div>}
       {!bare && interactive && (
         <div className="zoom">

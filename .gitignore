@@ -48,3 +48,7 @@ cloudflare/worker-configuration.d.ts
 /skills-lock.json
 connectors/*/evidence/
 *.tmp.*
+
+# Rebuilt distribution data for the decorative hero.
+/packages/web/public/showcase/*/
+/packages/web/public/game-assets/hero-sprites/

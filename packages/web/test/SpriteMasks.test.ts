@@ -7,7 +7,7 @@ import { normalizeCharacterContrast } from "../src/render/characterContrast";
 const sharp = createRequire(import.meta.url)("sharp");
 
 /** The original per-pixel mask loop, kept as the reference. */
-function reference(src: Uint8ClampedArray, w: number, h: number) {
+function reference(src: Uint8ClampedArray, w: number, h: number, radius = 3) {
   const solid = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && src[(y * w + x) * 4 + 3] > 127;
   const make = (fill: (ring: boolean) => [number, number, number], exterior = false) => {
     const out = new Uint8ClampedArray(w * h * 4);
@@ -15,7 +15,7 @@ function reference(src: Uint8ClampedArray, w: number, h: number) {
       for (let x = 0; x < w; x++) {
         if (exterior ? solid(x, y) : !solid(x, y)) continue;
         let ring = false;
-        for (let d = 1; d <= 3 && !ring; d++) ring = exterior
+        for (let d = 1; d <= radius && !ring; d++) ring = exterior
           ? solid(x - d, y) || solid(x + d, y) || solid(x, y - d) || solid(x, y + d)
           : !solid(x - d, y) || !solid(x + d, y) || !solid(x, y - d) || !solid(x, y + d);
         if (exterior && !ring) continue;
@@ -32,9 +32,9 @@ function reference(src: Uint8ClampedArray, w: number, h: number) {
   };
 }
 
-function expectSame(src: Uint8ClampedArray, w: number, h: number) {
-  const want = reference(src, w, h);
-  const got = spriteMasks(src, w, h);
+function expectSame(src: Uint8ClampedArray, w: number, h: number, radius = 3) {
+  const want = reference(src, w, h, radius);
+  const got = spriteMasks(src, w, h, radius);
   expect(Buffer.from(got.silhouette).equals(Buffer.from(want.silhouette))).toBe(true);
   for (let c = 0; c < 4; c++) {
     expect(Buffer.from(got.xray[c]).equals(Buffer.from(want.xray[c]))).toBe(true);
@@ -48,15 +48,15 @@ function synthetic(w: number, h: number, alpha: (x: number, y: number) => number
   return src;
 }
 
-it("matches the reference masks on shapes touching borders, thin lines and holes", () => {
+it.each([2, 3])("matches the reference masks at radius %s on borders, thin lines and holes", (radius) => {
   // Solid to the borders, with a hole and a notch.
-  expectSame(synthetic(20, 14, (x, y) => (x > 8 && x < 12 && y > 5 && y < 9) || (x === 0 && y === 3) ? 0 : 255), 20, 14);
+  expectSame(synthetic(20, 14, (x, y) => (x > 8 && x < 12 && y > 5 && y < 9) || (x === 0 && y === 3) ? 0 : 255), 20, 14, radius);
   // 1-px lines, isolated dots and alpha right at the threshold.
-  expectSame(synthetic(17, 11, (x, y) => x === 4 || y === 7 ? 255 : (x + y) % 9 === 0 ? 128 : (x * y) % 7 === 0 ? 127 : 0), 17, 11);
+  expectSame(synthetic(17, 11, (x, y) => x === 4 || y === 7 ? 255 : (x + y) % 9 === 0 ? 128 : (x * y) % 7 === 0 ? 127 : 0), 17, 11, radius);
   // Degenerate sizes.
-  expectSame(synthetic(1, 1, () => 255), 1, 1);
-  expectSame(synthetic(5, 1, (x) => (x % 2 ? 255 : 0)), 5, 1);
-  expectSame(synthetic(3, 4, () => 0), 3, 4);
+  expectSame(synthetic(1, 1, () => 255), 1, 1, radius);
+  expectSame(synthetic(5, 1, (x) => (x % 2 ? 255 : 0)), 5, 1, radius);
+  expectSame(synthetic(3, 4, () => 0), 3, 4, radius);
 });
 
 it("matches the reference masks on a real animation atlas", async () => {

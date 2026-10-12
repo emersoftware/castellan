@@ -22,7 +22,7 @@ function loadImage(src: string) {
 }
 
 /** The same source atlases and team ramps as the battlefield, at portrait size. */
-export function Portrait({ kind, team = 0, height = 120, idle = false }: { kind: string; team?: number; height?: number; idle?: boolean }) {
+export function Portrait({ kind, team = 0, height = 120, idle = false, spriteBase = "/game-assets/sprites" }: { kind: string; team?: number; height?: number; idle?: boolean; spriteBase?: string }) {
   kind = displayKind(kind);
   const ref = useRef<HTMLCanvasElement>(null);
   const teamRef = useRef(team);
@@ -33,16 +33,30 @@ export function Portrait({ kind, team = 0, height = 120, idle = false }: { kind:
     let visible = true;
     const cv = ref.current!;
     const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    let started = false;
+    const preload = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting || started || disposed) return;
+      started = true;
+      preload.disconnect();
+      void prepare().catch(() => {});
+    }, { rootMargin: "200px" });
+    preload.observe(cv);
     const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; });
     observer.observe(cv);
     async function prepare() {
       const canonical = kind === "nexus" ? "castle" : kind === "agent" ? "king" : kind;
       let meta: Idle | undefined;
       if (idle && ["king", "knight", "archer", "worker", "castle", "tower"].includes(canonical)) {
-        const manifest: { idle?: Idle } = await fetch(`/game-assets/sprites/${canonical}/manifest.json`).then(r => r.ok ? r.json() : {});
+        const manifest: { idle?: Idle } = await fetch(`${spriteBase}/${canonical}/manifest.json`).then(r => r.ok ? r.json() : {});
         meta = manifest.idle;
       }
-      const img = await loadImage(meta ? `/game-assets/sprites/${canonical}/${meta.image}` : `/game-assets/sprites/${FILES[kind] ?? kind}.${kind === "door" ? "svg" : "webp"}`);
+      let format = kind === "door" ? "svg" : "webp";
+      if (!meta && spriteBase !== "/game-assets/sprites") {
+        const manifest = await fetch(`${spriteBase}/manifest.json`).then(r => r.json());
+        format = manifest.sprites[FILES[kind] ?? kind]?.format ?? format;
+      }
+      if (disposed) return;
+      const img = await loadImage(meta ? `${spriteBase}/${canonical}/${meta.image}` : `${spriteBase}/${FILES[kind] ?? kind}.${format}`);
       if (disposed) return;
       const source = document.createElement("canvas");
       source.width = meta?.frameWidth ?? (idle && isCharacter(kind) ? 112 : img.width);
@@ -87,8 +101,7 @@ export function Portrait({ kind, team = 0, height = 120, idle = false }: { kind:
       };
       draw(performance.now());
     }
-    void prepare().catch(() => {});
-    return () => { disposed = true; cancelAnimationFrame(raf); observer.disconnect(); };
-  }, [kind, height, idle]);
+    return () => { disposed = true; cancelAnimationFrame(raf); preload.disconnect(); observer.disconnect(); };
+  }, [kind, height, idle, spriteBase]);
   return <canvas ref={ref} className="portrait" aria-hidden="true" />;
 }

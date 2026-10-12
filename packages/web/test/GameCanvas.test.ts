@@ -45,11 +45,44 @@ afterEach(async () => {
 
 const ruleset = {} as Ruleset;
 const frame = { tick: 1 } as SpectatorView;
-const render = (rules: Ruleset, view = frame) => act(async () => {
+const render = (rules: Ruleset, view: SpectatorView | null = frame) => act(async () => {
   root.render(createElement(GameCanvas, { ruleset: rules, colors: { p1: 0 }, frame: view, tickMs: 100 }));
 });
 const ready = (index: number, r: ReturnType<typeof fakeRenderer>) => act(async () => {
   pending[index](r as unknown as GameRenderer);
+});
+
+it("prepares the renderer without revealing empty terrain before the first frame", async () => {
+  await render(ruleset, null);
+  const r = fakeRenderer();
+  await ready(0, r);
+  expect(r.setFrame).not.toHaveBeenCalled();
+  expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe("hidden");
+  await render(ruleset, frame);
+  expect(r.setFrame).toHaveBeenCalledWith(frame, 100, false);
+  expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe("visible");
+});
+
+it("does not report readiness from a canvas replaced before its first paint", async () => {
+  const callbacks = new Map<number, FrameRequestCallback>();
+  let id = 0;
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { callbacks.set(++id, callback); return id; });
+  vi.stubGlobal("cancelAnimationFrame", (key: number) => callbacks.delete(key));
+  const paint = () => { const batch = [...callbacks.values()]; callbacks.clear(); batch.forEach(callback => callback(0)); };
+  const onReady = vi.fn();
+  const mount = (rules: Ruleset) => act(async () => {
+    root.render(createElement(GameCanvas, { ruleset: rules, colors: {}, frame, tickMs: 100, onReady }));
+  });
+  await mount(ruleset);
+  await ready(0, fakeRenderer());
+  paint();
+  await mount({ ...ruleset });
+  paint();
+  expect(onReady).not.toHaveBeenCalled();
+  await ready(1, fakeRenderer());
+  paint();
+  paint();
+  expect(onReady).toHaveBeenCalledOnce();
 });
 
 it("does not feed frames or zoom a destroyed renderer while reconnecting", async () => {
@@ -100,6 +133,7 @@ it("shows an actionable error when assets fail and retries initialization", asyn
   vi.mocked(GameRenderer.create).mockRejectedValueOnce(new Error("asset unavailable"));
   await render(ruleset);
   expect(host.querySelector('[role="alert"]')?.textContent).toContain("Couldn’t load the battlefield");
+  expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe("visible");
   await act(async () => host.querySelector('[role="alert"] button')!.dispatchEvent(new MouseEvent('click', {bubbles: true})));
   expect(GameRenderer.create).toHaveBeenCalledTimes(2);
   const r = fakeRenderer();

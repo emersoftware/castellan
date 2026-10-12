@@ -4,6 +4,7 @@ import { resolve, relative, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import sharp from 'sharp';
+import { buildHeroSprites } from './hero-assets.mjs';
 const root = resolve(import.meta.dirname, '../public');
 const out = resolve(root, 'game-assets');
 const kinds = ['archer','knight','king','worker','castle','tower','wall','wallpost','door','door-open','wall-door-left','wall-door-right','wall-door-both'];
@@ -17,10 +18,30 @@ for (const path of [...inputs]) {
 for (const name of ['mineral.png','door.svg']) if (!inputs.includes(`sprites/${name}`)) inputs.push(`sprites/${name}`);
 for (const track of ['theme','battle']) inputs.push(`music/${track}.mp3`,`music/${track}.json`);
 const hash = createHash('sha256').update(await readFile(new URL(import.meta.url)));
+hash.update(await readFile(new URL('./hero-assets.mjs', import.meta.url)));
 for (const path of inputs) hash.update(path).update(await readFile(resolve(root,path)));
 const signature = hash.digest('hex');
 let cached; try { cached=JSON.parse(await readFile(resolve(out,'build.json'),'utf8')); } catch {}
-if (cached?.signature === signature) { console.log('Runtime assets up to date'); process.exit(0); }
+let heroReady = false;
+try {
+  for (const path of ['manifest.json', ...kinds.map(kind => `${kind}/manifest.json`)]) {
+    const m = JSON.parse(await readFile(resolve(out, 'hero-sprites', path), 'utf8'));
+    const images = m.sprites ? Object.keys(m.sprites).map(name => `${name}.webp`)
+      : Object.values(m).filter(v => v.available !== false).map(v => `${path.split('/')[0]}/${v.image}`);
+    await Promise.all(images.map(image => stat(resolve(out, 'hero-sprites', image))));
+  }
+  heroReady = true;
+} catch {}
+if (cached?.signature === signature) {
+  // Full-size art/music is checked in. A clean checkout lacks only the ignored
+  // hero copies; generating those must not require an audio encoder in CI.
+  if (!heroReady) {
+    const heroBytes = await buildHeroSprites(resolve(root, 'sprites'), resolve(out, 'hero-sprites'), kinds);
+    await writeFile(resolve(out, 'build.json'), JSON.stringify({ ...cached, heroBytes }, null, 2));
+    console.log(`Generated hero sprites: ${heroBytes} bytes`);
+  } else console.log('Runtime assets up to date');
+  process.exit(0);
+}
 await mkdir(out,{recursive:true});
 let before=0, after=0;
 for (const path of new Set(inputs)) {
@@ -40,5 +61,6 @@ for (const path of new Set(inputs)) {
   } else await copyFile(from,target);
   after+=(await stat(target)).size;
 }
-await writeFile(resolve(out,'build.json'),JSON.stringify({signature,before,after},null,2));
-console.log(JSON.stringify({before,after,savedPercent:Math.round((1-after/before)*100)}));
+const heroBytes = await buildHeroSprites(resolve(root, 'sprites'), resolve(out, 'hero-sprites'), kinds);
+await writeFile(resolve(out,'build.json'),JSON.stringify({signature,before,after,heroBytes},null,2));
+console.log(JSON.stringify({before,after,heroBytes,savedPercent:Math.round((1-after/before)*100)}));
