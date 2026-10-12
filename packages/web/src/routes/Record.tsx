@@ -16,7 +16,7 @@ import { EventFeed, OutcomeBanner, PlayerList } from "../components/Hud";
 import { playerPerspective } from "../perspective";
 import { GameRenderer } from "../render/renderer";
 import { displayKind } from "../render/names";
-import type { WorkerOut } from "../replay.worker";
+import type { WorkerIn, WorkerOut } from "../replay.worker";
 
 declare global {
   interface Window {
@@ -144,7 +144,7 @@ export function Record() {
         },
       };
     };
-    w.postMessage(replay);
+    w.postMessage({ replay } satisfies WorkerIn);
     return () => {
       w.terminate();
       renderer?.destroy();

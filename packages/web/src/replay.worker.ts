@@ -5,23 +5,27 @@
  */
 import { playRecordedReplay } from "./replayPlayback";
 import type { ReplayFile, SpectatorView } from "@aoa/shared";
+import type { ReplayOptions } from "@aoa/engine";
+
+export type WorkerIn = { replay: ReplayFile; options?: ReplayOptions };
 
 export type WorkerOut =
   | { type: "frames"; frames: SpectatorView[] }
   | { type: "done"; verified: boolean; desyncAt?: number }
   | { type: "error"; message: string };
 
-self.onmessage = async (e: MessageEvent<ReplayFile>) => {
+self.onmessage = async (e: MessageEvent<WorkerIn>) => {
+  const { replay, options } = e.data;
   let batch: SpectatorView[] = [];
   const flush = () => {
     if (batch.length) (self as unknown as Worker).postMessage({ type: "frames", frames: batch } satisfies WorkerOut);
     batch = [];
   };
   let activityIndex = 0;
-  const activity = e.data.experiment?.agentActivity ?? [];
+  const activity = replay.experiment?.agentActivity ?? [];
   const currentActivity = new Map();
   try {
-    const check = await playRecordedReplay(e.data, (v) => {
+    const check = await playRecordedReplay(replay, (v) => {
       while (activityIndex < activity.length && activity[activityIndex].tick <= v.tick) {
         const entry = activity[activityIndex++]; currentActivity.set(entry.player, entry.activity);
       }
@@ -32,7 +36,7 @@ self.onmessage = async (e: MessageEvent<ReplayFile>) => {
       }
       batch.push(v);
       if (batch.length >= 200) flush();
-    });
+    }, options);
     flush();
     (self as unknown as Worker).postMessage({ type: "done", ...check } satisfies WorkerOut);
   } catch (err) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rules, viewToText, type Order, type Ruleset, type ReplayFile } from "@aoa/shared";
+import { rules, viewToText, type Order, type Ruleset, type ReplayFile, type SpectatorView } from "@aoa/shared";
 import { createMatch, runReplay, type Match, type MatchConfig } from "../src";
 const players = [{ id: "p1", name: "one" }, { id: "p2", name: "two" }];
 const setupRules = (): Ruleset => ({ ...rules, startMineral: 2000,
@@ -13,6 +13,27 @@ const next = (m: Match, player: string, orders: Order[]) => m.step(orders.map((o
 const advance = (m: Match, n: number) => { for (let i = 0; i < n && !m.outcome; i++) m.step([]); };
 
 describe("fog of war", () => {
+  it("updates stationary sight after research and retains explored terrain when sight shrinks", async () => {
+    const r = setupRules();
+    r.map.start = [{ kind: "king", x: 2, y: 2 }, { kind: "castle", x: 2, y: 3 }];
+    r.upgrades = { sight: { kind: "king", stat: "range", levels: [
+      { cost: 0, researchMs: 100, value: 1, vision: 5 },
+      { cost: 0, researchMs: 100, value: 1, vision: 1 },
+    ] } };
+    const m = await make(r);
+    try {
+      expect(m.view("p1").visibility?.[2][7]).toBe("0");
+      next(m, "p1", [{ type: "upgrade", upgrade: "sight" }]);
+      advance(m, 1);
+      expect(m.view("p1").visibility?.[2][7]).toBe("2");
+      expect(m.spectate().perspectives?.p1.visibility?.[2][7]).toBe("2");
+      next(m, "p1", [{ type: "upgrade", upgrade: "sight" }]);
+      advance(m, 1);
+      expect(m.view("p1").visibility?.[2][7]).toBe("1");
+      expect(m.spectate().perspectives?.p1.visibility?.[2][7]).toBe("1");
+    } finally { m.dispose(); }
+  });
+
   it("hides enemy entities, economy, unknown deposits and scripts' enemy-base shortcut", async () => {
     const r = setupRules(); r.map.sharedDeposits = [{ x: 10, y: 10, amount: 500 }];
     const m = await make(r);
@@ -93,9 +114,16 @@ describe("fog of war", () => {
         m.step(input); m.view("p1"); m.view("p2"); replay.hashes[tick] = m.hash();
       }
       replay.finalTick = m.tick; replay.outcome = m.outcome!;
-      let last;
-      expect((await runReplay(replay, (frame) => { last = frame; })).verified).toBe(true);
-      expect(last).toEqual(m.spectate(undefined, { includePrivateChat: true }));
+      const frames: SpectatorView[] = [];
+      expect((await runReplay(replay, (frame) => frames.push(frame))).verified).toBe(true);
+      expect(frames.at(-1)).toEqual(m.spectate(undefined, { includePrivateChat: true }));
+      let count = 0;
+      expect((await runReplay(replay, frame => {
+        const { perspectives, ...board } = frames[count++];
+        expect(perspectives).toBeDefined();
+        expect(frame).toEqual(board);
+      }, { includePerspectives: false })).verified).toBe(true);
+      expect(count).toBe(frames.length);
     } finally { m.dispose(); }
   });
 });

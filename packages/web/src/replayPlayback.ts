@@ -1,4 +1,4 @@
-import { createMatch, runReplay, type PlayerOrder, type ReplayCheck } from "@aoa/engine";
+import { createMatch, runReplay, type PlayerOrder, type ReplayCheck, type ReplayOptions } from "@aoa/engine";
 import { createScriptHost } from "@aoa/sandbox";
 import type { ReplayFile, SpectatorView } from "@aoa/shared";
 
@@ -6,9 +6,9 @@ import type { ReplayFile, SpectatorView } from "@aoa/shared";
  * interrupted match as a clean balance experiment. The original replay and the
  * engine's strict runReplay entry point remain unchanged.
  */
-export async function playRecordedReplay(replay: ReplayFile, onFrame: (view: SpectatorView) => void): Promise<ReplayCheck> {
+export async function playRecordedReplay(replay: ReplayFile, onFrame: (view: SpectatorView) => void, options: ReplayOptions = {}): Promise<ReplayCheck> {
   const failures = replay.experiment?.operationalFailures ?? [];
-  if (!failures.length) return runReplay(replay, onFrame);
+  if (!failures.length) return runReplay(replay, onFrame, options);
 
   const byPlayer = new Map(failures.map(failure => [failure.player, failure]));
   if (byPlayer.size !== failures.length || failures.some(failure =>
@@ -49,12 +49,12 @@ export async function playRecordedReplay(replay: ReplayFile, onFrame: (view: Spe
   }
   let desyncAt: number | undefined;
   try {
-    onFrame(match.spectate(-1, { includePrivateChat: true }));
+    onFrame(match.spectate(-1, { ...options, includePrivateChat: true }));
     while (match.tick < replay.finalTick && !match.outcome) {
       const tick = match.tick;
       match.step(byTick.get(tick) ?? []);
       if (replay.hashes[tick] !== undefined && desyncAt === undefined && replay.hashes[tick] !== match.hash()) desyncAt = tick;
-      onFrame(match.spectate(undefined, { includePrivateChat: true }));
+      onFrame(match.spectate(undefined, { ...options, includePrivateChat: true }));
     }
     if (desyncAt === undefined && (match.tick !== replay.finalTick
       || (replay.hashes[match.tick] !== undefined && replay.hashes[match.tick] !== match.hash()))) desyncAt = match.tick;

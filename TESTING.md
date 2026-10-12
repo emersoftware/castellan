@@ -24,6 +24,12 @@ directory in `vitest.config.ts`. `pnpm exec vitest list --filesOnly` shows the
 discovery result. Two workers limit contention between QuickJS heaps, isolated
 script workers and real servers. Override with `--maxWorkers` when needed.
 
+For replay performance, run `pnpm exec tsx packages/engine/scripts/benchmark-replay.ts <replay.json[.gz]>` against the same recording before and after a change. Add
+`--board-only` for the landing's decorative view. It measures simulation time to
+the first frame, first casualty and completion while checking recorded hashes;
+browser download/render time must be measured separately. Keep other test and
+benchmark processes stopped when comparing timings.
+
 ## What deserves a test
 
 Following [Bipbop test-audit](https://github.com/BipBop-Labs/bipbop-skills), identify

@@ -153,6 +153,8 @@ export class Match {
   /** Active timed construction reserves its destination so traffic can route around it. */
   private buildSites = new Map<number, string>();
   private visible = new Map<PlayerId, Set<number>>();
+  /** One footprint per living entity; movement or a vision upgrade replaces it. */
+  private visionFootprints = new WeakMap<Entity, { x: number; y: number; radius: number; tiles: number[] }>();
   private explored = new Map<PlayerId, Set<number>>();
   private knownDeposits = new Map<PlayerId, Map<string, Deposit>>();
   /** View-only fog memory (not hashed, never shown to scripts): enemy buildings as last seen, and when each deposit was seen. */
@@ -468,7 +470,6 @@ export class Match {
     const events = this.events(player, since ?? this._tick - this.ticks(10_000));
     const scripts: PlayerView["scripts"] = {};
     for (const [kind, s] of p.scripts) scripts[kind] = { custom: s.custom, errors: [...s.errors] };
-    const all = [...this.ents.values()];
     return {
       tick: this._tick,
       timeMs: this.ms(this._tick),
@@ -479,9 +480,7 @@ export class Match {
       players: this.stats(player),
       visibility: this.visibilityRows(player),
       grid: this.ascii(player),
-      mine: all.filter((e) => e.owner === player).map((e) => this.entityView(e, player)),
-      allies: all.filter((e) => e.owner !== player && !this.hostile(e.owner, player)).map((e) => this.entityView(e, player)),
-      enemy: all.filter((e) => this.hostile(e.owner, player) && this.canSee(player, e.x, e.y)).map((e) => this.entityView(e, player)),
+      ...this.visibleEntities(player),
       deposits: this.depositViews().filter((d) => this.canSee(player, d.x, d.y)),
       projectiles: this.projectileViews(player),
       scripts,
@@ -492,6 +491,17 @@ export class Match {
       lastSeen: this.lastSeen(player),
       outcome: this._outcome ?? undefined,
     };
+  }
+
+  /** Shared by agent observations and spectator perspectives, in creation order. */
+  private visibleEntities(player: PlayerId): Pick<PlayerView, "mine" | "allies" | "enemy"> {
+    const mine: EntityView[] = [], allies: EntityView[] = [], enemy: EntityView[] = [];
+    for (const e of this.ents.values()) {
+      if (e.owner === player) mine.push(this.entityView(e, player));
+      else if (!this.hostile(e.owner, player)) allies.push(this.entityView(e, player));
+      else if (this.canSee(player, e.x, e.y)) enemy.push(this.entityView(e, player));
+    }
+    return { mine, allies, enemy };
   }
 
   /** Remembered enemy buildings and deposits that are outside `player`'s vision now, most recent first. */
@@ -534,7 +544,7 @@ export class Match {
   }
 
   /** Events default to the last tick's. Only finished-match replays opt into private chat. */
-  spectate(since?: number, options: { includePrivateChat?: boolean; includeTeamChat?: boolean } = {}): SpectatorView {
+  spectate(since?: number, options: { includePrivateChat?: boolean; includeTeamChat?: boolean; includePerspectives?: boolean } = {}): SpectatorView {
     const from = since ?? this._tick - 1;
     const message = (e: Extract<GameEvent, { type: "chat" }>) => ({ tick: e.tick, from: e.owner,
       name: this.player(e.owner).name, text: e.text, ...(e.channel ? { channel: e.channel } : {}), ...(e.to ? { to: e.to } : {}) });
@@ -549,19 +559,19 @@ export class Match {
       players: this.stats(),
       entities: [...this.ents.values()].map((e) => this.entityView(e)),
       projectiles: this.projectileViews(),
-      perspectives: Object.fromEntries(this.players.map((p) => {
-        const view = this.view(p.id, from, false);
+      ...(options.includePerspectives === false ? {} : { perspectives: Object.fromEntries(this.players.map((p) => {
+        const visible = this.visibleEntities(p.id);
         // The player's fog memory, so an observer sees explored ground as that player remembers it.
-        const remembered = view.lastSeen;
+        const remembered = this.lastSeen(p.id);
         const buildings: EntityView[] = remembered.flatMap((l) => "owner" in l && !l.positionCleared ? [{ id: l.id, kind: l.kind, owner: l.owner, x: l.x, y: l.y, hp: l.hp, maxHp: l.maxHp,
           vital: !!this.ruleset.kinds[l.kind]?.vital, ...(l.ruin ? { ruin: true } : {}), lastSeenMs: l.seenMs }] : []);
         const deposits: DepositView[] = remembered.flatMap((l) => "amount" in l ? [{ id: l.id, x: l.x, y: l.y, amount: l.amount, lastSeenMs: l.seenMs }] : []);
-        return [p.id, { visibility: view.visibility, entities: [...view.mine, ...view.allies, ...view.enemy, ...buildings],
-          projectiles: view.projectiles,
-          deposits: [...view.deposits, ...deposits], players: view.players.map((s) => ({ ...s, name: this.player(s.id).name })), events: [...view.events.filter((e) => e.type !== "log" && e.type !== "script_error"
+        return [p.id, { visibility: this.visibilityRows(p.id), entities: [...visible.mine, ...visible.allies, ...visible.enemy, ...buildings],
+          projectiles: this.projectileViews(p.id),
+          deposits: [...this.depositViews().filter(d => this.canSee(p.id, d.x, d.y)), ...deposits], players: this.stats(p.id).map((s) => ({ ...s, name: this.player(s.id).name })), events: [...this.events(p.id, from).filter((e) => e.type !== "log" && e.type !== "script_error"
             && (e.type !== "chat" || (e.channel === "private" ? options.includePrivateChat : e.channel !== "team" || options.includePrivateChat || options.includeTeamChat))),
             ...this.log.filter((e) => e.tick >= from && (e.type === "attack" || e.type === "projectile_end") && this.eventAudience.get(e)?.has(p.id))] }];
-      })),
+      })) }),
       deposits: this.depositViews(),
       events: this.log.filter((e) => e.tick >= from && e.type !== "log" && e.type !== "script_error"
         && (e.type !== "chat" || (e.channel === "private" ? options.includePrivateChat
@@ -1701,9 +1711,16 @@ export class Match {
       const reveal = this.ruleset.revealAttackerMs ? this.ticks(this.ruleset.revealAttackerMs) : -1;
       for (const e of this.ents.values()) {
         if (this.hostile(p.id, e.owner) || this.ruined.has(e.owner)) continue;
-        for (let y = Math.max(0, e.y - e.spec.vision); y <= Math.min(height - 1, e.y + e.spec.vision); y++)
-          for (let x = Math.max(0, e.x - e.spec.vision); x <= Math.min(width - 1, e.x + e.spec.vision); x++)
-            if (dist(e.x, e.y, x, y) <= e.spec.vision) visible.add(y * width + x);
+        let footprint = this.visionFootprints.get(e);
+        if (!footprint || footprint.x !== e.x || footprint.y !== e.y || footprint.radius !== e.spec.vision) {
+          const tiles: number[] = [];
+          for (let y = Math.max(0, e.y - e.spec.vision); y <= Math.min(height - 1, e.y + e.spec.vision); y++)
+            for (let x = Math.max(0, e.x - e.spec.vision); x <= Math.min(width - 1, e.x + e.spec.vision); x++)
+              if (dist(e.x, e.y, x, y) <= e.spec.vision) tiles.push(y * width + x);
+          footprint = { x: e.x, y: e.y, radius: e.spec.vision, tiles };
+          this.visionFootprints.set(e, footprint);
+        }
+        for (const tile of footprint.tiles) visible.add(tile);
         // Whoever recently damaged it is revealed, wherever it stands.
         const by = e.lastAttacked && this._tick - e.lastAttacked.tick <= reveal ? this.ents.get(e.lastAttacked.id) : undefined;
         if (by && this.hostile(p.id, by.owner)) visible.add(by.y * width + by.x);

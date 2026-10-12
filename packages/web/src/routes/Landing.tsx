@@ -19,7 +19,7 @@ const SHOWCASE = "81483a0b";
 export function Landing() {
   const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays });
   const showcase = useQuery({ queryKey: ["showcase", SHOWCASE], queryFn: () => api.showcase(SHOWCASE), staleTime: Infinity });
-  const { frames, loaded, check } = useReplayFrames(showcase.data);
+  const { frames, loaded, check } = useReplayFrames(showcase.data, 0, { includePerspectives: false });
   const [frame, setFrame] = useState<SpectatorView | null>(null);
 
   // Prepare the unit art while the replay downloads and re-simulates.

@@ -10,4 +10,4 @@ export async function createMatch(cfg: MatchConfig): Promise<Match> {
   await initSandbox();
   return new Match(cfg);
 }
-export { runReplay, type ReplayCheck } from "./replay";
+export { runReplay, type ReplayCheck, type ReplayOptions } from "./replay";

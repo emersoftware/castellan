@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReplayFile, SpectatorView } from "@aoa/shared";
-import type { WorkerOut } from "./replay.worker";
+import type { WorkerIn, WorkerOut } from "./replay.worker";
+import type { ReplayOptions } from "@aoa/engine";
 
 /**
  * Re-simulates a replay in a worker. `frames` fills progressively; `check`
  * arrives at the end (did the browser reproduce the recorded state hashes?).
  */
-export function useReplayFrames(replay: ReplayFile | undefined | null, attempt = 0) {
+export function useReplayFrames(replay: ReplayFile | undefined | null, attempt = 0, { includePerspectives = true }: ReplayOptions = {}) {
   const frames = useRef<SpectatorView[]>([]);
   const [loaded, setLoaded] = useState(0);
   const [check, setCheck] = useState<{ verified: boolean; desyncAt?: number } | null>(null);
@@ -27,8 +28,8 @@ export function useReplayFrames(replay: ReplayFile | undefined | null, attempt =
       else setError(m.message);
     };
     w.onerror = () => setError("Couldn’t prepare this replay.");
-    w.postMessage(replay);
+    w.postMessage({ replay, options: { includePerspectives } } satisfies WorkerIn);
     return () => w.terminate();
-  }, [replay, attempt]);
+  }, [replay, attempt, includePerspectives]);
   return { frames, loaded, check, error };
 }
