@@ -294,7 +294,7 @@ export class Match {
     for (const p of prio) {
       const mine = scripted.filter((e) => e.owner === p.id);
       if (mine.length === 0) continue;
-      if (this.ruleset.reactiveOrders) for (const e of mine) this.prepareScriptEvents(e, p);
+      if (this.ruleset.reactiveOrders) this.prepareScriptEvents(mine, p);
       const runs = p.host.run(this.scriptWorld(p, mine), mine.map((e) => e.id));
       for (const e of mine) {
         const r = runs[e.id];
@@ -595,7 +595,7 @@ export class Match {
     if (!p.scripts.has(kind)) return { ok: false as const, error: `${kind} is not scriptable` };
     const units = [...this.ents.values()].filter(e => e.owner === player && e.kind === kind)
       .map(e => ({ ...e, scriptEvents: [...e.scriptEvents ?? []] }));
-    if (this.ruleset.reactiveOrders) for (const e of units) this.prepareScriptEvents(e, p);
+    if (this.ruleset.reactiveOrders) this.prepareScriptEvents(units, p);
     return testScript(code, kind, [this.scriptWorld(p, units)], this.ruleset.script, (this.seed * 31 + this.players.indexOf(p) * 7919) >>> 0, this.scriptHostFactory);
   }
 
@@ -1044,14 +1044,19 @@ export class Match {
     return e.orderSuspended ? null : this.orderIntent(e, emit);
   }
 
-  private prepareScriptEvents(e: Entity, p: Player) {
-    const seen = [...this.ents.values()].filter(other => this.hostile(other.owner, e.owner)
-      && this.canSee(e.owner, other.x, other.y)
-      && (this.ruleset.scriptSight === "player" || dist(e.x, e.y, other.x, other.y) <= e.spec.vision))
-      .sort((a, b) => dist(e.x, e.y, a.x, a.y) - dist(e.x, e.y, b.x, b.y) || this.readingKey(a.x, a.y, p.side) - this.readingKey(b.x, b.y, p.side));
-    const before = new Set(e.seenEnemies ?? []);
-    for (const enemy of seen) if (!before.has(enemy.id)) (e.scriptEvents ??= []).push({ type: "enemy_seen", tick: this._tick, enemy: enemy.id });
-    e.seenEnemies = seen.map(enemy => enemy.id);
+  private prepareScriptEvents(units: readonly Entity[], p: Player) {
+    if (!units.length) return;
+    // Visibility is shared throughout this player's preparation; each unit
+    // still gets its own range filter and distance/reading-order sort.
+    const enemies = [...this.ents.values()].filter(other => this.hostile(other.owner, p.id)
+      && this.canSee(p.id, other.x, other.y));
+    for (const e of units) {
+      const seen = enemies.filter(other => this.ruleset.scriptSight === "player" || dist(e.x, e.y, other.x, other.y) <= e.spec.vision)
+        .sort((a, b) => dist(e.x, e.y, a.x, a.y) - dist(e.x, e.y, b.x, b.y) || this.readingKey(a.x, a.y, p.side) - this.readingKey(b.x, b.y, p.side));
+      const before = new Set(e.seenEnemies ?? []);
+      for (const enemy of seen) if (!before.has(enemy.id)) (e.scriptEvents ??= []).push({ type: "enemy_seen", tick: this._tick, enemy: enemy.id });
+      e.seenEnemies = seen.map(enemy => enemy.id);
+    }
   }
 
   private attackedEvent(e: Entity, attacker: string, damage: number) {

@@ -22,6 +22,7 @@ self.onmessage = async (e: MessageEvent<WorkerIn>) => {
     batch = [];
   };
   let activityIndex = 0;
+  let sentFirstCasualty = false;
   const activity = replay.experiment?.agentActivity ?? [];
   const currentActivity = new Map();
   try {
@@ -35,7 +36,11 @@ self.onmessage = async (e: MessageEvent<WorkerIn>) => {
         if (own) own.agentActivity = currentActivity.get(p.id);
       }
       batch.push(v);
-      if (batch.length >= 200) flush();
+      // The viewer can start on frame zero. The landing needs the first death
+      // to choose its opening; neither should wait for a full transport batch.
+      const firstCasualty = !sentFirstCasualty && v.events.some(event => event.type === "death");
+      if (firstCasualty) sentFirstCasualty = true;
+      if (v.tick === 0 || firstCasualty || batch.length >= 200) flush();
     }, options);
     flush();
     (self as unknown as Worker).postMessage({ type: "done", ...check } satisfies WorkerOut);

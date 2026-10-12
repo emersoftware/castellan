@@ -91,6 +91,22 @@ it("emits enemy sightings on entry and re-entry, without leaking hidden enemies"
   expect(logs(m)).toEqual([]);
 });
 
+it.each(["player", "unit"] as const)("keeps each unit's sighting range and nearest-first order with %s sight", async scriptSight => {
+  const m = await setup({ scriptSight,
+    kinds: { ...rules.kinds, king: { ...rules.kinds.king, vision: 0 }, knight: { ...rules.kinds.knight, vision: 1 } },
+    map: { ...rules.map, width: 10, height: 10, walls: [], deposits: [], sharedDeposits: [],
+      start: [{ kind: "king", x: 0, y: 0 }, { kind: "knight", x: 4, y: 2 }, { kind: "knight", x: 4, y: 7 }] },
+  });
+  // Mirroring puts B's first knight at (5,7), its second at (5,2).
+  const [bottom, top] = m.view("b").mine.filter(e => e.kind === "knight");
+  const expected = scriptSight === "player" ? [[top.id, bottom.id], [bottom.id, top.id]] : [[top.id], [bottom.id]];
+  const code = `return { onEnemySeen(e) { (self.memory.seen ||= []).push(e.enemy.id); }, onTick() { self.log(JSON.stringify(self.memory.seen || [])); } };`;
+  const probe = m.testScript("a", "knight", code);
+  expect(probe.ok).toBe(true);
+  if (probe.ok) expect(Object.values(probe.frames[0].runs).map(run => JSON.parse(run.log!))).toEqual(expected);
+  expect(logs(m, [script(code)]).map(text => JSON.parse(text))).toEqual(expected);
+});
+
 it("suspending construction releases the site and restarts work when resumed", async () => {
   const m = await setup({ startMineral: 1000, map: { ...rules.map, width: 10, height: 10, walls: [], deposits: [], sharedDeposits: [],
     start: [{ kind: "king", x: 0, y: 0 }, { kind: "worker", x: 2, y: 2 }] } });
