@@ -25,6 +25,10 @@ export interface Ruleset {
   trainingQueueLimit: number;
   /** A diagonal step takes this many times a straight one; paths account for it. */
   diagonalMove: number;
+  /** Coordinate departing friendly units and spread shared move destinations. Absent preserves old replays. */
+  coordinatedMovement?: boolean;
+  /** Price paths using this unit's rounded straight/diagonal tick durations. Absent preserves old routes. */
+  tickPathCosts?: boolean;
   /** An enemy that damages one of your entities stays visible to you this long, wherever it is (absent in older rules: 0). */
   revealAttackerMs: number;
   /** Scripts perceive everything the player sees ("player"), or only within the unit's own vision ("unit", older rules). */

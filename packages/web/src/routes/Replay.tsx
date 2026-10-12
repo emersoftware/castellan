@@ -13,6 +13,7 @@ import { scriptAt } from "../scripts";
 import type { HoverInfo, SoundSink } from "../render/renderer";
 import { useReplayFrames } from "../useReplay";
 import { Arrow } from "../components/Arrow";
+import { ShareMoment } from "../components/ShareMoment";
 import { agentText } from "../components/Agent";
 
 const SPEEDS = [0.5, 1, 2, 4, 8, 16];
@@ -87,7 +88,8 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
   syncUrl?: boolean;
 }) {
   const replay = useQuery({ queryKey: ["replay", id], queryFn: () => api.replay(id), staleTime: Infinity, retry: false });
-  const { frames, loaded, check, error } = useReplayFrames(replay.data);
+  const [attempt, setAttempt] = useState(0);
+  const { frames, loaded, check, error } = useReplayFrames(replay.data, attempt);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(initialPlayer);
   useEffect(() => sfx.holdAmbient(), []);
   useEffect(() => sfx.holdMusic("battle"), []);
@@ -192,19 +194,19 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
     return () => clearTimeout(timer);
   }, [playing, atEnd, onEnded]);
 
-  if (replay.isError)
-    return (
-      <div className="page">
-        <p>This replay isn't here. <Link to="/battles">Back to the battles</Link></p>
-      </div>
-    );
-
   const pct = (tick: number) => `${(100 * tick) / Math.max(1, total - 1)}%`;
   const players = display && <PlayerList selectedPlayer={selectedPlayer} onSelectPlayer={(id) => { setSelectedPlayer(id); setHover(null); }} colors={colors} view={display} names={names} subtitle={series} />;
+
+  if (replay.isError || error) return <div className="page load-state" role="alert">
+    <h1>Couldn’t load this battle</h1>
+    <p>{error ? "The replay could not be prepared. Try again." : "It may be unavailable, or your connection was interrupted."}</p>
+    <button onClick={() => { setIndex(0); setAttempt(a => a + 1); void replay.refetch(); }}>Try again</button> <Link to="/battles">Back to battles</Link>
+  </div>;
 
   return (
     <div className="game viewer" onPointerDown={() => !sfx.muted && sfx.unlock()}>
       <div className="stage">
+        {!frame && <div className="load-state" role="status">{replay.isPending ? "Loading battle…" : "Preparing replay…"}</div>}
         {replay.data && <GameCanvas key={selectedPlayer ?? "all"} ruleset={replay.data.ruleset} colors={colors} frame={display} tickMs={tickMs / speed} paused={!playing} jumpKey={jumpKey} onHover={setHover} selected={unit.selected} onSelect={unit.setSelected} sound={sound} />}
         {unit.deposit ? <DepositPanel deposit={unit.deposit} onClose={() => unit.setSelected(null)} />
           : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} tickMs={tickMs} names={names} colors={colors} reactiveOrders={replay.data?.ruleset.reactiveOrders} onClose={() => unit.setSelected(null)} />
@@ -238,6 +240,7 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
             <button key={s} className={s === speed ? "on" : ""} title={`speed ${s}× (${i + 1})`} onClick={() => changeSpeed(s)}>{s}×</button>
           ))}
         </span>
+        <ShareMoment id={id} seconds={index / tickRate} pov={selectedPlayer} />
         <SoundToggle />
         <span className={`check ${check ? (check.verified ? "ok" : "bad") : ""}`} title="the browser re-simulated the match and compared state hashes">
           {error ? `error: ${error}` : !check ? `simulating ${loaded}/${total}` : check.verified

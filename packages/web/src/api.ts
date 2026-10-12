@@ -30,6 +30,7 @@ export interface ReplaySummary {
   finalTick: number;
   tickRate: number;
   map?: string;
+  rulesVersion?: string;
   /** Bundled locally, recorded by the local server, or published to D1. */
   source: "featured" | "local" | "published";
 }
@@ -66,14 +67,13 @@ export const api = {
       const entries = await fetch("/api/replays").then((r) => json<Omit<ReplaySummary, "source">[]>(r));
       return entries.map((entry) => ({ ...entry, source: "published" as const }));
     }
-    const featured = await fetch("/featured/index.json")
-      .then((r) => json<Omit<ReplaySummary, "source">[]>(r))
-      .then((l) => l.map((x) => ({ ...x, source: "featured" as const })))
-      .catch(() => []);
-    const local = await fetch("/replays")
-      .then((r) => json<Omit<ReplaySummary, "source">[]>(r))
-      .then((l) => l.map((x) => ({ ...x, source: "local" as const })))
-      .catch(() => []);
+    const responses = await Promise.allSettled([
+      fetch("/featured/index.json").then(r => json<Omit<ReplaySummary, "source">[]>(r)),
+      fetch("/replays").then(r => json<Omit<ReplaySummary, "source">[]>(r)),
+    ]);
+    if (responses.every(r => r.status === "rejected")) throw new Error("Battle catalogue unavailable");
+    const featured = responses[0].status === "fulfilled" ? responses[0].value.map(x => ({ ...x, source: "featured" as const })) : [];
+    const local = responses[1].status === "fulfilled" ? responses[1].value.map(x => ({ ...x, source: "local" as const })) : [];
     const seen = new Set(featured.map((f) => f.id));
     return [...featured, ...local.filter((l) => !seen.has(l.id))]
       .filter((replay) => !hasScriptedBot(replay.players))

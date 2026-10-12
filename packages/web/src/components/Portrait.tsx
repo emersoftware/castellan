@@ -39,10 +39,10 @@ export function Portrait({ kind, team = 0, height = 120, idle = false }: { kind:
       const canonical = kind === "nexus" ? "castle" : kind === "agent" ? "king" : kind;
       let meta: Idle | undefined;
       if (idle && ["king", "knight", "archer", "worker", "castle", "tower"].includes(canonical)) {
-        const manifest: { idle?: Idle } = await fetch(`/sprites/${canonical}/manifest.json`).then(r => r.ok ? r.json() : {});
+        const manifest: { idle?: Idle } = await fetch(`/game-assets/sprites/${canonical}/manifest.json`).then(r => r.ok ? r.json() : {});
         meta = manifest.idle;
       }
-      const img = await loadImage(meta ? `/sprites/${canonical}/${meta.image}` : `/sprites/${FILES[kind] ?? kind}.${kind === "door" ? "svg" : "png"}`);
+      const img = await loadImage(meta ? `/game-assets/sprites/${canonical}/${meta.image}` : `/game-assets/sprites/${FILES[kind] ?? kind}.${kind === "door" ? "svg" : "webp"}`);
       if (disposed) return;
       const source = document.createElement("canvas");
       source.width = meta?.frameWidth ?? (idle && isCharacter(kind) ? 112 : img.width);

@@ -55,3 +55,8 @@ it("surfaces public catalogue failures instead of falling back to an old bundled
   vi.stubGlobal("fetch", vi.fn(async () => new Response("Unavailable", { status: 503 })));
   await expect(api.replays()).rejects.toThrow("503");
 });
+
+it("reports an unavailable local catalogue instead of pretending it is empty", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("Unavailable", { status: 503 })));
+  await expect(api.replays()).rejects.toThrow("Battle catalogue unavailable");
+});

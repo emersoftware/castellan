@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { api, fmtTime, playerColors, readReplayFile, setDroppedReplay, setDroppedSeries } from "../api";
+import { api, playerColors, readReplayFile, setDroppedReplay, setDroppedSeries } from "../api";
 import { Agent } from "../components/Agent";
-import { Versus, wonText } from "../components/Versus";
-import { hasScriptedBot, replayFileDate } from "../replayCatalog";
+import { Versus } from "../components/Versus";
+import { rules } from "@aoa/shared";
+import { BattleCard } from "../components/BattleCard";
+import { LoadState } from "../components/LoadState";
+import { currentBattles, hasScriptedBot, replayFileDate } from "../replayCatalog";
 import { sfx } from "../audio/sfx";
 import { SoundToggle } from "../components/Hud";
 
@@ -16,9 +19,11 @@ export function Battles() {
   const [over, setOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dates = new Map((replays.data ?? []).map((replay) => [replay.id, replayFileDate(replay)]));
+  const current = currentBattles(replays.data ?? [], rules.version);
+  const currentIds = new Set(current.map(r => r.id));
   const battles = [
-    ...(replays.data ?? []).map((replay) => ({ kind: "replay" as const, replay, date: replayFileDate(replay) })),
-    ...(series.data ?? []).filter((series) => !hasScriptedBot(series.players)).map((series) => ({
+    ...current.map((replay) => ({ kind: "replay" as const, replay, date: replayFileDate(replay) })),
+    ...(series.data ?? []).filter((series) => !hasScriptedBot(series.players) && series.games.length === 3 && series.games.every(game => currentIds.has(game.roomId))).map((series) => ({
       kind: "series" as const, series,
       date: series.games.map((game) => dates.get(game.roomId) ?? series.createdAt).sort().at(-1) ?? series.createdAt,
     })),
@@ -46,7 +51,7 @@ export function Battles() {
       <header className="page-head">
         <Link to="/" className="brand">Age of Agents</Link>
         <h1>Battles</h1>
-        <p className="muted">Every replay is re-simulated in your browser with the game's own engine and checked against the recorded state.</p>
+        <p className="muted">Battles played on the current engine. Choose a match to watch.</p>
       </header>
 
       <label
@@ -67,6 +72,7 @@ export function Battles() {
         {error && <div className="error">{error}</div>}
       </label>
 
+      <LoadState loading={replays.isPending} error={replays.isError} empty={replays.isSuccess && !battles.length} onRetry={() => { void replays.refetch(); void series.refetch(); }} />
       <div className="battle-list">
         {battles.map((battle) => {
           if (battle.kind === "series") {
@@ -77,23 +83,7 @@ export function Battles() {
               <div className="meta">{s.players.map((p, i) => <span key={p.id}>{i > 0 && " · "}<Agent id={p.id} name={p.name} color={playerColors(s.players)[p.id]} />: {s.losses ? `${s.score[p.id]}W/${s.losses[p.id]}L` : s.score[p.id]}</span>)} · {s.allDefeated ? "all players lost the series" : s.status === "finished" ? "3 games completed" : `Game ${s.currentGame} of 3`}</div>
             </Link>;
           }
-          const r = battle.replay;
-          return (
-          <Link key={r.id} to="/replay/$id" params={{ id: r.id }} className="battle">
-            <div className="title">
-              {r.title ?? (r.source === "published" ? "Agent battle" : "A battle from your server")} {r.source === "local" && <span className="tag">local</span>}
-            </div>
-            <Versus players={r.players} />
-            <div className="meta">
-              {wonText(r.players, r.outcome)}
-              {" · "}
-              {r.outcome.reason === "vital_lost" ? "by conquest" : r.outcome.reason === "timeout" ? "time limit" : r.outcome.reason}
-              {" · "}
-              {fmtTime((r.finalTick * 1000) / r.tickRate)}
-              {r.map ? ` · ${r.map}` : ""}
-            </div>
-          </Link>
-          );
+          return <BattleCard key={battle.replay.id} replay={battle.replay} />;
         })}
       </div>
     </div>

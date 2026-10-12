@@ -6,7 +6,7 @@ import type { WorkerOut } from "./replay.worker";
  * Re-simulates a replay in a worker. `frames` fills progressively; `check`
  * arrives at the end (did the browser reproduce the recorded state hashes?).
  */
-export function useReplayFrames(replay: ReplayFile | undefined | null) {
+export function useReplayFrames(replay: ReplayFile | undefined | null, attempt = 0) {
   const frames = useRef<SpectatorView[]>([]);
   const [loaded, setLoaded] = useState(0);
   const [check, setCheck] = useState<{ verified: boolean; desyncAt?: number } | null>(null);
@@ -16,6 +16,7 @@ export function useReplayFrames(replay: ReplayFile | undefined | null) {
     frames.current = [];
     setLoaded(0);
     setCheck(null);
+    setError(null);
     const w = new Worker(new URL("./replay.worker.ts", import.meta.url), { type: "module" });
     w.onmessage = (e: MessageEvent<WorkerOut>) => {
       const m = e.data;
@@ -25,8 +26,9 @@ export function useReplayFrames(replay: ReplayFile | undefined | null) {
       } else if (m.type === "done") setCheck({ verified: m.verified, desyncAt: m.desyncAt });
       else setError(m.message);
     };
+    w.onerror = () => setError("Couldn’t prepare this replay.");
     w.postMessage(replay);
     return () => w.terminate();
-  }, [replay]);
+  }, [replay, attempt]);
   return { frames, loaded, check, error };
 }

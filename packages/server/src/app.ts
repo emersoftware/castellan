@@ -180,10 +180,22 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return Object.fromEntries(room.players.map((p) => [p.id, Object.fromEntries(kinds.map((kind) => [kind, room.script(p.id, kind)]))]));
   });
 
-  app.get("/replays", async () => Promise.all((await readIndex(opts.replayDir)).map(async (entry) => ({
-    ...entry,
-    savedAt: await stat(join(opts.replayDir, `${entry.id}.json.gz`)).then((file) => file.mtime.toISOString()).catch(() => entry.createdAt),
-  }))));
+  const replayMetadata = new Map<string, { rulesVersion?: string; map?: string }>();
+  app.get("/replays", async () => Promise.all((await readIndex(opts.replayDir)).map(async entry => {
+    const path = join(opts.replayDir, `${entry.id}.json.gz`);
+    const savedAt = await stat(path).then(file => file.mtime.toISOString()).catch(() => entry.createdAt);
+    const key = `${entry.id}:${savedAt}`;
+    let metadata = replayMetadata.get(key);
+    if (!entry.rulesVersion && !metadata) {
+      try {
+        const replay: ReplayFile = JSON.parse(gunzipSync(await readFile(path)).toString("utf8"));
+        metadata = { rulesVersion: replay.ruleset.version, map: replay.ruleset.map.name };
+        replayMetadata.set(key, metadata);
+      } catch { /* An unavailable historical recording stays unknown, never current. */ }
+    }
+    return { ...entry, ...metadata, savedAt };
+  })));
+
 
   app.get("/replays/:id", async (req, reply) => {
     const id = (req.params as { id: string }).id;
@@ -415,6 +427,8 @@ interface ReplayIndexEntry {
   outcome: ReplayFile["outcome"];
   finalTick: number;
   tickRate: number;
+  rulesVersion?: string;
+  map?: string;
 }
 
 const replayWrites = new Map<string, Promise<void>>();
@@ -425,7 +439,7 @@ export function saveReplay(dir: string, replay: ReplayFile): Promise<void> {
     await writeFile(`${path}.tmp`, gzipSync(JSON.stringify(replay)));
     await rename(`${path}.tmp`, path);
     const index = (await readIndex(dir)).filter((r) => r.id !== replay.id);
-    index.unshift({ id: replay.id, createdAt: replay.createdAt, players: replay.players, outcome: replay.outcome, finalTick: replay.finalTick, tickRate: replay.tickRate });
+    index.unshift({ id: replay.id, createdAt: replay.createdAt, players: replay.players, outcome: replay.outcome, finalTick: replay.finalTick, tickRate: replay.tickRate, rulesVersion: replay.ruleset.version, map: replay.ruleset.map.name });
     const indexPath = join(dir, "index.json");
     await writeFile(`${indexPath}.tmp`, JSON.stringify(index, null, 1));
     await rename(`${indexPath}.tmp`, indexPath);

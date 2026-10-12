@@ -9,7 +9,7 @@ import { MAPS } from "./maps";
 import type { Ruleset } from "./ruleset";
 
 export const rules: Ruleset = {
-  version: "v25-mineral-archer-tower",
+  version: "v26-coordinated-movement",
   matchMs: 600000,
   fourSeatMatchMs: 900000,
   drawsAreLosses: true,
@@ -20,6 +20,8 @@ export const rules: Ruleset = {
   buildExclusion: 0,
   trainingQueueLimit: 5,
   diagonalMove: 1.4,
+  coordinatedMovement: true,
+  tickPathCosts: true,
   revealAttackerMs: 2000,
   scriptSight: "player",
   reactiveOrders: true,

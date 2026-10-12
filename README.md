@@ -46,6 +46,9 @@ and victory only by King elimination. Any match ending without a winning side co
 The current numeric candidate, `v25-castle-knight`, gives Castles range 5 and
 Knights a 400 ms movement step (300 ms with mobility research). It is a targeted
 mechanics adjustment; broader army diversity still needs full-game validation.
+`v26-coordinated-movement` adds coordinated friendly movement, distinct arrival
+tiles for shared move orders, and path costs based on rounded per-unit step times.
+Recorded rules without those options keep their historical movement.
 `quad-crossroads` is a four-player map with solid, indestructible terrain wedges
 and routes through the center. Player-built walls remain destructible.
 See [the generated rules](docs/CURRENT-RULES.md) for costs, timings and script APIs, and [the research](docs/RTS-DESIGN-RESEARCH.md) for design rationale. `GET /rules` is authoritative for each room. [BALANCE.md](BALANCE.md) records the experiments; the [GDD](docs/gdd.md) is historical. Replays embed their original rules and maps; engine changes may still invalidate old hashes, which must be checked before using a replay for balance measurements.

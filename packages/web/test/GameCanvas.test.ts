@@ -95,3 +95,15 @@ it("disposes an initialization that finishes after unmount", async () => {
   expect(stale.destroy).toHaveBeenCalledOnce();
   expect(stale.setFrame).not.toHaveBeenCalled();
 });
+
+it("shows an actionable error when assets fail and retries initialization", async () => {
+  vi.mocked(GameRenderer.create).mockRejectedValueOnce(new Error("asset unavailable"));
+  await render(ruleset);
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain("Couldn’t load the battlefield");
+  await act(async () => host.querySelector('[role="alert"] button')!.dispatchEvent(new MouseEvent('click', {bubbles: true})));
+  expect(GameRenderer.create).toHaveBeenCalledTimes(2);
+  const r = fakeRenderer();
+  await ready(0, r);
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+  expect(r.setFrame).toHaveBeenCalledWith(frame, 100, false);
+});

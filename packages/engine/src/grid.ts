@@ -1,4 +1,4 @@
-/** Grid geometry and pathfinding. Distances are Chebyshev: a diagonal step costs 1. */
+/** Grid geometry and deterministic weighted pathfinding. */
 
 export const DIRS: Record<string, [number, number]> = {
   N: [0, -1], NE: [1, -1], E: [1, 0], SE: [1, 1], S: [0, 1], SW: [-1, 1], W: [-1, 0], NW: [-1, -1],
@@ -85,6 +85,8 @@ export function findPath(
   /** Extra tiles to avoid this time (e.g. units blocking the way). */
   avoid?: Set<number>,
   diagonalCost?: number,
+  /** Actual straight-step ticks when routing by rounded unit movement times. */
+  straightCost?: number,
 ): number[] | null {
   const W = g.width;
   const H = g.height;
@@ -92,6 +94,7 @@ export function findPath(
   // Lower bound on the cost left: the straight-line gap to the disc of radius range + 0.5.
   const h = (x: number, y: number) => {
     const gap = Math.max(0, Math.hypot(x - gx, y - gy) - range - 0.5);
+    if (straightCost !== undefined) return gap * Math.min(straightCost, diagonalCost! / Math.SQRT2);
     return diagonalCost ? gap * 9.9 : gap / 1.415;
   };
   if (arrived(sx, sy)) return [];
@@ -118,7 +121,7 @@ export function findPath(
       if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
       const ni = ny * W + nx;
       if (g.isStatic(nx, ny) || avoid?.has(ni) || !canCross(g, cx, cy, dx, dy)) continue;
-      const next = c + (!diagonalCost ? 1 : dx && dy ? diagonalCost : 10);
+      const next = c + (!diagonalCost ? 1 : dx && dy ? diagonalCost : straightCost ?? 10);
       if (cost[ni] !== -1 && cost[ni] <= next) continue;
       cost[ni] = next;
       from[ni] = cur;

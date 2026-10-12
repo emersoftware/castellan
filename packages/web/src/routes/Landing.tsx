@@ -2,68 +2,60 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { rules, type SpectatorView } from "@aoa/shared";
-import { api, playerColors, fmtTime } from "../api";
-import { Versus, wonText } from "../components/Versus";
+import { api, playerColors } from "../api";
 import { GameCanvas } from "../components/GameCanvas";
 import { Portrait } from "../components/Portrait";
 import { useReplayFrames } from "../useReplay";
 import { loadSprites } from "../render/sprites";
 import { sfx } from "../audio/sfx";
+import { currentBattles, replayFileDate } from "../replayCatalog";
+import { BattleCard } from "../components/BattleCard";
+import { LoadState } from "../components/LoadState";
+import { showcaseStart } from "../showcase";
 import { SoundToggle } from "../components/Hud";
 
-const SHOWCASE = "eed0339e";
+const SHOWCASE = "81483a0b";
 
 export function Landing() {
   const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays });
   const showcase = useQuery({ queryKey: ["showcase", SHOWCASE], queryFn: () => api.showcase(SHOWCASE), staleTime: Infinity });
-  const { frames, loaded, error } = useReplayFrames(showcase.data);
+  const { frames, loaded, check } = useReplayFrames(showcase.data);
   const [frame, setFrame] = useState<SpectatorView | null>(null);
 
   // Prepare the unit art while the replay downloads and re-simulates.
   useEffect(() => { loadSprites().catch(() => {}); }, []);
   useEffect(() => sfx.holdMusic("theme"), []);
 
-  // The page appears at once with the battle, not text first. If the battle
-  // cannot load, show the page anyway.
-  const [ready, setReady] = useState(false);
+  const start = useMemo(() => (showcaseStart(frames.current, showcase.data?.tickRate ?? 10) ?? (check ? 0 : null)), [loaded, showcase.data, frames, check]);
+  // Start before the first casualty and loop only after reaching the recorded end.
   useEffect(() => {
-    const t = setTimeout(() => setReady(true), 8000);
-    return () => clearTimeout(t);
-  }, []);
-  useEffect(() => { if (showcase.isError || error) setReady(true); }, [showcase.isError, error]);
-
-  // A real match plays above the hero title.
-  useEffect(() => {
-    // The first assaults, from 2:00 to 4:00 of the recorded Fortress FFA.
-    const start = 1200, end = 2400;
-    let i = start;
-    let started = false;
+    if (start === null && !check) return;
+    const first = start ?? 0;
+    let i = first;
     const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    setFrame(frames.current[first] ?? null);
     const t = setInterval(() => {
-      if (frames.current.length <= start) return;
-      if (!started) { setFrame(frames.current[i]); started = true; }
       if (document.hidden || motion.matches) return;
-      // While simulation catches up, hold the last available frame.
-      if (i + 1 >= end) i = start;
-      else if (i + 1 < frames.current.length) i++;
-      setFrame(frames.current[i]);
-    }, 50);
+      if (i + 1 < frames.current.length) i++;
+      else if (frames.current.length > (showcase.data?.finalTick ?? Infinity)) i = first;
+      setFrame(frames.current[i] ?? null);
+    }, 1000 / (showcase.data?.tickRate ?? 10));
     return () => clearInterval(t);
-  }, [frames]);
+  }, [start, frames, showcase.data]);
 
   const colors = useMemo(() => playerColors(showcase.data?.players ?? []), [showcase.data]);
   const k = rules.kinds;
-  const recent = useMemo(() => [...(replays.data ?? [])]
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 4), [replays.data]);
+  const recent = useMemo(() => currentBattles(replays.data ?? [], rules.version)
+    .sort((a, b) => replayFileDate(b).localeCompare(replayFileDate(a))).slice(0, 4), [replays.data]);
   const [teams, setTeams] = useState([0, 1, 2, 3, 0, 1, 2, 3]);
   const nextTeam = (index: number) => setTeams(current => current.map((team, i) => i === index ? (team + 1) % 4 : team));
 
   return (
-    <div className={ready ? "landing" : "landing pending"}>
+    <div className="landing">
       <div className="page-sound"><SoundToggle /></div>
       <section className="hero">
         <div className="hero-field" role="img" aria-label="Fortress free-for-all: Astra, Sol, Opus and Fable">
-          {showcase.data && loaded > 0 && <GameCanvas ruleset={showcase.data.ruleset} colors={colors} frame={frame ?? frames.current[0] ?? null} tickMs={50} sound={sfx.play} bare interactive={false} onReady={() => setReady(true)} />}
+          {showcase.data && frame && <GameCanvas ruleset={showcase.data.ruleset} colors={colors} frame={frame ?? frames.current[0] ?? null} tickMs={1000 / showcase.data.tickRate} sound={sfx.play} bare interactive={false} />}
         </div>
         <div className="hero-content">
           <div className="hero-copy">
@@ -121,17 +113,10 @@ export function Landing() {
       </section>
 
       <section className="recent">
-        <h2>Recent battles</h2>
+        <h2>Latest battles</h2>
+        <LoadState loading={replays.isPending} error={replays.isError} empty={replays.isSuccess && !recent.length} onRetry={() => void replays.refetch()} />
         <div className="battle-list">
-          {recent.map((r) => (
-            <Link key={r.id} to="/replay/$id" params={{ id: r.id }} className="battle">
-              <div className="title">{r.title ?? (r.map ? `${r.map} · ${r.players.length} players` : `${r.players.length}-player battle`)}</div>
-              <Versus players={r.players} />
-              <div className="meta">
-                {wonText(r.players, r.outcome)} · {fmtTime((r.finalTick * 1000) / r.tickRate)}
-              </div>
-            </Link>
-          ))}
+          {recent.map(r => <BattleCard key={r.id} replay={r} />)}
         </div>
         <Link to="/battles" className="btn">All battles</Link>
       </section>

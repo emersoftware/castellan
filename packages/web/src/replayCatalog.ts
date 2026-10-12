@@ -5,3 +5,8 @@ export function hasScriptedBot(players: readonly { name: string; bot?: string }[
 }
 
 export const replayFileDate = (replay: { savedAt?: string; createdAt: string }) => replay.savedAt ?? replay.createdAt;
+
+/** Missing versions are historical/unknown, never guessed to be the current engine. */
+export function currentBattles<T extends { rulesVersion?: string }>(entries: readonly T[], version: string): T[] {
+  return entries.filter(entry => entry.rulesVersion === version);
+}

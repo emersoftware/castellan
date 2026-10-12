@@ -54,9 +54,7 @@ button.on { color: var(--black); background: var(--light-grey); border-color: va
 .btn.primary:hover { background: var(--yellow); border-color: var(--yellow); color: var(--black); }
 
 /* ─────────── landing ─────────── */
-.landing { background: var(--black); transition: opacity 0.3s; }
-/* Hidden until the hero battle is on screen. */
-.landing.pending { opacity: 0; pointer-events: none; }
+.landing { background: var(--black); }
 .hero { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100svh; padding: 24px 24px 48px; }
 .hero-content {
   min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -238,7 +236,7 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
 /* ─────────── dither + titles ─────────── */
 /* Every piece of interface goes through the dither filter; the game canvas never does. */
 .hero-copy, .pillars, .unit h4, .unit p, .unit .stat, .units h2, .recent, .host, footer, .page,
-.scores, .feed, .tooltip, .unit-panel, .corner, .banner, .banner-mini, .controls, .zoom, .side .tabs, .log-body { filter: url(#aoa-dither); }
+.page-sound, .scores, .feed, .tooltip, .unit-panel, .corner, .banner, .banner-mini, .controls, .zoom, .side .tabs, .log-body { filter: url(#aoa-dither); }
 /* Letters without anti-aliasing: each pixel is the text colour or the background, so the dither never mixes greys into them. */
 body { -webkit-font-smoothing: none; font-smooth: never; }
 .arrow { display: inline-block; vertical-align: 0.1em; }
@@ -449,3 +447,9 @@ button.on { background: linear-gradient(to bottom, #ffffff, #8c8c8c); }
   .side .scores { padding: 8px 10px; }
   .log-body { font-size: 13px; }
 }
+
+.load-state { padding: 24px; text-align: center; color: var(--grey); }
+.battle-open { display: block; }
+.battle-result { margin-top: 10px; font-size: 11px; }
+.share-feedback { font-size: 12px; }
+.share-link { width: min(360px, 100%); background: var(--panel); color: var(--white); border: 1px solid var(--grey); padding: 6px; }

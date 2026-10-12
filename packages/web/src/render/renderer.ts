@@ -151,12 +151,13 @@ export class GameRenderer {
   }
 
   private async init() {
+    // Fail before attaching a canvas if distribution assets cannot be loaded.
+    this.sprites = await loadSprites();
     this.app = new Application();
     await this.app.init({ preference: "webgl", antialias: false, resolution: 1, background: "#000000", width: 320, height: 200 });
     const cv = this.app.canvas;
     Object.assign(cv.style, { width: "100%", height: "100%", imageRendering: "pixelated", display: "block" });
     this.host.appendChild(cv);
-    this.sprites = await loadSprites();
 
     this.objects.sortableChildren = true;
     this.depthLayer.sortableChildren = true;

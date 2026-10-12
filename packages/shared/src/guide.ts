@@ -80,6 +80,7 @@ Shots outlive their shooter. Collision radii: units ${r.projectiles.unitRadius},
 Each tick: scripts decide, units move, projectiles advance (a new shot starts moving next tick).
 Visible projectiles appear in state.projectiles and self.projectiles() as {id,owner,x,y,vx,vy,endX,endY} (velocity in tiles/s).
 Distance for range, vision and script helpers is Euclidean, rounded to the nearest whole tile: range and vision cover a disc, and a diagonal neighbour is at distance 1. Movement is in 8 directions; a diagonal step takes ${r.diagonalMove}× as long as a straight one (rounded to the tick).
+${r.tickPathCosts ? "Paths use each unit's actual straight and diagonal step times after rounding to ticks. " : ""}${r.coordinatedMovement ? "Moving allies can follow into tiles vacated this tick without pushing idle units. Units with explicit move orders to the same point receive distinct nearby reachable arrival tiles; each order finishes at its assigned tile. Script moveTo keeps its exact destination." : ""}
 
 ## Map
 "${r.map.name}" is ${r.map.width}x${r.map.height}, x→ right, y↓ down. ${r.map.description}${r.map.walls.length ? r.map.wallStyle === "wall" ? " Terrain walls (^) block movement and building; they have no owner or HP, cannot be attacked, and are not enemies. Sight and projectiles pass over them." : " Rock (^) blocks movement and building." : ""}

@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "assets:runtime": "node scripts/runtime-assets.mjs",
+    "predev": "pnpm assets:runtime",
+    "prebuild": "pnpm assets:runtime"
   },
   "dependencies": {
     "@aoa/engine": "workspace:*",

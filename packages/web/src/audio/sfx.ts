@@ -211,8 +211,8 @@ class Sfx {
     let loaded = this.tracks.get(track);
     if (!loaded) {
       loaded = Promise.all([
-        fetch(`/music/${track}.json`).then((r) => r.json() as Promise<LoopInfo>),
-        fetch(`/music/${track}.mp3`).then((r) => r.arrayBuffer()).then((b) => ctx.decodeAudioData(b)),
+        fetch(`/game-assets/music/${track}.json`).then((r) => r.json() as Promise<LoopInfo>),
+        fetch(`/game-assets/music/${track}.mp3`).then((r) => r.arrayBuffer()).then((b) => ctx.decodeAudioData(b)),
       ]).then(([info, buffer]) => ({ info, buffer }));
       this.tracks.set(track, loaded);
     }

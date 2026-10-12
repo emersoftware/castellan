@@ -75,7 +75,7 @@ export function cropSpriteArt(art: SpriteArt, frame: { x: number; y: number; wid
 // Reconnects and replay perspective switches create new renderers. Atlas GPU
 // sources are shared; rebuilding their masks on each mount wastes memory.
 const spriteLoads = new Map<string, Promise<SpriteSet>>();
-export function loadSprites(base = "/sprites"): Promise<SpriteSet> {
+export function loadSprites(base = "/game-assets/sprites"): Promise<SpriteSet> {
   let pending = spriteLoads.get(base);
   if (!pending) {
     pending = buildSprites(base).catch((error) => { spriteLoads.delete(base); throw error; });
@@ -87,7 +87,7 @@ export function loadSprites(base = "/sprites"): Promise<SpriteSet> {
 async function buildSprites(base: string): Promise<SpriteSet> {
   const manifest = (await fetch(`${base}/manifest.json`).then((r) => r.json())) as {
     scale: number;
-    sprites: Record<string, { format?: "svg"; anchorX?: number; anchorY: number; rasterWidth?: number; rasterHeight?: number; frame?: { x: number; y: number; width: number; height: number } }>;
+    sprites: Record<string, { format?: "svg" | "webp"; anchorX?: number; anchorY: number; rasterWidth?: number; rasterHeight?: number; frame?: { x: number; y: number; width: number; height: number } }>;
   };
   const arts = new Map<string, SpriteArt>();
   await Promise.all(

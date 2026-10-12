@@ -4,8 +4,8 @@ import { playHeadless } from "./harness";
 
 // These are strategy regression fixtures with a known outcome, not a constraint
 // that every future balance must make Castellan beat the same reference bots.
-// Pin combat too: v25 intentionally changes the castle/knight matchup.
-const strategyFixture: Ruleset = { ...rules,
+// Pin combat and movement: newer rules intentionally change match trajectories.
+const strategyFixture: Ruleset = { ...rules, coordinatedMovement: false, tickPathCosts: false,
   kinds: { ...rules.kinds,
     castle: { ...rules.kinds.castle, cost: 600, buildMs: 30000, range: 6 },
     knight: { ...rules.kinds.knight, moveMs: 500 },

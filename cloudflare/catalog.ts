@@ -16,6 +16,7 @@ interface Entry {
   finalTick: number;
   tickRate: number;
   map?: string;
+  rulesVersion?: string;
 }
 export interface Publication {
   replays: { replay: ReplayFile; summary: Entry }[];
@@ -103,7 +104,7 @@ export async function collectPublication(root: string): Promise<Publication> {
     replays.push({ replay, summary: {
       id, title: titles.replays[id] ?? old?.title ?? `${replay.players.map((p) => p.name).join(" vs. ")} — ${replay.ruleset.map.name ?? "Open field"}`,
       createdAt: replay.createdAt, savedAt, players: replay.players, outcome: replay.outcome,
-      finalTick: replay.finalTick, tickRate: replay.tickRate, map: replay.ruleset.map.name ?? old?.map,
+      finalTick: replay.finalTick, tickRate: replay.tickRate, rulesVersion: replay.ruleset.version, map: replay.ruleset.map.name ?? old?.map,
     } });
   }
   replays.sort((a, b) => b.summary.savedAt.localeCompare(a.summary.savedAt) || a.replay.id.localeCompare(b.replay.id));

@@ -55,6 +55,8 @@ interface Entity {
   hp: number;
   order: UnitOrder | null;
   orderSuspended?: boolean;
+  /** Stable arrival tile for a shared explicit move destination. */
+  moveTarget?: { x: number; y: number };
   scriptEvents?: ScriptEvent[];
   seenEnemies?: string[];
   nextMove: number;
@@ -266,6 +268,7 @@ export class Match {
       }
     }
 
+    if (this.ruleset.coordinatedMovement) this.assignMoveTargets();
     this.refreshVision();
 
     // 2. Legacy orders override scripts. Reactive scripts always run, and may
@@ -318,12 +321,29 @@ export class Match {
       e.doing = it ? describeIntent(it) : e.spec.moveMs || e.spec.atk ? "hold" : "";
     }
 
-    // 3. Movement, interleaving players.
-    for (const e of this.interleaved(prio)) {
+    // 3. Movement: keep player priority, but let a departing friendly column
+    // clear from front to back. Occupancy reserves every committed destination.
+    const moved = new Set<string>();
+    const visiting = new Set<string>();
+    const move = (e: Entity) => {
+      if (moved.has(e.id) || visiting.has(e.id)) return;
       const it = intents.get(e.id);
-      if (!it || (it.t !== "goto" && it.t !== "dir")) continue;
-      if (!e.spec.moveMs) { this.scriptResult(e, "invalid", undefined, "unit cannot move"); continue; }
-      if (T < e.nextMove) { this.scriptResult(e, "cooldown", undefined, "movement cooldown"); continue; }
+      if (!it || (it.t !== "goto" && it.t !== "dir")) return;
+      visiting.add(e.id);
+      if (this.ruleset.coordinatedMovement && e.spec.moveMs && T >= e.nextMove) {
+        const next = it.t === "dir" ? (e.y + it.dy) * this.grid.width + e.x + it.dx : this.route(e, it.x, it.y, it.range)?.[0];
+        const nx = it.t === "dir" ? e.x + it.dx : next === undefined ? e.x : next % this.grid.width;
+        const ny = it.t === "dir" ? e.y + it.dy : next === undefined ? e.y : Math.floor(next / this.grid.width);
+        const grid = this.movementGrid(e.owner);
+        const occupant = next === undefined ? undefined : this.ents.get(this.occ[next] ?? "");
+        // Never push idle units, borrow an enemy's turn, or exchange occupied tiles.
+        if (occupant && occupant.id !== e.id && !this.hostile(e.owner, occupant.owner)
+          && inBounds(grid, nx, ny) && !grid.isStatic(nx, ny) && canCross(grid, e.x, e.y, nx - e.x, ny - e.y)) move(occupant);
+      }
+      visiting.delete(e.id);
+      moved.add(e.id);
+      if (!e.spec.moveMs) { this.scriptResult(e, "invalid", undefined, "unit cannot move"); return; }
+      if (T < e.nextMove) { this.scriptResult(e, "cooldown", undefined, "movement cooldown"); return; }
       const before = { x: e.x, y: e.y };
       if (it.t === "dir") {
         if (this.canStep(e, e.x + it.dx, e.y + it.dy)) this.moveTo(e, e.x + it.dx, e.y + it.dy);
@@ -333,7 +353,8 @@ export class Match {
       if (before.x !== e.x || before.y !== e.y) this.scriptResult(e, "acted", "move");
       else if (it.t === "goto" && dist(e.x, e.y, it.x, it.y) <= (it.range || (this.movementGrid(e.owner).isStatic(it.x, it.y) ? 1 : 0))) this.scriptResult(e, "arrived");
       else this.scriptResult(e, "blocked", undefined, "step blocked or destination unreachable");
-    }
+    };
+    for (const e of this.interleaved(prio)) move(e);
 
     this.refreshVision();
 
@@ -597,6 +618,7 @@ export class Match {
       mix(e.x); mix(e.y); mix(e.hp); mix(e.carrying);
       mix(e.lastAttacked?.tick ?? -1);
       for (const ch of e.lastAttacked?.id ?? "") mix(ch.charCodeAt(0));
+      if (this.ruleset.coordinatedMovement) { mix(e.moveTarget?.x ?? -1); mix(e.moveTarget?.y ?? -1); }
       if (this.ruleset.reactiveOrders) for (const ch of JSON.stringify([e.order, !!e.orderSuspended, e.scriptEvents ?? [], e.seenEnemies ?? []])) mix(ch.charCodeAt(0));
     }
     for (const d of this.deps.values()) mix(d.amount);
@@ -940,6 +962,7 @@ export class Match {
 
   private endOrder(e: Entity, reason: string, emit: (e: GameEvent) => void) {
     this.orderHistory.delete(e);
+    delete e.moveTarget;
     if (this.ruleset.reactiveOrders && e.order) {
       (e.scriptEvents ??= []).push({ type: "order_ended", tick: this._tick, order: { ...e.order }, reason });
       e.orderSuspended = false;
@@ -951,6 +974,7 @@ export class Match {
   }
 
   private assignOrder(e: Entity, order: UnitOrder, emit: (e: GameEvent) => void) {
+    if (e.order?.type !== "move" || order.type !== "move" || e.order.x !== order.x || e.order.y !== order.y) delete e.moveTarget;
     if (this.ruleset.reactiveOrders) {
       if (e.order && JSON.stringify(e.order) !== JSON.stringify(order)) this.endOrder(e, "replaced", emit);
       e.orderSuspended = false;
@@ -1035,10 +1059,11 @@ export class Match {
     const range = e.spec.range ?? 1;
     switch (o.type) {
       case "move": {
-        if (e.x === o.x && e.y === o.y) return this.endOrder(e, "arrived", emit), null;
-        const r = this.movementGrid(e.owner).isStatic(o.x, o.y) ? 1 : 0;
-        if (r === 1 && dist(e.x, e.y, o.x, o.y) <= 1) return this.endOrder(e, "arrived", emit), null;
-        return { t: "goto", x: o.x, y: o.y, range: r };
+        const goal = this.ruleset.coordinatedMovement ? e.moveTarget ?? o : o;
+        if (e.x === goal.x && e.y === goal.y) return this.endOrder(e, "arrived", emit), null;
+        const r = this.movementGrid(e.owner).isStatic(goal.x, goal.y) ? 1 : 0;
+        if (r === 1 && dist(e.x, e.y, goal.x, goal.y) <= 1) return this.endOrder(e, "arrived", emit), null;
+        return { t: "goto", x: goal.x, y: goal.y, range: r };
       }
       case "attack": {
         const t = this.ents.get(o.target);
@@ -1267,9 +1292,12 @@ export class Match {
     } };
   }
 
-  /** Path costs follow step times: 10 straight, 14 diagonal when diagonals are slower. */
-  private pathDiagonalCost(): number {
-    return Math.round(10 * this.ruleset.diagonalMove);
+  private pathDiagonalCost(e: Entity): number {
+    return this.ruleset.tickPathCosts ? this.ticks(e.spec.moveMs! * this.ruleset.diagonalMove) : Math.round(10 * this.ruleset.diagonalMove);
+  }
+
+  private pathStraightCost(e: Entity): number | undefined {
+    return this.ruleset.tickPathCosts ? this.ticks(e.spec.moveMs!) : undefined;
   }
 
   /** Within attack range, and not inside the attacker's blind spot (`minRange`). */
@@ -1294,6 +1322,96 @@ export class Match {
     e.nextMove = this._tick + this.ticks(e.spec.moveMs! * (diagonal ? this.ruleset.diagonalMove : 1));
   }
 
+  private route(e: Entity, gx: number, gy: number, range: number): number[] | null {
+    const grid = this.movementGrid(e.owner);
+    if (range === 0 && grid.isStatic(gx, gy)) range = 1;
+    if (dist(e.x, e.y, gx, gy) <= range) return [];
+    const W = grid.width;
+    const key = `${gx},${gy},${range},${this.staticVersion}` + (this.ruleset.tickPathCosts ? `,${this.pathStraightCost(e)},${this.pathDiagonalCost(e)}` : "");
+    const adjacent = (i: number) => dist(e.x, e.y, i % W, (i / W) | 0) === 1;
+    // A cached null means "unreachable" and stays valid until the key changes.
+    const stale = e.pathKey !== key || (e.path !== null && (e.path.length === 0 || !adjacent(e.path[0])));
+    if (stale) {
+      e.path = findPath(grid, e.x, e.y, gx, gy, range, this.dirs(e.owner), undefined, this.pathDiagonalCost(e), this.pathStraightCost(e));
+      e.pathKey = key;
+    }
+    return e.path;
+  }
+
+  /** Assign only explicit same-owner move orders; scripts keep exact destinations. */
+  private assignMoveTargets() {
+    const groups = new Map<string, Entity[]>();
+    for (const e of this.ents.values()) {
+      if (e.order?.type !== "move") continue;
+      const key = `${e.owner},${e.order.x},${e.order.y}`;
+      const group = groups.get(key) ?? []; group.push(e); groups.set(key, group);
+    }
+    // Compute each owner's static connected components lazily. This bounds
+    // destination allocation even if every nearby candidate is unreachable.
+    const components = new Map<PlayerId, Map<number, Set<number>>>();
+    const reachable = (e: Entity) => {
+      const grid = this.movementGrid(e.owner), W = grid.width;
+      const cache = components.get(e.owner) ?? new Map<number, Set<number>>();
+      components.set(e.owner, cache);
+      const origin = e.y * W + e.x;
+      if (cache.has(origin)) return cache.get(origin)!;
+      const seen = new Set([origin]), queue = [origin];
+      for (let i = 0; i < queue.length; i++) {
+        const x = queue[i] % W, y = Math.floor(queue[i] / W);
+        for (const [dx, dy] of this.dirs(e.owner)) {
+          const nx = x + dx, ny = y + dy, tile = ny * W + nx;
+          if (seen.has(tile) || !inBounds(grid, nx, ny) || grid.isStatic(nx, ny) || !canCross(grid, x, y, dx, dy)) continue;
+          seen.add(tile); queue.push(tile);
+        }
+      }
+      for (const tile of seen) cache.set(tile, seen);
+      return seen;
+    };
+    const reserved = new Map<PlayerId, Set<number>>();
+    for (const group of groups.values()) {
+      for (const e of group) {
+        const grid = this.movementGrid(e.owner);
+        if (e.moveTarget && grid.isStatic(e.moveTarget.x, e.moveTarget.y)) delete e.moveTarget;
+        const target = e.moveTarget ?? (group.length === 1 ? e.order as Extract<UnitOrder, {type: "move"}> : undefined);
+        const tiles = reserved.get(e.owner) ?? new Set<number>();
+        if (target) tiles.add(target.y * grid.width + target.x);
+        reserved.set(e.owner, tiles);
+      }
+    }
+    for (const group of groups.values()) {
+      if (group.length < 2) continue;
+      const goal = group[0].order as Extract<UnitOrder, { type: "move" }>;
+      const grid = this.movementGrid(group[0].owner), W = grid.width;
+      const members = new Set(group.map(e => e.id));
+      const claimed = reserved.get(group[0].owner)!;
+      if (group.every(e => e.moveTarget)) continue;
+      // A narrow passage may need one approach-side tile per arriving unit.
+      const radius = group.length;
+      const candidates: { x: number; y: number }[] = [];
+      for (let y = Math.max(0, goal.y - radius); y <= Math.min(grid.height - 1, goal.y + radius); y++) {
+        for (let x = Math.max(0, goal.x - radius); x <= Math.min(W - 1, goal.x + radius); x++) {
+          const occupant = this.occ[y * W + x];
+          if (!grid.isStatic(x, y) && (occupant === null || members.has(occupant))) candidates.push({ x, y });
+        }
+      }
+      const squared = (a: {x: number; y: number}, b: {x: number; y: number}) => (a.x-b.x)**2 + (a.y-b.y)**2;
+      // Closest units claim first; the existing entity order breaks exact ties.
+      for (const e of [...group].sort((a,b) => squared(a,goal) - squared(b,goal))) {
+        if (e.moveTarget) continue;
+        candidates.sort((a,b) => squared(a,goal) - squared(b,goal) || squared(a,e) - squared(b,e)
+          || this.readingKey(a.x,a.y,this.player(e.owner).side) - this.readingKey(b.x,b.y,this.player(e.owner).side));
+        const accessible = reachable(e);
+        if (!grid.isStatic(goal.x, goal.y) && !accessible.has(goal.y * W + goal.x)) continue;
+        for (const tile of candidates) {
+          if (claimed.has(tile.y * W + tile.x) || !accessible.has(tile.y * W + tile.x)) continue;
+          // Do not ask followers to pass a leader that has already parked at the goal.
+          if ((tile.x-goal.x)*(e.x-goal.x) + (tile.y-goal.y)*(e.y-goal.y) < 0) continue;
+          e.moveTarget = { ...tile }; claimed.add(tile.y * W + tile.x); break;
+        }
+      }
+    }
+  }
+
   /** One step toward being within `range` of (gx,gy). False if unreachable. */
   private walk(e: Entity, gx: number, gy: number, range: number): boolean {
     // A static goal tile can't be entered: standing next to it is arriving.
@@ -1301,14 +1419,7 @@ export class Match {
     if (range === 0 && grid.isStatic(gx, gy)) range = 1;
     if (dist(e.x, e.y, gx, gy) <= range) return true;
     const W = this.grid.width;
-    const key = `${gx},${gy},${range},${this.staticVersion}`;
-    const adjacent = (i: number) => dist(e.x, e.y, i % W, (i / W) | 0) === 1;
-    // A cached null means "unreachable" and stays valid until the key changes.
-    const stale = e.pathKey !== key || (e.path !== null && (e.path.length === 0 || !adjacent(e.path[0])));
-    if (stale) {
-      e.path = findPath(grid, e.x, e.y, gx, gy, range, this.dirs(e.owner), undefined, this.pathDiagonalCost());
-      e.pathKey = key;
-    }
+    this.route(e, gx, gy, range);
     if (!e.path) return false;
     if (e.path.length === 0) return true;
     const next = e.path[0];
@@ -1338,7 +1449,7 @@ export class Match {
         const y = e.y + dy;
         if (inBounds(this.grid, x, y) && this.occ[y * W + x] !== null) avoid.add(y * W + x);
       }
-      const detour = findPath(grid, e.x, e.y, gx, gy, range, this.dirs(e.owner), avoid, this.pathDiagonalCost());
+      const detour = findPath(grid, e.x, e.y, gx, gy, range, this.dirs(e.owner), avoid, this.pathDiagonalCost(e), this.pathStraightCost(e));
       if (detour && detour.length > 0 && this.canStep(e, detour[0] % W, (detour[0] / W) | 0)) best = [detour[0] % W, (detour[0] / W) | 0];
     }
     if (best) {

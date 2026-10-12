@@ -1,3 +1,4 @@
+import { replayMeta } from "./social";
 import type { SeriesSummary } from "../packages/shared/src/protocol";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "x-content-type-options": "nosniff" };
@@ -7,7 +8,10 @@ const error = (message: string, status: number) => Response.json({ error: messag
 async function readAPI(path: string, db: D1Database): Promise<Response> {
   if (path === "/api/replays" || path === "/api/series") {
     const table = path === "/api/replays" ? "replays" : "series";
-    const { results } = await db.prepare(`SELECT summary_json FROM ${table} ORDER BY saved_at DESC, id`).all<{ summary_json: string }>();
+    const summary = table === "replays"
+      ? "json_set(summary_json, '$.rulesVersion', json_extract(replay_json, '$.ruleset.version')) AS summary_json"
+      : "summary_json";
+    const { results } = await db.prepare(`SELECT ${summary} FROM ${table} ORDER BY saved_at DESC, id`).all<{ summary_json: string }>();
     return new Response(`[${results.map((r) => r.summary_json).join(",")}]`, { headers: jsonHeaders });
   }
   const replay = /^\/api\/replays\/([a-zA-Z0-9_-]+)$/.exec(path);
@@ -31,6 +35,24 @@ async function readAPI(path: string, db: D1Database): Promise<Response> {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const replayPage = /^\/replay\/([a-zA-Z0-9_-]+)$/.exec(url.pathname);
+    if (replayPage && request.method === "GET") {
+      const page = await env.ASSETS.fetch(request);
+      try {
+        const row = await env.DB.prepare("SELECT summary_json FROM replays WHERE id = ?").bind(replayPage[1]).first<{ summary_json: string }>();
+        if (!row || !page.headers.get("content-type")?.includes("text/html")) return page;
+        const meta = replayMeta(JSON.parse(row.summary_json), request.url);
+        return new HTMLRewriter()
+          .on("title", { element: el => { el.setInnerContent(meta.title); } })
+          .on('meta[property="og:title"], meta[name="twitter:title"]', { element: el => { el.setAttribute("content", meta.title); } })
+          .on('meta[name="description"], meta[property="og:description"], meta[name="twitter:description"]', { element: el => { el.setAttribute("content", meta.description); } })
+          .on('meta[property="og:url"]', { element: el => { el.setAttribute("content", meta.url); } })
+          .transform(page);
+      } catch {
+        console.error(JSON.stringify({ event: "replay_preview_failed", id: replayPage[1] }));
+        return page;
+      }
+    }
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new Response(null, { status: 405, headers: { allow: "GET, HEAD", "cache-control": "no-store" } });

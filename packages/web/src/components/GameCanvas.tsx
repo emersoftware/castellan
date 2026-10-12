@@ -27,6 +27,8 @@ interface Props {
 /** Mounts the Pixi renderer and feeds it frames. */
 export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jumpKey = 0, onHover, selected = null, onSelect, sound, bare, interactive = true, onReady }: Props) {
   const host = useRef<HTMLDivElement>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   // Clear synchronously on cleanup: a reconnect can replace the ruleset and
   // deliver a frame in the same render, before the next Pixi instance is ready.
   const renderer = useRef<GameRenderer | null>(null);
@@ -39,18 +41,19 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
   useEffect(() => {
     let r: GameRenderer | null = null;
     let cancelled = false;
+    setFailed(false);
     GameRenderer.create(host.current!, ruleset, colors, { fitOnResize: bare, interactive }).then((x) => {
       if (cancelled) return x.destroy();
       r = x;
       renderer.current = x;
       setRendererVersion((version) => version + 1);
-    });
+    }).catch(() => { if (!cancelled) setFailed(true); });
     return () => {
       cancelled = true;
       renderer.current = null;
       r?.destroy();
     };
-  }, [ruleset, JSON.stringify(colors), bare, interactive]);
+  }, [ruleset, JSON.stringify(colors), bare, interactive, attempt]);
 
   useEffect(() => {
     if (onHover) renderer.current?.onHover(onHover);
@@ -85,6 +88,7 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
 
   return (
     <div className="canvas-host" ref={host}>
+      {failed && <div className="load-state" role="alert"><p>Couldn’t load the battlefield.</p><button onClick={() => setAttempt(a => a + 1)}>Try again</button></div>}
       {!bare && interactive && (
         <div className="zoom">
           <button onClick={() => renderer.current?.zoom(1.25)} title="zoom in">+</button>
