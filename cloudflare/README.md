@@ -9,6 +9,7 @@ JSON. Games and agents keep running on the local Fastify server.
 ```sh
 pnpm publish:replays --dry-run  # validate and preview counts; no remote writes
 pnpm publish:replays           # publish finished agent games and complete series
+pnpm publish:replays --only 02eb6795 --version v26 # publish just this selected battle
 pnpm cloud:deploy                   # rebuild and deploy the website/Worker
 pnpm cloud:verify https://rts.emersoftware.cl  # compare every public replay with local data
 ```
@@ -18,6 +19,11 @@ Wrangler login; no publishing credentials or write endpoints exist in the web
 application. Repeat publication updates changed rows without duplicating matches;
 unchanged rows are not rewritten. It does not delete previously published games.
 Public API caches expire within 60 seconds.
+
+Use `--only <id,...>` for curated releases: publishing without it includes all
+eligible local recordings, including old games removed from the public catalog.
+The selected IDs must exist and be publishable; series are included only when
+all their games are selected. Add `--dry-run` to preview the selection.
 
 Sources are `replays/*.json.gz` and the existing `packages/web/public/featured`
 catalogue. Local replay payloads take precedence; existing editorial titles and
