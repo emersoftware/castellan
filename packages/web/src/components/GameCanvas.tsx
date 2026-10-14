@@ -29,12 +29,14 @@ interface Props {
   focus?: CameraBox | null;
   /** With `focus`: the element over the canvas inside which shots are framed. Close-ups spill around it. */
   focusArea?: RefObject<HTMLElement | null>;
+  /** Reassemble the first frame through dither: terrain, structures, then units. */
+  reveal?: boolean;
   /** Called once the first frame is on screen. */
   onReady?: () => void;
 }
 
 /** Mounts the Pixi renderer and feeds it frames. */
-export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jumpKey = 0, onHover, selected = null, onSelect, sound, bare, interactive = true, spriteBase, visible = true, focus, focusArea, onReady }: Props) {
+export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jumpKey = 0, onHover, selected = null, onSelect, sound, bare, interactive = true, spriteBase, visible = true, focus, focusArea, reveal = false, onReady }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
   const [presented, setPresented] = useState(false);
@@ -58,6 +60,7 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
     GameRenderer.create(host.current!, ruleset, colors, { fitOnResize: bare, interactive, spriteBase }).then((x) => {
       if (cancelled) return x.destroy();
       r = x;
+      if (reveal) x.prepareReveal();
       renderer.current = x;
       setRendererVersion((version) => version + 1);
     }).catch(() => { if (!cancelled) setFailed(true); });
@@ -67,7 +70,7 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
       renderer.current = null;
       r?.destroy();
     };
-  }, [ruleset, JSON.stringify(colors), bare, interactive, spriteBase, attempt]);
+  }, [ruleset, JSON.stringify(colors), bare, interactive, spriteBase, attempt, reveal]);
 
   useEffect(() => {
     if (onHover) renderer.current?.onHover(onHover);
@@ -118,6 +121,7 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
 
   useEffect(() => {
     if (!renderer.current || !presented || !visible || shown.current) return;
+    if (reveal) renderer.current.reveal();
     // Pixi draws on the next animation frame; report after it is painted.
     readyRaf.current = requestAnimationFrame(() => {
       readyRaf.current = requestAnimationFrame(() => {
@@ -126,7 +130,7 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
       });
     });
     return () => cancelAnimationFrame(readyRaf.current);
-  }, [rendererVersion, presented, visible]);
+  }, [rendererVersion, presented, visible, reveal]);
 
   return (
     <div className="canvas-host" ref={host} data-presented={presented && visible ? "" : undefined} style={{ visibility: (!presented || !visible) && !failed ? "hidden" : undefined }}>

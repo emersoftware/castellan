@@ -272,8 +272,9 @@ button.on, .btn.primary { -webkit-font-smoothing: auto; font-smooth: auto; filte
 .banner { background: linear-gradient(to bottom, rgba(26,26,26,0.95), rgba(0,0,0,0.85)); }
 
 /* Entrance: an old palette fade from black, in the dither's own levels.
-   Title, tagline, lede and buttons step up one after another; then the whole
-   board steps up as one image. Brightness runs before each element's own
+   Title, tagline, lede and buttons step up one after another; then the board
+   assembles through game dither (terrain, structures, units: GameRenderer.reveal).
+   Brightness runs before each text element's own
    dither, so every step lands on the same 4-level ramp, and no fill is kept:
    once over, nothing extra is computed and the look is unchanged. */
 .hero-copy > * { --own: brightness(1); animation: aoa-palette-text 360ms 80ms backwards; }
@@ -283,22 +284,14 @@ button.on, .btn.primary { -webkit-font-smoothing: auto; font-smooth: auto; filte
 .hero .cta { animation-delay: 410ms; }
 /* A focused button shows at once; the clock keeps running for the board. */
 .hero-copy > :focus-within { filter: var(--own) !important; }
-.hero-backdrop .canvas-host[data-presented] canvas { animation: aoa-palette-board 330ms; }
 @keyframes aoa-palette-text {
   0% { filter: brightness(0) var(--own); animation-timing-function: step-end; }
   25% { filter: brightness(0.34) var(--own); animation-timing-function: step-end; }
   50% { filter: brightness(0.67) var(--own); animation-timing-function: step-end; }
   75%, 100% { filter: var(--own); }
 }
-/* Starts on a visible step: the playback clock begins with the reveal. */
-@keyframes aoa-palette-board {
-  0% { filter: brightness(0.25); animation-timing-function: step-end; }
-  33% { filter: brightness(0.5); animation-timing-function: step-end; }
-  67% { filter: brightness(0.75); animation-timing-function: step-end; }
-  100% { filter: none; }
-}
 @media (prefers-reduced-motion: reduce) {
-  .hero-copy > *, .hero-backdrop .canvas-host[data-presented] canvas { animation: none; }
+  .hero-copy > * { animation: none; }
 }
 
 button, .btn { background: linear-gradient(to bottom, #2a2a2a, #050505); text-transform: none; font-size: 13px; }

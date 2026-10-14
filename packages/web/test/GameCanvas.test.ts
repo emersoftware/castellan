@@ -22,6 +22,8 @@ function fakeRenderer() {
     select: vi.fn(checkAlive),
     onSound: vi.fn(checkAlive),
     zoom: vi.fn(checkAlive),
+    prepareReveal: vi.fn(checkAlive),
+    reveal: vi.fn(checkAlive),
   };
 }
 
@@ -64,6 +66,22 @@ it.each([false, true])("prepares the entire frame before displaying it (intro fi
   await render(ruleset, frame, true);
   expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe("visible");
   expect(r.setFrame).toHaveBeenCalledOnce();
+});
+
+it("starts the dither entrance only after both the text and the first frame are ready", async () => {
+  const mount = (visible: boolean, view: SpectatorView | null) => act(async () => {
+    root.render(createElement(GameCanvas, { ruleset, colors: {}, frame: view, tickMs: 100, visible, reveal: true }));
+  });
+  await mount(false, null);
+  const r = fakeRenderer();
+  await ready(0, r);
+  expect(r.prepareReveal).toHaveBeenCalledOnce();
+  await mount(true, null);
+  expect(r.reveal).not.toHaveBeenCalled();
+  await mount(true, frame);
+  expect(r.setFrame).toHaveBeenCalledWith(frame, 100, false);
+  expect(r.reveal).toHaveBeenCalledOnce();
+  expect(host.querySelector(".canvas-host")?.hasAttribute("data-presented")).toBe(true);
 });
 
 it("does not report readiness from a canvas replaced before its first paint", async () => {

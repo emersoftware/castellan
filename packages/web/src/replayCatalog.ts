@@ -10,3 +10,22 @@ export const replayFileDate = (replay: { savedAt?: string; createdAt: string }) 
 export function currentBattles<T extends { rulesVersion?: string }>(entries: readonly T[], version: string): T[] {
   return entries.filter(entry => entry.rulesVersion === version);
 }
+
+export type BattleMode = "ffa" | "duel" | "teams";
+
+/** Two players are a duel; four in two teams of two are a 2v2; any other game of three or more is a free-for-all. */
+export function battleMode(replay: { players: readonly { team?: number }[] }): BattleMode {
+  const { players } = replay;
+  if (players.length === 2) return "duel";
+  const teams = new Map<number | undefined, number>();
+  for (const p of players) teams.set(p.team, (teams.get(p.team) ?? 0) + 1);
+  return players.length === 4 && teams.size === 2 && !teams.has(undefined) && [...teams.values()].every(n => n === 2) ? "teams" : "ffa";
+}
+
+/** Selected launch recordings: hero FFA, Opus/Sol duel, Claude/Codex 2v2. */
+const FEATURED_BATTLE_IDS = ["02eb6795", "1b4b65c9", "2346f20b"] as const;
+
+/** Missing selections stay absent instead of being replaced by unrelated matches. */
+export function featuredBattles<T extends { id: string }>(entries: readonly T[]): T[] {
+  return FEATURED_BATTLE_IDS.flatMap(id => entries.find(entry => entry.id === id) ?? []);
+}

@@ -32,7 +32,7 @@ benchmark processes stopped when comparing timings.
 
 The landing uses a generated, board-only recording instead of running the
 simulation in the browser. `pnpm --filter @aoa/web showcase:build` regenerates it
-from `public/showcase/81483a0b.json`, verifies recorded hashes and every decoded
+from `public/showcase/02eb6795.json`, verifies recorded hashes and every decoded
 frame, and caches the result by source/content hashes. `predev` and `prebuild`
 run this automatically; generated chunks and smaller hero sprites are ignored.
 Watch and the full replay viewer retain their existing data paths and full-size

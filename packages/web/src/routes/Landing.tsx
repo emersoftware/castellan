@@ -9,12 +9,12 @@ import { useShowcase } from "../useShowcase";
 import { followUnits, shotAt } from "../showcaseCamera";
 import { HERO_SPRITE_BASE, loadSprites } from "../render/sprites";
 import { sfx } from "../audio/sfx";
-import { currentBattles, replayFileDate } from "../replayCatalog";
+import { currentBattles, featuredBattles, hasScriptedBot } from "../replayCatalog";
 import { BattleCard } from "../components/BattleCard";
 import { LoadState } from "../components/LoadState";
 import { SoundToggle } from "../components/Hud";
 
-const SHOWCASE = "81483a0b";
+const SHOWCASE = "02eb6795";
 
 export function Landing() {
   const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays });
@@ -49,8 +49,8 @@ export function Landing() {
 
   const colors = useMemo(() => playerColors(showcase.manifest?.players ?? []), [showcase.manifest]);
   const k = rules.kinds;
-  const recent = useMemo(() => currentBattles(replays.data ?? [], rules.version)
-    .sort((a, b) => replayFileDate(b).localeCompare(replayFileDate(a))).slice(0, 4), [replays.data]);
+  // The selected free-for-all, Claude/Codex duel and team match.
+  const recent = useMemo(() => featuredBattles(currentBattles((replays.data ?? []).filter(r => !hasScriptedBot(r.players)), rules.version)), [replays.data]);
   const [teams, setTeams] = useState([0, 1, 2, 3, 0, 1, 2, 3]);
   const nextTeam = (index: number) => setTeams(current => current.map((team, i) => i === index ? (team + 1) % 4 : team));
 
@@ -60,7 +60,7 @@ export function Landing() {
       <section className="hero">
         {/* The battle covers the whole hero; shots are framed in the field, and close-ups spill under the text. */}
         <div className="hero-backdrop" aria-hidden="true">
-          {showcase.manifest && <GameCanvas key={showcase.attempt} ruleset={showcase.manifest.ruleset} colors={colors} frame={showcase.frame} tickMs={1000 / showcase.manifest.tickRate} jumpKey={showcase.jumpKey} onReady={showcase.onReady} spriteBase={HERO_SPRITE_BASE} sound={sfx.play} bare interactive={false} visible={introDone} focus={focus} focusArea={field} />}
+          {showcase.manifest && <GameCanvas key={showcase.attempt} ruleset={showcase.manifest.ruleset} colors={colors} frame={showcase.frame} tickMs={1000 / showcase.manifest.tickRate} jumpKey={showcase.jumpKey} onReady={showcase.onReady} spriteBase={HERO_SPRITE_BASE} sound={sfx.play} bare interactive={false} visible={introDone} focus={focus} focusArea={field} reveal />}
         </div>
         <div className="hero-field" ref={field} role="img" aria-label="Fortress free-for-all: Astra, Sol, Opus and Fable">
           <LoadState error={showcase.error} onRetry={showcase.retry} />
@@ -124,7 +124,7 @@ export function Landing() {
       </section>
 
       <section className="recent">
-        <h2>Latest battles</h2>
+        <h2>Featured battles</h2>
         <LoadState loading={replays.isPending} error={replays.isError} empty={replays.isSuccess && !recent.length} onRetry={() => void replays.refetch()} />
         <div className="battle-list">
           {recent.map(r => <BattleCard key={r.id} replay={r} />)}

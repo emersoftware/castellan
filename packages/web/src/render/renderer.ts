@@ -85,6 +85,8 @@ const CLOSE_UP_ZOOM = 1.5;
 const FOLLOW_S = 1.4, ZOOM_S = 2.2;
 /** Handheld sway: screen pixels of drift and the fraction the zoom breathes. */
 const SWAY_PX = 7, BREATH = 0.012;
+/** Each full layer assembles through the game dither: terrain, structures, then units. */
+const REVEAL_LAYER_MS = 350;
 interface View { cx: number; cy: number; z: number }
 const sameBox = (a: CameraBox | null, b: CameraBox | null) =>
   a === b || (!!a && !!b && a.x0 === b.x0 && a.y0 === b.y0 && a.x1 === b.x1 && a.y1 === b.y1);
@@ -144,6 +146,11 @@ export class GameRenderer {
   private focusBox?: CameraBox | null;
   /** Hero camera: the canvas region (CSS px) where shots are framed; the rest of the canvas shows what lies around them. */
   private area?: { x: number; y: number; w: number; h: number };
+  /** Staged entrance: when it started (Infinity while waiting for the text). */
+  private revealAt?: number;
+  private revealGroundFilter?: ReturnType<typeof createDissolveFilter>;
+  /** Restore the real presentation alpha before advancing effects on the next frame. */
+  private revealAlphas = new Map<Container, number>();
   /** The hero camera's smoothed view (before sway), its velocities and the last update time. */
   private follow?: { view: View; vx: number; vy: number; vz: number; at: number };
   private hoverCb: (h: HoverInfo | null) => void = () => {};
@@ -294,7 +301,12 @@ export class GameRenderer {
     if (this.focusBox !== undefined && sameBox(this.focusBox, box)) return;
     this.focusBox = box;
     if (this.reducedMotion()) { this.follow = undefined; this.applyView(this.viewFor(box)); return; }
-    this.follow ??= { view: this.currentView(), vx: 0, vy: 0, vz: 0, at: this.now() };
+    // The first shot starts framed: nothing glides in when the board appears.
+    if (!this.follow) {
+      const view = this.viewFor(box);
+      this.follow = { view, vx: 0, vy: 0, vz: 0, at: this.now() };
+      this.applyView(view);
+    }
   }
 
   /**
@@ -316,13 +328,61 @@ export class GameRenderer {
     return this.area ?? { x: 0, y: 0, w: this.app.renderer.width, h: this.app.renderer.height };
   }
 
-  private reducedMotion() {
-    return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  /** Prepare every layer while the preceding text is entering. */
+  prepareReveal() {
+    if (this.reducedMotion()) return;
+    this.revealAt = Number.POSITIVE_INFINITY;
+    this.revealGroundFilter = createDissolveFilter();
+    this.root.filters = [...(this.root.filters ?? []), this.revealGroundFilter];
+    this.applyReveal();
   }
 
-  private currentView(): View {
-    const { x, y, w, h } = this.frameRect(), z = this.zoomLevel;
-    return { cx: (x + w / 2 - this.world.x) / z, cy: (y + h / 2 - this.world.y) / z, z };
+  /** Reassemble the board through dither, reversing the game's corpse fade. */
+  reveal() {
+    if (this.revealAt === undefined) return;
+    this.revealAt = this.now();
+    this.applyReveal();
+  }
+
+  private restoreRevealAlphas() {
+    for (const [part, alpha] of this.revealAlphas) if (!part.destroyed) part.alpha = alpha;
+    this.revealAlphas.clear();
+  }
+
+  private applyReveal() {
+    if (this.revealAt === undefined) return;
+    this.restoreRevealAlphas();
+    const elapsed = this.reducedMotion() ? Infinity : this.now() - this.revealAt;
+    // The terrain has no opaque layer behind it, so alpha would be normalized
+    // away by the palette shader. Dissolve the whole view through its Bayer
+    // pattern until the terrain is complete, then remove this temporary pass.
+    if (this.revealGroundFilter) {
+      this.revealGroundFilter.shown = 1 - corpseFade(elapsed, 0, REVEAL_LAYER_MS).alpha;
+      if (elapsed >= REVEAL_LAYER_MS) {
+        this.root.filters = this.root.filters?.filter(f => f !== this.revealGroundFilter) ?? [];
+        this.revealGroundFilter.destroy();
+        this.revealGroundFilter = undefined;
+      }
+    }
+    if (elapsed >= REVEAL_LAYER_MS * 3) { this.revealAt = undefined; return; }
+    const show = (part: Container | null | undefined, amount: number) => {
+      if (!part || amount >= 1) return;
+      this.revealAlphas.set(part, part.alpha);
+      part.alpha *= amount;
+    };
+    for (const d of this.drawn.values()) {
+      const delay = REVEAL_LAYER_MS * (this.ruleset.kinds[d.view.kind]?.building ? 1 : 2);
+      const amount = 1 - corpseFade(elapsed, delay, REVEAL_LAYER_MS).alpha;
+      // Fade in key-colour space, before the existing palette dither: the same
+      // pixels as a corpse disappearing, played backwards. No per-unit filters.
+      for (const part of [d.sprite, d.shadow, d.flame, d.sparks]) show(part, amount);
+    }
+    const units = 1 - corpseFade(elapsed, REVEAL_LAYER_MS * 2, REVEAL_LAYER_MS).alpha;
+    for (const part of [this.fx, this.outlineLayer, this.xrayLayer, this.hoverMark, this.selectMark]) show(part, units);
+  }
+
+  private reducedMotion() {
+    return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
   }
 
   private viewFor(box: CameraBox | null): View {
@@ -542,6 +602,8 @@ export class GameRenderer {
   }
 
   destroy() {
+    this.revealGroundFilter?.destroy();
+    this.revealAlphas.clear();
     this.resize?.disconnect();
     this.app.destroy(true, { children: true, texture: false });
   }
@@ -704,6 +766,7 @@ export class GameRenderer {
 
   private animate() {
     this.moveCamera();
+    this.restoreRevealAlphas();
     const now = this.presentationNow();
     const a = this.alpha(now);
     const animationMs = this.animationMs(now);
@@ -804,6 +867,8 @@ export class GameRenderer {
     }
     this.drawSelection(a, animationMs);
     this.effects = this.effects.filter((e) => e.update(now));
+    // Apply after effects create their fire/sparks and update their own alpha.
+    this.applyReveal();
     // Depth pass for the x-ray: occluders only, in the world's current view.
     this.depthWorld.position.copyFrom(this.world.position);
     this.depthWorld.scale.copyFrom(this.world.scale);
