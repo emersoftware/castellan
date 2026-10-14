@@ -115,14 +115,16 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     if (!map) return reply.code(400).send({ error: `unknown map ${body.map}; available: ${Object.keys(maps).join(", ")}` });
     if (body.mode !== undefined && body.mode !== "teams" && body.mode !== "ffa") return reply.code(400).send({ error: 'mode must be "teams" or "ffa"' });
     if (body.mode === "ffa" && body.players?.some((p) => p.team !== undefined)) return reply.code(400).send({ error: "ffa does not accept teams" });
-    // One player per seat; four-seat maps support 2v2 (default) or free-for-all.
+    // Four-seat maps support 2v2 (default), four-player FFA, or an explicit
+    // three-player FFA with one empty corner. Other lobby defaults stay full.
     const seats = map.seats ?? 2;
+    const playerCount = seats === 4 && body.mode === "ffa" && body.players?.length === 3 ? 3 : seats;
     let players;
     try { players = (body.players ?? []).slice(0, seats).map((p, i) => ({
       name: String(p.name ?? p.bot ?? `player${i + 1}`).slice(0, 32), bot: p.bot, team: seats === 4 ? p.team : undefined,
       agent: p.agent === undefined ? undefined : agentConfiguration(p.agent),
     })); } catch (error) { return reply.code(400).send({ error: (error as Error).message }); }
-    while (players.length < seats) players.push({ name: `player${players.length + 1}`, bot: undefined, team: undefined, agent: undefined });
+    while (players.length < playerCount) players.push({ name: `player${players.length + 1}`, bot: undefined, team: undefined, agent: undefined });
     if (seats === 4 && players.some((p) => p.team !== undefined)) {
       const count = (t: number) => players.filter((p) => p.team === t).length;
       if (count(0) !== 2 || count(1) !== 2) return reply.code(400).send({ error: "4-seat maps are 2v2: give two players team 0 and two team 1 (or no teams: list order)" });
@@ -227,7 +229,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const h = req.headers.authorization ?? "";
     const room = tokens.get(h.startsWith("Bearer ") ? h.slice(7) : "")?.room;
     const r = room?.ruleset ?? ruleset;
-    const guide = playerGuide(r, { chat: room?.chat ?? true, teams: room?.teams, series: room?.seriesProgress?.(), tickRate: room?.tickRate ?? opts.tickRate ?? 10 });
+    const guide = playerGuide(r, { chat: room?.chat ?? true, teams: room?.teams, playerCount: room?.players.length, series: room?.seriesProgress?.(), tickRate: room?.tickRate ?? opts.tickRate ?? 10 });
     if (wantsText(req)) return guide;
     return { ruleset: r, guide };
   });

@@ -38,7 +38,7 @@ export interface RoomOptions {
   /** Series rooms start only after their credentials/checkpoint have been saved. */
   deferredStart?: boolean;
   ruleset: Ruleset;
-  /** One per map seat. `team` defaults to each player alone (2 seats) or 2v2 in list order (4 seats). */
+  /** One per occupied seat; a three-player FFA leaves one of four corners empty. `team` defaults to each player alone (2 seats) or 2v2 in list order (4 seats). */
   players: { name: string; bot?: string; team?: number; agent?: AgentConfiguration }[];
   /** Four-seat maps default to teams; ffa gives every player their own side. */
   mode?: "teams" | "ffa";
@@ -135,14 +135,14 @@ export class Room {
         team: opts.mode === "ffa" ? i : p.team ?? (opts.players.length === 4 ? (i < 2 ? 0 : 1) : i),
       };
     });
-    if (opts.players.length === 4) {
+    if (opts.players.length === 4 || (opts.ruleset.map.seats === 4 && opts.mode === "ffa" && opts.players.length === 3)) {
       const seats = opts.sides === "random" ? seededShuffle([0, 1, 2, 3], opts.seed) : [0, 1, 2, 3];
       this.players.forEach((p, i) => (p.side = seats[i]));
     } else if (opts.sides === "random" && seededCoin(opts.seed)) {
       for (const p of this.players) p.side = 1 - p.side;
     }
     this.experiment = { schema: 1, engine: engineIdentity(), rulesSha256: sha256(JSON.stringify(this.ruleset)),
-      baseGuideSha256: sha256(playerGuide(this.ruleset, { tickRate: this.tickRate, chat: this.chat, teams: this.teams })), mode: "independent",
+      baseGuideSha256: sha256(playerGuide(this.ruleset, { tickRate: this.tickRate, chat: this.chat, teams: this.teams, playerCount: this.players.length })), mode: "independent",
       players: Object.fromEntries(this.players.map((p, i) => {
         const configuration = opts.players[i].agent ?? { ...unknownAgent(), ...(p.bot ? { model: `bot:${p.bot.name}`, connector: "reference-bot", memoryPolicy: "match-local" } : {}) };
         return [p.id, { configuration, changes: [{ tick: 0, configuration }] }];

@@ -14,6 +14,7 @@ it("serves consistent castle/door rules and default maps for duels and FFA", asy
     expect(JSON.stringify({ruleset,guide})).not.toMatch(/nexus/i);
     for (const map of ["open","quad","fortress","fortress-quad"]) {
       const room = (await app.inject({method:"POST",url:"/rooms",payload:{map,...(map.endsWith("quad")?{mode:"ffa"}:{}),players:[{name:"A"},{name:"B"}]}})).json();
+      expect(room.players).toHaveLength(map.endsWith("quad") ? 4 : 2);
       for(const p of room.players) {
         const state=(await app.inject({method:"GET",url:"/state",headers:{authorization:`Bearer ${p.token}`}})).json();
         expect(state.mine.filter((e:{kind:string})=>e.kind==="castle")).toHaveLength(1);

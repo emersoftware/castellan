@@ -116,8 +116,9 @@ export interface MapSpec {
   width: number;
   height: number;
   /**
-   * Starting corners: 2 (default; the layout and its 180° rotation) or 4 (a
-   * square map; also rotated 90° and 270°, one corner per player).
+   * Available starting corners: 2 (default; the layout and its 180° rotation)
+   * or 4 (a square map; also rotated 90° and 270°). A three-player FFA leaves
+   * one of the four corners empty.
    */
   seats?: 2 | 4;
   /** Impassable terrain (rock walls). Full list; keep it symmetric under every seat's rotation. */
