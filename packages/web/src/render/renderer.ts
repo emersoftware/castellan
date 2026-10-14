@@ -7,6 +7,7 @@
  */
 import { Application, Container, Graphics, RenderTexture, Sprite, Text, type Filter } from "pixi.js";
 import type { DepositView, EntityView, GameEvent, ProjectileView, Ruleset, SpectatorView } from "@aoa/shared";
+import type { CameraBox } from "../showcaseCamera";
 import { TILE_H, TILE_W, loadSprites, screenDir, terrainTexture, type SpriteArt, type SpriteSet } from "./sprites";
 import { createXrayFilter, depthTint, occluderTint } from "./xray";
 import { createDitherFilter } from "./dither";
@@ -78,6 +79,25 @@ interface Effect {
   destroy?(): void;
 }
 
+/** Hero close-ups stop where the hero art (stored at 1.5×) would be enlarged. */
+const CLOSE_UP_ZOOM = 1.5;
+/** Seconds the hero camera takes to settle on a moving target: centre, then zoom (slower, so it eases in). */
+const FOLLOW_S = 1.4, ZOOM_S = 2.2;
+/** Handheld sway: screen pixels of drift and the fraction the zoom breathes. */
+const SWAY_PX = 7, BREATH = 0.012;
+interface View { cx: number; cy: number; z: number }
+const sameBox = (a: CameraBox | null, b: CameraBox | null) =>
+  a === b || (!!a && !!b && a.x0 === b.x0 && a.y0 === b.y0 && a.x1 === b.x1 && a.y1 === b.y1);
+/** Critically damped approach (Unity's SmoothDamp): eases out without overshoot, and eases in when the target starts moving. */
+function smoothDamp(from: number, to: number, velocity: number, smoothS: number, dt: number) {
+  const omega = 2 / smoothS, x = omega * dt;
+  const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const change = from - to, temp = (velocity + omega * change) * dt;
+  return { value: to + (change + temp) * decay, velocity: (velocity - omega * temp) * decay };
+}
+/** Smooth, non-repeating drift in [-1, 1] from incommensurate sines, like a hand holding the camera. */
+const sway = (t: number, phase: number) =>
+  (Math.sin(t * 0.69 + phase) + 0.6 * Math.sin(t * 1.43 + phase * 2.1) + 0.3 * Math.sin(t * 2.97 + phase * 3.7)) / 1.9;
 const iso = (x: number, y: number) => ({ sx: (x - y) * (TILE_W / 2), sy: (x + y) * (TILE_H / 2) });
 /** Grid steps between two points, Chebyshev like the engine: a diagonal step is one step, so feet keep the same cadence. */
 const gridSteps = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
@@ -120,6 +140,12 @@ export class GameRenderer {
   private pausedAt?: number;
   private pauseOffset = 0;
   private zoomLevel = 1;
+  /** Hero camera: tiles to frame (`null` the whole map); undefined when the view is the viewer's. */
+  private focusBox?: CameraBox | null;
+  /** Hero camera: the canvas region (CSS px) where shots are framed; the rest of the canvas shows what lies around them. */
+  private area?: { x: number; y: number; w: number; h: number };
+  /** The hero camera's smoothed view (before sway), its velocities and the last update time. */
+  private follow?: { view: View; vx: number; vy: number; vz: number; at: number };
   private hoverCb: (h: HoverInfo | null) => void = () => {};
   private selectCb: (id: string | null) => void = () => {};
   /** The entity the viewer clicked; kept across frames until another click or `select(null)`. */
@@ -257,6 +283,89 @@ export class GameRenderer {
     this.world.scale.set(this.zoomLevel);
     const c = iso(x, y);
     this.world.position.set(Math.round(w / 2 - c.sx * this.zoomLevel), Math.round(h / 2 + dy - c.sy * this.zoomLevel));
+  }
+
+  /**
+   * Hero camera: frame `box` (tiles) or, with `null`, the whole map. The box may
+   * change every tick; the camera follows it smoothly, with a handheld sway,
+   * unless motion is reduced.
+   */
+  focus(box: CameraBox | null) {
+    if (this.focusBox !== undefined && sameBox(this.focusBox, box)) return;
+    this.focusBox = box;
+    if (this.reducedMotion()) { this.follow = undefined; this.applyView(this.viewFor(box)); return; }
+    this.follow ??= { view: this.currentView(), vx: 0, vy: 0, vz: 0, at: this.now() };
+  }
+
+  /**
+   * Hero camera: frame shots inside `area` (canvas CSS px) instead of the whole
+   * canvas. The whole map fits the area; close-ups spill over the rest of the canvas.
+   */
+  setFocusArea(area: { x: number; y: number; w: number; h: number } | undefined) {
+    const same = area && this.area && area.x === this.area.x && area.y === this.area.y && area.w === this.area.w && area.h === this.area.h;
+    if (same || (!area && !this.area)) return;
+    this.area = area;
+    if (this.focusBox === undefined) return;
+    const view = this.viewFor(this.focusBox);
+    if (this.follow) this.follow = { ...this.follow, view, vx: 0, vy: 0, vz: 0 };
+    this.applyView(view);
+  }
+
+  /** Where views are framed: the focus area, or the whole canvas. */
+  private frameRect() {
+    return this.area ?? { x: 0, y: 0, w: this.app.renderer.width, h: this.app.renderer.height };
+  }
+
+  private reducedMotion() {
+    return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  private currentView(): View {
+    const { x, y, w, h } = this.frameRect(), z = this.zoomLevel;
+    return { cx: (x + w / 2 - this.world.x) / z, cy: (y + h / 2 - this.world.y) / z, z };
+  }
+
+  private viewFor(box: CameraBox | null): View {
+    const { w, h } = this.frameRect();
+    const mapW = (this.width + this.height) * (TILE_W / 2) + 40;
+    const mapH = (this.width + this.height) * (TILE_H / 2) + 110;
+    const whole = Math.min(2, Math.min(w / mapW, h / mapH));
+    if (!box) {
+      const c = iso((this.width - 1) / 2, (this.height - 1) / 2);
+      return { cx: c.sx, cy: c.sy - 18 / whole, z: whole };
+    }
+    const corners = [iso(box.x0, box.y0), iso(box.x1, box.y0), iso(box.x0, box.y1), iso(box.x1, box.y1)];
+    const left = Math.min(...corners.map(c => c.sx)), right = Math.max(...corners.map(c => c.sx));
+    // Room above the northern tiles for the units and buildings standing on them.
+    const top = Math.min(...corners.map(c => c.sy)) - 40, bottom = Math.max(...corners.map(c => c.sy));
+    const z = Math.max(whole, Math.min(CLOSE_UP_ZOOM, w / (right - left), h / (bottom - top)));
+    return { cx: (left + right) / 2, cy: (top + bottom) / 2, z };
+  }
+
+  private applyView(v: View) {
+    const { x, y, w, h } = this.frameRect();
+    this.zoomLevel = v.z;
+    this.world.scale.set(v.z);
+    this.world.position.set(Math.round(x + w / 2 - v.cx * v.z), Math.round(y + h / 2 - v.cy * v.z));
+  }
+
+  /**
+   * Advance the hero camera: damp the centre and the zoom (in log scale, so zooming
+   * in and out feel alike) towards the target, then add the handheld sway.
+   */
+  private moveCamera() {
+    const f = this.follow;
+    if (!f || this.focusBox === undefined) return;
+    const now = this.now(), dt = Math.min(0.1, Math.max(0, (now - f.at) / 1000));
+    f.at = now;
+    const to = this.viewFor(this.focusBox);
+    const x = smoothDamp(f.view.cx, to.cx, f.vx, FOLLOW_S, dt), y = smoothDamp(f.view.cy, to.cy, f.vy, FOLLOW_S, dt);
+    const z = smoothDamp(Math.log(f.view.z), Math.log(to.z), f.vz, ZOOM_S, dt);
+    f.view = { cx: x.value, cy: y.value, z: Math.exp(z.value) };
+    f.vx = x.velocity; f.vy = y.velocity; f.vz = z.velocity;
+    const t = now / 1000, { cx, cy, z: zoom } = f.view;
+    const swayed = zoom * (1 + BREATH * sway(t * 0.6, 4.2));
+    this.applyView({ cx: cx + SWAY_PX * sway(t, 0) / swayed, cy: cy + SWAY_PX * sway(t, 1.7) / swayed, z: swayed });
   }
 
   /**
@@ -526,6 +635,13 @@ export class GameRenderer {
       this.outlineFilter.resources.uDepth = this.depthRT.source;
       this.outlineFilter.resources.xrayUniforms.uniforms.uScreen = new Float32Array([w, h]);
     }
+    if (this.focusBox !== undefined) {
+      // A new size reframes the current shot at once.
+      const view = this.viewFor(this.focusBox);
+      if (this.follow) this.follow = { ...this.follow, view, vx: 0, vy: 0, vz: 0 };
+      this.applyView(view);
+      return;
+    }
     if (!recenter) return;
     const mapW = (this.width + this.height) * (TILE_W / 2) + 40;
     const mapH = (this.width + this.height) * (TILE_H / 2) + 110;
@@ -587,6 +703,7 @@ export class GameRenderer {
   }
 
   private animate() {
+    this.moveCamera();
     const now = this.presentationNow();
     const a = this.alpha(now);
     const animationMs = this.animationMs(now);

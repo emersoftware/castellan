@@ -1,4 +1,5 @@
 import type { ReplayFile, SpectatorView } from "@aoa/shared";
+import type { CameraShot } from "./showcaseCamera";
 
 /** Rendered board states, not executable orders. Watch and the full replay keep
  * using the real engine; the decorative hero only decodes these recordings. */
@@ -11,6 +12,8 @@ export interface ShowcaseManifest {
   startTick: number;
   finalTick: number;
   chunks: { url: string; firstTick: number; lastTick: number }[];
+  /** The hero's planned shots, in tick order; absent in older recordings. */
+  camera?: CameraShot[];
 }
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
@@ -153,5 +156,16 @@ export function parseShowcaseManifest(value: unknown): ShowcaseManifest {
     next = (chunk.lastTick as number) + 1;
   }
   if (next !== (value.finalTick as number) + 1) return invalid();
+  if (value.camera !== undefined) {
+    const coordinate = (n: unknown) => typeof n === "number" && Number.isFinite(n);
+    let previous = -1;
+    if (!Array.isArray(value.camera) || !value.camera.every(shot => {
+      if (!object(shot) || !Number.isSafeInteger(shot.tick) || (shot.tick as number) <= previous) return false;
+      previous = shot.tick as number;
+      const box = shot.box;
+      return box === null || (object(box) && coordinate(box.x0) && coordinate(box.y0) && coordinate(box.x1) && coordinate(box.y1)
+        && (box.x1 as number) > (box.x0 as number) && (box.y1 as number) > (box.y0 as number));
+    })) return invalid();
+  }
   return value as unknown as ShowcaseManifest;
 }

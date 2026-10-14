@@ -45,22 +45,25 @@ afterEach(async () => {
 
 const ruleset = {} as Ruleset;
 const frame = { tick: 1 } as SpectatorView;
-const render = (rules: Ruleset, view: SpectatorView | null = frame) => act(async () => {
-  root.render(createElement(GameCanvas, { ruleset: rules, colors: { p1: 0 }, frame: view, tickMs: 100 }));
+const render = (rules: Ruleset, view: SpectatorView | null = frame, visible = true) => act(async () => {
+  root.render(createElement(GameCanvas, { ruleset: rules, colors: { p1: 0 }, frame: view, tickMs: 100, visible }));
 });
 const ready = (index: number, r: ReturnType<typeof fakeRenderer>) => act(async () => {
   pending[index](r as unknown as GameRenderer);
 });
 
-it("prepares the renderer without revealing empty terrain before the first frame", async () => {
-  await render(ruleset, null);
+it.each([false, true])("prepares the entire frame before displaying it (intro finished=%s)", async visible => {
+  await render(ruleset, null, visible);
   const r = fakeRenderer();
   await ready(0, r);
   expect(r.setFrame).not.toHaveBeenCalled();
   expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe("hidden");
-  await render(ruleset, frame);
+  await render(ruleset, frame, visible);
   expect(r.setFrame).toHaveBeenCalledWith(frame, 100, false);
+  expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe(visible ? "visible" : "hidden");
+  await render(ruleset, frame, true);
   expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe("visible");
+  expect(r.setFrame).toHaveBeenCalledOnce();
 });
 
 it("does not report readiness from a canvas replaced before its first paint", async () => {
@@ -70,16 +73,21 @@ it("does not report readiness from a canvas replaced before its first paint", as
   vi.stubGlobal("cancelAnimationFrame", (key: number) => callbacks.delete(key));
   const paint = () => { const batch = [...callbacks.values()]; callbacks.clear(); batch.forEach(callback => callback(0)); };
   const onReady = vi.fn();
-  const mount = (rules: Ruleset) => act(async () => {
-    root.render(createElement(GameCanvas, { ruleset: rules, colors: {}, frame, tickMs: 100, onReady }));
+  const mount = (rules: Ruleset, visible = true) => act(async () => {
+    root.render(createElement(GameCanvas, { ruleset: rules, colors: {}, frame, tickMs: 100, onReady, visible }));
   });
   await mount(ruleset);
   await ready(0, fakeRenderer());
   paint();
-  await mount({ ...ruleset });
+  const replacement = { ...ruleset };
+  await mount(replacement, false);
   paint();
   expect(onReady).not.toHaveBeenCalled();
   await ready(1, fakeRenderer());
+  paint();
+  paint();
+  expect(onReady).not.toHaveBeenCalled();
+  await mount(replacement);
   paint();
   paint();
   expect(onReady).toHaveBeenCalledOnce();
@@ -131,7 +139,7 @@ it("disposes an initialization that finishes after unmount", async () => {
 
 it("shows an actionable error when assets fail and retries initialization", async () => {
   vi.mocked(GameRenderer.create).mockRejectedValueOnce(new Error("asset unavailable"));
-  await render(ruleset);
+  await render(ruleset, frame, false);
   expect(host.querySelector('[role="alert"]')?.textContent).toContain("Couldn’t load the battlefield");
   expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe("visible");
   await act(async () => host.querySelector('[role="alert"] button')!.dispatchEvent(new MouseEvent('click', {bubbles: true})));
@@ -140,4 +148,7 @@ it("shows an actionable error when assets fail and retries initialization", asyn
   await ready(0, r);
   expect(host.querySelector('[role="alert"]')).toBeNull();
   expect(r.setFrame).toHaveBeenCalledWith(frame, 100, false);
+  expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe("hidden");
+  await render(ruleset, frame, true);
+  expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe("visible");
 });

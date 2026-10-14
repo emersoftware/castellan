@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { Ruleset, SpectatorView } from "@aoa/shared";
 import { GameRenderer, type HoverInfo, type SoundSink } from "../render/renderer";
+import type { CameraBox } from "../showcaseCamera";
 
 interface Props {
   ruleset: Ruleset;
@@ -22,12 +23,18 @@ interface Props {
   interactive?: boolean;
   /** Distribution appropriate for this viewport; interactive views use full art. */
   spriteBase?: string;
+  /** Prepare the whole first frame while a preceding introduction is visible. */
+  visible?: boolean;
+  /** Decorative camera: tiles to frame, or `null` for the whole map. Omit to leave the view to the viewer. */
+  focus?: CameraBox | null;
+  /** With `focus`: the element over the canvas inside which shots are framed. Close-ups spill around it. */
+  focusArea?: RefObject<HTMLElement | null>;
   /** Called once the first frame is on screen. */
   onReady?: () => void;
 }
 
 /** Mounts the Pixi renderer and feeds it frames. */
-export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jumpKey = 0, onHover, selected = null, onSelect, sound, bare, interactive = true, spriteBase, onReady }: Props) {
+export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jumpKey = 0, onHover, selected = null, onSelect, sound, bare, interactive = true, spriteBase, visible = true, focus, focusArea, onReady }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
   const [presented, setPresented] = useState(false);
@@ -79,6 +86,24 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
   }, [rendererVersion, sound]);
 
   useEffect(() => {
+    const area = focusArea?.current, canvas = host.current, r = renderer.current;
+    if (!area || !canvas || !r) return;
+    // Layout can move the area without resizing it (fonts, text above), so watch its neighbours too.
+    const measure = () => {
+      const a = area.getBoundingClientRect(), c = canvas.getBoundingClientRect();
+      r.setFocusArea({ x: Math.round(a.left - c.left), y: Math.round(a.top - c.top), w: Math.round(a.width), h: Math.round(a.height) });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    for (const el of [area, canvas, ...(area.parentElement ? [...area.parentElement.children] : [])]) observer.observe(el);
+    return () => { observer.disconnect(); r.setFocusArea(undefined); };
+  }, [rendererVersion, focusArea]);
+
+  useEffect(() => {
+    if (focus !== undefined) renderer.current?.focus(focus);
+  }, [rendererVersion, focus]);
+
+  useEffect(() => {
     renderer.current?.setPaused(paused);
   }, [rendererVersion, paused]);
 
@@ -88,16 +113,22 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
     lastJump.current = jumpKey;
     renderer.current.setFrame(frame, tickMs, jump);
     setPresented(true);
-    if (shown.current) return;
-    shown.current = true;
-    // Pixi draws on the next animation frame; report after it is painted.
-    readyRaf.current = requestAnimationFrame(() => {
-      readyRaf.current = requestAnimationFrame(() => readyCb.current?.());
-    });
   }, [rendererVersion, frame, tickMs, jumpKey]);
 
+  useEffect(() => {
+    if (!renderer.current || !presented || !visible || shown.current) return;
+    // Pixi draws on the next animation frame; report after it is painted.
+    readyRaf.current = requestAnimationFrame(() => {
+      readyRaf.current = requestAnimationFrame(() => {
+        shown.current = true;
+        readyCb.current?.();
+      });
+    });
+    return () => cancelAnimationFrame(readyRaf.current);
+  }, [rendererVersion, presented, visible]);
+
   return (
-    <div className="canvas-host" ref={host} style={{ visibility: !presented && !failed ? "hidden" : undefined }}>
+    <div className="canvas-host" ref={host} data-presented={presented && visible ? "" : undefined} style={{ visibility: (!presented || !visible) && !failed ? "hidden" : undefined }}>
       {failed && <div className="load-state" role="alert"><p>Couldn’t load the battlefield.</p><button onClick={() => setAttempt(a => a + 1)}>Try again</button></div>}
       {!bare && interactive && (
         <div className="zoom">

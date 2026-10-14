@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { rules } from "@aoa/shared";
@@ -6,6 +6,7 @@ import { api, playerColors } from "../api";
 import { GameCanvas } from "../components/GameCanvas";
 import { Portrait } from "../components/Portrait";
 import { useShowcase } from "../useShowcase";
+import { followUnits, shotAt } from "../showcaseCamera";
 import { HERO_SPRITE_BASE, loadSprites } from "../render/sprites";
 import { sfx } from "../audio/sfx";
 import { currentBattles, replayFileDate } from "../replayCatalog";
@@ -18,6 +19,28 @@ const SHOWCASE = "81483a0b";
 export function Landing() {
   const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays });
   const showcase = useShowcase(SHOWCASE);
+  const [introDone, setIntroDone] = useState(false);
+  const field = useRef<HTMLDivElement>(null);
+  const [still, setStill] = useState(false);
+
+  useEffect(() => {
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => {
+      setStill(motion.matches);
+      if (motion.matches) setIntroDone(true);
+    };
+    update();
+    motion.addEventListener("change", update);
+    return () => motion.removeEventListener("change", update);
+  }, []);
+  // Close-ups follow the planned shots, drifting with the mean of the units in
+  // view; the whole map holds still for reduced motion.
+  const recording = showcase.manifest, frame = showcase.frame;
+  const shot = shotAt(recording?.camera, frame?.tick);
+  const focus = useMemo(() => {
+    if (still || !recording || !frame || !shot?.box) return null;
+    return followUnits(shot.box, frame, kind => !!recording.ruleset.kinds[kind]?.building);
+  }, [still, recording, frame, shot]);
 
   // Art, playback data and Pixi prepare in parallel. The playback clock waits
   // for the canvas's first paint, so the opening is never consumed offscreen.
@@ -35,12 +58,18 @@ export function Landing() {
     <div className="landing">
       <div className="page-sound"><SoundToggle /></div>
       <section className="hero">
-        <div className="hero-field" role="img" aria-label="Fortress free-for-all: Astra, Sol, Opus and Fable">
-          {showcase.manifest && <GameCanvas key={showcase.attempt} ruleset={showcase.manifest.ruleset} colors={colors} frame={showcase.frame} tickMs={1000 / showcase.manifest.tickRate} jumpKey={showcase.jumpKey} onReady={showcase.onReady} spriteBase={HERO_SPRITE_BASE} sound={sfx.play} bare interactive={false} />}
+        {/* The battle covers the whole hero; shots are framed in the field, and close-ups spill under the text. */}
+        <div className="hero-backdrop" aria-hidden="true">
+          {showcase.manifest && <GameCanvas key={showcase.attempt} ruleset={showcase.manifest.ruleset} colors={colors} frame={showcase.frame} tickMs={1000 / showcase.manifest.tickRate} jumpKey={showcase.jumpKey} onReady={showcase.onReady} spriteBase={HERO_SPRITE_BASE} sound={sfx.play} bare interactive={false} visible={introDone} focus={focus} focusArea={field} />}
+        </div>
+        <div className="hero-field" ref={field} role="img" aria-label="Fortress free-for-all: Astra, Sol, Opus and Fable">
           <LoadState error={showcase.error} onRetry={showcase.retry} />
         </div>
         <div className="hero-content">
-          <div className="hero-copy">
+          <div className="hero-copy" onAnimationEnd={event => {
+            // The buttons step up last; the board follows them.
+            if ((event.target as Element).classList.contains("cta") && event.animationName === "aoa-palette-text") setIntroDone(true);
+          }}>
             <h1>Age of Agents</h1>
             <p className="tagline">A real-time strategy game whose players are AI agents.</p>
             <p className="lede">

@@ -10,6 +10,7 @@ import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import type { ReplayFile, SpectatorView } from "@aoa/shared";
 import { playRecordedReplay } from "../src/replayPlayback";
+import { cameraActivity, planShowcaseCamera, type CameraActivity } from "../src/showcaseCamera";
 import { decodeShowcaseChunk, encodeShowcaseChunk, parseShowcaseManifest, type ShowcaseManifest } from "../src/showcaseRecording";
 
 const web = resolve(import.meta.dirname, "..");
@@ -31,7 +32,7 @@ function sourceFiles(directory: string): string[] {
 function signature(): string {
   const hash = createHash("sha256");
   const files = [replayPath, ...["engine", "shared", "sandbox"].flatMap(name => sourceFiles(join(root, "packages", name, "src"))),
-    join(web, "src/replayPlayback.ts"), join(web, "src/showcaseRecording.ts"), fileURLToPath(import.meta.url),
+    join(web, "src/replayPlayback.ts"), join(web, "src/showcaseRecording.ts"), join(web, "src/showcaseCamera.ts"), fileURLToPath(import.meta.url),
     join(root, "pnpm-lock.yaml")].sort();
   for (const file of files) hash.update(relative(root, file)).update("\0").update(readFileSync(file)).update("\0");
   return hash.digest("hex");
@@ -67,6 +68,7 @@ if (cached) {
   let activityIndex = 0;
   const activity = replay.experiment?.agentActivity ?? [];
   const currentActivity = new Map();
+  const combat: CameraActivity[] = [];
 
   const flush = () => {
     if (!pending.length) return;
@@ -90,6 +92,8 @@ if (cached) {
     const check = await playRecordedReplay(replay, frame => {
       seenFrames++;
       lastTick = frame.tick;
+      const fighting = cameraActivity(frame);
+      if (fighting.points.length) combat.push(fighting);
       while (activityIndex < activity.length && activity[activityIndex].tick <= frame.tick) {
         const entry = activity[activityIndex++];
         currentActivity.set(entry.player, entry.activity);
@@ -112,7 +116,8 @@ if (cached) {
     flush();
     const manifest: ShowcaseManifest = { format: 1, id: replay.id, tickRate: replay.tickRate,
       ruleset: replay.ruleset, players: replay.players, startTick: chunks[0].firstTick,
-      finalTick: replay.finalTick, chunks };
+      finalTick: replay.finalTick, chunks,
+      camera: planShowcaseCamera(combat, chunks[0].firstTick, replay.finalTick, replay.tickRate) };
     parseShowcaseManifest(manifest);
     if (signature() !== sourceSignature) throw new Error("Showcase sources changed while recording; run the build again.");
     mkdirSync(destination, { recursive: true });
@@ -132,7 +137,7 @@ if (cached) {
     writeFileSync(temporarySignature, JSON.stringify({ signature: sourceSignature, manifestHash, frames: seenFrames, verified: true, compressedBytes }));
     renameSync(temporarySignature, signaturePath);
     console.log(JSON.stringify({ id: replay.id, source: basename(replayPath), startTick: manifest.startTick,
-      finalTick: manifest.finalTick, chunks: chunks.length, firstChunkBytes: readFileSync(join(destination, chunks[0].url)).length,
+      finalTick: manifest.finalTick, chunks: chunks.length, shots: manifest.camera!.length, firstChunkBytes: readFileSync(join(destination, chunks[0].url)).length,
       compressedBytes, durationMs: Math.round(performance.now() - started), verified: true }));
   } finally {
     rmSync(stage, { recursive: true, force: true });

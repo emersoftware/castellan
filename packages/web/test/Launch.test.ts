@@ -20,7 +20,7 @@ vi.mock('../src/useReplay', () => ({useReplayFrames:()=>({frames:{current:[]},lo
 let root: Root, host: HTMLDivElement, client: QueryClient;
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-  vi.stubGlobal('matchMedia', () => ({matches:true}));
+  vi.stubGlobal('matchMedia', () => ({matches:true,addEventListener:vi.fn(),removeEventListener:vi.fn()}));
   host=document.createElement('div'); document.body.append(host); root=createRoot(host);
   client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:0}}});
 });

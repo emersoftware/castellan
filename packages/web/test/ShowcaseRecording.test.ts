@@ -79,4 +79,8 @@ it("accepts only a contiguous manifest that covers the entire recording", () => 
   const foreign = manifest();
   foreign.chunks[0].url = "https://other.example/replay.json.gz";
   expect(() => parseShowcaseManifest(foreign)).toThrow("Invalid showcase");
+  const camera = [{ tick: 40, box: null }, { tick: 41, box: { x0: 1, y0: 2, x1: 13, y1: 14 } }];
+  expect(parseShowcaseManifest({ ...manifest(), camera }).camera).toEqual(camera);
+  expect(() => parseShowcaseManifest({ ...manifest(), camera: [...camera].reverse() })).toThrow("Invalid showcase");
+  expect(() => parseShowcaseManifest({ ...manifest(), camera: [{ tick: 40, box: { x0: 5, y0: 2, x1: 5, y1: 14 } }] })).toThrow("Invalid showcase");
 });

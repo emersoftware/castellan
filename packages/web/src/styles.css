@@ -55,14 +55,17 @@ button.on { color: var(--black); background: var(--light-grey); border-color: va
 
 /* ─────────── landing ─────────── */
 .landing { background: var(--black); }
-.hero { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100svh; padding: 24px 24px 48px; }
+.hero { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100svh; padding: 24px 24px 48px; }
+/* The battle fills the hero behind everything; .hero-field only marks where shots are framed. */
+.hero-backdrop { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.hero-field, .hero-content { position: relative; z-index: 1; }
 .hero-content {
   min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; width: 100%; max-width: 720px;
 }
 .hero-copy { width: 100%; }
-.hero-field { position: relative; width: min(100%, 900px); height: clamp(280px, 48svh, 520px); flex: none; overflow: hidden; }
-.hero-field .canvas-host { cursor: default; }
+.hero-field { width: min(100%, 900px); height: clamp(280px, 48svh, 520px); flex: none; overflow: hidden; }
+.hero-backdrop .canvas-host { cursor: default; }
 .hero h1 {
   font-size: clamp(44px, 5.5vw, 80px); font-weight: 400; color: var(--white); margin: 16px 0 12px; letter-spacing: 0.14em;
   text-transform: uppercase; text-shadow: 0 2px 0 #000, 0 0 24px #000;
@@ -259,10 +262,44 @@ button.on, .btn.primary { -webkit-font-smoothing: auto; font-smooth: auto; filte
   color: var(--white); text-shadow: none;
 }
 .tagline { text-transform: none; letter-spacing: 0.02em; font-size: 22px; font-style: italic; }
+/* Close-ups pass under the hero text: a thin black outline keeps the letters readable over the battle. */
+.hero h1, .hero .tagline, .hero .lede {
+  text-shadow: -1px -1px 0 #000, 0 -1px 0 #000, 1px -1px 0 #000, -1px 0 0 #000, 1px 0 0 #000, -1px 1px 0 #000, 0 1px 0 #000, 1px 1px 0 #000;
+}
 .banner .big {
   color: var(--white);
 }
 .banner { background: linear-gradient(to bottom, rgba(26,26,26,0.95), rgba(0,0,0,0.85)); }
+
+/* Entrance: an old palette fade from black, in the dither's own levels.
+   Title, tagline, lede and buttons step up one after another; then the whole
+   board steps up as one image. Brightness runs before each element's own
+   dither, so every step lands on the same 4-level ramp, and no fill is kept:
+   once over, nothing extra is computed and the look is unchanged. */
+.hero-copy > * { --own: brightness(1); animation: aoa-palette-text 360ms 80ms backwards; }
+.hero h1, .hero .tagline { --own: url(#aoa-dither-soft); }
+.hero .tagline { animation-delay: 190ms; }
+.hero .lede { animation-delay: 300ms; }
+.hero .cta { animation-delay: 410ms; }
+/* A focused button shows at once; the clock keeps running for the board. */
+.hero-copy > :focus-within { filter: var(--own) !important; }
+.hero-backdrop .canvas-host[data-presented] canvas { animation: aoa-palette-board 330ms; }
+@keyframes aoa-palette-text {
+  0% { filter: brightness(0) var(--own); animation-timing-function: step-end; }
+  25% { filter: brightness(0.34) var(--own); animation-timing-function: step-end; }
+  50% { filter: brightness(0.67) var(--own); animation-timing-function: step-end; }
+  75%, 100% { filter: var(--own); }
+}
+/* Starts on a visible step: the playback clock begins with the reveal. */
+@keyframes aoa-palette-board {
+  0% { filter: brightness(0.25); animation-timing-function: step-end; }
+  33% { filter: brightness(0.5); animation-timing-function: step-end; }
+  67% { filter: brightness(0.75); animation-timing-function: step-end; }
+  100% { filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-copy > *, .hero-backdrop .canvas-host[data-presented] canvas { animation: none; }
+}
 
 button, .btn { background: linear-gradient(to bottom, #2a2a2a, #050505); text-transform: none; font-size: 13px; }
 button:hover, .btn:hover { background: linear-gradient(to bottom, #444444, #0b0b0b); }
