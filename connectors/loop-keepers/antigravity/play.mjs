@@ -1,21 +1,37 @@
-/** A fresh workspace and project per player, with only the game's MCP pre-approved. */
+/** A fresh workspace and project per player, with only the game's tools pre-approved. */
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { startToolBridge } from "./tool.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-export async function preparePlayer({ workspace, projectId, server, token }) {
+export async function preparePlayer({ workspace, projectId, server, token, transport = "cli", bridge }) {
+  if (transport !== "mcp" && transport !== "cli") throw new Error("AOA_AGY_TRANSPORT must be mcp or cli.");
   await mkdir(join(workspace, ".agents"), { recursive: true });
   const mcp = { mcpServers: { aoa: {
     command: process.execPath,
     args: [resolve(here, "../../mcp/bin/aoa-mcp.mjs")],
     env: { AOA_SERVER: server, AOA_TOKEN: token },
   } } };
-  await writeFile(join(workspace, ".agents/mcp_config.json"), JSON.stringify(mcp, null, 2), { mode: 0o600 });
+  const toolPath = join(workspace, "bin/aoa-tool");
+  const outputDir = join(workspace, "tool-output");
+  const schemaPath = join(workspace, ".agents/tool-schemas.json");
+  if (transport === "cli") {
+    if (!bridge?.socketPath || !Array.isArray(bridge.definitions)) throw new Error("Command transport needs a running player bridge.");
+    await mkdir(join(workspace, "bin"), { recursive: true });
+    await mkdir(outputDir, { recursive: true });
+    await writeFile(schemaPath, JSON.stringify(bridge.definitions, null, 2), { mode: 0o600 });
+    const moduleUrl = pathToFileURL(join(here, "tool.mjs")).href;
+    // The long-lived bridge owns the credentials. The wrapper can only reach
+    // this player's socket, regardless of command arguments or environment.
+    await writeFile(toolPath, `#!${process.execPath}\nimport { main } from ${JSON.stringify(moduleUrl)};\nawait main(process.argv.slice(2), ${JSON.stringify({ socketPath: bridge.socketPath, outputDir, decisionObservations: true })});\n`, { mode: 0o700 });
+  } else {
+    await writeFile(join(workspace, ".agents/mcp_config.json"), JSON.stringify(mcp, null, 2), { mode: 0o600 });
+  }
   return {
     id: projectId,
     name: `Age of Agents ${projectId}`,
@@ -23,10 +39,10 @@ export async function preparePlayer({ workspace, projectId, server, token }) {
     permissionGrants: {
       v2Migrated: true,
       permissionGrants: {
-        allow: ["mcp(aoa/*)"],
+        allow: transport === "cli" ? [`command(${toolPath})`, `read_file(${outputDir})`, `read_file(${schemaPath})`] : ["mcp(aoa/*)"],
         // Unlisted paths retain agy's default approval requirement. A blanket
         // read deny would also override the conversation-specific grants below.
-        deny: ["command(*)", "write_file(*)", "read_url(*)", "execute_url(*)"],
+        deny: [...(transport === "cli" ? [] : ["command(*)"]), "write_file(*)", "read_url(*)", "execute_url(*)"],
       },
     },
   };
@@ -52,7 +68,7 @@ async function main() {
   const projectId = `aoa-${randomUUID()}`;
   const projectDir = join(homedir(), ".gemini/config/projects");
   const projectPath = join(projectDir, `${projectId}.json`);
-  let child;
+  let child, bridge;
   const forward = (signal) => {
     if (child?.pid) {
       try { process.kill(-child.pid, signal); } catch (e) { if (e.code !== "ESRCH") throw e; }
@@ -62,15 +78,21 @@ async function main() {
   const onTerm = () => forward("SIGTERM");
   try {
     const server = process.env.AOA_SERVER || "http://localhost:4400";
-    const project = await preparePlayer({ workspace, projectId, server, token: process.env.AOA_TOKEN });
+    const transport = process.env.AOA_AGY_TRANSPORT || "cli";
+    if (transport === "cli") bridge = await startToolBridge({
+      socketPath: join(workspace, "tools.sock"), server, token: process.env.AOA_TOKEN,
+      outputDir: join(workspace, "tool-output"),
+    });
+    const project = await preparePlayer({ workspace, projectId, server, token: process.env.AOA_TOKEN, transport, bridge });
     await mkdir(projectDir, { recursive: true });
     await writeFile(projectPath, JSON.stringify(project, null, 2), { mode: 0o600, flag: "wx" });
     const env = { ...process.env, AOA_SERVER: server, AOA_AGY_BIN: agy, AOA_AGY_PROJECT: projectId };
+    if (transport === "cli") env.AOA_AGY_TOOL_OUTPUT_DIR = join(workspace, "tool-output");
     delete env.AOA_RESUME;
     process.on("SIGINT", onInt);
     process.on("SIGTERM", onTerm);
     process.exitCode = await new Promise((resolveExit, reject) => {
-      child = spawn(process.execPath, [resolve(here, "../../cli/bin/aoa.mjs"), "run", "--", process.execPath, join(here, "agent.mjs"), ...process.argv.slice(2)], {
+      child = spawn(process.execPath, [join(here, "agent.mjs"), ...process.argv.slice(2)], {
         cwd: workspace, env, stdio: "inherit", detached: true,
       });
       child.on("error", reject);
@@ -79,8 +101,10 @@ async function main() {
   } finally {
     process.off("SIGINT", onInt);
     process.off("SIGTERM", onTerm);
-    await rm(projectPath, { force: true });
-    await rm(workspace, { recursive: true, force: true });
+    try { await bridge?.close(); }
+    finally {
+      await Promise.all([rm(projectPath, { force: true }), rm(workspace, { recursive: true, force: true })]);
+    }
   }
 }
 
