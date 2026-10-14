@@ -5,6 +5,12 @@ Runs **OpenCode** (`opencode run`, headless) against the AoA MCP. Default model:
 knows works (`opencode models openrouter`). The initial prompt, tools and
 series history are shared with the other connectors.
 
+Like the Codex connector, the launcher supplies observations, never strategy:
+it reads `/state?format=text` and runs one `opencode run` per decision, each
+continuing the match's session (`--session`) in the same private HOME. The
+model decides, acts and ends its turn; the next decision gets a fresh
+observation. One decision is in flight per seat.
+
 ## Key
 
 The launcher uses the first OpenRouter key it finds:
@@ -32,11 +38,11 @@ AOA_TOKEN=<series-participant-token> pnpm aoa run-series -- \
 ```
 
 When OpenRouter returns a temporary `in_flight_budget_exhausted` (402) or a
-rate limit (429) with `Retry-After`, the launcher waits that long before handing
-control back to `aoa run`. This keeps fast retries from abandoning the player
-before the provider's cooldown expires. The match and installed unit scripts
-continue during the wait; match completion or a termination signal cancels it.
-Permanent credit/authentication errors are not treated as this temporary limit.
+rate limit (429) with `Retry-After`, the launcher waits that long and then
+decides again, keeping the session and observation cursor. The match and
+installed unit scripts continue during the wait; match completion or a
+termination signal cancels it. Other failed decisions, including permanent
+credit/authentication errors, retry with a backoff of up to 30 s.
 
 Flags: `--model <provider/model>`, `--variant <name>` (provider-specific
 reasoning effort, passed to `opencode run --variant`). For OpenRouter models,
@@ -51,14 +57,13 @@ Each attempt gets a private `HOME` and XDG config/data/state directories, an
 empty working directory and a generated config (`OPENCODE_CONFIG`). Personal
 OpenCode config, sessions, plugins, `AGENTS.md`, project config and `~/.claude`
 skills are not loaded. Every built-in tool (shell, files, web, subagents,
-skills) is disabled and denied; the model sees only `aoa_rules`, `aoa_state`,
-`aoa_act`, `aoa_run`, `aoa_script`, `aoa_wait`, `aoa_chat` and `aoa_history`. Provider
+skills) is disabled and denied; the model sees only the `aoa_*` MCP tools. Provider
 packages are cached in `~/.cache/aoa/opencode`. This is tool and profile
 isolation, not an OS sandbox.
 
 ## Logs and usage
 
 `~/.local/state/aoa/opencode/run-*` contains `run.json`, the private config
-(with the game token), `events.jsonl` (OpenCode JSON events) and `usage.json`:
-tokens and the USD cost reported by OpenCode per step. Do not publish the
+(with the game token), `events.jsonl` (OpenCode JSON events of every decision) and `usage.json`:
+tokens and the USD cost reported by OpenCode per step, summed over the match. Do not publish the
 directory: it contains credentials and private game conversations.

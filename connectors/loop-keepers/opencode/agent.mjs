@@ -107,71 +107,105 @@ export function providerRetryAfter(lines, now = Date.now()) {
   return null;
 }
 
-// Polls the player's match status; once finished, gives the agent a short grace period, then stops it.
-export function watchFinish({ server = "http://localhost:4400", token, onFinished, everyMs = 10_000, graceMs = 15_000, fetchImpl = fetch }) {
-  let timer, stopped = false;
-  const tick = async () => {
-    try {
-      const res = await fetchImpl(`${server}/status`, { headers: { authorization: `Bearer ${token}` } });
-      if (res.ok && (await res.json()).status === "finished") { timer = setTimeout(() => { if (!stopped) onFinished(); }, graceMs); return; }
-    } catch { /* server unreachable: keep polling */ }
-    if (!stopped) timer = setTimeout(tick, everyMs);
-  };
-  timer = setTimeout(tick, everyMs);
-  return { stop() { stopped = true; clearTimeout(timer); } };
-}
-
-export async function main(args = process.argv.slice(2), env = process.env) {
+/** Supplies observations, never strategy, like the Codex connector: one decision in flight per seat,
+ * and every later decision continues this match's OpenCode session in the same private HOME. */
+export async function play({ env = process.env, args = process.argv.slice(2), fetchImpl = fetch, spawnImpl = spawn,
+  minIntervalMs = 1500, pollMs = 2000 } = {}) {
   const opts = options(args);
   if (!env.AOA_TOKEN) throw new Error("set AOA_TOKEN (see aoa new or aoa run-series)");
   const key = await loadKey(env);
   if (!key) throw new Error("set OPENROUTER_API_KEY, save it in ~/.config/aoa/openrouter-api-key, or log in with `opencode auth login`");
+  const server = (env.AOA_SERVER || "http://localhost:4400").replace(/\/$/, "");
   const runs = join(homedir(), ".local", "state", "aoa", "opencode");
   await mkdir(runs, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(join(runs, "run-"));
-  const player = await preparePlayer({ root, token: env.AOA_TOKEN, server: env.AOA_SERVER, key, ...opts, env });
-  let prompt = await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
-  if (env.AOA_RESUME) prompt = `You were restarted in the middle of the match: call state first, then keep playing.\n\n${prompt}`;
+  const player = await preparePlayer({ root, token: env.AOA_TOKEN, server, key, ...opts, env });
+  let base = await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
+  if (env.AOA_RESUME) base = `You were restarted in the middle of the match; your earlier conversation is gone.\n\n${base}`;
   // Optional experiment instruction for this player only; kept across relaunches.
   if (env.AOA_DIRECTIVE) {
-    prompt += `\n\n${env.AOA_DIRECTIVE}`;
+    base += `\n\n${env.AOA_DIRECTIVE}`;
     await writeFile(join(root, "run.json"), JSON.stringify({ ...player.metadata, directive: env.AOA_DIRECTIVE }, null, 2), { mode: 0o600 });
   }
   console.error(`aoa opencode: ${opts.model}${opts.variant ? ` (${opts.variant})` : ""}; logs ${root}${env.AOA_DIRECTIVE ? `; directive: ${env.AOA_DIRECTIVE}` : ""}`);
   await reportConfiguration(launchConfiguration({ connector: "opencode", model: opts.model, effort: opts.variant,
-    connectorVersion: env.AOA_CONNECTOR_VERSION || await connectorVersion(env.AOA_OPENCODE_BIN || "opencode"), prompt, env }), { env });
-  await reportActivity("deciding", { env });
-  const child = spawn(env.AOA_OPENCODE_BIN || "opencode", [...player.args, prompt], { cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "inherit"] });
+    connectorVersion: env.AOA_CONNECTOR_VERSION || await connectorVersion(env.AOA_OPENCODE_BIN || "opencode"), prompt: base, env }), { env, fetchImpl });
+  let child, session, watcher, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0;
   const lines = [];
-  let pending = "";
-  child.stdout.on("data", (chunk) => {
-    process.stdout.write(chunk);
-    const parts = (pending + chunk).split("\n");
-    pending = parts.pop();
-    lines.push(...parts);
-  });
-  const retryAbort = new AbortController();
-  let stopped = false, finished = false;
-  const stop = (signal) => { stopped = true; retryAbort.abort(); child.kill(signal); };
-  const interrupt = () => stop("SIGINT"), terminate = () => stop("SIGTERM");
-  process.on("SIGINT", interrupt); process.on("SIGTERM", terminate);
+  const abort = new AbortController();
+  const stop = () => { stopped = true; abort.abort(); child?.kill("SIGTERM"); };
+  const get = async path => {
+    const res = await fetchImpl(server + path, { headers: { authorization: `Bearer ${env.AOA_TOKEN}` }, signal: AbortSignal.any([abort.signal, AbortSignal.timeout(8000)]) });
+    if (!res.ok) throw new Error(`game HTTP ${res.status}`);
+    return path.includes("format=text") ? res.text() : res.json();
+  };
+  const delay = ms => sleep(ms, undefined, { signal: abort.signal });
+  process.on("SIGINT", stop); process.on("SIGTERM", stop);
   // A model request in flight when the match ends would otherwise keep the process alive.
-  const watch = watchFinish({ server: env.AOA_SERVER, token: env.AOA_TOKEN, onFinished: () => { finished = true; terminate(); } });
+  const watch = async () => {
+    if (stopped) return;
+    try {
+      const status = await get("/status");
+      if (status.status === "finished" || status.alive === false) { finished = true; stop(); return; }
+    } catch { /* next poll */ }
+    if (!stopped) watcher = setTimeout(watch, pollMs);
+  };
+  watcher = setTimeout(watch, pollMs);
   try {
-    const code = await new Promise((resolve, reject) => { child.on("error", reject); child.on("close", (code) => resolve(code ?? 1)); });
-    lines.push(pending);
+    while (!stopped) {
+      const started = Date.now();
+      try {
+        const observation = await get(`/state?format=text&since=${lastDeliveredTick}`);
+        if (/ · finished · /.test(observation) || /^YOU\s+.* · OUT$/m.test(observation)) { finished = true; break; }
+        if (/ · (waiting|prep) · /.test(observation)) { await delay(1000); continue; }
+        const observedTick = Number(observation.match(/^tick (\d+)/)?.[1]);
+        const prompt = `${session ? "Next decision. The following is your current observation." : base}\n\n${observation}`;
+        await reportActivity("deciding", { env, fetchImpl });
+        child = spawnImpl(env.AOA_OPENCODE_BIN || "opencode", [...player.args, ...(session ? ["--session", session] : []), prompt],
+          { cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "inherit"] });
+        const turn = [];
+        let pending = "";
+        child.stdout.on("data", chunk => {
+          process.stdout.write(chunk);
+          const parts = (pending + chunk).split("\n"); pending = parts.pop(); turn.push(...parts);
+        });
+        const code = await new Promise((resolveCode, reject) => { child.on("error", reject); child.on("close", resolveCode); });
+        turn.push(pending); child = undefined;
+        lines.push(...turn);
+        if (stopped) break;
+        const retry = code !== 0 ? providerRetryAfter(turn) : null;
+        if (retry) {
+          await reportActivity("provider_wait", { env, fetchImpl, retryAt: new Date(Date.now() + retry.delayMs).toISOString() });
+          console.error(`aoa opencode: ${retry.reason}; waiting ${retry.delayMs / 1000}s (Retry-After); the match keeps running`);
+          await delay(retry.delayMs);
+          continue;
+        }
+        // Adopt a session only once a decision completed, so a failed first turn resends the full prompt.
+        const id = turn.map(l => { try { return JSON.parse(l).sessionID; } catch { return undefined; } }).find(Boolean);
+        if (code !== 0 || !(session ??= id)) throw new Error(`OpenCode decision incomplete (exit ${code})`);
+        if (Number.isFinite(observedTick)) lastDeliveredTick = observedTick;
+        failures = 0;
+        await reportActivity("between_decisions", { env, fetchImpl });
+        await delay(Math.max(0, minIntervalMs - (Date.now() - started)));
+      } catch (error) {
+        if (stopped) break;
+        failures++;
+        const ms = Math.min(30_000, 2000 * failures);
+        console.error(`aoa opencode: ${error.message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
+        await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + ms).toISOString() });
+        await delay(ms).catch(() => {});
+      }
+    }
+    return finished ? 0 : 1;
+  } finally {
+    stop(); clearTimeout(watcher);
+    process.off("SIGINT", stop); process.off("SIGTERM", stop);
     const totals = usage(lines);
     await writeFile(join(root, "events.jsonl"), lines.join("\n"), { mode: 0o600 });
     await writeFile(join(root, "usage.json"), JSON.stringify(totals, null, 2), { mode: 0o600 });
     console.error(`aoa opencode usage: ${JSON.stringify(totals)}`);
-    const retry = code !== 0 ? providerRetryAfter(lines) : null;
-    if (retry && !stopped) {
-      await reportActivity("provider_wait", { env, retryAt: new Date(Date.now() + retry.delayMs).toISOString() });
-      console.error(`aoa opencode: ${retry.reason}; waiting ${retry.delayMs / 1000}s (Retry-After) before allowing a relaunch; the match keeps running`);
-      await sleep(retry.delayMs, undefined, { signal: retryAbort.signal }).catch(error => { if (error.name !== "AbortError") throw error; });
-    }
-    return finished ? 0 : code;
-  } finally { watch.stop(); process.off("SIGINT", interrupt); process.off("SIGTERM", terminate); }
+    await reportActivity("stopped", { env, fetchImpl });
+  }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().then((code) => { process.exitCode = code; }, (error) => { console.error(error.message); process.exitCode = 1; });
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) play().then((code) => { process.exitCode = code; }, (error) => { console.error(error.message); process.exitCode = 1; });
