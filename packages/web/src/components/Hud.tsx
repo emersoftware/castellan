@@ -71,6 +71,10 @@ function UpgradesRow({ upgrades = {}, cols }: { upgrades?: Record<string, number
 }
 
 function PlayerRows({ p, cols, name, color, selected, onSelect }: { cols: number; selected?: boolean; onSelect?: () => void; p: PlayerStats; name: string; color: number }) {
+  const notice = p.scriptRuntime ? `Scripts stopped at tick ${p.scriptRuntime.tick}: ${p.scriptRuntime.message}`
+    : p.agentActivity?.state === "provider_wait" ? `Provider retry pending${p.agentActivity.retryAt ? ` until ${p.agentActivity.retryAt}` : ""}`
+    : p.agentActivity?.state === "connector_retry" ? "Connector retry pending"
+    : p.agentActivity?.state === "stopped" ? "Connector stopped" : null;
   return (
     <>
       <tr className={p.alive ? "" : "dead"}>
@@ -87,13 +91,7 @@ function PlayerRows({ p, cols, name, color, selected, onSelect }: { cols: number
         <td>{p.score ?? "—"}</td>
         {onSelect && <td className="view"><ViewButton on={!!selected} label={`View as ${name} (${p.id})`} onClick={onSelect} /></td>}
       </tr>
-      {(p.scriptRuntime || p.agentActivity) && <tr><td colSpan={cols}>
-        {p.scriptRuntime ? `Scripts stopped at tick ${p.scriptRuntime.tick}: ${p.scriptRuntime.message}`
-          : p.agentActivity?.state === "provider_wait" ? `Provider retry pending${p.agentActivity.retryAt ? ` until ${p.agentActivity.retryAt}` : ""}`
-          : p.agentActivity?.state === "connector_retry" ? "Connector retry pending"
-          : p.agentActivity?.state === "deciding" ? "Model deciding"
-          : p.agentActivity?.state === "stopped" ? "Connector stopped" : "Between decisions"}
-      </td></tr>}
+      {notice && <tr><td colSpan={cols}>{notice}</td></tr>}
       <UpgradesRow upgrades={p.upgrades} cols={cols} />
     </>
   );
