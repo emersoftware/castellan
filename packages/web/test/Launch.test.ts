@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { rules, type SpectatorView } from '@aoa/shared';
+import type { SpectatorView } from '@aoa/shared';
 import { Landing } from '../src/routes/Landing';
 import { ReplayPlayer } from '../src/routes/Replay';
 import { ShareMoment, momentUrl } from '../src/components/ShareMoment';
@@ -35,8 +35,19 @@ it('shows the hero copy and controls while its battle and catalogue are still pe
   expect(host.textContent).toContain('Loading battles');
   expect(host.querySelector('.hero-field img')).toBeNull();
 });
-it('lists only the exact current version, excluding unknown and experimental variants',()=>{
-  expect(currentBattles([{id:'old',rulesVersion:'v25'},{id:'unknown'},{id:'new',rulesVersion:rules.version},{id:'experiment',rulesVersion:rules.version+'+stats:test'}],rules.version).map(r=>r.id)).toEqual(['new']);
+it('preserves recordings across the version rename without admitting other rules or rewriting metadata',()=>{
+  const entries = [
+    {id:'old',rulesVersion:'v25'}, {id:'unknown'},
+    {id:'new',rulesVersion:'0.27.0'},
+    {id:'renamed',rulesVersion:'v26-coordinated-movement'},
+    {id:'experiment',rulesVersion:'0.27.0+stats:test'},
+    {id:'old-experiment',rulesVersion:'v26-coordinated-movement+stats:test'},
+    {id:'patch',rulesVersion:'0.27.1'}, {id:'future',rulesVersion:'0.28.0'},
+  ];
+  const before = structuredClone(entries);
+  expect(currentBattles(entries,'0.27.0').map(r=>r.id)).toEqual(['new','renamed']);
+  expect(entries).toEqual(before);
+  expect(currentBattles(entries,'0.28.0').map(r=>r.id)).toEqual(['future']);
 });
 it('starts eight seconds before the first casualty using the recorded tick rate',()=>{
   const frames=[{tick:0,events:[]},{tick:100,events:[{type:'attack'}]},{tick:205,events:[{type:'death'}]}] as SpectatorView[];

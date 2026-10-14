@@ -9,7 +9,7 @@ import { MAPS } from "./maps";
 import type { Ruleset } from "./ruleset";
 
 export const rules: Ruleset = {
-  version: "v26-coordinated-movement",
+  version: "0.27.0",
   matchMs: 600000,
   fourSeatMatchMs: 900000,
   drawsAreLosses: true,

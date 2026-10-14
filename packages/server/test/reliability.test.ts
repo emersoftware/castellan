@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
@@ -65,7 +65,7 @@ it("records reproducible manifests and errors without credentials, and probes wi
   const dir = await mkdtemp(join(tmpdir(), "aoa-manifest-"));
   const app = await buildServer({ replayDir: dir, prepMs: 0, ruleset: { ...rules, matchMs: 500 } });
   try {
-    const created = (await app.inject({ method: "POST", url: "/rooms", payload: { players: [{ name: "model-looking-name" }, { name: "b" }] } })).json();
+    const created = (await app.inject({ method: "POST", url: "/rooms", payload: { players: [{ name: "model-looking-name" }, { name: "Model Low" }] } })).json();
     const headers = { authorization: `Bearer ${created.players[0].token}` };
     expect((await app.inject({ method: "POST", url: "/agent-config", headers, payload: { apiKey: "never-record-this" } })).statusCode).toBe(400);
     expect((await app.inject({ method: "POST", url: "/agent-config", headers,
@@ -88,6 +88,17 @@ it("records reproducible manifests and errors without credentials, and probes wi
     const replay = (await app.inject(`/replays/${created.id}`)).json();
     expect(replay.experiment).toMatchObject({ schema: 1, mode: "independent", droppedCalls: 0,
       players: { p1: { configuration: { model: "test-model", effort: "low" } }, p2: { configuration: { model: null } } } });
+    const indexPath = join(dir, "index.json");
+    const index = JSON.parse(await readFile(indexPath, "utf8"));
+    const expectedPlayers = [expect.objectContaining({ id: "p1", effort: "low" }), expect.objectContaining({ id: "p2", effort: null })];
+    expect(index[0].players).toEqual(expectedPlayers);
+    // Existing indexes already have a rules version but predate per-player effort.
+    const replayBytes = await readFile(join(dir, `${created.id}.json.gz`));
+    await writeFile(indexPath, JSON.stringify(index.map((entry: { players: { effort?: string | null }[] }) => ({ ...entry,
+      players: entry.players.map(({ effort: _effort, ...player }) => player),
+    }))));
+    expect((await app.inject("/replays")).json()[0].players).toEqual(expectedPlayers);
+    expect(await readFile(join(dir, `${created.id}.json.gz`))).toEqual(replayBytes);
     expect(replay.experiment.engine.sourceSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(replay.experiment.rulesSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(replay.experiment.calls.some((c: { failed: boolean }) => c.failed)).toBe(true);

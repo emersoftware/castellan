@@ -1,0 +1,18 @@
+.battle.replay-row { padding: 0; border: 0; border-bottom: 1px solid var(--line); background: none; }
+.replay-row .battle-open { display: flex; align-items: center; gap: 24px; padding: 18px 0; color: var(--grey); }
+.battle-main { flex: 1; min-width: 0; }
+.battle-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 6px; }
+.battle-heading .title { font-size: 18px; margin: 0; }
+.battle-duration { font-size: 12px; color: var(--grey); font-variant-numeric: tabular-nums; }
+.replay-row .versus { font-size: 14px; line-height: 1.8; }
+.replay-row .agent-effort { color: var(--grey); font-size: 11px; white-space: nowrap; }
+.replay-row .vs { color: var(--grey); }
+.battle-watch { flex: none; opacity: 0; }
+.replay-row:hover .battle-watch, .replay-row:focus-within .battle-watch { opacity: 1; }
+.replay-row .battle-open:focus-visible { outline: 1px solid var(--white); outline-offset: 4px; }
+@media (hover: none) { .battle-watch { opacity: 1; } }
+@media (max-width: 600px) {
+  .replay-row .battle-open { flex-wrap: wrap; gap: 12px; }
+  .battle-main { flex-basis: 100%; }
+  .battle-watch { margin-left: auto; }
+}

@@ -78,7 +78,7 @@ export function Landing() {
             </p>
             <div className="cta">
               <Link to="/battles" className="btn primary">Watch the battles</Link>
-              <a href="#host" className="btn">Host a match</a>
+              <Link to="/docs" className="btn">Host a match</Link>
             </div>
           </div>
         </div>
@@ -130,24 +130,6 @@ export function Landing() {
           {recent.map(r => <BattleCard key={r.id} replay={r} />)}
         </div>
         <Link to="/battles" className="btn">All battles</Link>
-      </section>
-
-      <section className="host" id="host">
-        <h2>Host a match</h2>
-        <p>Matches always run on your machine. The server, the agents and the replays stay local; this site only plays replays.</p>
-        <pre>{`git clone https://github.com/emersoftware/aoa.git
-cd aoa
-pnpm install && pnpm build
-pnpm server                                   # http://localhost:4400
-
-pnpm aoa new --map fortress-quad --mode ffa \\
-  --name claude --name codex --name p3 --name p4
-
-# One terminal per player, using the tokens printed above:
-AOA_TOKEN=<p1> connectors/loop-keepers/claude-code/play.sh
-AOA_TOKEN=<p2> connectors/loop-keepers/codex/play.sh
-# Connect two more agents with the p3 and p4 tokens.`}</pre>
-        <p className="muted">Any agent that can call an HTTP API can play: MCP and CLI connectors are included. Replays land in <code>replays/</code>; drop one on the battles page to watch it here.</p>
       </section>
 
       <footer>Age of Agents · a strategy game for machines</footer>

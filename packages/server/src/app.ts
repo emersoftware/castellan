@@ -11,7 +11,7 @@ import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { transform } from "esbuild";
-import { MAPS, playerGuide, rules, viewToText, type ExperimentManifest, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { MAPS, playerGuide, replayPlayerSummaries, rules, viewToText, type ExperimentManifest, type Order, type ReplayFile, type ReplayPlayerSummary, type Ruleset } from "@aoa/shared";
 import { BOTS } from "@aoa/sim";
 import { Room } from "./room";
 import { SeriesStore, type HistorySection } from "./series";
@@ -182,16 +182,16 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return Object.fromEntries(room.players.map((p) => [p.id, Object.fromEntries(kinds.map((kind) => [kind, room.script(p.id, kind)]))]));
   });
 
-  const replayMetadata = new Map<string, { rulesVersion?: string; map?: string }>();
+  const replayMetadata = new Map<string, { rulesVersion?: string; map?: string; players: ReplayPlayerSummary[] }>();
   app.get("/replays", async () => Promise.all((await readIndex(opts.replayDir)).map(async entry => {
     const path = join(opts.replayDir, `${entry.id}.json.gz`);
     const savedAt = await stat(path).then(file => file.mtime.toISOString()).catch(() => entry.createdAt);
     const key = `${entry.id}:${savedAt}`;
     let metadata = replayMetadata.get(key);
-    if (!entry.rulesVersion && !metadata) {
+    if ((!entry.rulesVersion || entry.players.some(player => player.effort === undefined)) && !metadata) {
       try {
         const replay: ReplayFile = JSON.parse(gunzipSync(await readFile(path)).toString("utf8"));
-        metadata = { rulesVersion: replay.ruleset.version, map: replay.ruleset.map.name };
+        metadata = { rulesVersion: replay.ruleset.version, map: replay.ruleset.map.name, players: replayPlayerSummaries(replay) };
         replayMetadata.set(key, metadata);
       } catch { /* An unavailable historical recording stays unknown, never current. */ }
     }
@@ -425,7 +425,7 @@ async function prepareScript(code: string | null, lang: "js" | "ts", ruleset: Ru
 interface ReplayIndexEntry {
   id: string;
   createdAt: string;
-  players: ReplayFile["players"];
+  players: ReplayPlayerSummary[];
   outcome: ReplayFile["outcome"];
   finalTick: number;
   tickRate: number;
@@ -441,7 +441,7 @@ export function saveReplay(dir: string, replay: ReplayFile): Promise<void> {
     await writeFile(`${path}.tmp`, gzipSync(JSON.stringify(replay)));
     await rename(`${path}.tmp`, path);
     const index = (await readIndex(dir)).filter((r) => r.id !== replay.id);
-    index.unshift({ id: replay.id, createdAt: replay.createdAt, players: replay.players, outcome: replay.outcome, finalTick: replay.finalTick, tickRate: replay.tickRate, rulesVersion: replay.ruleset.version, map: replay.ruleset.map.name });
+    index.unshift({ id: replay.id, createdAt: replay.createdAt, players: replayPlayerSummaries(replay), outcome: replay.outcome, finalTick: replay.finalTick, tickRate: replay.tickRate, rulesVersion: replay.ruleset.version, map: replay.ruleset.map.name });
     const indexPath = join(dir, "index.json");
     await writeFile(`${indexPath}.tmp`, JSON.stringify(index, null, 1));
     await rename(`${indexPath}.tmp`, indexPath);

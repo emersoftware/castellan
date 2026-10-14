@@ -1,4 +1,4 @@
-import type { Outcome, PlayerTiming, ReplayFile, SeriesReplay, SeriesSummary } from "@aoa/shared";
+import type { Outcome, PlayerTiming, ReplayFile, ReplayPlayerSummary, SeriesReplay, SeriesSummary } from "@aoa/shared";
 import { hasScriptedBot, replayFileDate } from "./replayCatalog";
 
 const published = () => import.meta.env.VITE_PUBLIC_REPLAYS === "true";
@@ -25,7 +25,7 @@ export interface ReplaySummary {
   createdAt: string;
   /** Modification time of the original replay file, captured before bundling. */
   savedAt?: string;
-  players: { id: string; name: string; team?: number; bot?: string }[];
+  players: (ReplayPlayerSummary & { bot?: string })[];
   outcome: Outcome;
   finalTick: number;
   tickRate: number;

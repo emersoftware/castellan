@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import type { ReplayFile, SeriesSummary } from "../packages/shared/src/protocol";
 import { playerResult } from "../packages/shared/src/outcome";
+import { replayPlayerSummaries, type ReplayPlayerSummary } from "../packages/shared/src/replayMetadata";
 import { hasScriptedBot } from "../packages/web/src/replayCatalog";
 
 interface Entry {
@@ -11,7 +12,7 @@ interface Entry {
   title?: string;
   createdAt: string;
   savedAt: string;
-  players: ReplayFile["players"];
+  players: ReplayPlayerSummary[];
   outcome: ReplayFile["outcome"];
   finalTick: number;
   tickRate: number;
@@ -103,7 +104,7 @@ export async function collectPublication(root: string): Promise<Publication> {
     const savedAt = old?.savedAt ?? (await stat(path)).mtime.toISOString();
     replays.push({ replay, summary: {
       id, title: titles.replays[id] ?? old?.title ?? `${replay.players.map((p) => p.name).join(" vs. ")} — ${replay.ruleset.map.name ?? "Open field"}`,
-      createdAt: replay.createdAt, savedAt, players: replay.players, outcome: replay.outcome,
+      createdAt: replay.createdAt, savedAt, players: replayPlayerSummaries(raw), outcome: replay.outcome,
       finalTick: replay.finalTick, tickRate: replay.tickRate, rulesVersion: replay.ruleset.version, map: replay.ruleset.map.name ?? old?.map,
     } });
   }

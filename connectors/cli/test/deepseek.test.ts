@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { createServer } from "node:http";
 import { buildServer } from "@aoa/server";
 import { rules } from "@aoa/shared";
+import { waitForReplay } from "../../../packages/server/test/support/readiness";
 // @ts-expect-error Plain Node launcher shared with external harnesses.
 import { options, preparePlayer, usage } from "../../loop-keepers/deepseek/agent.mjs";
 // @ts-expect-error Plain Node runtime configuration.
@@ -112,6 +113,7 @@ describe("DeepSeek connector", () => {
       await game.inject({ url: "/wait?max=3&until=match_end", headers: { authorization: `Bearer ${token}` } }); // operator waits; no LLM wait tool
       const final = (await game.inject({ url: "/state", headers: { authorization: `Bearer ${token}` } })).json();
       expect(final.status).toBe("finished");
+      await waitForReplay(game, room.id);
       expect(final.mine.find((e: any) => e.kind === "castle").training).toEqual([expect.objectContaining({ kind: "worker" })]); // ordered, still training
       expect(await usage(player.root)).toMatchObject({ calls: 4, inputTokens: 400, outputTokens: 20, cacheReadTokens: 80 });
     } finally {

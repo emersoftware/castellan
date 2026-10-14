@@ -4,9 +4,9 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
-import { rules, type ReplayFile } from "@aoa/shared";
+import { replayPlayerSummaries, rules, type ReplayFile } from "@aoa/shared";
 import type { ReplaySummary } from "../src/api";
-import { hasScriptedBot, replayFileDate } from "../src/replayCatalog";
+import { hasScriptedBot, matchesCatalogVersion, replayFileDate } from "../src/replayCatalog";
 
 const root = resolve(import.meta.dirname, "../../..");
 const destination = resolve(root, "packages/web/public/featured");
@@ -29,10 +29,10 @@ for (const entry of existing) {
 }
 const index: Omit<ReplaySummary, "source">[] = [];
 for (const replay of games.values()) {
-  if (hasScriptedBot(replay.players) || replay.ruleset.version !== rules.version) continue;
+  if (hasScriptedBot(replay.players) || !matchesCatalogVersion(replay.ruleset.version, rules.version)) continue;
   if (!bundled.has(replay.id)) await writeFile(resolve(destination, `${replay.id}.json`), JSON.stringify(replay) + "\n");
   index.push({ id: replay.id, title: titles.get(replay.id), createdAt: replay.createdAt, savedAt: savedDates.get(replay.id),
-    players: replay.players, outcome: replay.outcome, finalTick: replay.finalTick,
+    players: replayPlayerSummaries(replay), outcome: replay.outcome, finalTick: replay.finalTick,
     tickRate: replay.tickRate, rulesVersion: replay.ruleset.version, map: replay.ruleset.map.name ?? maps.get(replay.id) });
 }
 index.sort((a, b) => replayFileDate(b).localeCompare(replayFileDate(a)) || a.id.localeCompare(b.id));

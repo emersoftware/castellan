@@ -99,7 +99,7 @@ it("counts a shared loss in addition to each side's one win and one defeat", () 
     losses: { p1: 2, p2: 2 }, winners: [], allDefeated: true });
 });
 
-it("reads fresh local payloads, keeps editorial metadata, excludes bots/demos and does not copy credentials", async () => {
+it.each([["low", "low"], ["PRIVATE-INVALID-EFFORT", null]])("reads fresh payloads and publishes only safe catalogue metadata (effort %s)", async (declaredEffort, expectedEffort) => {
   const root = await mkdtemp(join(tmpdir(), "aoa-catalog-test-")); directories.push(root);
   const featured = join(root, "packages/web/public/featured");
   await mkdir(featured, { recursive: true }); await mkdir(join(root, "replays"));
@@ -107,8 +107,13 @@ it("reads fresh local payloads, keeps editorial metadata, excludes bots/demos an
   old.savedAt = "2026-09-01T00:00:00.000Z";
   await writeFile(join(featured, "index.json"), JSON.stringify([old]));
   await writeFile(join(featured, `${fixture.id}.json`), JSON.stringify(fixture));
-  const fresh = { ...structuredClone(fixture), token: "PRIVATE-TOP-LEVEL", players: fixture.players.map((p) => ({ ...p, token: "PRIVATE-PLAYER" })) };
+  const fresh = { ...structuredClone(fixture), token: "PRIVATE-TOP-LEVEL", players: fixture.players.map((p) => ({ ...p, token: "PRIVATE-PLAYER" })),
+    experiment: { players: {
+      p1: { configuration: { effort: declaredEffort, promptSha256: "PRIVATE-PROMPT", connectorVersion: "PRIVATE-VERSION" } },
+      p2: { configuration: { effort: null } },
+    }, calls: [{ token: "PRIVATE-CALL" }] } };
   fresh.players[0].name = "Fresh agent";
+  fresh.players[1].name = "Model Low"; // A display name is not recorded configuration.
   await writeFile(join(root, "replays", `${fixture.id}.json.gz`), gzipSync(JSON.stringify(fresh)));
   for (const [id, name] of [["bot-game", "bot:rush"], ["demo-game", "demo:mixed"]]) {
     const replay = structuredClone(fixture); replay.id = id; replay.players[0].name = name;
@@ -120,6 +125,12 @@ it("reads fresh local payloads, keeps editorial metadata, excludes bots/demos an
   expect(publication.replays[0].summary.savedAt).toBe(old.savedAt);
   expect(publication.replays[0].summary.title).toBe(old.title);
   expect(publication.replays[0].replay.players[0].name).toBe("Fresh agent");
+  expect(publication.replays[0].summary.players).toEqual([
+    { ...fixture.players[0], name: "Fresh agent", effort: expectedEffort },
+    { ...fixture.players[1], name: "Model Low", effort: null },
+  ]);
+  expect(publication.replays[0].replay.experiment).toBeUndefined();
+  expect(publication.replays[0].replay.players[0]).not.toHaveProperty("effort");
   expect(JSON.stringify(publication)).not.toContain("PRIVATE-");
 });
 

@@ -6,9 +6,14 @@ export function hasScriptedBot(players: readonly { name: string; bot?: string }[
 
 export const replayFileDate = (replay: { savedAt?: string; createdAt: string }) => replay.savedAt ?? replay.createdAt;
 
-/** Missing versions are historical/unknown, never guessed to be the current engine. */
+/** 0.27.0 only renamed v26; keep its recordings visible without rewriting their rules. */
+export function matchesCatalogVersion(recorded: string | undefined, version: string): boolean {
+  return recorded === version || (version === "0.27.0" && recorded === "v26-coordinated-movement");
+}
+
+/** Unknown and experimental versions stay excluded; only the explicit rename is accepted. */
 export function currentBattles<T extends { rulesVersion?: string }>(entries: readonly T[], version: string): T[] {
-  return entries.filter(entry => entry.rulesVersion === version);
+  return entries.filter(entry => matchesCatalogVersion(entry.rulesVersion, version));
 }
 
 export type BattleMode = "ffa" | "duel" | "teams";

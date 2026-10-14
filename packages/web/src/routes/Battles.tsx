@@ -1,23 +1,23 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { api, playerColors, readReplayFile, setDroppedReplay, setDroppedSeries } from "../api";
-import { Agent } from "../components/Agent";
+import { api } from "../api";
 import { Versus } from "../components/Versus";
 import { rules } from "@aoa/shared";
-import { BattleCard } from "../components/BattleCard";
+import { BattleCard, MODE_LABEL } from "../components/BattleCard";
 import { LoadState } from "../components/LoadState";
-import { currentBattles, hasScriptedBot, replayFileDate } from "../replayCatalog";
+import { battleMode, currentBattles, hasScriptedBot, replayFileDate, type BattleMode } from "../replayCatalog";
 import { sfx } from "../audio/sfx";
 import { SoundToggle } from "../components/Hud";
+import "./battles.css";
+
+const filters = ["all", "duel", "teams", "ffa"] as const;
 
 export function Battles() {
   const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays, refetchInterval: 3000 });
   const series = useQuery({ queryKey: ["series"], queryFn: api.series, refetchInterval: 3000 });
-  const nav = useNavigate();
+  const [filter, setFilter] = useState<"all" | BattleMode>("all");
   useEffect(() => sfx.holdMusic("theme"), []);
-  const [over, setOver] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const dates = new Map((replays.data ?? []).map((replay) => [replay.id, replayFileDate(replay)]));
   const current = currentBattles(replays.data ?? [], rules.version);
   const currentIds = new Set(current.map(r => r.id));
@@ -28,22 +28,8 @@ export function Battles() {
       date: series.games.map((game) => dates.get(game.roomId) ?? series.createdAt).sort().at(-1) ?? series.createdAt,
     })),
   ].sort((a, b) => b.date.localeCompare(a.date));
-
-  const open = async (file: File | undefined) => {
-    if (!file) return;
-    try {
-      const replay = await readReplayFile(file);
-      if (replay.format === "aoa-series-v1") {
-        setDroppedSeries(replay);
-        nav({ to: "/series/$id/replay", params: { id: "dropped" } });
-      } else {
-        setDroppedReplay(replay);
-        nav({ to: "/replay/$id", params: { id: "dropped" } });
-      }
-    } catch (e) {
-      setError(String((e as Error).message));
-    }
-  };
+  const modeOf = (battle: (typeof battles)[number]) => battleMode(battle.kind === "replay" ? battle.replay : battle.series);
+  const visible = battles.filter(battle => filter === "all" || modeOf(battle) === filter);
 
   return (
     <div className="page battles">
@@ -52,40 +38,38 @@ export function Battles() {
         <Link to="/" className="brand">Age of Agents</Link>
         <h1>Battles</h1>
         <p className="muted">Battles played on the current engine. Choose a match to watch.</p>
+        <Link to="/docs" className="battles-manual">Explore the field manual</Link>
       </header>
 
-      <label
-        className={`drop ${over ? "over" : ""}`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setOver(true);
-        }}
-        onDragLeave={() => setOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setOver(false);
-          void open(e.dataTransfer.files[0]);
-        }}
-      >
-        <input type="file" accept=".json,.gz" hidden onChange={(e) => void open(e.target.files?.[0])} />
-        Drop a game or series replay here (.json or .json.gz), or click to choose one. It never leaves your browser.
-        {error && <div className="error">{error}</div>}
-      </label>
-
+      <div className="battles-toolbar">
+        <div className="battles-filters" role="group" aria-label="Battle format">
+          {filters.map(value => <button key={value} className={filter === value ? "on" : ""} aria-pressed={filter === value} onClick={() => setFilter(value)}>
+            {value === "all" ? "All battles" : MODE_LABEL[value]} <span>{battles.filter(battle => value === "all" || modeOf(battle) === value).length}</span>
+          </button>)}
+        </div>
+        <span className="battles-order">Newest first</span>
+      </div>
       <LoadState loading={replays.isPending} error={replays.isError} empty={replays.isSuccess && !battles.length} onRetry={() => { void replays.refetch(); void series.refetch(); }} />
+      {replays.isSuccess && battles.length > 0 && visible.length === 0 && <div className="battles-empty" role="status">
+        <p>No {filter === "all" ? "matching" : MODE_LABEL[filter]} battles yet.</p>
+        <button onClick={() => setFilter("all")}>Show all battles</button>
+      </div>}
       <div className="battle-list">
-        {battles.map((battle) => {
+        {visible.map((battle) => {
           if (battle.kind === "series") {
             const s = battle.series;
-            return <Link key={`series-${s.id}`} to={s.status === "finished" ? "/series/$id/replay" : "/series/$id/watch"} params={{ id: s.id }} className="battle">
-              <div className="title">{s.title ?? "Three-game series"} <span className="tag">{s.status === "finished" ? "replay" : "live"}</span></div>
-              <Versus players={s.players} />
-              <div className="meta">{s.players.map((p, i) => <span key={p.id}>{i > 0 && " · "}<Agent id={p.id} name={p.name} color={playerColors(s.players)[p.id]} />: {s.losses ? `${s.score[p.id]}W/${s.losses[p.id]}L` : s.score[p.id]}</span>)} · {s.allDefeated ? "all players lost the series" : s.status === "finished" ? "3 games completed" : `Game ${s.currentGame} of 3`}</div>
-            </Link>;
+            return <article key={`series-${s.id}`} className="battle replay-row"><Link to={s.status === "finished" ? "/series/$id/replay" : "/series/$id/watch"} params={{ id: s.id }} className="battle-open">
+              <div className="battle-main">
+                <div className="battle-heading"><h3 className="title">{s.title ?? "Three-game series"}</h3><span className="battle-duration">{s.status === "finished" ? "3 games completed" : `Game ${s.currentGame} of 3`}</span></div>
+                <Versus players={s.players} />
+              </div>
+              <span className="btn primary battle-watch">{s.status === "finished" ? "Watch series" : "Watch live"}</span>
+            </Link></article>;
           }
           return <BattleCard key={battle.replay.id} replay={battle.replay} />;
         })}
       </div>
+      <footer>Age of Agents · a strategy game for machines</footer>
     </div>
   );
 }

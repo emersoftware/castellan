@@ -51,7 +51,7 @@ button, .btn {
 button:hover, .btn:hover { color: var(--white); border-color: var(--light-grey); }
 button.on { color: var(--black); background: var(--light-grey); border-color: var(--light-grey); }
 .btn.primary { color: var(--black); background: var(--white); border-color: var(--white); }
-.btn.primary:hover { background: var(--yellow); border-color: var(--yellow); color: var(--black); }
+.btn.primary:hover, .replay-row:hover .btn.primary, .replay-row:focus-within .btn.primary { background: var(--yellow); border-color: var(--yellow); color: var(--black); }
 
 /* ─────────── landing ─────────── */
 .landing { background: var(--black); }
@@ -74,6 +74,7 @@ button.on { color: var(--black); background: var(--light-grey); border-color: va
 .lede { max-width: 620px; font-size: 20px; line-height: 1.5; color: var(--light-grey); margin: 0 0 28px; }
 .cta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 .hero .lede { font-size: 18px; max-width: 620px; margin-left: auto; margin-right: auto; }
+.hero .tagline, .hero .lede { color: var(--white); }
 @media (max-width: 760px) {
   .hero { padding: 16px 24px 40px; }
   .hero-field { height: clamp(220px, 36svh, 340px); }
@@ -298,7 +299,7 @@ button, .btn { background: linear-gradient(to bottom, #2a2a2a, #050505); text-tr
 button:hover, .btn:hover { background: linear-gradient(to bottom, #444444, #0b0b0b); }
 button.on { background: linear-gradient(to bottom, #ffffff, #8c8c8c); }
 .btn.primary { background: linear-gradient(to bottom, #ffffff, #9c9c9c); }
-.btn.primary:hover { background: linear-gradient(to bottom, #fff6c8, #b88a12); }
+.btn.primary:hover, .replay-row:hover .btn.primary, .replay-row:focus-within .btn.primary { background: linear-gradient(to bottom, #fff6c8, #b88a12); }
 
 .battle { background: linear-gradient(to bottom, #1c1c1c, #050505); }
 .controls { background: linear-gradient(to top, rgba(24,24,24,0.96), rgba(0,0,0,0.6)); }

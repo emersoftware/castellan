@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Outlet, RouterProvider, createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
+import { Outlet, RouterProvider, createRootRoute, createRoute, createRouter, lazyRouteComponent } from "@tanstack/react-router";
 import "./styles.css";
 import { DitherDefs } from "./components/DitherDefs";
 import { Landing } from "./routes/Landing";
@@ -22,6 +22,7 @@ const rootRoute = createRootRoute({
 const routeTree = rootRoute.addChildren([
   createRoute({ getParentRoute: () => rootRoute, path: "/", component: Landing }),
   createRoute({ getParentRoute: () => rootRoute, path: "/battles", component: Battles }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/docs", component: lazyRouteComponent(() => import("./routes/Docs"), "Docs") }),
   createRoute({ getParentRoute: () => rootRoute, path: "/watch/$id", component: Watch }),
   createRoute({ getParentRoute: () => rootRoute, path: "/replay/$id", component: Replay }),
   createRoute({ getParentRoute: () => rootRoute, path: "/record/$id", component: Record }),

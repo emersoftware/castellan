@@ -2,6 +2,7 @@ export * from "./ruleset";
 export * from "./protocol";
 export * from "./outcome";
 export * from "./legacy";
+export * from "./replayMetadata";
 export * from "./text";
 export { rules } from "./rules";
 export { playerGuide } from "./guide";
