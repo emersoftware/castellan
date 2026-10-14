@@ -96,7 +96,8 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
     measure();
     const observer = new ResizeObserver(measure);
     for (const el of [area, canvas, ...(area.parentElement ? [...area.parentElement.children] : [])]) observer.observe(el);
-    return () => { observer.disconnect(); r.setFocusArea(undefined); };
+    // On unmount the renderer is destroyed first; only a live one is reframed.
+    return () => { observer.disconnect(); if (renderer.current === r) r.setFocusArea(undefined); };
   }, [rendererVersion, focusArea]);
 
   useEffect(() => {

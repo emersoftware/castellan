@@ -305,7 +305,7 @@ export class GameRenderer {
     const same = area && this.area && area.x === this.area.x && area.y === this.area.y && area.w === this.area.w && area.h === this.area.h;
     if (same || (!area && !this.area)) return;
     this.area = area;
-    if (this.focusBox === undefined) return;
+    if (this.focusBox === undefined || !this.app?.renderer) return;
     const view = this.viewFor(this.focusBox);
     if (this.follow) this.follow = { ...this.follow, view, vx: 0, vy: 0, vz: 0 };
     this.applyView(view);
