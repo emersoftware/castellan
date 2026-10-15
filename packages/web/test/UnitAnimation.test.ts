@@ -231,3 +231,12 @@ it('times a diagonal step like the engine: diagonalMove times a straight one',()
   expect(steps(5,4)).toBe(500);
   expect(steps(5,5)).toBe(Math.round(500*rules.diagonalMove/100)*100);
 });
+
+it('places an enemy sighted again where it is, not walking from where it was last seen',()=>{
+  const h=setup('knight');h.renderer.setFrame(h.frame(1,[h.target]),100);
+  h.renderer.setFrame(h.frame(2,[{...h.target,lastSeenMs:100}]),100);
+  h.time(1050);h.renderer.setFrame(h.frame(3,[{...h.target,x:12,y:9}]),100);h.internal.animate();
+  const d=h.internal.drawn.get('t')! as unknown as {from:{x:number;y:number};walkUntil?:number};
+  expect(d.from).toEqual({x:12,y:9});
+  expect(d.walkUntil).toBeUndefined();
+});

@@ -487,8 +487,11 @@ export class GameRenderer {
         this.addEntity(e);
         continue;
       }
+      // A remembered enemy (fog memory) keeps its id: when sighted again it
+      // reappears where it is now, not walking there from where it was last seen.
+      const recalled = d.view.lastSeenMs !== undefined;
       if (animatedUnit(e.kind)) {
-        if (jump) {
+        if (jump || recalled) {
           d.walkUntil = undefined;
           d.step = undefined;
           d.walkDistance = 0;
@@ -511,7 +514,7 @@ export class GameRenderer {
           d.dir = screenDir(dx - dy, (dx + dy) / 2);
         }
       } else {
-        if (!sameTick || jump) d.from = jump ? { x: e.x, y: e.y } : this.position(d, alpha, previousGameMs);
+        if (!sameTick || jump || recalled) d.from = jump || recalled ? { x: e.x, y: e.y } : this.position(d, alpha, previousGameMs);
         d.to = { x: e.x, y: e.y };
         const mx = e.x - d.from.x;
         const my = e.y - d.from.y;
