@@ -52,6 +52,20 @@ export function dist(ax: number, ay: number, bx: number, by: number): number {
   return n - r * r > r ? r + 1 : r;
 }
 
+/**
+ * Math.hypot as V8 computes it: squares scaled by the larger side (with two
+ * values its Kahan compensation is always zero). The spec leaves Math.hypot
+ * approximate and Safari's differs in the last bit, so replays simulated there
+ * desync. Only /, *, + and sqrt: identical in every engine.
+ */
+export function hypot(dx: number, dy: number): number {
+  const a = Math.abs(dx), b = Math.abs(dy);
+  const max = Math.max(a, b);
+  if (max === 0) return 0;
+  const n = a / max, m = b / max;
+  return Math.sqrt(n * n + m * m) * max;
+}
+
 export function cheb(ax: number, ay: number, bx: number, by: number): number {
   return Math.max(Math.abs(ax - bx), Math.abs(ay - by));
 }
@@ -93,7 +107,7 @@ export function findPath(
   const arrived = (x: number, y: number) => dist(x, y, gx, gy) <= range;
   // Lower bound on the cost left: the straight-line gap to the disc of radius range + 0.5.
   const h = (x: number, y: number) => {
-    const gap = Math.max(0, Math.hypot(x - gx, y - gy) - range - 0.5);
+    const gap = Math.max(0, hypot(x - gx, y - gy) - range - 0.5);
     if (straightCost !== undefined) return gap * Math.min(straightCost, diagonalCost! / Math.SQRT2);
     return diagonalCost ? gap * 9.9 : gap / 1.415;
   };

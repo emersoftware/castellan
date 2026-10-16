@@ -4,7 +4,7 @@ import type {
 } from "@aoa/shared";
 import { barrierAxes, matchLengthMs, NEUTRAL_OWNER, withMineralNames } from "@aoa/shared";
 import { createScriptHost, testScript, type ScriptAction, type ScriptActionResult, type ScriptHost, type ScriptHostFactory, type ScriptWorld, type ScriptEvent, type UnitRun } from "@aoa/sandbox";
-import { DIRS, DIR_LIST, SEAT_DIRS, canCross, dist, findPath, inBounds, mapToSeat, seatToMap, type Grid } from "./grid";
+import { DIRS, DIR_LIST, SEAT_DIRS, canCross, dist, findPath, hypot, inBounds, mapToSeat, seatToMap, type Grid } from "./grid";
 import { segmentCircleHit } from "./projectiles";
 import { validateOrder } from "./validate";
 
@@ -376,7 +376,7 @@ export class Match {
       this.scriptResult(e, "acted", "attack");
       if ((e.spec.range ?? 1) > 1) {
         const dx = target.x - e.x, dy = target.y - e.y;
-        const distance = Math.hypot(dx, dy);
+        const distance = hypot(dx, dy);
         const id = `p${this.nextProjectileId++}`;
         this.projectiles.set(id, { id, owner: e.owner, x: e.x, y: e.y,
           vx: dx / distance * this.ruleset.projectiles.speed, vy: dy / distance * this.ruleset.projectiles.speed,
@@ -1264,7 +1264,7 @@ export class Match {
     const config = this.ruleset.projectiles;
     for (const p of this.projectiles.values()) {
       if (p.launchedAt === this._tick) continue;
-      const remaining = Math.hypot(p.endX - p.x, p.endY - p.y);
+      const remaining = hypot(p.endX - p.x, p.endY - p.y);
       const step = Math.min(remaining, config.speed / this.tickRate);
       const nx = p.x + p.vx / config.speed * step, ny = p.y + p.vy / config.speed * step;
       let fraction = Infinity;

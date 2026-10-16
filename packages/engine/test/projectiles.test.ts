@@ -2,6 +2,7 @@ import { afterEach, expect, it } from "vitest";
 import { rules, playerGuide, viewToText, type Ruleset, type ReplayFile } from "@aoa/shared";
 import { createMatch, runReplay, type Match, type PlayerOrder } from "../src";
 import { segmentCircleHit } from "../src/projectiles";
+import { hypot } from "../src/grid";
 
 const live: Match[] = [];
 afterEach(() => { for (const m of live.splice(0)) m.dispose(); });
@@ -158,4 +159,15 @@ it("tells the victim what hit its units, from landed shots, but not the attacker
   // Later views only report new damage.
   expect(m.view("b", m.view("b").tick).underAttack).toEqual([]);
 
+});
+
+it("aims with V8's Math.hypot in every engine, so Safari replays stay in sync", () => {
+  // Tests run on V8, whose Math.hypot recorded every replay. Safari's differs in the last bit.
+  let seed = 7;
+  const next = () => (seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 2 ** 32;
+  for (let i = 0; i < 200_000; i++) {
+    const x = (next() - 0.5) * 10 ** (next() * 3), y = (next() - 0.5) * 10 ** (next() * 3);
+    expect(hypot(x, y)).toBe(Math.hypot(x, y));
+  }
+  for (let x = -12; x <= 12; x++) for (let y = -12; y <= 12; y++) expect(hypot(x, y)).toBe(Math.hypot(x, y));
 });
