@@ -4,5 +4,4 @@
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 : "${AOA_TOKEN:?set AOA_TOKEN (see aoa new)}"
-export AOA_SERVER="${AOA_SERVER:-http://localhost:4400}"
 exec "$here/agent.sh" "$@"

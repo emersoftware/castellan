@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import type { ReplayFile, SpectatorView } from "@aoa/shared";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { currentRuleset, type ReplayFile, type SpectatorView } from "@aoa/shared";
 import type { WorkerIn, WorkerOut } from "./replay.worker";
 import type { ReplayOptions } from "@aoa/engine";
 import { frameCompactor } from "./compactFrames";
@@ -7,12 +7,14 @@ import { frameCompactor } from "./compactFrames";
 /**
  * Re-simulates a replay in a worker. `frames` fills progressively; `check`
  * arrives at the end (did the browser reproduce the recorded state hashes?).
+ * Frames and `ruleset` show today's names; the simulation keeps the recorded rules.
  */
 export function useReplayFrames(replay: ReplayFile | undefined | null, attempt = 0, { includePerspectives = true }: ReplayOptions = {}) {
   const frames = useRef<SpectatorView[]>([]);
   const [loaded, setLoaded] = useState(0);
   const [check, setCheck] = useState<{ verified: boolean; desyncAt?: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const ruleset = useMemo(() => replay && currentRuleset(replay.ruleset), [replay]);
   useEffect(() => {
     if (!replay) return;
     frames.current = [];
@@ -40,5 +42,5 @@ export function useReplayFrames(replay: ReplayFile | undefined | null, attempt =
     w.postMessage({ replay, options: { includePerspectives } } satisfies WorkerIn);
     return () => { clearTimeout(pending); w.terminate(); };
   }, [replay, attempt, includePerspectives]);
-  return { frames, loaded, check, error };
+  return { frames, ruleset, loaded, check, error };
 }

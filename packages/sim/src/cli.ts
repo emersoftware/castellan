@@ -4,7 +4,7 @@
  *   pnpm sim --matrix            every bot against every bot
  *   pnpm sim --latency-curve     the same bot with different decision delays
  */
-import { BOTS, simulate } from "./index";
+import { BOTS, simulate, type BotName } from "./index";
 import { MAPS, rules, playerResult } from "@aoa/shared";
 
 const args = new Map<string, string>();
@@ -14,6 +14,7 @@ for (let i = 2; i < process.argv.length; i++) {
   args.set(k, v);
 }
 const n = Number(args.get("n") ?? 10);
+const defaults: Record<"a" | "b" | "bot", BotName> = { a: "rush", b: "eco", bot: "eco" };
 
 async function series(a: string, b: string, la: number, lb: number) {
   let wa = 0, wb = 0, lossesA = 0, lossesB = 0, draws = 0, allDefeated = 0, ticks = 0, timeouts = 0, rejected = 0;
@@ -47,8 +48,8 @@ if (args.has("matrix")) {
   const names = Object.keys(BOTS);
   for (let i = 0; i < names.length; i++) for (let j = i; j < names.length; j++) await series(names[i], names[j], 3000, 3000);
 } else if (args.has("latency-curve")) {
-  const bot = args.get("bot") ?? "eco";
+  const bot = args.get("bot") ?? defaults.bot;
   for (const l of [1000, 5000, 10000, 15000]) await series(bot, bot, 3000, l);
 } else {
-  await series(args.get("a") ?? "rush", args.get("b") ?? "eco", Number(args.get("latency-a") ?? 3000), Number(args.get("latency-b") ?? 3000));
+  await series(args.get("a") ?? defaults.a, args.get("b") ?? defaults.b, Number(args.get("latency-a") ?? 3000), Number(args.get("latency-b") ?? 3000));
 }

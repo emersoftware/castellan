@@ -87,3 +87,38 @@ Public site: `pnpm publish:replays` publishes finished agent recordings to D1;
 `pnpm test` · `pnpm typecheck`
 
 Unit animations: Archer (idle/walk/shoot/death), Knight (idle/walk/attack/death), King (idle/walk/attack/death) and Worker (walk/mine/attack/death) use eight directions. See [the animation pipeline](assets/animations/README.md). The King replaces the former in-game Agent name; historical replay data stays compatible.
+
+
+## Product analytics
+
+[PostHog](https://posthog.com/docs/libraries/react) is optional. Copy
+`packages/web/.env.example` to `packages/web/.env.local`, then set the public
+project token and the ingestion host for its region (`https://us.i.posthog.com`
+or `https://eu.i.posthog.com`). Use `.env.cloudflare.local` instead to enable
+only Cloudflare builds, or set the same Vite variables in the build environment.
+Vite embeds these values at build time; rebuild after changing them. Never use a
+personal API key in the web configuration.
+
+The public build is configured for RTS / Default project (663944), US Cloud,
+in `packages/web/.env.cloudflare`; its write-only project token is public.
+
+For local match hosting, copy `packages/server/.env.example` to
+`packages/server/.env.local` and set `POSTHOG_PROJECT_TOKEN` and `POSTHOG_HOST`.
+`pnpm server` loads that file; exported variables take precedence. Both
+configurations must target the same project. Missing
+configuration disables analytics without preventing builds or gameplay.
+
+The web captures one pageview per route path, landing CTAs, battle/series
+selection, battle filters, replay play/pause, speed and perspective changes,
+successful moment sharing and copied setup commands. Replay time/query changes
+do not create pageviews. The Fastify server captures successful `match_created`
+and `series_created` events; API requests carry the browser's anonymous distinct
+and session IDs. CLI-created games use a room/series identity with
+`actor_type=host`, so they can be excluded from visitor funnels. The public
+Cloudflare read API remains a catalogue; match creation happens locally.
+
+There is no account/login flow, so visitors remain anonymous. Autocapture and
+session recording are disabled. URL queries/fragments are removed from analytics;
+player/spectator tokens, chat, scripts and raw error messages are not included.
+Handled data-loading, replay-preparation, sharing and server errors use generic
+exception labels. Server delivery is asynchronous and flushes on shutdown.

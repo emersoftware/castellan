@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { rules } from "@aoa/shared";
+import { rules, type EntityKind } from "@aoa/shared";
+import { track } from "../analytics";
 import { api, playerColors } from "../api";
 import { GameCanvas } from "../components/GameCanvas";
 import { Portrait } from "../components/Portrait";
@@ -9,12 +10,18 @@ import { useShowcase } from "../useShowcase";
 import { followUnits, shotAt } from "../showcaseCamera";
 import { HERO_SPRITE_BASE, loadSprites } from "../render/sprites";
 import { sfx } from "../audio/sfx";
-import { currentBattles, featuredBattles, hasScriptedBot } from "../replayCatalog";
 import { BattleCard } from "../components/BattleCard";
 import { LoadState } from "../components/LoadState";
 import { SoundToggle } from "../components/Hud";
 
 const SHOWCASE = "02eb6795";
+/** Selected launch recordings: the hero free-for-all, the Opus/Sol duel and the Claude/Codex 2v2. */
+const FEATURED = [SHOWCASE, "1b4b65c9", "2346f20b"];
+
+/** Missing selections stay absent instead of being replaced by unrelated matches. */
+export function featuredBattles<T extends { id: string }>(entries: readonly T[]): T[] {
+  return FEATURED.flatMap(id => entries.find(entry => entry.id === id) ?? []);
+}
 
 export function Landing() {
   const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays });
@@ -49,8 +56,17 @@ export function Landing() {
 
   const colors = useMemo(() => playerColors(showcase.manifest?.players ?? []), [showcase.manifest]);
   const k = rules.kinds;
-  // The selected free-for-all, Claude/Codex duel and team match.
-  const recent = useMemo(() => featuredBattles(currentBattles((replays.data ?? []).filter(r => !hasScriptedBot(r.players)), rules.version)), [replays.data]);
+  const army: [kind: EntityKind, name: string, text: string, stat: string][] = [
+    ["king", "King", "A weak melee attack. If he falls, you are out.", `${k.king.hp} hp`],
+    ["worker", "Worker", "Mines mineral, delivers it to Castles and builds structures.", `${k.worker.cost} mineral · ${k.worker.trainMs! / 1000}s to train`],
+    ["knight", "Knight", "Armored melee. Must close the distance to deal damage.", `${k.knight.cost} mineral · ${k.knight.moveMs}ms per step`],
+    ["archer", "Archer", `Shoots from ${k.archer.range} tiles. Must aim after moving; arrows can miss.`, `${k.archer.cost} mineral · ${k.archer.aimMs}ms to aim`],
+    ["tower", "Tower", `Reaches ${k.tower.range} tiles, with a blind spot inside ${k.tower.minRange}.`, `${k.tower.cost} mineral · ${k.tower.buildMs! / 1000}s to build`],
+    ["wall", "Wall", "A destructible barrier. Blocks passage, not arrows.", `${k.wall.cost} mineral · ${k.wall.hp} hp`],
+    ["door", "Door", "A destructible passage for you and your allies.", `${k.door.cost} mineral · ${k.door.hp} hp`],
+    ["castle", "Castle", `Trains units, receives mineral and defends within ${k.castle.range} tiles.`, `${k.castle.cost} mineral · ${k.castle.buildMs! / 1000}s to build`],
+  ];
+  const recent = useMemo(() => featuredBattles(replays.data ?? []), [replays.data]);
   const [teams, setTeams] = useState([0, 1, 2, 3, 0, 1, 2, 3]);
   const nextTeam = (index: number) => setTeams(current => current.map((team, i) => i === index ? (team + 1) % 4 : team));
 
@@ -77,8 +93,8 @@ export function Landing() {
               The clock never waits: a slow thought is a lost battle.
             </p>
             <div className="cta">
-              <Link to="/battles" className="btn primary">Watch the battles</Link>
-              <Link to="/docs" className="btn">Host a match</Link>
+              <Link to="/battles" className="btn primary" onClick={() => track("landing_cta_clicked", { destination: "battles" })}>Watch the battles</Link>
+              <Link to="/docs" className="btn" onClick={() => track("landing_cta_clicked", { destination: "host_match" })}>Host a match</Link>
             </div>
           </div>
         </div>
@@ -103,16 +119,7 @@ export function Landing() {
         <h2>The armies</h2>
         <p className="units-intro">Mine mineral, expand with Castles and train your army. Research improves units; it does not unlock them.</p>
         <div className="unit-grid">
-          {[
-            ["king", "King", "A weak melee attack. If he falls, you are out.", `${k.king.hp} hp`],
-            ["worker", "Worker", "Mines mineral, delivers it to Castles and builds structures.", `${k.worker.cost} mineral · ${k.worker.trainMs! / 1000}s to train`],
-            ["knight", "Knight", "Armored melee. Must close the distance to deal damage.", `${k.knight.cost} mineral · ${k.knight.moveMs}ms per step`],
-            ["archer", "Archer", `Shoots from ${k.archer.range} tiles. Must aim after moving; arrows can miss.`, `${k.archer.cost} mineral · ${k.archer.aimMs}ms to aim`],
-            ["tower", "Tower", `Reaches ${k.tower.range} tiles, with a blind spot inside ${k.tower.minRange}.`, `${k.tower.cost} mineral · ${k.tower.buildMs! / 1000}s to build`],
-            ["wall", "Wall", "A destructible barrier. Blocks passage, not arrows.", `${k.wall.cost} mineral · ${k.wall.hp} hp`],
-            ["door", "Door", "A destructible passage for you and your allies.", `${k.door.cost} mineral · ${k.door.hp} hp`],
-            ["castle", "Castle", `Trains units, receives mineral and defends within ${k.castle.range} tiles.`, `${k.castle.cost} mineral · ${k.castle.buildMs! / 1000}s to build`],
-          ].map(([kind, name, text, stat], index) => (
+          {army.map(([kind, name, text, stat], index) => (
             <div key={kind} className="unit" tabIndex={0} aria-label={`${name}: preview next player color`} onPointerEnter={() => nextTeam(index)} onFocus={() => nextTeam(index)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); nextTeam(index); } }}>
               <Portrait kind={kind} team={teams[index]} height={120} idle />
               <h4>{name}</h4>
@@ -129,7 +136,7 @@ export function Landing() {
         <div className="battle-list">
           {recent.map(r => <BattleCard key={r.id} replay={r} />)}
         </div>
-        <Link to="/battles" className="btn">All battles</Link>
+        <Link to="/battles" className="btn" onClick={() => track("landing_cta_clicked", { destination: "all_battles" })}>All battles</Link>
       </section>
 
       <footer>Age of Agents · a strategy game for machines</footer>

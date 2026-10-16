@@ -1,9 +1,13 @@
 /** Everything that crosses the wire between the server and its clients. */
+import type { RecordedKind } from "./ruleset";
 
 export type PlayerId = string;
 /** Reserved entity owner for inert scenario walls; never a participant or winner. */
 export const NEUTRAL_OWNER = "neutral";
-export type ChatChannel = "all" | "team" | "private";
+export const CHAT_CHANNELS = ["all", "team", "private"] as const;
+export type ChatChannel = (typeof CHAT_CHANNELS)[number];
+/** Whether untrusted input names a chat channel. */
+export const isChatChannel = (value: unknown): value is ChatChannel => CHAT_CHANNELS.some((channel) => channel === value);
 
 export interface ChatMessage {
   tick: number;
@@ -14,20 +18,23 @@ export interface ChatMessage {
   to?: PlayerId;
 }
 
-/** A player's instruction. Scripts can explicitly interrupt unit orders under reactiveOrders rules. */
-export type Order =
+/**
+ * A player's instruction. Scripts can explicitly interrupt unit orders under reactiveOrders rules.
+ * Players may name any kind; code that produces orders can narrow `Kind` to the kinds it means.
+ */
+export type Order<Kind extends string = string> =
   | { type: "move"; unit: string; x: number; y: number }
   | { type: "attack"; unit: string; target: string }
   /** Omit `deposit` to use the nearest one. The worker keeps gathering until stopped. */
   | { type: "gather"; unit: string; deposit?: string }
-  | { type: "build"; unit: string; kind: string; x: number; y: number }
-  | { type: "train"; building: string; kind: string }
+  | { type: "build"; unit: string; kind: Kind; x: number; y: number }
+  | { type: "train"; building: string; kind: Kind }
   /** Research the next level of a ruleset upgrade. Mineral is charged on acceptance. */
   | { type: "upgrade"; upgrade: string }
   /** Drop the unit's order; it goes back to its script or stays idle. */
   | { type: "stop"; unit: string }
   /** JavaScript body run every tick by each unit of `kind`. `null` restores the built-in script. */
-  | { type: "script"; kind: string; code: string | null }
+  | { type: "script"; kind: Kind; code: string | null }
   /** Chat on required. `to` implies private; otherwise omitted channel means public. */
   | { type: "chat"; text: string; channel?: ChatChannel; to?: PlayerId };
 
@@ -36,12 +43,33 @@ export type UnitOrder =
   | { type: "move"; x: number; y: number }
   | { type: "attack"; target: string }
   | { type: "gather"; deposit?: string }
-  | { type: "build"; kind: string; x: number; y: number };
+  | { type: "build"; kind: RecordedKind; x: number; y: number };
 
 export interface MineralChange { spent: number; remaining: number; pending?: number }
 export type OrderResult = ({ ok: true; id?: string } | { ok: false; reason: string }) & { mineral?: MineralChange };
 
-export type MatchStatus = "waiting" | "prep" | "running" | "finished";
+export const MATCH_STATUSES = ["waiting", "prep", "running", "finished"] as const;
+export type MatchStatus = (typeof MATCH_STATUSES)[number];
+
+/** Four-seat maps play in two teams of two unless the room asks for every player alone. */
+export const ROOM_MODES = ["teams", "ffa"] as const;
+export type RoomMode = (typeof ROOM_MODES)[number];
+/** Whether untrusted input names a room mode. */
+export const isRoomMode = (value: unknown): value is RoomMode => ROOM_MODES.some((mode) => mode === value);
+
+/** What GET /status tells a harness about its seat, without counting as a player call. */
+export interface SeatStatus { room: string; player: PlayerId; status: MatchStatus; tick: number; alive: boolean }
+type SeatState = { status?: MatchStatus; alive?: boolean };
+/** Nothing is left to play for the seat: its match finished or the seat is out. */
+export const seatOver = (seat: SeatState) => seat.status === "finished" || seat.alive === false;
+/** The seat's match takes orders. */
+export const seatPlaying = (seat: SeatState) => seat.status === "running";
+const HEADER = new RegExp(`^tick (\\d+)(?:.*? · (${MATCH_STATUSES.join("|")}) · )?`);
+/** The seat as a text observation (`?format=text`) shows it: its header line, and YOU marked OUT. `tick` is NaN without a header. */
+export function observedSeat(observation: string): SeatState & { tick: number } {
+  const header = HEADER.exec(observation);
+  return { status: MATCH_STATUSES.find((s) => s === header?.[2]), tick: Number(header?.[1]), alive: !/^YOU\s+.* · OUT$/m.test(observation) };
+}
 
 export interface SeriesProgress {
   id: string;
@@ -91,7 +119,7 @@ export interface Outcome {
 
 export interface EntityView {
   id: string;
-  kind: string;
+  kind: RecordedKind;
   owner: PlayerId;
   x: number;
   y: number;
@@ -104,17 +132,17 @@ export interface EntityView {
   /** Effective stats (including upgrades), with timings quantized to the match tick. */
   stats?: { atk: number; def: number; range: number; attackMs: number; moveMs: number };
   /** Visible work at a site; the building does not exist or function until completion. */
-  construction?: { kind: string; x: number; y: number; completesAtMs: number };
+  construction?: { kind: RecordedKind; x: number; y: number; completesAtMs: number };
   /** Private to owner (and omniscient spectators). Only the first entry is active. */
-  training?: { kind: string; completesAtMs?: number }[];
+  training?: { kind: RecordedKind; completesAtMs?: number }[];
   /** Current order in words, e.g. "move 10,5", "gather d3". Absent = script/idle. */
   order?: string;
   /** The owner's script suspended this order; it can explicitly resume or cancel it. */
   orderSuspended?: boolean;
   /** History of the current manual order, private to its owner and spectators. */
   orderProgress?: OrderProgress;
-  /** What the unit did last tick, e.g. "→ 20,20", "attack e17", "gather d9", "hold". Only for your own units. */
-  doing?: string;
+  /** What the unit did last tick. Only for your own units. */
+  doing?: Doing;
   /** Latest completed tick: intent and actual outcome, private to the owner. */
   actionResult?: ActionFeedback;
   /** Direction of its last step (↑ ↗ → ↘ ↓ ↙ ← ↖) if it moved in the last second. Everyone sees it. */
@@ -127,6 +155,9 @@ export interface EntityView {
   gathering?: { x: number; y: number };
   carrying?: number;
 }
+
+/** What a unit did last tick, in words. */
+export type Doing = "hold" | "build" | "unload" | `→ ${number},${number}` | `step ${string}` | `attack ${string}` | `gather ${string}`;
 
 export interface ActionFeedback {
   tick: number;
@@ -164,8 +195,8 @@ export interface OrderProgress {
 
 export interface ActionAvailability {
   /** Current checks only; acceptance can change before the next tick. */
-  train: { building: string; kind: string; cost: number; queue: number; queueLimit: number; blockedBy: string[]; exitBlocked: boolean }[];
-  build: { kind: string; cost: number; blockedBy: string[]; siteCheckRequired: true }[];
+  train: { building: string; kind: RecordedKind; cost: number; queue: number; queueLimit: number; blockedBy: string[]; exitBlocked: boolean }[];
+  build: { kind: RecordedKind; cost: number; blockedBy: string[]; siteCheckRequired: true }[];
   research: { upgrade: string; level: number; cost: number | null; blockedBy: string[] }[];
 }
 
@@ -176,11 +207,14 @@ export interface CombatSummary {
   truncated: boolean;
   encounters: { x: number; y: number; fromTick: number; toTick: number;
     damage: Record<PlayerId, number>;
-    losses: { id: string; kind: string; owner: PlayerId; x: number; y: number }[] }[];
+    losses: { id: string; kind: RecordedKind; owner: PlayerId; x: number; y: number }[] }[];
 }
 
+/** What a connector reports its agent is doing (POST /agent-status). */
+export const AGENT_ACTIVITY_STATES = ["deciding", "provider_wait", "connector_retry", "between_decisions", "stopped"] as const;
+
 export interface AgentActivity {
-  state: "deciding" | "provider_wait" | "connector_retry" | "between_decisions" | "stopped";
+  state: (typeof AGENT_ACTIVITY_STATES)[number];
   at: string;
   retryAt?: string;
 }
@@ -229,38 +263,48 @@ export interface PlayerStats {
 }
 
 export type GameEvent =
-  | { tick: number; type: "training_queued"; owner: PlayerId; building: string; kind: string; position: number }
-  | { tick: number; type: "construction_started"; owner: PlayerId; builder: string; kind: string; x: number; y: number; completesAtMs: number }
+  | { tick: number; type: "training_queued"; owner: PlayerId; building: string; kind: RecordedKind; position: number }
+  | { tick: number; type: "construction_started"; owner: PlayerId; builder: string; kind: RecordedKind; x: number; y: number; completesAtMs: number }
   | { tick: number; type: "research_started"; owner: PlayerId; upgrade: string; level: number; completesAtMs: number; mineral: MineralChange }
   | { tick: number; type: "upgrade_completed"; owner: PlayerId; upgrade: string; level: number }
   | { tick: number; type: "attack"; from: string; to: string; dmg: number; projectile?: string }
   | { tick: number; type: "projectile_end"; id: string; x: number; y: number; target?: string; dmg: number; reason: "hit" | "blocked" | "miss" }
-  | { tick: number; type: "death"; id: string; kind: string; owner: PlayerId; x: number; y: number; by?: PlayerId }
-  | { tick: number; type: "spawn"; id: string; kind: string; owner: PlayerId; x: number; y: number; builder?: string; mineral?: MineralChange }
+  | { tick: number; type: "death"; id: string; kind: RecordedKind; owner: PlayerId; x: number; y: number; by?: PlayerId }
+  | { tick: number; type: "spawn"; id: string; kind: RecordedKind; owner: PlayerId; x: number; y: number; builder?: string; mineral?: MineralChange }
   | { tick: number; type: "unload"; id: string; owner: PlayerId; amount: number }
   | { tick: number; type: "depleted"; id: string }
-  | { tick: number; type: "order_end"; id: string; owner: PlayerId; reason: string }
-  | { tick: number; type: "script_error"; owner: PlayerId; kind: string; unit?: string; message: string; operationalFailure?: true }
+  | { tick: number; type: "order_end"; id: string; owner: PlayerId; reason: OrderEndReason }
+  | { tick: number; type: "script_error"; owner: PlayerId; kind: RecordedKind; unit?: string; message: string; operationalFailure?: true }
   | { tick: number; type: "log"; owner: PlayerId; unit: string; message: string }
   | { tick: number; type: "chat"; owner: PlayerId; text: string; channel?: ChatChannel; to?: PlayerId }
   /** A player lost its vital entity while its team plays on: its units are gone (and its buildings, unless the rules keep ruins). */
   | { tick: number; type: "eliminated"; owner: PlayerId }
   | { tick: number; type: "match_end"; outcome: Outcome };
 
+/** Why a unit's order ended. */
+export type OrderEndReason = "arrived" | "completed" | "replaced" | "stopped" | "cancelled by script" | "target lost" | "unreachable" | "tile blocked"
+  | "site reserved by another builder" | "not enough mineral" | "too close to an enemy building" | "doors must stay on one wall axis; no corners or junctions"
+  | "no deposits left" | "no dropoff";
+
+/** The player an event belongs to, if any. */
+export const eventOwner = (e: GameEvent): PlayerId | undefined => ("owner" in e ? e.owner : undefined);
+/** The kind of entity an event is about, if any. */
+export const eventKind = (e: GameEvent): RecordedKind | undefined => ("kind" in e ? e.kind : undefined);
+
 export type LastSeen =
-  | { id: string; kind: string; owner: PlayerId; x: number; y: number; hp: number; maxHp: number; ruin?: boolean; entityType?: "unit"; positionCleared?: boolean; seenMs: number }
+  | { id: string; kind: RecordedKind; owner: PlayerId; x: number; y: number; hp: number; maxHp: number; ruin?: boolean; entityType?: "unit"; positionCleared?: boolean; seenMs: number }
   | { id: string; kind: "deposit"; x: number; y: number; amount: number; seenMs: number };
 
 export interface UnderAttack {
   id: string;
-  kind: string;
+  kind: RecordedKind;
   x: number;
   y: number;
   hp: number;
   maxHp: number;
   /** Damage taken in the window. */
   damage: number;
-  attackers: { id: string; kind: string; owner: PlayerId }[];
+  attackers: { id: string; kind: RecordedKind; owner: PlayerId }[];
   unseenAttackers: number;
 }
 

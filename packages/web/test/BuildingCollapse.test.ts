@@ -3,12 +3,12 @@ import { expect, it, vi } from 'vitest';
 import { Texture, type Sprite, type Container } from 'pixi.js';
 import { rules, type EntityView, type SpectatorView } from '@aoa/shared';
 import { GameRenderer } from '../src/render/renderer';
-import { buildingCollapse } from '../src/render/buildingCollapse';
+import { fall } from '../src/render/look';
 import { PLAYER_RAMPS } from '../src/render/palette';
 import type { SpriteSet } from '../src/render/sprites';
 
 const cases = [
-  { kind: 'castle', art: 'castle' }, { kind: 'nexus', art: 'nexus' }, { kind: 'tower', art: 'tower' },
+  { kind: 'castle', art: 'castle' }, { kind: 'nexus', art: 'castle' }, { kind: 'tower', art: 'tower' },
   { kind: 'wall', art: 'wallpost' },
   { kind: 'wall', art: 'wall', neighbor: 'wall' },
   { kind: 'wall', art: 'wall-door-left', neighbor: 'door' },
@@ -104,10 +104,11 @@ it('does not create a collapse when a building disappears into fog', () => {
 });
 
 it('holds the final frame before fading in place', () => {
-  expect(buildingCollapse('castle', 1000)).toMatchObject({alpha:1});
-  expect(buildingCollapse('castle', 3000)).toEqual({ animation: { action: 'death', frame: 27 }, alpha: 1 });
-  const fading=buildingCollapse('castle',4000)!;
+  const castle = fall({ kind: 'castle', hp: 100, maxHp: 100 }, rules.kinds.castle);
+  expect(castle.at(1000)).toMatchObject({alpha:1});
+  expect(castle.at(3000)).toMatchObject({ animation: { action: 'death', frame: 27 }, alpha: 1 });
+  const fading=castle.at(4000) as { animation: { frame: number }; alpha: number };
   expect(fading.animation.frame).toBe(27);expect(fading.alpha).toBeLessThan(1);expect(fading).not.toHaveProperty('sink');
-  expect(buildingCollapse('castle', 7000)?.alpha).toBe(0);
-  expect(buildingCollapse('worker', 1000)).toBeUndefined();
+  expect(castle.at(7000).alpha).toBe(0);
+  expect(fall({ kind: 'worker', hp: 0, maxHp: 1 }, { ...rules.kinds.worker, building: true }).way).toBe('rubble');
 });

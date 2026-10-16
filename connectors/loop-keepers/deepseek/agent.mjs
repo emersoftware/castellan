@@ -1,3 +1,4 @@
+// @ts-check
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -8,9 +9,17 @@ import { cli, runtimeDir, VERSION, verifyRuntime } from "./runtime.mjs";
 import { loadKey } from "./key.mjs";
 import { launchConfiguration, reportConfiguration } from "../metadata.mjs";
 import { serverUrl } from "../game.mjs";
+/** @import { Effort } from "../../../packages/shared/src/replayMetadata.ts" */
 
 const here = dirname(fileURLToPath(import.meta.url));
-const DEFAULT_MODEL = "deepseek-flash", DEFAULT_EFFORT = "low";
+const DEFAULT_MODEL = "deepseek-flash";
+/** @type {Effort} */
+const DEFAULT_EFFORT = "low";
+/**
+ * DeepSeek Harness reasoning efforts.
+ * @type {Effort[]}
+ */
+export const efforts = ["off", "low", "high", "max"];
 export function options(args) {
   const { values } = parseArgs({ args, options: {
     model: { type: "string", default: DEFAULT_MODEL },
@@ -18,10 +27,11 @@ export function options(args) {
     check: { type: "boolean", default: false },
   } });
   if (!/^[\w.-]+$/.test(values.model)) throw new Error("Invalid DeepSeek model id");
-  if (!["off", "low", "high", "max"].includes(values.effort)) throw new Error("effort must be off, low, high or max");
+  if (!efforts.some(known => known === values.effort)) throw new Error("effort must be off, low, high or max");
   return values;
 }
 
+/** @param {{ root: string, token: string, server?: string, key?: string, model?: string, effort?: string, env?: NodeJS.ProcessEnv, baseURL?: string }} player */
 export async function preparePlayer({ root, token, server = serverUrl(), key, model = DEFAULT_MODEL, effort = DEFAULT_EFFORT, env = process.env, baseURL }) {
   const workspace = join(root, "workspace"), home = join(root, "dsh");
   await mkdir(workspace, { recursive: true, mode: 0o700 });
@@ -35,6 +45,7 @@ export async function preparePlayer({ root, token, server = serverUrl(), key, mo
     "web", "web-search-deepseek", "web-fetch-http", "deepseek-account", "llm-deepseek-account", "llm-pi-ai",
     "session-log-deepseek", "plugin-package-inventory-deepseek", "session-telemetry-otel",
   ]);
+  /** @type {object[]} */
   const patch = ids.filter((id) => id.startsWith("tool-") || extraDisabled.has(id)).map((id) => ({ id, disabled: true }));
   patch.push(
     { id: "tools", config: { mode: "native" } },
@@ -90,7 +101,7 @@ export async function main(args = process.argv.slice(2), env = process.env) {
   await mkdir(runs, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(join(runs, "run-"));
   const player = await preparePlayer({ root, token: env.AOA_TOKEN ?? "check-only", server: serverUrl(env.AOA_SERVER), key, ...opts, env });
-  let prompt = await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
+  let prompt = env.AOA_PROMPT ?? await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
   if (env.AOA_RESUME) prompt = `You were restarted in the middle of the match: call state first, then keep playing.\n\n${prompt}`;
   // Optional experiment instruction for this player only; kept across relaunches.
   if (env.AOA_DIRECTIVE) {
@@ -102,7 +113,7 @@ export async function main(args = process.argv.slice(2), env = process.env) {
     effort: opts.effort, connectorVersion: VERSION, prompt, env }), { env });
   const launchArgs = opts.check ? [...player.args, "--dump-config"] : [...player.args, "--json", prompt];
   const child = spawn(process.execPath, launchArgs, { cwd: player.workspace, env: player.env, stdio: ["ignore", opts.check ? "pipe" : "inherit", "inherit"] });
-  if (opts.check) child.stdout.resume(); // Composed config contains a game token; never print it.
+  if (opts.check) child.stdout?.resume(); // Composed config contains a game token; never print it.
   const interrupt = () => child.kill("SIGINT"), terminate = () => child.kill("SIGTERM");
   process.on("SIGINT", interrupt); process.on("SIGTERM", terminate);
   let code;

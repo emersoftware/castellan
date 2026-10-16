@@ -1,4 +1,5 @@
 import { Filter, GlProgram, UniformGroup, type Texture } from "pixi.js";
+import type { KindSpec } from "@aoa/shared";
 
 /**
  * Only units hidden behind buildings of the SAME player colour are outlined.
@@ -58,14 +59,22 @@ void main(void) {
   else finalColor = vec4(0.95, 0.0, 0.95, 1.0);
 }`;
 
-export function createXrayFilter(depth: Texture, outline = false): Filter {
+/** Units hidden behind a building of their colour, drawn in their colour. */
+export function createXrayFilter(depth: Texture): Filter {
   return new Filter({
     glProgram: GlProgram.from({ vertex, fragment, name: "aoa-xray" }),
     resources: {
       uDepth: depth.source,
-      xrayUniforms: new UniformGroup({ uScreen: { value: new Float32Array([depth.width, depth.height]), type: "vec2<f32>" }, uOutline: { value: outline ? 1 : 0, type: "f32" } }),
+      xrayUniforms: new UniformGroup({ uScreen: { value: new Float32Array([depth.width, depth.height]), type: "vec2<f32>" }, uOutline: { value: 0, type: "f32" } }),
     },
   });
+}
+
+/** The ring of a unit passing behind another entity of its colour. */
+export function createOutlineFilter(depth: Texture): Filter {
+  const filter = createXrayFilter(depth);
+  filter.resources.xrayUniforms.uniforms.uOutline = 1;
+  return filter;
 }
 
 /** A depth code as a tint color (red = high byte, green = low byte). */
@@ -74,12 +83,55 @@ export function depthTint(z: number): number {
   return ((v >> 8) << 16) | ((v & 255) << 8) | 0xff;
 }
 
-/** Zero identifies neutral scenery, 1–4 identify the player's visual colour. */
-export function occluderTint(z: number, colour?: number, building = false): number {
-  return (depthTint(z) & 0xffff00) | (colour === undefined ? 0 : (colour + 1) * 40 + (building ? 10 : 0));
+/** Zero identifies neutral scenery, 1–4 identify the player's visual colour; buildings, the only occluders that reveal x-ray, add 10. */
+export function occluderTint(z: number, colour?: number, kind?: KindSpec): number {
+  return (depthTint(z) & 0xffff00) | (colour === undefined ? 0 : (colour + 1) * 40 + (kind?.building ? 10 : 0));
 }
 
-/** Preserve the owner's colour in the interior as well as the outline. */
-export function xrayMark(colour: number, ring: boolean): number {
-  return (colour * 2 + (ring ? 2 : 1)) * 28;
+/**
+ * RGBA mask pixels of a sprite: a white silhouette, per-colour x-ray codes
+ * (ring or interior) and per-colour exterior rings. The ring holds pixels
+ * within 3 stored px (1 screen px) of the edge along either axis.
+ */
+export function spriteMasks(src: Uint8ClampedArray, w: number, h: number, radius = 3) {
+  const n = w * h;
+  const solid = new Uint8Array(n);
+  for (let i = 0; i < n; i++) solid[i] = src[i * 4 + 3] > 127 ? 1 : 0;
+  // Filled through 32-bit views: bytes R, G, B, A on little-endian hosts.
+  const pixel = (b: number) => (0xff000000 | (b << 16) | 0xffff) >>> 0;
+  const colours = [0, 1, 2, 3];
+  // Codes keep the owner's colour in the interior as well as the ring.
+  const core = colours.map((c) => pixel((c * 2 + 1) * 28));
+  const ring = colours.map((c) => pixel((c * 2 + 2) * 28));
+  const silhouette = new Uint32Array(n);
+  const xray = colours.map(() => new Uint32Array(n));
+  const outline = colours.map(() => new Uint32Array(n));
+  const [x0, x1, x2, x3] = xray;
+  const [o0, o1, o2, o3] = outline;
+  // Keep approximately one world-pixel of outline at each distribution scale.
+  const diameter = radius * 2 + 1;
+  const column = new Uint8Array(w);
+  for (let y = 0; y < Math.min(radius, h); y++) for (let x = 0; x < w; x++) column[x] += solid[y * w + x];
+  for (let y = 0; y < h; y++) {
+    let row = 0;
+    for (let x = 0; x < Math.min(radius, w); x++) row += solid[y * w + x];
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      const s = solid[i];
+      if (x + radius < w) row += solid[i + radius];
+      if (y + radius < h) column[x] += solid[i + radius * w];
+      const edge = s ? row < diameter || column[x] < diameter : row > 0 || column[x] > 0;
+      if (x >= radius) row -= solid[i - radius];
+      if (y >= radius) column[x] -= solid[i - radius * w];
+      if (s) {
+        silhouette[i] = 0xffffffff;
+        const mark = edge ? ring : core;
+        x0[i] = mark[0]; x1[i] = mark[1]; x2[i] = mark[2]; x3[i] = mark[3];
+      } else if (edge) {
+        o0[i] = ring[0]; o1[i] = ring[1]; o2[i] = ring[2]; o3[i] = ring[3];
+      }
+    }
+  }
+  const bytes = (a: Uint32Array<ArrayBuffer>) => new Uint8ClampedArray(a.buffer);
+  return { silhouette: bytes(silhouette), xray: xray.map(bytes), outline: outline.map(bytes) };
 }

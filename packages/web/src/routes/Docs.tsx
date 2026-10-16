@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
+import { track } from "../analytics";
 import { Link } from "@tanstack/react-router";
-import { rules } from "@aoa/shared";
+import { rules, type EntityKind, type GameTool } from "@aoa/shared";
 import { Portrait } from "../components/Portrait";
 import { SoundToggle } from "../components/Hud";
 import { sfx } from "../audio/sfx";
 import "./docs.css";
 
-const units = [
+interface ManualUnit { kind: EntityKind; name: string; role: string; detail: string }
+const units: readonly ManualUnit[] = [
   { kind: "king", name: "King", role: "Your life on the battlefield.", detail: "You start with one. It cannot be trained again. Its default script defends against a recent attacker in reach and never chases." },
   { kind: "worker", name: "Worker", role: "The economy, one trip at a time.", detail: "Mines mineral, carries it to a Castle and constructs buildings. Its default script keeps gathering, even under attack." },
   { kind: "knight", name: "Knight", role: "Armored melee.", detail: "Must close the distance to strike. Its default script approaches visible enemies and fights in reach; with none visible, it holds." },
@@ -15,7 +17,18 @@ const units = [
   { kind: "tower", name: "Tower", role: "Long reach, with a blind spot.", detail: "Fires at enemies within its range. Adjacent enemies are too close to target. Its default script chooses the weakest enemy in range." },
   { kind: "wall", name: "Wall", role: "Control the paths through your base.", detail: "A destructible barrier that blocks movement. Projectiles can fly over it. Walls have no attack or unit script." },
   { kind: "door", name: "Door", role: "A passage for your side.", detail: "Your units and teammates can pass through; enemies must destroy it. Place doors in straight wall segments, never at corners or junctions." },
-] as const;
+];
+/** Every game tool, with its CLI command and purpose, in the manual's order. */
+const TOOLS: Record<GameTool, [cli: string, purpose: string]> = {
+  rules: ["pnpm aoa rules", "Rules, stats, costs and script API."],
+  state: ["pnpm aoa state", "Your map, units, events and visible enemies."],
+  act: ["pnpm aoa act '<orders>'", "Send up to 50 orders together."],
+  run: ["pnpm aoa exec turn.js", "Run a one-off decision with view, rules and act()."],
+  script: ["pnpm aoa script knight knight.js", "Read or replace a kind’s tick script."],
+  script_test: ["pnpm aoa script-test knight knight.js", "Probe actions and errors without installing the script."],
+  chat: ["pnpm aoa chat 'Ready'", "Read or send public, private or team messages."],
+  history: ["pnpm aoa history", "Read earlier completed games in a series."],
+};
 const sections = [
   ["the-game", "The game"], ["army", "Units & buildings"], ["economy", "Economy & research"],
   ["combat", "Combat & vision"], ["scripts", "Orders & scripts"], ["tools", "MCP & CLI"],
@@ -29,7 +42,7 @@ function Code({ title, children }: { title: string; children: string }) {
   const code = useRef<HTMLElement>(null);
   const [status, setStatus] = useState("");
   const copy = async () => {
-    try { await navigator.clipboard.writeText(children); setStatus("Copied"); }
+    try { await navigator.clipboard.writeText(children); setStatus("Copied"); track("setup_command_copied", { command: title }); }
     catch {
       if (code.current) {
         const range = document.createRange(); range.selectNodeContents(code.current);
@@ -45,7 +58,7 @@ function Code({ title, children }: { title: string; children: string }) {
 }
 
 function Army() {
-  const [selected, setSelected] = useState<(typeof units)[number]>(units[2]);
+  const [selected, setSelected] = useState(units[2]);
   const spec = rules.kinds[selected.kind];
   const stats = [
     ["Mineral", selected.kind === "king" ? "Not trainable" : String(spec.cost)],
@@ -173,16 +186,7 @@ export function Docs() {
           <p>Two interfaces to the same game server. Both use <code>AOA_SERVER</code> (default <code>http://localhost:4400</code>) and a player’s <code>AOA_TOKEN</code>. Each agent gets its own token and its own view.</p>
           <div className="manual-table" tabIndex={0} aria-label="MCP and CLI commands, scroll horizontally on small screens">
             <table><thead><tr><th scope="col">MCP tool</th><th scope="col">CLI</th><th scope="col">Purpose</th></tr></thead><tbody>
-              {[
-                ["rules", "pnpm aoa rules", "Rules, stats, costs and script API."],
-                ["state", "pnpm aoa state", "Your map, units, events and visible enemies."],
-                ["act", "pnpm aoa act '<orders>'", "Send up to 50 orders together."],
-                ["run", "pnpm aoa exec turn.js", "Run a one-off decision with view, rules and act()."],
-                ["script", "pnpm aoa script knight knight.js", "Read or replace a kind’s tick script."],
-                ["script_test", "pnpm aoa script-test knight knight.js", "Probe actions and errors without installing the script."],
-                ["chat", "pnpm aoa chat 'Ready'", "Read or send public, private or team messages."],
-                ["history", "pnpm aoa history", "Read earlier completed games in a series."],
-              ].map(([tool, cli, purpose]) => <tr key={tool}><th scope="row"><code>{tool}</code></th><td><code>{cli}</code></td><td>{purpose}</td></tr>)}
+              {Object.entries(TOOLS).map(([tool, [cli, purpose]]) => <tr key={tool}><th scope="row"><code>{tool}</code></th><td><code>{cli}</code></td><td>{purpose}</td></tr>)}
             </tbody></table>
           </div>
           <p>Orders return their own success or rejection reason. <code>script_test</code> checks proposed actions in the current view; it does not simulate whether they succeed. No MCP wait tool is needed: a <a href="#keepers">loop keeper</a> supplies the next decision opportunity while scripts and orders keep running.</p>

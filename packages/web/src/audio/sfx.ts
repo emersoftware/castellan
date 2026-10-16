@@ -2,23 +2,14 @@
  * Sound effects from sampled recordings (generated with MOSS-SoundEffect, see
  * assets/sounds). Each sample has a few variants picked at random so repeated
  * blows don't sound mechanical. Pitched samples are tuned to D or A, the game's
- * key, and play at exact octaves so nothing clashes; only noises get a slight
- * pitch jitter. A battle stays
- * listenable: each sound is rate-limited, capped in simultaneous voices and
- * quieter the more often it just played, and blows of the same tick are
- * spread over a few milliseconds. A wind loop plays underneath while a match
+ * key, and play at exact octaves so nothing clashes. A battle stays listenable
+ * under the mixing rules of ./mix. A wind loop plays underneath while a match
  * view asks for it, and music loops in the background: the theme in the menus,
  * the battle theme in matches (see assets/music).
  */
-import type { SoundName } from "../render/renderer";
+import type { SoundName } from "@aoa/shared";
+import { AMBIENT_GAIN, Mix } from "./mix";
 
-const MIN_GAP_MS: Partial<Record<SoundName, number>> = { sword: 90, hit: 160, arrow: 200, tower: 250, death: 90, spawn: 120, pick: 110, footstep: 180 };
-const MAX_PER_SOUND: Partial<Record<SoundName, number>> = { sword: 3, hit: 2, arrow: 2, tower: 2, death: 3, pick: 2, footstep: 2 };
-const MAX_VOICES = 12;
-/** Sounds of the same tick start up to this late, so a volley isn't one blast. */
-const SPREAD_S = 0.06;
-const DENSITY_WINDOW_MS = 800;
-const AMBIENT_GAIN = 0.22;
 const MUSIC_GAIN: Record<Track, number> = { theme: 0.3, battle: 0.09 };
 const MUSIC_FADE_S = 1.5;
 
@@ -37,23 +28,6 @@ interface Manifest {
   files: Record<string, string[]>;
 }
 
-interface Layer {
-  sample: string;
-  gain?: number;
-  delay?: number;
-  rate?: number;
-}
-
-/** Samples tuned to D or A: never detuned. */
-const PITCHED = new Set(["sword", "spawn", "horn", "fanfare"]);
-
-/** Which samples each sound layers; by default a sound is its own sample. */
-const MIX: Partial<Record<SoundName, Layer[]>> = {
-  // An arrow is only its flight; a tower bolt is a slower, deeper swish.
-  arrow: [{ sample: "whoosh" }],
-  tower: [{ sample: "whoosh", rate: 0.75 }],
-};
-
 class Sfx {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -61,9 +35,7 @@ class Sfx {
   private listeners = new Set<() => void>();
   private buffers = new Map<string, AudioBuffer[]>();
   private ambientLoop = { pad: 0, loop: 0 };
-  private last = new Map<SoundName, number>();
-  private busyUntil: { name: SoundName; until: number }[] = [];
-  private recent = new Map<SoundName, number[]>();
+  private mix = new Mix();
   private ambientHolders = 0;
   private ambient: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
   private musicHolders: Track[] = [];
@@ -138,41 +110,23 @@ class Sfx {
 
   play = (name: SoundName, pan = 0, volume = 1) => {
     const ctx = this.ctx;
-    if (!ctx || this.effectsMuted || ctx.state !== "running" || volume <= 0.01) return;
-    const layers = MIX[name] ?? [{ sample: name }];
-    if (!this.buffers.has(layers[0].sample)) return;
-    const nowMs = performance.now();
-    if (nowMs - (this.last.get(name) ?? -1e9) < (MIN_GAP_MS[name] ?? 40)) return;
-    this.busyUntil = this.busyUntil.filter((v) => v.until > nowMs);
-    if (this.busyUntil.length >= MAX_VOICES) return;
-    if (this.busyUntil.filter((v) => v.name === name).length >= (MAX_PER_SOUND[name] ?? MAX_VOICES)) return;
-    this.last.set(name, nowMs);
-    const recent = (this.recent.get(name) ?? []).filter((t) => t > nowMs - DENSITY_WINDOW_MS);
-    recent.push(nowMs);
-    this.recent.set(name, recent);
+    if (!ctx || this.effectsMuted || ctx.state !== "running") return;
+    const sound = this.mix.play(name, performance.now(), volume, (sample) => this.buffers.get(sample)?.map((buffer) => buffer.duration));
+    if (!sound) return;
     const out = ctx.createStereoPanner();
     out.pan.value = pan * 0.8;
     const vol = ctx.createGain();
-    vol.gain.value = volume / Math.sqrt(recent.length);
+    vol.gain.value = sound.gain;
     out.connect(vol).connect(this.effects!);
-    const jitter = 0.95 + Math.random() * 0.1;
-    const spread = MIN_GAP_MS[name] ? Math.random() * SPREAD_S : 0;
-    let dur = 0;
-    for (const { sample, gain = 1, delay = 0, rate = 1 } of layers) {
-      const variants = this.buffers.get(sample);
-      if (!variants?.length) continue;
-      const buffer = variants[Math.floor(Math.random() * variants.length)];
+    for (const { sample, variant, delay, rate, gain } of sound.voices) {
       const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      const pitch = PITCHED.has(sample) ? rate : rate * jitter;
-      source.playbackRate.value = pitch;
+      source.buffer = this.buffers.get(sample)![variant];
+      source.playbackRate.value = rate;
       const g = ctx.createGain();
       g.gain.value = gain;
       source.connect(g).connect(out);
-      source.start(ctx.currentTime + spread + delay);
-      dur = Math.max(dur, spread + delay + buffer.duration / pitch);
+      source.start(ctx.currentTime + sound.spread + delay);
     }
-    this.busyUntil.push({ name, until: nowMs + dur * 1000 });
   };
 
   private async load(ctx: AudioContext) {

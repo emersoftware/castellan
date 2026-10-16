@@ -1,6 +1,7 @@
 /** `aoa`: argv → one command function → stdout. */
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
+import { isChatChannel, isRoomMode } from "@aoa/shared";
 import { client } from "./client";
 import * as cmd from "./commands";
 
@@ -103,7 +104,7 @@ async function main(): Promise<string | number | void> {
     case "wait":
       return cmd.wait(c, { json, seconds: num(args[0]), since: num(o.since), until: o.until });
     case "chat":
-      if (o.channel !== undefined && o.channel !== "all" && o.channel !== "team" && o.channel !== "private") throw new Error('channel must be "all", "team" or "private"');
+      if (o.channel !== undefined && !isChatChannel(o.channel)) throw new Error('channel must be "all", "team" or "private"');
       return cmd.chat(c, args.length ? args.join(" ") : undefined, { json, channel: o.channel, to: o.to });
     case "status":
       return cmd.status(c);
@@ -111,7 +112,7 @@ async function main(): Promise<string | number | void> {
       await cmd.watch(c, (line) => console.log(line), { json, since: num(o.since) });
       return;
     case "new":
-      if (o.mode !== undefined && o.mode !== "teams" && o.mode !== "ffa") throw new Error('mode must be "teams" or "ffa"');
+      if (o.mode !== undefined && !isRoomMode(o.mode)) throw new Error('mode must be "teams" or "ffa"');
       return cmd.newRoom(c, { json, series: o.series, names: o.name, bots: o.bot, prepMs: num(o.prep), seed: num(o.seed), map: o.map, sides: o.sides === "fixed" ? "fixed" : undefined, chat: o.chat, mode: o.mode });
     case "rooms":
       return cmd.rooms(c, { json });

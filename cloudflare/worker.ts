@@ -10,11 +10,10 @@ const seriesPattern = new RegExp(`^${publishedRoutes.series}/([a-zA-Z0-9_-]+)(/r
 /** The public Worker only reads D1. Publishing uses Wrangler on the host computer. */
 async function readAPI(path: string, db: D1Database): Promise<Response> {
   if (path === publishedRoutes.replays || path === publishedRoutes.series) {
-    const table = path === publishedRoutes.replays ? "replays" : "series";
-    const summary = table === "replays"
-      ? "json_set(summary_json, '$.rulesVersion', json_extract(replay_json, '$.ruleset.version')) AS summary_json"
-      : "summary_json";
-    const { results } = await db.prepare(`SELECT ${summary} FROM ${table} ORDER BY saved_at DESC, id`).all<{ summary_json: string }>();
+    const query = path === publishedRoutes.replays
+      ? "SELECT json_set(summary_json, '$.rulesVersion', json_extract(replay_json, '$.ruleset.version')) AS summary_json FROM replays ORDER BY saved_at DESC, id"
+      : "SELECT summary_json FROM series ORDER BY saved_at DESC, id";
+    const { results } = await db.prepare(query).all<{ summary_json: string }>();
     return new Response(`[${results.map((r) => r.summary_json).join(",")}]`, { headers: jsonHeaders });
   }
   const replay = replayPattern.exec(path);

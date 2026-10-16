@@ -12,7 +12,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { client } from "@aoa/cli";
-import { routes } from "@aoa/shared";
+import { routes, type RoomMode } from "@aoa/shared";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const { values } = parseArgs({ args: process.argv.slice(2), options: {
@@ -25,7 +25,7 @@ const seats = values.seats!.split(",");
 const players = seats.map((s, i) => (s === "castellan" ? { name: `castellan ${String.fromCharCode(65 + i)}` } : { bot: s }));
 const body: Record<string, unknown> = { players, map: values.map, chat: values.chat, prepMs: Number(values.prep), ...(values.mode ? { mode: values.mode } : {}), ...(values.seed ? { seed: Number(values.seed) } : {}) };
 const api = client({ server: values.server });
-const room = await api.post<{ id: string; watch: string; players: { id: string; name: string; token?: string; bot?: string; side: number; team: number }[] }>(routes.rooms, body)
+const room = await api.post<{ id: string; watch: string; mode: RoomMode; players: { id: string; name: string; token?: string; bot?: string; side: number; team: number }[] }>(routes.rooms, body)
   .catch((e: Error) => { throw new Error(`room creation failed: ${e.message}`); });
 const outDir = join(values.out!, name);
 mkdirSync(outDir, { recursive: true });
@@ -44,7 +44,7 @@ const children = room.players.filter((p) => p.token).map((p) => {
 const codes = await Promise.all(children.map((c) => c.done));
 const summary = await api.get<{ status: string; outcome?: unknown; timing?: unknown; tick: number; players: unknown[] }>(`${routes.rooms}/${room.id}`);
 const record = {
-  name, room: room.id, createdAt: new Date(started).toISOString(), wallMs: Date.now() - started, map: values.map, mode: values.mode ?? (seats.length === 4 ? "teams" : "1v1"), chat: values.chat,
+  name, room: room.id, createdAt: new Date(started).toISOString(), wallMs: Date.now() - started, map: values.map, mode: values.mode ?? (seats.length === 4 ? room.mode : "1v1"), chat: values.chat,
   seats: room.players.map((p) => ({ id: p.id, name: p.name, bot: p.bot, side: p.side, team: p.team })), directive: values.directive ?? null,
   watch: `${api.server}${room.watch}`, replay: `http://localhost:5173/replay/${room.id}`, status: summary.status, outcome: summary.outcome, finalTick: summary.tick, timing: summary.timing,
   exitCodes: Object.fromEntries(children.map((c, i) => [c.player, codes[i]])),

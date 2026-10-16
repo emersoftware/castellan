@@ -1,4 +1,4 @@
-import type { ReplayFile, SpectatorView } from "@aoa/shared";
+import type { MatchStatus, ReplayFile, SpectatorView } from "@aoa/shared";
 import type { CameraShot } from "./showcaseCamera";
 
 /** Rendered board states, not executable orders. Watch and the full replay keep
@@ -22,8 +22,8 @@ type ObjectValue = { [key: string]: Json };
 type Delta = [0, Json] | [1, Record<string, Delta>, string[]?] | [2, number, Record<string, Delta>];
 export interface ShowcaseChunk { format: 1; first: ObjectValue; deltas: Delta[] }
 const object = (value: unknown): value is ObjectValue => value !== null && typeof value === "object" && !Array.isArray(value);
-const own = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
 const invalid = (): never => { throw new Error("Invalid showcase recording."); };
+const STATUSES: readonly MatchStatus[] = ["waiting", "prep", "running", "finished"];
 
 function difference(before: Json, after: Json): Delta | undefined {
   if (before === after) return;
@@ -38,10 +38,10 @@ function difference(before: Json, after: Json): Delta | undefined {
   if (object(before) && object(after)) {
     const changes: Record<string, Delta> = {};
     for (const key of Object.keys(after)) {
-      const delta = own(before, key) ? difference(before[key], after[key]) : [0, after[key]] as Delta;
+      const delta = Object.hasOwn(before, key) ? difference(before[key], after[key]) : [0, after[key]] as Delta;
       if (delta) Object.defineProperty(changes, key, { value: delta, enumerable: true });
     }
-    const removed = Object.keys(before).filter(key => !own(after, key));
+    const removed = Object.keys(before).filter(key => !Object.hasOwn(after, key));
     if (!Object.keys(changes).length && !removed.length) return;
     return removed.length ? [1, changes, removed] : [1, changes];
   }
@@ -59,7 +59,7 @@ function apply(before: Json | undefined, delta: unknown): Json {
       for (const key of delta[2]) delete result[key];
     }
     for (const [key, change] of Object.entries(delta[1])) Object.defineProperty(result, key, {
-      value: apply(own(before, key) ? before[key] : undefined, change), enumerable: true, configurable: true, writable: true,
+      value: apply(Object.hasOwn(before, key) ? before[key] : undefined, change), enumerable: true, configurable: true, writable: true,
     });
     return result;
   }
@@ -71,7 +71,7 @@ function apply(before: Json | undefined, delta: unknown): Json {
       if (!Number.isSafeInteger(index) || index < 0 || index >= delta[1] || String(index) !== key) return invalid();
       result[index] = apply(before[index], change);
     }
-    if (result.length !== delta[1] || Array.from({ length: result.length }, (_, i) => i).some(i => !own(result, String(i)))) return invalid();
+    if (result.length !== delta[1] || Array.from({ length: result.length }, (_, i) => i).some(i => !Object.hasOwn(result, String(i)))) return invalid();
     return result;
   }
   return invalid();
@@ -92,10 +92,10 @@ function unpack(value: unknown, expectedTick?: number): SpectatorView {
     || !Number.isSafeInteger(frame.tick) || (frame.tick as number) < 0 || (expectedTick !== undefined && frame.tick !== expectedTick)
     || typeof frame.timeMs !== "number" || !Number.isFinite(frame.timeMs)
     || typeof frame.matchMs !== "number" || !Number.isFinite(frame.matchMs)
-    || !["waiting", "prep", "running", "finished"].includes(frame.status as string)
+    || !STATUSES.some(status => status === frame.status)
     || !["players", "projectiles", "deposits", "events"].every(key => Array.isArray(frame[key])) || frame.perspectives !== undefined) return invalid();
   return { ...frame, entities: entityOrder.map(id => {
-    const entity = own(entities, id as string) ? entities[id as string] : undefined;
+    const entity = Object.hasOwn(entities, id as string) ? entities[id as string] : undefined;
     if (!object(entity) || entity.id !== id) return invalid();
     return entity;
   }) } as unknown as SpectatorView;
@@ -140,26 +140,26 @@ export async function readShowcaseChunk(response: Response): Promise<SpectatorVi
   return decodeShowcaseChunk(await decoded.json());
 }
 
-export function parseShowcaseManifest(value: unknown): ShowcaseManifest {
-  if (!object(value) || value.format !== 1 || typeof value.id !== "string"
-    || typeof value.tickRate !== "number" || !Number.isFinite(value.tickRate) || value.tickRate <= 0
-    || !Number.isSafeInteger(value.startTick) || (value.startTick as number) < 0
-    || !Number.isSafeInteger(value.finalTick) || (value.finalTick as number) < (value.startTick as number)
-    || !object(value.ruleset) || !object(value.ruleset.map) || !object(value.ruleset.kinds)
-    || !Array.isArray(value.players) || !value.players.length
-    || !value.players.every(player => object(player) && typeof player.id === "string" && typeof player.name === "string")
-    || !Array.isArray(value.chunks) || !value.chunks.length) return invalid();
-  let next = value.startTick as number;
-  for (const chunk of value.chunks) {
+export function parseShowcaseManifest(manifest: unknown): ShowcaseManifest {
+  if (!object(manifest) || manifest.format !== 1 || typeof manifest.id !== "string"
+    || typeof manifest.tickRate !== "number" || !Number.isFinite(manifest.tickRate) || manifest.tickRate <= 0
+    || !Number.isSafeInteger(manifest.startTick) || (manifest.startTick as number) < 0
+    || !Number.isSafeInteger(manifest.finalTick) || (manifest.finalTick as number) < (manifest.startTick as number)
+    || !object(manifest.ruleset) || !object(manifest.ruleset.map) || !object(manifest.ruleset.kinds)
+    || !Array.isArray(manifest.players) || !manifest.players.length
+    || !manifest.players.every(player => object(player) && typeof player.id === "string" && typeof player.name === "string")
+    || !Array.isArray(manifest.chunks) || !manifest.chunks.length) return invalid();
+  let next = manifest.startTick as number;
+  for (const chunk of manifest.chunks) {
     if (!object(chunk) || typeof chunk.url !== "string" || !/^[a-zA-Z0-9-]+\.json\.gz$/.test(chunk.url)
       || chunk.firstTick !== next || !Number.isSafeInteger(chunk.lastTick) || (chunk.lastTick as number) < next) return invalid();
     next = (chunk.lastTick as number) + 1;
   }
-  if (next !== (value.finalTick as number) + 1) return invalid();
-  if (value.camera !== undefined) {
+  if (next !== (manifest.finalTick as number) + 1) return invalid();
+  if (manifest.camera !== undefined) {
     const coordinate = (n: unknown) => typeof n === "number" && Number.isFinite(n);
     let previous = -1;
-    if (!Array.isArray(value.camera) || !value.camera.every(shot => {
+    if (!Array.isArray(manifest.camera) || !manifest.camera.every(shot => {
       if (!object(shot) || !Number.isSafeInteger(shot.tick) || (shot.tick as number) <= previous) return false;
       previous = shot.tick as number;
       const box = shot.box;
@@ -167,5 +167,5 @@ export function parseShowcaseManifest(value: unknown): ShowcaseManifest {
         && (box.x1 as number) > (box.x0 as number) && (box.y1 as number) > (box.y0 as number));
     })) return invalid();
   }
-  return value as unknown as ShowcaseManifest;
+  return manifest as unknown as ShowcaseManifest;
 }

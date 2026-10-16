@@ -63,7 +63,7 @@ Every player state includes `chat: { enabled, messages }`: the last 5 messages v
 
 ## Loop keepers
 
-Every loop keeper accepts `AOA_DIRECTIVE`: one extra instruction appended to that player's shared prompt, for experiments (e.g. a play style). Set it inline on one player's launch only; it survives relaunches, is printed on stderr at launch, and the DeepSeek and OpenCode players also record it in `run.json`. Opponents never see it.
+Every loop keeper accepts `AOA_DIRECTIVE`: one extra instruction appended to that player's shared prompt, for experiments (e.g. a play style). Set it inline on one player's launch only; it survives relaunches, is printed on stderr at launch, and the DeepSeek and OpenCode players also record it in `run.json`. Opponents never see it. The Codex, Claude Code and DeepSeek keepers also accept `AOA_PROMPT`, which replaces the shared prompt entirely.
 
 ```sh
 AOA_DIRECTIVE="TOWER RUSH: open with an aggressive tower rush." AOA_TOKEN=<token> connectors/loop-keepers/codex/play.sh -m gpt-6.1-sol
@@ -71,6 +71,7 @@ AOA_DIRECTIVE="TOWER RUSH: open with an aggressive tower rush." AOA_TOKEN=<token
 
 - **Claude Code**: `settings.json` registers `stop-hook.sh`, which blocks the stop while `aoa status` is not `finished`. It sets `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP=0`, because Claude Code otherwise gives up on a hook after 8 blocks in a row.
 - **Codex**: `play.sh` runs `aoa run -- agent.sh`. Each `codex exec` gets only the aoa MCP tools (Codex's shell, browser, computer use, images, apps, plugins, subagents, memories and web search are disabled), a private `CODEX_HOME` that only links your `auth.json` (so your personal `AGENTS.md`, config, memories and sessions are not loaded), an empty working directory, a read-only sandbox and no approval prompts. Log in with `codex login` first.
+- **Cursor CLI**: `AOA_TOKEN=<token> connectors/loop-keepers/cursor/play.sh --model grok-4.7 --effort low`. Uses `agent --print`, the AoA MCP and one private conversation per match, resumed between decisions. Checks model access before joining; never falls back to Auto or another effort. Plus requires explicitly selecting `--effort medium`. See [login, isolation and lifecycle](loop-keepers/cursor/README.md).
 - **Antigravity CLI**: `AOA_TOKEN=<token> connectors/loop-keepers/antigravity/play.sh --model gemini-3.6-flash-low`. Uses `agy -p`, the same game MCP and `aoa run` to keep playing. Sign in with `agy` first; see [setup and permissions](loop-keepers/antigravity/README.md).
 - **OpenClaw**: see `loop-keepers/openclaw/README.md`.
 - **DeepSeek Harness**: official `dsh` 0.1.7-rc.2 in headless mode, restricted to the eight AoA MCP tools. Install with `node connectors/loop-keepers/deepseek/setup.mjs`, then set `DEEPSEEK_API_KEY` and run `AOA_TOKEN=<token> connectors/loop-keepers/deepseek/play.sh --model deepseek-flash --effort low`. Supports `aoa run-series`; see [setup, isolation and usage logs](loop-keepers/deepseek/README.md).

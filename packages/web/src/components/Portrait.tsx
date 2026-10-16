@@ -1,10 +1,13 @@
 import { useEffect, useRef } from "react";
-import { RAMPS, PLAYER_RAMPS } from "../render/palette";
-import { ditherRamp } from "../render/cpuDither";
+import type { EntityKind } from "@aoa/shared";
+import { PLAYER_RAMPS } from "../render/palette";
+import { ditherPixels } from "../render/cpuDither";
 import { isCharacter, normalizeCharacterContrast } from "../render/characterContrast";
-import { displayKind } from "../render/names";
 
-const FILES: Record<string, string> = { tower: "tower", deposit: "mineral", king: "king_1", worker: "worker_1", knight: "knight_1", archer: "archer_1" };
+/** Still portraits: a character's south-east view; other kinds are their own file. */
+const FILES: Partial<Record<EntityKind, string>> = { king: "king_1", worker: "worker_1", knight: "knight_1", archer: "archer_1" };
+/** Kinds whose atlases have an idle loop. */
+const IDLE = new Set<EntityKind>(["king", "knight", "archer", "worker", "castle", "tower"]);
 interface Idle { image: string; frameCount: number; fps: number; frameWidth: number; frameHeight: number; rows: string[] }
 const imageLoads = new Map<string, Promise<HTMLImageElement>>();
 function loadImage(src: string) {
@@ -22,8 +25,7 @@ function loadImage(src: string) {
 }
 
 /** The same source atlases and team ramps as the battlefield, at portrait size. */
-export function Portrait({ kind, team = 0, height = 120, idle = false, spriteBase = "/game-assets/sprites" }: { kind: string; team?: number; height?: number; idle?: boolean; spriteBase?: string }) {
-  kind = displayKind(kind);
+export function Portrait({ kind, team = 0, height = 120, idle = false, spriteBase = "/game-assets/sprites" }: { kind: EntityKind; team?: number; height?: number; idle?: boolean; spriteBase?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const teamRef = useRef(team);
   teamRef.current = team;
@@ -45,7 +47,7 @@ export function Portrait({ kind, team = 0, height = 120, idle = false, spriteBas
     observer.observe(cv);
     async function prepare() {
       let meta: Idle | undefined;
-      if (idle && ["king", "knight", "archer", "worker", "castle", "tower"].includes(kind)) {
+      if (idle && IDLE.has(kind)) {
         const manifest: { idle?: Idle } = await fetch(`${spriteBase}/${kind}/manifest.json`).then(r => r.ok ? r.json() : {});
         meta = manifest.idle;
       }
@@ -87,8 +89,16 @@ export function Portrait({ kind, team = 0, height = 120, idle = false, spriteBas
               ctx.clearRect(0, 0, source.width, source.height);
               if (meta) ctx.drawImage(atlas, frame * meta.frameWidth, Math.max(0, meta.rows.indexOf("se")) * meta.frameHeight, meta.frameWidth, meta.frameHeight, 0, 0, source.width, source.height);
               else ctx.drawImage(img, (source.width - img.width) / 2, idle && isCharacter(kind) ? 101.5 - img.height * 0.9565543071161049 : 0);
-              const ramp = kind === "deposit" ? RAMPS.mineral : kind === "rock" ? RAMPS.neutral : PLAYER_RAMPS[color];
-              out = ditherRamp(source, cv.width, height, ramp, 1.1, isCharacter(kind) && !meta);
+              const ramp = PLAYER_RAMPS[color];
+              out = Object.assign(document.createElement("canvas"), { width: cv.width, height });
+              const scaled = out.getContext("2d")!;
+              scaled.imageSmoothingQuality = "high";
+              scaled.drawImage(source, 0, 0, cv.width, height);
+              const pixels = scaled.getImageData(0, 0, cv.width, height);
+              // A still character is normalized at its display size; an idle atlas already was, whole.
+              if (isCharacter(kind) && !meta) normalizeCharacterContrast(pixels.data);
+              ditherPixels(pixels.data, cv.width, height, ramp, 1.1);
+              scaled.putImageData(pixels, 0, 0);
               cache.set(key, out);
             }
             const display = cv.getContext("2d")!;

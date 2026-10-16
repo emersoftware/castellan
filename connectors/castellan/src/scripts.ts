@@ -33,8 +33,6 @@ export interface WorkerParams {
 
 export interface KingParams { safe: Pt }
 
-const json = (v: unknown) => JSON.stringify(v);
-
 /**
  * Shared body for knights and archers. Variables: P params, me/m self and memory,
  * es visible enemies (nearest first), U mobile units, F fighters, B strong buildings,
@@ -62,7 +60,7 @@ if(u)me.attack(u);else if(b)me.attack(b);else if(dp(post)>2)me.moveTo(post.x,pos
 
 export function knightScript(p: ArmyParams): string {
   return `// castellan knight: guard a post, attack toward a target, retreat or scout (roles from the player).
-const P=${json(p)};
+const P=${JSON.stringify(p)};
 ${COMMON}const inr=me.enemiesInRange();
 if(role=="s"||role=="h")roles();else if(inr.length&&(me.attackReadyInTicks||0)==0)me.attack(pk(inr));else roles();
 `;
@@ -70,7 +68,7 @@ if(role=="s"||role=="h")roles();else if(inr.length&&(me.attackReadyInTicks||0)==
 
 export function archerScript(p: ArmyParams): string {
   return `// castellan archer: kite melee, shoot the softest target in range, otherwise follow the role.
-const P=${json(p)};
+const P=${JSON.stringify(p)};
 ${COMMON}const ml=F.find(e=>(e.range||1)<=1&&me.distanceTo(e)<=2),inr=me.enemiesInRange(),rd=(me.attackReadyInTicks||0)==0&&(me.aimReadyInTicks||0)==0;
 if(role=="s"||role=="r"||role=="h")roles();else if(ml&&P.kite&&!rd)me.flee(ml);else if(inr.length)me.attack(pk(inr));else roles();
 `;
@@ -78,7 +76,7 @@ if(role=="s"||role=="r"||role=="h")roles();else if(ml&&P.kite&&!rd)me.flee(ml);e
 
 export function workerScript(p: WorkerParams): string {
   return `// castellan worker: mine an assigned deposit; run to safety when a hostile fighter comes close.
-const P=${json(p)};
+const P=${JSON.stringify(p)};
 const me=self,m=me.memory,foes=me.nearbyEnemies().filter(e=>!e.isBuilding&&!e.ruin&&e.type!="worker"),r=me.lastActionResult,ev=P.evac[me.id];
 if(ev&&!(foes.length&&me.distanceTo(foes[0])<=2)){if(me.distanceToPos(ev.x,ev.y)>0)me.moveTo(ev.x,ev.y);else me.hold()}
 else if(foes.length&&me.distanceTo(foes[0])<=P.fleeRadius){m.f=me.tick;if(r&&r.status=="blocked"&&r.action&&r.action.a=="moveTo")me.flee(foes[0]);else me.moveTo(P.safe.x,P.safe.y)}
@@ -89,7 +87,7 @@ else{const d=P.assign[me.id];if(d&&me.deposits().some(x=>x.id==d))me.gather(d);e
 
 export function kingScript(p: KingParams): string {
   return `// castellan king: stay at the safe spot; hit back only at an adjacent attacker.
-const P=${json(p)};
+const P=${JSON.stringify(p)};
 const me=self,a=me.lastAttacker();
 if(a&&me.distanceTo(a)<=me.range&&me.distanceToPos(P.safe.x,P.safe.y)<=1)me.attack(a);
 else if(me.distanceToPos(P.safe.x,P.safe.y)>0)me.moveTo(P.safe.x,P.safe.y);else me.hold();

@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { rules } from "@aoa/shared";
 import { RUN_LIMITS, type ScriptWorld } from "@aoa/sandbox";
-import { createMatch } from "@aoa/engine";
+import { createMatch, type MatchConfig } from "@aoa/engine";
 import { createIsolatedScriptHost, runOnceIsolated, validateScriptIsolated, waitForStateChange } from "../src/script-isolation";
 
 it("accepts a completed response when the parent resumes after a timed-out wait", () => {
@@ -68,7 +68,7 @@ it("rejects oversized IPC requests safely and keeps the VM usable", () => {
 });
 
 it("uses the factory for live scripts and isolated probes without changing deterministic results", async () => {
-  const cfg = { ruleset: { ...rules, map: { ...rules.map, width: 12, height: 12, walls: [], deposits: [], sharedDeposits: [], start: [{ kind: "king", x: 0, y: 0 }] } },
+  const cfg: MatchConfig = { ruleset: { ...rules, map: { ...rules.map, width: 12, height: 12, walls: [], deposits: [], sharedDeposits: [], start: [{ kind: "king", x: 0, y: 0 }] } },
     players: [{ id: "a", name: "A" }, { id: "b", name: "B" }], seed: 42, tickRate: 10 };
   let created = 0;
   const isolated = await createMatch({ ...cfg, scriptHostFactory: (limits, seed) => { created++; return createIsolatedScriptHost(limits, seed); } });

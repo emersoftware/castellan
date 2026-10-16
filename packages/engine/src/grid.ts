@@ -5,7 +5,7 @@ export const DIRS: Record<string, [number, number]> = {
 };
 export const DIR_LIST = Object.values(DIRS);
 /** The same directions rotated 180°: the second player's point of view. */
-export const DIR_LIST_ROTATED = DIR_LIST.map(([dx, dy]) => [-dx, -dy] as [number, number]);
+const DIR_LIST_ROTATED = DIR_LIST.map(([dx, dy]) => [-dx, -dy] as [number, number]);
 
 /**
  * Direction order for each seat (see `seatToMap`): DIR_LIST turned with the
@@ -66,10 +66,6 @@ export function hypot(dx: number, dy: number): number {
   return Math.sqrt(n * n + m * m) * max;
 }
 
-export function cheb(ax: number, ay: number, bx: number, by: number): number {
-  return Math.max(Math.abs(ax - bx), Math.abs(ay - by));
-}
-
 export interface Grid {
   width: number;
   height: number;
@@ -81,10 +77,10 @@ export function inBounds(g: Grid, x: number, y: number): boolean {
   return x >= 0 && y >= 0 && x < g.width && y < g.height;
 }
 
-/** Diagonal moves may not squeeze between two static tiles' corners. */
-export function canCross(g: Grid, x: number, y: number, dx: number, dy: number): boolean {
-  if (dx === 0 || dy === 0) return true;
-  return !g.isStatic(x + dx, y) && !g.isStatic(x, y + dy);
+/** Whether terrain lets a unit at (x,y) step by (dx,dy): onto a free tile of the map, never squeezing diagonally between two static corners. */
+export function canStep(g: Grid, x: number, y: number, dx: number, dy: number): boolean {
+  if (!inBounds(g, x + dx, y + dy) || g.isStatic(x + dx, y + dy)) return false;
+  return dx === 0 || dy === 0 || (!g.isStatic(x + dx, y) && !g.isStatic(x, y + dy));
 }
 
 /**
@@ -132,9 +128,8 @@ export function findPath(
     for (const [dx, dy] of dirs) {
       const nx = cx + dx;
       const ny = cy + dy;
-      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
       const ni = ny * W + nx;
-      if (g.isStatic(nx, ny) || avoid?.has(ni) || !canCross(g, cx, cy, dx, dy)) continue;
+      if (!canStep(g, cx, cy, dx, dy) || avoid?.has(ni)) continue;
       const next = c + (!diagonalCost ? 1 : dx && dy ? diagonalCost : straightCost ?? 10);
       if (cost[ni] !== -1 && cost[ni] <= next) continue;
       cost[ni] = next;

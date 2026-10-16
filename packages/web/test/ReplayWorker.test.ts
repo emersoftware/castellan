@@ -15,7 +15,7 @@ it("delivers the opening and first casualty before simulation continues, then pr
   const options = { includePerspectives: false };
   vi.mocked(playRecordedReplay).mockImplementation(async (_, emit) => {
     for (let tick = 0; tick < 405; tick++) {
-      emit({ tick, players: [], events: tick === 73 || tick === 74 ? [{ type: "death" }] : [] } as unknown as SpectatorView);
+      emit({ tick, players: [], entities: [], events: tick === 73 || tick === 74 ? [{ type: "death" }] : [] } as unknown as SpectatorView);
       // Observe delivery while the simulation is still inside its producer callback.
       if (tick === 0 || tick === 73) {
         const last = messages.at(-1);

@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { rules } from "@aoa/shared";
 import { api } from "../src/api";
-import { battleMode, featuredBattles } from "../src/replayCatalog";
+import { battleMode } from "../src/components/BattleCard";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
-const entry = (id: string, createdAt: string) => ({ id, createdAt, players: [], outcome: { reason: "timeout" }, finalTick: 100, tickRate: 10 });
+const entry = (id: string, createdAt: string) => ({ id, createdAt, rulesVersion: rules.version, players: [], outcome: { reason: "timeout" }, finalTick: 100, tickRate: 10 });
 const response = (value: unknown) => new Response(JSON.stringify(value), { headers: { "content-type": "application/json" } });
 
 it("shows newer local battles first while keeping bundled titles without duplicates", async () => {
@@ -62,7 +63,7 @@ it("reports an unavailable local catalogue instead of pretending it is empty", a
   await expect(api.replays()).rejects.toThrow("Battle catalogue unavailable");
 });
 
-describe("featured battles", () => {
+describe("battle modes", () => {
   const battle = (id: string, names: string[], teams: (number | undefined)[], savedAt: string) =>
     ({ id, createdAt: savedAt, savedAt, players: names.map((name, i) => ({ id: `p${i + 1}`, name, team: teams[i] })) });
   it("tells duels, 2v2 and free-for-all apart", () => {
@@ -70,22 +71,5 @@ describe("featured battles", () => {
     expect(battleMode(battle("b", ["x", "y", "z", "w"], [0, 0, 1, 1], ""))).toBe("teams");
     expect(battleMode(battle("c", ["x", "y", "z", "w"], [0, 1, 2, 3], ""))).toBe("ffa");
     expect(battleMode(battle("d", ["x", "y", "z"], [undefined, undefined, undefined], ""))).toBe("ffa");
-  });
-  it("keeps the three selected Claude/Codex recordings despite newer games or display names", () => {
-    const featured = featuredBattles([
-      battle("2346f20b", ["Opus 5.5", "Fable 5.1", "Sol 6.1", "Astra 6"], [0, 0, 1, 1], "2026-10-13"),
-      battle("new-duel", ["Sol 6.1", "Opus 5.5"], [0, 1], "2026-10-15"),
-      battle("242b57f9", ["Argon", "Argon", "Astra 6", "Fable 5.1"], [0, 1, 0, 1], "2026-10-15"),
-      battle("02eb6795", ["Opus 5.5", "Sol 6.1", "Fable 5.1", "Astra 6"], [0, 1, 2, 3], "2026-10-13"),
-      battle("new-ffa", ["Argon", "Astra 6", "Fable 5.1"], [0, 1, 2], "2026-10-15"),
-      battle("1b4b65c9", ["Claude Opus 5.5 Low", "GPT Sol 6.1 Low"], [0, 1], "2026-10-13"),
-    ]);
-    expect(featured.map(r => r.id)).toEqual(["02eb6795", "1b4b65c9", "2346f20b"]);
-  });
-  it("leaves unavailable selections absent and never substitutes another battle", () => {
-    const duel = battle("1b4b65c9", ["Opus 5.5", "Sol 6.1"], [0, 1], "2026-10-13");
-    const other = battle("11cfcefc", ["Fable 5.1", "Astra 6"], [0, 1], "2026-10-14");
-    expect(featuredBattles([duel, other, duel])).toEqual([duel]);
-    expect(featuredBattles([other])).toEqual([]);
   });
 });

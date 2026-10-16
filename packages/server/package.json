@@ -2,21 +2,24 @@
   "name": "@aoa/server",
   "version": "0.1.0",
   "type": "module",
-  "exports": { ".": "./src/app.ts" },
+  "exports": {
+    ".": "./src/app.ts"
+  },
   "scripts": {
     "start": "tsx src/main.ts",
     "dev": "tsx watch src/main.ts",
     "seed-replays": "tsx src/seed-replays.ts"
   },
   "dependencies": {
-    "@aoa/shared": "workspace:*",
     "@aoa/engine": "workspace:*",
     "@aoa/sandbox": "workspace:*",
+    "@aoa/shared": "workspace:*",
     "@aoa/sim": "workspace:*",
     "@fastify/cors": "^11.0.0",
     "@fastify/static": "^8.2.0",
     "@fastify/websocket": "^11.2.0",
     "esbuild": "^0.25.0",
-    "fastify": "^5.6.0"
+    "fastify": "^5.6.0",
+    "posthog-node": "^5.56.0"
   }
 }

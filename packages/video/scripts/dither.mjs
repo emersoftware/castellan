@@ -4,8 +4,7 @@
 // game pixels (2×2 video pixels). Pixels already on the palette (the footage) are only snapped back to it.
 // Scaling happens in RGB: nearest-neighbour scaling of YUV frames loses their colour.
 //   node scripts/dither.mjs in.mp4 out.mp4
-import { spawn } from "node:child_process";
-import { encodeMp4 } from "../../web/scripts/ffmpeg.mjs";
+import { encodeMp4, ffStream, probe } from "../../web/scripts/ffmpeg.mjs";
 
 const [input, output] = process.argv.slice(2);
 if (!input || !output) throw new Error("usage: node scripts/dither.mjs in.mp4 out.mp4");
@@ -42,13 +41,9 @@ function quantize(d, w, h) {
   }
 }
 
-const probe = await new Promise((res, rej) => {
-  const p = spawn("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,r_frame_rate", "-of", "csv=p=0", input]);
-  let out = ""; p.stdout.on("data", (b) => (out += b)); p.on("close", (c) => (c ? rej(new Error("ffprobe failed")) : res(out.trim())));
-});
-const [W, H, rate] = probe.split(",");
-const w = Number(W) / PIXEL, h = Number(H) / PIXEL, frameBytes = w * h * 3;
-const dec = spawn("ffmpeg", ["-v", "error", "-i", input, "-vf", `format=rgb24,scale=${w}:${h}:flags=neighbor`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]);
+const { width: W, height: H, rate } = probe(input);
+const w = W / PIXEL, h = H / PIXEL, frameBytes = w * h * 3;
+const dec = ffStream("-i", input, "-vf", `format=rgb24,scale=${w}:${h}:flags=neighbor`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-");
 const enc = encodeMp4(["-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", `${w}x${h}`, "-framerate", rate, "-i", "-",
   "-i", input, "-map", "0:v", "-map", "1:a?", "-c:a", "copy", "-vf", `scale=${W}:${H}:flags=neighbor,format=yuv420p`], output);
 let buf = Buffer.alloc(0), frames = 0;

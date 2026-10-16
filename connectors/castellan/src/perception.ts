@@ -2,19 +2,19 @@
  * The world model: everything the player knows, built only from its own view
  * (PlayerView) and the public rules, plus memory of what it saw before.
  */
-import type { DepositView, EntityView, GameEvent, PlayerId, PlayerStats, PlayerView, Ruleset } from "@aoa/shared";
-import { Frame, cheb, depositClusters, detectSeat, dist, distP, seatBases, type DepositCluster, type Pt } from "./geometry";
+import type { DepositView, EntityView, GameEvent, PlayerId, PlayerStats, PlayerView, RecordedKind, Ruleset } from "@aoa/shared";
+import { Frame, dist, groupNearby, type DepositCluster, type Pt } from "./geometry";
 import type { Sighting, ThreatGroup } from "./types";
 
 /** Mineral-equivalent danger of a kind when it is on the move. */
 export const THREAT_VALUE: Record<string, number> = { knight: 100, archer: 100, worker: 10, king: 20 };
-export const ARMY_KINDS = ["knight", "archer"];
-export const MOBILE_THREAT_KINDS = ["knight", "archer", "king", "worker"];
+export const ARMY_KINDS: RecordedKind[] = ["knight", "archer"];
+export const MOBILE_THREAT_KINDS: RecordedKind[] = ["knight", "archer", "king", "worker"];
 
 export interface KnownDeposit { id: string; x: number; y: number; amount: number; seenTick: number; visible: boolean }
 
 export interface Memory {
-  seat: number | null;
+  /** Null until a castle or the king shows where my corner is. */
   frame: Frame | null;
   clusters: DepositCluster[];
   sightings: Map<string, Sighting>;
@@ -33,7 +33,7 @@ export interface Memory {
 }
 
 export function newMemory(): Memory {
-  return { seat: null, frame: null, clusters: [], sightings: new Map(), enemyBuildings: new Map(), deposits: new Map(), aggressors: new Map(),
+  return { frame: null, clusters: [], sightings: new Map(), enemyBuildings: new Map(), deposits: new Map(), aggressors: new Map(),
     firstTick: null, lastViewTick: -1, delivered: new Map(), seenMine: new Map(), kills: [] };
 }
 
@@ -84,7 +84,8 @@ export interface World {
   recentKills: number;
 }
 
-const value = (e: { kind: string; hp: number; maxHp: number }) => (THREAT_VALUE[e.kind] ?? 0) * (0.5 + 0.5 * e.hp / Math.max(1, e.maxHp));
+/** THREAT_VALUE scaled by health: half at 0 hp, full at max. */
+export const entityValue = (e: { kind: string; hp: number; maxHp: number }) => (THREAT_VALUE[e.kind] ?? 0) * (0.5 + 0.5 * e.hp / Math.max(1, e.maxHp));
 
 export function perceive(view: PlayerView, rules: Ruleset, mem: Memory): World {
   const tick = view.tick;
@@ -95,17 +96,16 @@ export function perceive(view: PlayerView, rules: Ruleset, mem: Memory): World {
   for (const e of mine) (byKind[e.kind] ??= []).push(e);
   const castles = byKind.castle ?? [];
   const homeCastle = castles.slice().sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))[0];
-  if (mem.seat === null) {
+  if (mem.frame === null) {
+    // The king starts next to the castle; use the castle when it stands, else the king's corner.
     const anchor = homeCastle ?? byKind.king?.[0];
     if (anchor) {
-      // The king starts next to the castle; use the castle when it stands, else the king's corner.
-      mem.seat = detectSeat(rules.map, anchor) ?? nearestSeat(rules, anchor);
-      mem.frame = new Frame(mem.seat, rules.map.width, rules.map.height);
-      mem.clusters = depositClusters(rules.map, mem.seat);
+      mem.frame = new Frame(rules.map, anchor);
+      mem.clusters = mem.frame.clusters();
     }
   }
-  const frame = mem.frame ?? new Frame(0, rules.map.width, rules.map.height);
-  const seat = mem.seat ?? 0;
+  const frame = mem.frame ?? new Frame(rules.map);
+  const seat = frame.seat;
   const myTeam = me.team;
   const teams = view.players.some((p) => p.id !== me.id && p.team === myTeam);
   const allyPlayers = view.players.filter((p) => p.id !== me.id && p.team === myTeam);
@@ -118,7 +118,7 @@ export function perceive(view: PlayerView, rules: Ruleset, mem: Memory): World {
     if (s.building) mem.enemyBuildings.set(e.id, s); else mem.sightings.set(e.id, s);
   }
   for (const l of view.lastSeen) {
-    if (!("owner" in l) || l.ruin) continue;
+    if (l.kind === "deposit" || l.ruin) continue;
     mem.enemyBuildings.set(l.id, { id: l.id, kind: l.kind, owner: l.owner, x: l.x, y: l.y, hp: l.hp, maxHp: l.maxHp, tick: Math.round(l.seenMs * 10), building: true });
   }
   const vis = (p: Pt) => view.visibility[p.y]?.[p.x] === "2";
@@ -144,7 +144,7 @@ export function perceive(view: PlayerView, rules: Ruleset, mem: Memory): World {
 
   // Deposits: visible amounts now, remembered amounts otherwise, initial amounts when never seen.
   for (const d of view.deposits) mem.deposits.set(d.id, { id: d.id, x: d.x, y: d.y, amount: d.amount, seenTick: tick, visible: true });
-  for (const l of view.lastSeen) if (l.kind === "deposit" && "amount" in l) {
+  for (const l of view.lastSeen) if (l.kind === "deposit") {
     const known = mem.deposits.get(l.id);
     mem.deposits.set(l.id, { id: l.id, x: l.x, y: l.y, amount: l.amount, seenTick: known?.seenTick ?? 0, visible: false });
   }
@@ -153,10 +153,10 @@ export function perceive(view: PlayerView, rules: Ruleset, mem: Memory): World {
   for (const [id, d] of mem.deposits) if (vis(d) && !view.deposits.some((v) => v.id === id)) mem.deposits.delete(id);
 
   const army = mine.filter((e) => ARMY_KINDS.includes(e.kind));
-  const myStrength = army.reduce((n, e) => n + value(e), 0);
+  const myStrength = army.reduce((n, e) => n + entityValue(e), 0);
   const recent = [...mem.sightings.values()].filter((s) => tick - s.tick <= 450 && s.kind !== "worker" && s.kind !== "king");
   const enemyStrength: Record<PlayerId, number> = {};
-  for (const s of recent) enemyStrength[s.owner] = (enemyStrength[s.owner] ?? 0) + value(s);
+  for (const s of recent) enemyStrength[s.owner] = (enemyStrength[s.owner] ?? 0) + entityValue(s);
   const enemyKnownStrength = Object.values(enemyStrength).reduce((a, b) => a + b, 0);
 
   const assets = [...castles, ...(byKind.king ?? []), ...(byKind.worker ?? []), ...(byKind.tower ?? [])];
@@ -170,15 +170,15 @@ export function perceive(view: PlayerView, rules: Ruleset, mem: Memory): World {
       && !mine.some((e) => e.construction && e.construction.x === p.x && e.construction.y === p.y);
   };
   const explored = (p: Pt) => (view.visibility[p.y]?.[p.x] ?? "0") !== "0";
-  const bases = seatBases(rules.map);
+  const bases = frame.bases();
   const enemyBases: World["enemyBases"] = [];
   for (const b of mem.enemyBuildings.values()) if (b.kind === "castle" && enemyPlayers.some((p) => p.id === b.owner)) enemyBases.push({ pos: { x: b.x, y: b.y }, owner: b.owner, known: true });
   for (let s = 0; s < bases.length; s++) {
     if (s === seat) continue;
     const corner = bases[s];
-    if (enemyBases.some((b) => distP(b.pos, corner) <= 6)) continue;
+    if (enemyBases.some((b) => dist(b.pos, corner) <= 6)) continue;
     // An ally's corner, or a corner we have seen empty, is not an enemy base.
-    if (view.allies.some((a) => a.kind === "castle" && distP(a, corner) <= 6)) continue;
+    if (view.allies.some((a) => a.kind === "castle" && dist(a, corner) <= 6)) continue;
     if (explored(corner) && !mem.enemyBuildings.size && enemyPlayers.length < bases.length - 1 && vis(corner)) continue;
     enemyBases.push({ pos: corner, known: false });
   }
@@ -196,39 +196,21 @@ export function perceive(view: PlayerView, rules: Ruleset, mem: Memory): World {
   };
 }
 
-function nearestSeat(rules: Ruleset, p: Pt): number {
-  const bases = seatBases(rules.map);
-  let best = 0;
-  for (let s = 1; s < bases.length; s++) if (distP(p, bases[s]) < distP(p, bases[best])) best = s;
-  return best;
-}
-
 /** Groups recent enemy fighters by proximity; each group knows the closest own asset. */
 function clusterThreats(units: Sighting[], assets: EntityView[], tick: number, mem: Memory): ThreatGroup[] {
-  const used = new Set<number>();
   const out: ThreatGroup[] = [];
-  for (let i = 0; i < units.length; i++) {
-    if (used.has(i)) continue;
-    const group = [i];
-    used.add(i);
-    for (let k = 0; k < group.length; k++) for (let j = 0; j < units.length; j++) {
-      if (used.has(j) || units[j].owner !== units[group[k]].owner) continue;
-      if (cheb(units[j], units[group[k]]) <= 4) { used.add(j); group.push(j); }
-    }
-    const members = group.map((g) => units[g]);
+  for (const members of groupNearby(units, 4, (a, b) => a.owner === b.owner)) {
     // Workers only count as a threat if their owner has been hitting us.
-    const strength = members.reduce((n, u) => n + (u.kind === "worker" && !(mem.aggressors.has(u.owner) && tick - (mem.aggressors.get(u.owner) ?? 0) < 300) ? 0 : value(u)), 0);
+    const strength = members.reduce((n, u) => n + (u.kind === "worker" && !(mem.aggressors.has(u.owner) && tick - (mem.aggressors.get(u.owner) ?? 0) < 300) ? 0 : entityValue(u)), 0);
     if (strength <= 0) continue;
     const x = Math.round(members.reduce((n, u) => n + u.x, 0) / members.length);
     const y = Math.round(members.reduce((n, u) => n + u.y, 0) / members.length);
     let near: ThreatGroup["near"] = null;
     for (const a of assets) {
-      const d = dist(a.x, a.y, x, y);
+      const d = dist(a, { x, y });
       if (!near || d < near.d) near = { id: a.id, kind: a.kind, d };
     }
     out.push({ units: members, strength, x, y, owner: members[0].owner, near, tick: Math.max(...members.map((u) => u.tick)) });
   }
   return out.sort((a, b) => (a.near?.d ?? 99) - (b.near?.d ?? 99));
 }
-
-export const entityValue = value;

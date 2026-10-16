@@ -16,13 +16,14 @@ import { createInterface } from "node:readline";
 import { PARAMS, legal, start as snapped, type Values } from "./balance-params";
 import { SCENARIOS, SYNTHETIC_COUNT, scenarioOf } from "./synthetic";
 import { splitReplays } from "./experiment-split";
+import type { EntityKind } from "@aoa/shared";
 import type { Snapshot } from "./battles";
 
 const WORKERS = 8, LAMBDA = 6, GENERATIONS = Number(process.argv[2] ?? 25), DEADLINE = Date.now() + Number(process.argv[3] ?? 1000) * 3_600_000,
   STAGINGS = Number(process.env.VARIANTS ?? 3), REG = 0.01;
 const OUT_DIR = process.env.OUT_DIR ?? "/tmp/aoa-opt";
 if (!Number.isInteger(STAGINGS) || STAGINGS < 1 || STAGINGS > 3) throw new Error("VARIANTS must be 1, 2, or 3");
-const KINDS: [string, number][] = [["knight", 1], ["archer", 1], ["tower", 0.5]];
+const KINDS: [EntityKind, number][] = [["knight", 1], ["archer", 1], ["tower", 0.5]];
 /** The castle must trade below the weakest fighter (by CASTLE_MARGIN, log scale) but not under CASTLE_FLOOR of their
  *  average (v16: ~0.55), so the search can't meet it by weakening a fighter. */
 const OBJECTIVE = process.env.OBJECTIVE ?? "parity";
@@ -54,6 +55,7 @@ process.on("exit", () => { for (const w of workers) w.child.kill(); });
 const log = (s: string) => { console.log(s); appendFileSync(`${OUT_DIR}/opt.log`, s + "\n"); };
 
 type Stats = { destroyed: Record<string, number>; lost: Record<string, number>; loss?: [number, number] };
+const TALLIES: Exclude<keyof Stats, "loss">[] = ["destroyed", "lost"];
 /** Fights the given jobs on all workers, a few at a time so none sits idle; returns stats by job index. */
 async function fight(values: Values, which: number[]): Promise<Map<number, Stats>> {
   const out = new Map<number, Stats>(), queue = [...which];
@@ -78,15 +80,16 @@ let start = snapped();
 let from: Values = process.env.FROM ? load(process.env.FROM) : start;
 function trades(stats: Stats[]) {
   const tot: Stats = { destroyed: {}, lost: {} };
-  for (const st of stats) for (const f of ["destroyed", "lost"] as const) for (const [k, v] of Object.entries(st[f])) tot[f][k] = (tot[f][k] ?? 0) + v;
-  return Object.fromEntries([...KINDS, ["castle"]].map(([k]) => [k, (tot.destroyed[k] ?? 0) / Math.max(1, tot.lost[k] ?? 0)]));
+  for (const st of stats) for (const f of TALLIES) for (const [k, v] of Object.entries(st[f])) tot[f][k] = (tot[f][k] ?? 0) + v;
+  const traded: EntityKind[] = [...KINDS.map(([k]) => k), "castle"];
+  return Object.fromEntries(traded.map((k) => [k, (tot.destroyed[k] ?? 0) / Math.max(1, tot.lost[k] ?? 0)]));
 }
 function parity(trade: Record<string, number>) {
   const logs = KINDS.map(([k]) => Math.log(Math.max(0.05, trade[k])));
   const mean = logs.reduce((a, b) => a + b, 0) / logs.length;
   return { logs, mean, balance: KINDS.reduce((a, [, w], i) => a + w * (logs[i] - mean) ** 2, 0) };
 }
-function score(values: Values, stats: Map<number, Stats>, which: number[]) {
+function score(candidate: Values, stats: Map<number, Stats>, which: number[]) {
   const trade = trades(which.filter((j) => !designed(j)).map((j) => stats.get(j)!));
   const { logs, mean, balance: recorded } = parity(trade);
   const c = Math.log(Math.max(0.05, trade.castle));
@@ -108,9 +111,10 @@ function score(values: Values, stats: Map<number, Stats>, which: number[]) {
   // trade evenly in designed battles too, like in recorded ones.
   const contact = which.filter((j) => designed(j) && (stats.get(j)!.loss![0] + stats.get(j)!.loss![1]) > 0);
   const designedTrade = contact.length ? trades(contact.map((j) => stats.get(j)!)) : undefined;
-  const rps = OBJECTIVE === "rps" ? (scored ? miss / scored : undefined) : designedTrade && parity(designedTrade).balance;
+  const targetMiss = scored ? miss / scored : undefined;
+  const rps = OBJECTIVE === "rps" ? targetMiss : designedTrade && parity(designedTrade).balance;
   const balance = (rps !== undefined ? (recorded + rps) / 2 : recorded) + CASTLE_WEIGHT * castle ** 2;
-  const drift = PARAMS.reduce((a, { key, min, max }) => a + (max > min ? ((values[key] - start[key]) / (max - min)) ** 2 : 0), 0);
+  const drift = PARAMS.reduce((a, { key, min, max }) => a + (max > min ? ((candidate[key] - start[key]) / (max - min)) ** 2 : 0), 0);
   return { score: balance + REG * drift, balance, drift, trade, rps, designedResult, designedTrade };
 }
 
@@ -159,30 +163,30 @@ seen.add(JSON.stringify(best.values));
 for (let g = 1, stale = 0; g <= GENERATIONS && Date.now() < DEADLINE && stale < 10; g++) {
   const before = best.score;
   for (let i = 0; i < LAMBDA && Date.now() < DEADLINE; i++) {
-    let values = best.values;
-    for (let tries = 0; tries < 50 && seen.has(JSON.stringify(values)); tries++) {
+    let candidate = best.values;
+    for (let tries = 0; tries < 50 && seen.has(JSON.stringify(candidate)); tries++) {
       const next = { ...best.values };
       for (let n = 1 + Math.floor(uniform() * 3); n > 0; n--) {
         const { key, step } = PARAMS[Math.floor(uniform() * PARAMS.length)];
         next[key] += (uniform() < 0.5 ? -1 : 1) * step * (uniform() < 0.7 ? 1 : 2);
       }
-      values = legal(next);
+      candidate = legal(next);
     }
-    if (seen.has(JSON.stringify(values))) continue;
-    seen.add(JSON.stringify(values));
-    const changed = PARAMS.filter(({ key }) => values[key] !== best.values[key]).map(({ key }) => `${key} ${best.values[key]}→${values[key]}`).join(", ");
-    const early = await fight(values, head);
-    const headScore = score(values, early, head).score;
+    if (seen.has(JSON.stringify(candidate))) continue;
+    seen.add(JSON.stringify(candidate));
+    const changed = PARAMS.filter(({ key }) => candidate[key] !== best.values[key]).map(({ key }) => `${key} ${best.values[key]}→${candidate[key]}`).join(", ");
+    const early = await fight(candidate, head);
+    const headScore = score(candidate, early, head).score;
     if (headScore > best.head * RACE) { log(`  try ${changed}: dropped after racing (${headScore.toFixed(4)} vs ${best.head.toFixed(4)})`); continue; }
-    for (const [j, st] of await fight(values, tail)) early.set(j, st);
-    const res = score(values, early, active);
+    for (const [j, st] of await fight(candidate, tail)) early.set(j, st);
+    const res = score(candidate, early, active);
     log(`  try ${changed}: ${res.score.toFixed(4)} (balance ${res.balance.toFixed(4)}) ${fmtT(res.trade, res.rps, res.designedTrade)}`);
     if (res.score < best.score) {
-      best = { values, head: headScore, ...res };
+      best = { values: candidate, head: headScore, ...res };
       // Validation selects candidates; it is explicitly not an independent test estimate.
-      const held = (await validate(values)).balance;
+      const held = (await validate(candidate)).balance;
       log(`  validation ${held.toFixed(4)} (best so far ${validated.balance.toFixed(4)})`);
-      if (held < validated.balance) validated = { values, balance: held };
+      if (held < validated.balance) validated = { values: candidate, balance: held };
     }
   }
   log(`gen ${g}: best ${best.score.toFixed(4)} (balance ${best.balance.toFixed(4)}, drift ${best.drift.toFixed(3)}) trades ${fmtT(best.trade, best.rps, best.designedTrade)}\n  ${fmt(best.values)}`);

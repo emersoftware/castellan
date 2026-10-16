@@ -2,7 +2,7 @@
  * Chat: coordination with a teammate and negotiation in free-for-all rooms,
  * with short templates written by rules.
  */
-import type { ChatMessage, Order, PlayerId } from "@aoa/shared";
+import type { ChatChannel, ChatMessage, Order, PlayerId } from "@aoa/shared";
 import type { World } from "./perception";
 import { TRUCE_UNTIL_MS } from "./strategy";
 import type { JournalEntry, Plan } from "./types";
@@ -34,13 +34,14 @@ export class Diplomacy {
   update(w: World): Order[] {
     if (!w.view.chat?.enabled) return [];
     const out: Order[] = [];
-    const send = (text: string, topic: string, extra: { to?: PlayerId; channel?: "team" | "all" } = {}, everyS = 20) => {
+    const send = (text: string, topic: string, extra: { to?: PlayerId; channel?: Exclude<ChatChannel, "private"> } = {}, everyS = 20) => {
       if (w.tick - this.lastSentTick < s(3.2)) return false;
       const last = this.lastTopic.get(topic) ?? -10_000;
       if (w.tick - last < s(everyS)) return false;
       out.push({ type: "chat", text: text.slice(0, 200), ...(extra.to ? { to: extra.to } : extra.channel ? { channel: extra.channel } : {}) });
       this.lastSentTick = w.tick; this.lastTopic.set(topic, w.tick); this.sent++;
-      this.opts.log({ tick: w.tick, type: "chat_sent", text, to: extra.to, channel: extra.channel ?? (extra.to ? "private" : "all") });
+      const channel: ChatChannel = extra.channel ?? (extra.to ? "private" : "all");
+      this.opts.log({ tick: w.tick, type: "chat_sent", text, to: extra.to, channel });
       return true;
     };
     for (const m of w.view.chat.messages) this.read(w, m);
@@ -87,7 +88,9 @@ export class Diplomacy {
     this.seen.add(id);
     if (m.from === w.view.you) return;
     this.received++;
-    this.opts.log({ tick: w.tick, type: "chat_received", from: m.from, text: m.text, channel: m.channel ?? "all" });
+    // A message without a channel is public.
+    const channel: ChatChannel = m.channel ?? "all";
+    this.opts.log({ tick: w.tick, type: "chat_received", from: m.from, text: m.text, channel });
     const ally = w.allyPlayers.some((p) => p.id === m.from);
     const xy = COORD.exec(m.text);
     const at = xy ? { x: Number(xy[1] ?? xy[3]), y: Number(xy[2] ?? xy[4]) } : null;

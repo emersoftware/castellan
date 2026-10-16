@@ -10,12 +10,12 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { createMatch, type PlayerOrder } from "@aoa/engine";
-import type { Bot } from "@aoa/sim";
-import { rules, type GameEvent, type Order, type PlayerView, type ReplayFile } from "@aoa/shared";
+import { hasBuildOrder, type Bot } from "@aoa/sim";
+import { replayArchive, rules, type EntityKind, type GameEvent, type Order, type PlayerView, type RecordedKind, type ReplayFile, type SoundName } from "@aoa/shared";
 import { saveReplay } from "./app";
 
 const root = resolve(fileURLToPath(import.meta.url), "../../../..");
-const dir = resolve(process.env.REPLAY_DIR ?? resolve(root, "replays"));
+const dir = resolve(process.env.REPLAY_DIR ?? resolve(root, replayArchive.local));
 const keep = Number(process.argv[2] ?? 2);
 const TICK_RATE = 10;
 const LATENCY_TICKS = 30;
@@ -29,19 +29,11 @@ interface Demo {
   attackAt: number;
   workers: number;
   maxArmy: number;
-  army: string[];
+  army: EntityKind[];
 }
 
-const count = (v: PlayerView, kind: string) => v.mine.filter((e) => e.kind === kind).length;
-
-/** Fight what is in range; march on (tx, ty) once `go`, else guard home. */
-const script = (go: boolean, tx: number, ty: number, hx: number, hy: number) => `const e = self.nearestEnemy();
-if (e && self.distanceTo(e) <= self.range) self.attack(e);
-else if (e && (${go} || self.distanceToPos(${hx}, ${hy}) <= 8)) self.moveTo(e.x, e.y);
-else if (${go}) self.moveTo(${tx}, ${ty});
-else if (self.distanceToPos(${hx}, ${hy}) > 3) self.moveTo(${hx}, ${hy});
-else self.hold();
-`;
+const FIGHTERS: EntityKind[] = ["knight", "archer"];
+const count = (v: PlayerView, kind: EntityKind) => v.mine.filter((e) => e.kind === kind).length;
 
 /** Workers, one tower, then knights and archers in turn. */
 function demo({ attackAt, workers, maxArmy, army: kinds }: Demo): Bot {
@@ -51,14 +43,22 @@ function demo({ attackAt, workers, maxArmy, army: kinds }: Demo): Bot {
   return (v) => {
     const home = v.mine.find((e) => e.kind === "castle");
     if (!home) return [];
-    const out: Order[] = [];
+    const out: Order<EntityKind>[] = [];
     const flip = home.x > 15;
-    const army = count(v, "knight") + count(v, "archer");
+    const army = FIGHTERS.reduce((n, kind) => n + count(v, kind), 0);
     go ||= attackAt > 0 && army >= attackAt;
-    const code = script(go, 31 - home.x, 31 - home.y, home.x, home.y);
-    for (const kind of ["knight", "archer"]) if (set[kind] !== code) out.push({ type: "script", kind, code: (set[kind] = code) });
+    // Fight what is in range; march on the mirrored base once `go`, else guard home.
+    const [tx, ty, hx, hy] = [31 - home.x, 31 - home.y, home.x, home.y];
+    const code = `const e = self.nearestEnemy();
+if (e && self.distanceTo(e) <= self.range) self.attack(e);
+else if (e && (${go} || self.distanceToPos(${hx}, ${hy}) <= 8)) self.moveTo(e.x, e.y);
+else if (${go}) self.moveTo(${tx}, ${ty});
+else if (self.distanceToPos(${hx}, ${hy}) > 3) self.moveTo(${hx}, ${hy});
+else self.hold();
+`;
+    for (const kind of FIGHTERS) if (set[kind] !== code) out.push({ type: "script", kind, code: (set[kind] = code) });
     let cap = v.players.find((p) => p.id === v.you)!.mineral ?? 0;
-    const building = v.mine.some((e) => e.order?.startsWith("build"));
+    const building = hasBuildOrder(v);
     const builder = v.mine.find((e) => e.kind === "worker");
     if (count(v, "tower") === 0 && !building && builder && count(v, "worker") >= workers) {
       if (cap < 200) return out;
@@ -95,7 +95,7 @@ async function play(a: Demo, b: Demo, seed: number) {
   const m = await createMatch({ ruleset: rules, seed, tickRate: TICK_RATE, players: [{ id: "p1", name: "A" }, { id: "p2", name: "B" }] });
   const bots: Record<string, Bot> = { p1: chatty(demo(a), 0), p2: chatty(demo(b), 450) };
   const kinds = new Map(m.spectate().entities.map((e) => [e.id, e.kind]));
-  const heard = new Set<string>();
+  const heard = new Set<SoundName>();
   const orders: ReplayFile["orders"] = [];
   const hashes: Record<number, string> = {};
   try {
@@ -117,8 +117,8 @@ async function play(a: Demo, b: Demo, seed: number) {
   }
 }
 
-function note(e: GameEvent, kinds: Map<string, string>, heard: Set<string>) {
-  const building = (k?: string) => ["tower", "wall", "castle", "door"].includes(k ?? "");
+function note(e: GameEvent, kinds: Map<string, RecordedKind>, heard: Set<SoundName>) {
+  const building = (k?: RecordedKind) => !!k && !!rules.kinds[k]?.building;
   if (e.type === "spawn") {
     kinds.set(e.id, e.kind);
     heard.add(building(e.kind) && e.builder ? "build" : "spawn");
@@ -132,7 +132,7 @@ function note(e: GameEvent, kinds: Map<string, string>, heard: Set<string>) {
   else if (e.type === "match_end" && e.outcome.reason === "vital_lost") heard.add("fanfare");
 }
 
-const ALL = ["spawn", "build", "sword", "arrow", "tower", "hit", "death", "collapse", "horn", "fanfare", "chat", "pick"];
+const ALL: SoundName[] = ["spawn", "build", "sword", "arrow", "tower", "hit", "death", "collapse", "horn", "fanfare", "chat", "pick"];
 const results = [];
 for (const { name: setup, sides: [a, b] } of SETUPS) for (let seed = 1; seed <= 2; seed++) {
   const r = await play(a, b, seed);

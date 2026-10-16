@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { track, trackError } from "../analytics";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import type { ChatMessage, GameEvent, SpectatorView } from "@aoa/shared";
-import { NEUTRAL_OWNER } from "@aoa/shared";
+import type { ChatMessage, GameEvent, MomentChange, SoundName, SpectatorView } from "@aoa/shared";
+import { NEUTRAL_OWNER, pagePath, pages, readMoment, writeMoment } from "@aoa/shared";
 import { api, playerColors, fmtTime } from "../api";
 import { playerPerspective } from "../perspective";
 import { sfx } from "../audio/sfx";
@@ -17,18 +18,21 @@ import { ShareMoment } from "../components/ShareMoment";
 import { agentText } from "../components/Agent";
 
 const SPEEDS = [0.5, 1, 2, 4, 8, 16];
+/** The viewer's chosen speed, kept for the tab: the next game of a series plays on at it. */
+const SPEED_KEY = "aoa:replay-speed";
+const savedSpeed = () => { const s = Number(sessionStorage.getItem(SPEED_KEY)); return SPEEDS.includes(s) ? s : 2; };
+/** At high speed only the big moments make a sound. */
+const BIG_MOMENTS = new Set<SoundName>(["horn", "fanfare", "collapse"]);
 
 export function Replay() {
-  const { id } = useParams({ from: "/replay/$id" });
-  const search = new URLSearchParams(location.search);
-  const t = Number(search.get("t"));
-  return <ReplayPlayer key={id} id={id} syncUrl initialSeconds={t > 0 ? t : undefined} initialPlayer={search.get("pov")} />;
+  const { id } = useParams({ from: pages.replay });
+  return <ReplayPlayer key={id} id={id} />;
 }
 
 /** Writes the moment and perspective into the address bar so a link opens right there. */
-export function writeUrl(params: Record<string, string | null>) {
+export function writeUrl(moment: MomentChange) {
   const url = new URL(location.href);
-  for (const [k, v] of Object.entries(params)) v === null ? url.searchParams.delete(k) : url.searchParams.set(k, v);
+  writeMoment(url.searchParams, moment);
   if (url.href !== location.href) history.replaceState(history.state, "", url);
 }
 
@@ -77,25 +81,23 @@ function marksOf(events: GameEvent[], chat: ChatMessage[], total: number, colors
   return [...buckets.values()];
 }
 
-export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, initialPlaying = true, initialSeconds, initialPlayer = null, syncUrl = false, series }: {
-  id: string; onEnded?: () => void; initialSpeed?: number; onSpeedChange?: (speed: number) => void; initialPlaying?: boolean;
+export function ReplayPlayer({ id, onEnded, initialPlaying = true, series }: {
+  id: string; onEnded?: () => void; initialPlaying?: boolean;
   /** The series line, under the title of the player list. */
   series?: ReactNode;
-  /** Open at this moment of the match (`?t=` in the address bar). */
-  initialSeconds?: number;
-  initialPlayer?: string | null;
-  /** Keep `?t=` and `?pov=` up to date (the replay page, not series or archived watch). */
-  syncUrl?: boolean;
 }) {
+  // Opens at the moment in the address bar; only this replay's own page keeps it up to date.
+  const [moment] = useState(() => readMoment(new URLSearchParams(location.search)));
+  const syncUrl = location.pathname === pagePath(pages.replay, id);
   const replay = useQuery({ queryKey: ["replay", id], queryFn: () => api.replay(id), staleTime: Infinity, retry: false });
   const [attempt, setAttempt] = useState(0);
-  const { frames, loaded, check, error } = useReplayFrames(replay.data, attempt);
-  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(initialPlayer);
+  const { frames, ruleset, loaded, check, error } = useReplayFrames(replay.data, attempt);
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(moment.player);
   useEffect(() => sfx.holdAmbient(), []);
   useEffect(() => sfx.holdMusic("battle"), []);
   const [index, setIndex] = useState(0);
-  const [playing, setPlaying] = useState(initialPlaying && !initialSeconds);
-  const [speed, setSpeed] = useState(initialSpeed);
+  const [playing, setPlaying] = useState(initialPlaying && !moment.seconds);
+  const [speed, setSpeed] = useState(savedSpeed);
   const [jumpKey, setJumpKey] = useState(0);
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const tickRate = replay.data?.tickRate ?? 10;
@@ -122,10 +124,9 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
     return () => cancelAnimationFrame(raf);
   }, [playing, speed, tickMs, frames]);
 
-  // At high speed only the big moments make a sound.
   const sound = useCallback<SoundSink>(
     (name, pan, vol) => {
-      if (speed > 4 && !["horn", "fanfare", "collapse"].includes(name)) return;
+      if (speed > 4 && !BIG_MOMENTS.has(name)) return;
       sfx.play(name, pan, vol);
     },
     [speed],
@@ -135,10 +136,20 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
     setIndex((old) => Math.max(0, Math.min(typeof i === "function" ? i(old) : i, frames.current.length - 1)));
     setJumpKey((k) => k + 1);
   }, [frames]);
-  const changeSpeed = useCallback((s: number) => { setSpeed(s); onSpeedChange?.(s); }, [onSpeedChange]);
+  const changeSpeed = useCallback((s: number) => {
+    setSpeed(s); sessionStorage.setItem(SPEED_KEY, String(s));
+    track("replay_speed_changed", { replay_id: id, speed: s });
+  }, [id]);
+  const togglePlayback = useCallback(() => {
+    track("replay_playback_toggled", { replay_id: id, playing: !playing });
+    setPlaying(p => !p);
+  }, [id, playing]);
+  useEffect(() => {
+    if (error) trackError("prepare replay", { replay_id: id });
+  }, [error, id]);
 
   // A shared link opens at its moment once the simulation gets there.
-  const pending = useRef(initialSeconds === undefined ? null : initialSeconds);
+  const pending = useRef(moment.seconds ?? null);
   useEffect(() => {
     if (pending.current === null || !replay.data) return;
     const target = Math.round(pending.current * tickRate);
@@ -150,7 +161,7 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
 
   useEffect(() => {
     if (!syncUrl || playing || pending.current !== null) return;
-    const timer = setTimeout(() => writeUrl({ t: index > 0 ? String(Math.floor((index * tickMs) / 1000)) : null, pov: selectedPlayer }), 300);
+    const timer = setTimeout(() => writeUrl({ seconds: index > 0 ? (index * tickMs) / 1000 : null, player: selectedPlayer }), 300);
     return () => clearTimeout(timer);
   }, [syncUrl, playing, index, tickMs, selectedPlayer]);
 
@@ -159,7 +170,7 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
     const typing = (e: KeyboardEvent) => e.metaKey || e.ctrlKey || e.altKey || (e.target as HTMLElement | null)?.closest?.("input:not([type=range]), textarea, select, [contenteditable]");
     const down = (e: KeyboardEvent) => {
       if (typing(e)) return;
-      if (e.key === " ") { e.preventDefault(); if (!e.repeat) setPlaying((p) => !p); }
+      if (e.key === " ") { e.preventDefault(); if (!e.repeat) togglePlayback(); }
       else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
         e.preventDefault();
         const step = (e.shiftKey ? 10 : 1) * tickRate * (e.key === "ArrowLeft" ? -1 : 1);
@@ -171,14 +182,14 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
     addEventListener("keydown", down);
     addEventListener("keyup", up);
     return () => { removeEventListener("keydown", down); removeEventListener("keyup", up); };
-  }, [tickRate, seekTo, changeSpeed]);
+  }, [tickRate, seekTo, changeSpeed, togglePlayback]);
 
   const frame = frames.current[index] ?? null;
   const display = playerPerspective(frame, selectedPlayer);
   const unit = useUnitSelection(display?.entities, display?.deposits);
   const shownUnit = unit.entity ?? unit.last;
-  const unitScript = useMemo(() => shownUnit && replay.data ? scriptAt(replay.data, shownUnit.owner, shownUnit.kind, frame?.tick ?? index) : undefined,
-    [shownUnit?.owner, shownUnit?.kind, replay.data, frame?.tick, index]);
+  const unitScript = useMemo(() => shownUnit && replay.data && ruleset ? scriptAt(replay.data.orders, ruleset, shownUnit.owner, shownUnit.kind, frame?.tick ?? index) : undefined,
+    [shownUnit?.owner, shownUnit?.kind, replay.data, ruleset, frame?.tick, index]);
   const total = replay.data ? replay.data.finalTick + 1 : 0;
   const names = useMemo(() => Object.fromEntries((replay.data?.players ?? []).map((p) => [p.id, p.name])), [replay.data]);
   const colors = useMemo(() => playerColors(replay.data?.players ?? []), [replay.data]);
@@ -195,7 +206,7 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
   }, [playing, atEnd, onEnded]);
 
   const pct = (tick: number) => `${(100 * tick) / Math.max(1, total - 1)}%`;
-  const players = display && <PlayerList selectedPlayer={selectedPlayer} onSelectPlayer={(id) => { setSelectedPlayer(id); setHover(null); }} colors={colors} view={display} names={names} subtitle={series} />;
+  const players = display && <PlayerList selectedPlayer={selectedPlayer} onSelectPlayer={(player) => { setSelectedPlayer(player); setHover(null); track("replay_perspective_changed", { replay_id: id, perspective: player ?? "all" }); }} colors={colors} view={display} names={names} subtitle={series} />;
 
   if (replay.isError || error) return <div className="page load-state" role="alert">
     <h1>Couldn’t load this battle</h1>
@@ -207,9 +218,9 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
     <div className="game viewer" onPointerDown={() => !sfx.muted && sfx.unlock()}>
       <div className="stage">
         {!frame && <div className="load-state" role="status">{replay.isPending ? "Loading battle…" : "Preparing replay…"}</div>}
-        {replay.data && <GameCanvas key={selectedPlayer ?? "all"} ruleset={replay.data.ruleset} colors={colors} frame={display} tickMs={tickMs / speed} paused={!playing} jumpKey={jumpKey} onHover={setHover} selected={unit.selected} onSelect={unit.setSelected} sound={sound} />}
+        {ruleset && <GameCanvas key={selectedPlayer ?? "all"} ruleset={ruleset} colors={colors} frame={display} tickMs={tickMs / speed} paused={!playing} jumpKey={jumpKey} onHover={setHover} selected={unit.selected} onSelect={unit.setSelected} sound={sound} />}
         {unit.deposit ? <DepositPanel deposit={unit.deposit} onClose={() => unit.setSelected(null)} />
-          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} tickMs={tickMs} names={names} colors={colors} reactiveOrders={replay.data?.ruleset.reactiveOrders} onClose={() => unit.setSelected(null)} />
+          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} tickMs={tickMs} names={names} colors={colors} reactiveOrders={ruleset?.reactiveOrders} onClose={() => unit.setSelected(null)} />
           : <Tooltip hover={hover} names={names} colors={colors} />}
         <div className="corner">
           <Link to="/battles"><Arrow dir="left" /> Battles</Link>
@@ -218,7 +229,7 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
       </div>
 
       <div className="controls">
-        <button className="play" onClick={() => setPlaying((p) => !p)} title="play / pause (space)">{playing ? "Pause" : "Play"}</button>
+        <button className="play" onClick={togglePlayback} title="play / pause (space)">{playing ? "Pause" : "Play"}</button>
         <button onClick={() => seekTo((i) => i - tickRate)} title="back 1 s (←, shift for 10 s)">−1s</button>
         <button onClick={() => seekTo((i) => i + tickRate)} title="forward 1 s (→, shift for 10 s)">+1s</button>
         <div className="timeline">
@@ -242,7 +253,7 @@ export function ReplayPlayer({ id, onEnded, initialSpeed = 2, onSpeedChange, ini
         </span>
         <ShareMoment id={id} seconds={index / tickRate} pov={selectedPlayer} />
         <SoundToggle />
-        <span className={`check ${check ? (check.verified ? "ok" : "bad") : ""}`} title="the browser re-simulated the match and compared state hashes">
+        <span className={`check ${!check ? "" : check.verified ? "ok" : "bad"}`} title="the browser re-simulated the match and compared state hashes">
           {error ? `error: ${error}` : !check ? `simulating ${loaded}/${total}` : check.verified
             ? `verified${replay.data?.experiment?.operationalFailures?.length ? ` · ${replay.data.experiment.operationalFailures.length} recorded script interruptions` : ""}`
             : `desync at ${check.desyncAt}`}

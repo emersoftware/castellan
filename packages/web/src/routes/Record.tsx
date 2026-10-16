@@ -10,12 +10,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useParams } from "@tanstack/react-router";
-import type { GameEvent, ReplayFile, SpectatorView } from "@aoa/shared";
+import { currentRuleset, pages, readMoment, type GameEvent, type RecordedKind, type ReplayFile, type SpectatorView } from "@aoa/shared";
 import { api, playerColors } from "../api";
 import { EventFeed, OutcomeBanner, PlayerList } from "../components/Hud";
 import { playerPerspective } from "../perspective";
 import { GameRenderer } from "../render/renderer";
-import { displayKind } from "../render/names";
 import type { WorkerIn, WorkerOut } from "../replay.worker";
 
 declare global {
@@ -31,12 +30,14 @@ const query = new URLSearchParams(location.search);
 const num = (k: string, d = 0) => (query.has(k) ? Number(query.get(k)) : d);
 const CLEAN = query.has("clean"), AUTO_CAMERA = query.get("camera") === "auto";
 const FIXED_CAMERA = query.get("camera")?.match(/^([\d.]+),([\d.]+)/)?.slice(1).map(Number);
-const ZOOM = 1.25 ** num("zoom"), POV = query.get("pov"), DY = num("dy");
+const ZOOM = 1.25 ** num("zoom"), POV = readMoment(query).player, DY = num("dy");
 const FROM = num("from"), TO = num("to", Infinity), FADE_IN = num("fadeIn"), FADE_OUT = num("fadeOut"), WORLD_IN = num("worldIn"), WORLD_OUT = num("worldOut");
 
 /** 0 … 1 over `ms` from `a` (1 when there is no fade). */
 const ramp = (t: number, a: number, ms: number) => (ms > 0 ? Math.min(1, Math.max(0, (t - a) / ms)) : 1);
 const ease = (t: number) => t * t * (3 - 2 * t);
+/** With nobody fighting, the camera looks at the armies. */
+const ARMY = new Set<RecordedKind>(["knight", "archer"]);
 
 /**
  * Where the camera looks, per tick: the middle of the biggest group that hit or was hit in the last 1.5 s
@@ -54,7 +55,7 @@ function cameraTrack(frames: SpectatorView[], width: number, height: number) {
       return n > best.n ? { e, n } : best;
     }, { n: 0 }).e;
     const cluster = core ? fighting.filter((o) => near(core, o)) : [];
-    const pool = cluster.length >= 2 ? cluster : f.entities.filter((e) => ["knight", "archer"].includes(displayKind(e.kind)));
+    const pool = cluster.length >= 2 ? cluster : f.entities.filter((e) => ARMY.has(e.kind));
     if (!pool.length) return { x: (width - 1) / 2, y: (height - 1) / 2 };
     const xs = pool.map((e) => e.x), ys = pool.map((e) => e.y);
     return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
@@ -75,7 +76,7 @@ function cameraTrack(frames: SpectatorView[], width: number, height: number) {
 }
 
 export function Record() {
-  const { id } = useParams({ from: "/record/$id" });
+  const { id } = useParams({ from: pages.record });
   const host = useRef<HTMLDivElement>(null);
   const [replay, setReplay] = useState<ReplayFile | null>(null);
   const [view, setView] = useState<SpectatorView | null>(null);
@@ -93,7 +94,7 @@ export function Record() {
     w.onmessage = async (e: MessageEvent<WorkerOut>) => {
       if (e.data.type === "frames") frames.push(...e.data.frames);
       if (e.data.type !== "done") return;
-      renderer = await GameRenderer.create(host.current!, replay.ruleset, playerColors(replay.players));
+      renderer = await GameRenderer.create(host.current!, currentRuleset(replay.ruleset), playerColors(replay.players));
       const clock = renderer.manualClock();
       const tickMs = 1000 / replay.tickRate;
       let shown = -1;

@@ -2,13 +2,21 @@ import { Worker } from "node:worker_threads";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import type { ScriptLimits } from "@aoa/shared";
-import { RUN_LIMITS, type RunLimits, type RunResult, type ScriptHost, type UnitRun } from "@aoa/sandbox";
+import { RUN_LIMITS, type RunLimits, type RunResult, type ScriptHost, type ScriptWorld, type UnitRun } from "@aoa/sandbox";
 
 const STARTING = 0, IDLE = 1, REQUEST = 2, RESPONSE = 3, FAILED = 4, RUNNING = 5;
 const HEADER_BYTES = 16;
 const TRANSPORT_BYTES = 1024 * 1024;
 const WORKER_URL = new URL("./script-worker.mjs", import.meta.url);
 let workerSource: string | undefined;
+
+/** What script-worker.mjs is asked to do, and what a one-shot worker answers. */
+export type WorkerRequest =
+  | { op: "setScript"; kind: string; code: string | null }
+  | { op: "run"; world: ScriptWorld; unitIds: string[] }
+  | { op: "runOnce"; code: string; input: { view: unknown; rules: unknown }; limits: RunLimits }
+  | { op: "validate"; code: string; limits: ScriptLimits };
+export type WorkerMessage = { type: "ready" } | { type: "result"; value: unknown } | { type: "error"; error: string };
 
 /** A timeout result is advisory: the notifying worker may have completed while
  * this thread was descheduled. Always re-read the shared state before killing it. */
@@ -80,7 +88,7 @@ export function createIsolatedScriptHost(limits: ScriptLimits, seed: number, iso
   } else if (Atomics.load(header, 0) !== IDLE) stop("sandbox worker failed to initialize");
   if (failure) throw new Error(failure);
 
-  function call(request: unknown) {
+  function call(request: WorkerRequest) {
     if (failure) return { ok: false as const, error: failure };
     const encoded = encoder.encode(JSON.stringify(request));
     if (encoded.length > bytes.length) return { ok: false as const, error: "sandbox request exceeds transport limit" };
@@ -123,7 +131,7 @@ export function createIsolatedScriptHost(limits: ScriptLimits, seed: number, iso
   };
 }
 
-function isolatedRequest<T>(request: unknown, isolation: IsolationLimits): Promise<T> {
+function isolatedRequest<T>(request: WorkerRequest, isolation: IsolationLimits): Promise<T> {
   return new Promise((resolve, reject) => {
     const w = worker({ mode: "once" });
     let settled = false, ready = false;
@@ -137,13 +145,13 @@ function isolatedRequest<T>(request: unknown, isolation: IsolationLimits): Promi
     let timer = setTimeout(() => finish(new Error("sandbox worker startup timed out")), isolation.startupTimeoutMs);
     w.on("error", error => finish(error));
     w.on("exit", code => { if (!settled) finish(new Error(`sandbox worker exited (${code})`)); });
-    w.on("message", message => {
+    w.on("message", (message: WorkerMessage) => {
       if (message.type === "ready" && !ready) {
         ready = true;
         clearTimeout(timer);
         timer = setTimeout(() => finish(new Error(`sandbox watchdog timeout after ${isolation.timeoutMs}ms; request terminated`)), isolation.timeoutMs);
         w.postMessage(request);
-      } else if (message.type === "result") finish(undefined, message.value);
+      } else if (message.type === "result") finish(undefined, message.value as T);
       else if (message.type === "error") finish(new Error(message.error));
     });
   });

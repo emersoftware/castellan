@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { rules, MAPS, playerGuide, viewToText, type ReplayFile } from '@aoa/shared';
+import { rules, MAPS, playerGuide, viewToText, type ReplayFile, type Ruleset } from '@aoa/shared';
 import { createMatch, runReplay } from '../src/index';
 
 it('uses king in every map, the rules and state', async () => {
@@ -20,7 +20,7 @@ it('uses king in every map, the rules and state', async () => {
 });
 
 it('ends on king death and deterministically replays the new kind', async () => {
-  const ruleset = { ...rules, map: { ...rules.map, width: 8, height: 8, walls: [], deposits: [], sharedDeposits: [],
+  const ruleset: Ruleset = { ...rules, map: { ...rules.map, width: 8, height: 8, walls: [], deposits: [], sharedDeposits: [],
     start: [{kind:'king',x:3,y:3},{kind:'knight',x:3,y:4}] },
     kinds: { ...rules.kinds, knight: { ...rules.kinds.knight, atk: 500 } }, defaultScripts: {} };
   const players = [{id:'a',name:'A'},{id:'b',name:'B'}];

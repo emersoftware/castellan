@@ -1,5 +1,7 @@
+// @ts-check
 // Keep the wall's masonry and ground anchor; leave a real opening between neighbours.
 import { readFile, writeFile } from 'node:fs/promises';
+/** @import { ClipArt } from '../src/render/clips.ts' */
 const base = new URL('../public/sprites/', import.meta.url);
 const wall = (await readFile(new URL('wall.png', base))).toString('base64');
 const opening = 'M30 114V88Q30 75 45 73Q60 75 60 88V114Z';
@@ -31,5 +33,7 @@ for (const side of ['left', 'right', 'both']) {
 }
 const path = new URL('manifest.json', base);
 const manifest = JSON.parse(await readFile(path, 'utf8'));
-for (const kind of ['door', 'door-open', 'wall-door-left', 'wall-door-right', 'wall-door-both']) manifest.sprites[kind] = { ...manifest.sprites.wall, format: 'svg' };
+/** @type {ClipArt[]} */
+const pieces = ['door', 'door-open', 'wall-door-left', 'wall-door-right', 'wall-door-both'];
+for (const kind of pieces) manifest.sprites[kind] = { ...manifest.sprites.wall, format: 'svg' };
 await writeFile(path, JSON.stringify(manifest, null, 1) + '\n');

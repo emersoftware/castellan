@@ -3,19 +3,22 @@ import { expect, it, vi } from 'vitest';
 import { Texture, type Sprite } from 'pixi.js';
 import { rules, type EntityView, type SpectatorView } from '@aoa/shared';
 import { GameRenderer } from '../src/render/renderer';
-import { unitAnimation, unitDeathAnimation, MELEE_RECOVERY_MS } from '../src/render/unitAnimation';
-import { displayKind } from '../src/render/names';
+import { fall, strikeMs, unitLook, type Strike } from '../src/render/look';
+import { currentKind } from '@aoa/shared';
 import { TILE_H, TILE_W, type SpriteSet } from '../src/render/sprites';
 import workerAtlas from '../public/sprites/worker/manifest.json';
 import kingAtlas from '../public/sprites/king/manifest.json';
 import atlas from '../public/sprites/knight/manifest.json';
-import * as animations from '../src/render/unitAnimation';
+import * as look from '../src/render/look';
+/** A unit standing (`walked` undefined) or walking. */
+const unitAnimation = (kind: string, timeMs: number, walked?: number, strike?: Strike) => unitLook({ kind, x: 0, y: 0 }, strike?.dir ?? 2, timeMs, { walked, strike }).animation;
+const MELEE_RECOVERY_MS = strikeMs('knight')!;
 it.each([0,1,2,3,4,5,6,7])('starts knight direction %i at contact and returns to locomotion',dir=>{
   const row=[0,1,2,3,4,3,2,1][dir];
-  expect(unitAnimation('knight',1000,true,{at:1000,dir})).toEqual({action:'attack',frame:atlas.attack.impactFrames[row]});
-  expect(unitAnimation('knight',1399,false,{at:1000,dir})?.frame).toBe(27);
-  expect(unitAnimation('knight',1000+MELEE_RECOVERY_MS,true,{at:1000,dir})?.action).toBe('walk');
-  expect(unitAnimation('king',1000,false)?.action).toBe('idle');
+  expect(unitAnimation('knight',1000,0,{at:1000,dir})).toEqual({action:'attack',frame:atlas.attack.impactFrames[row]});
+  expect(unitAnimation('knight',1399,undefined,{at:1000,dir})?.frame).toBe(27);
+  expect(unitAnimation('knight',1000+MELEE_RECOVERY_MS,0,{at:1000,dir})?.action).toBe('walk');
+  expect(unitAnimation('king',1000)?.action).toBe('idle');
 });
 
 function setup(kind:string,ruleset:typeof rules={...rules,diagonalMove:1}){
@@ -87,7 +90,7 @@ it.each([50,100,200])('keeps a diagonal melee approach at constant speed with %i
     h.internal.animate();
     expect(sprite.x).toBeCloseTo((17-26-2*step/7)*TILE_W/2);
     expect(sprite.y).toBeCloseTo((17+26)*TILE_H/2+3);
-    if(step>=1&&step<5)expect(h.last().slice(1)).toEqual([7,unitAnimation('knight',(4100+step)*100,true,{at:410100,dir:7})]);
+    if(step>=1&&step<5)expect(h.last().slice(1)).toEqual([7,unitAnimation('knight',(4100+step)*100,0,{at:410100,dir:7})]);
     if(step===5||step===6){
       expect(h.last()[2]?.action).toBe('walk');
       expect(h.last()[1]).toBe(6); // resume facing along the step, not toward the target
@@ -116,11 +119,11 @@ it('freezes a melee approach on pause and discards it on seek',()=>{
   expect(h.internal.drawn.get('u')!.shot).toBeUndefined();
 });
 it('presents historic unit and building names without altering replay data',()=>{
-  expect(displayKind('agent')).toBe('king');expect(displayKind('nexus')).toBe('castle');expect(displayKind('knight')).toBe('knight');
+  expect(currentKind('agent')).toBe('king');expect(currentKind('nexus')).toBe('castle');expect(currentKind('knight')).toBe('knight');
 });
 
 it('keeps the existing melee lunge when an attack atlas has not been published',()=>{
-  const available=vi.spyOn(animations,'hasUnitAnimation').mockReturnValue(false);
+  const available=vi.spyOn(look,'strikeMs').mockReturnValue(undefined);
   try {
     const h=setup('knight');h.renderer.setFrame(h.frame(1),100);
     h.renderer.setFrame({...h.frame(2),events:[{tick:1,type:'attack',from:'u',to:'t',dmg:12}]},100);
@@ -146,8 +149,8 @@ it.each(['archer','knight','king','worker'].flatMap(kind=>[0,1,2,3,4,5,6,7].map(
 });
 
 it('holds the death endpoint and preserves static fallback for unsupported units',()=>{
-  expect(unitDeathAnimation('archer',100_000)).toEqual({action:'death',frame:27});
-  expect(unitDeathAnimation('wall',1000)).toBeUndefined();
+  expect(fall({kind:'archer',hp:0,maxHp:40},rules.kinds.archer).at(100_000).animation).toEqual({action:'death',frame:27});
+  expect(fall({kind:'wall',hp:0,maxHp:40},rules.kinds.knight).at(1000).animation).toBeUndefined();
 });
 
 it('scales the fall with replay speed and completes after the final snapshot',()=>{
@@ -172,29 +175,26 @@ it('removes the old corpse when seeking back to a living unit',()=>{
 });
 
 it('loops Worker idle and uses distance for walking',()=>{
- expect(unitAnimation('worker',0,false)).toEqual({action:'idle',frame:0});
- expect(unitAnimation('worker',1000,false)).toEqual({action:'idle',frame:12});
- expect(unitAnimation('worker',2500,false)).toEqual({action:'idle',frame:2});
- expect(unitAnimation('worker',10000,true,undefined,.5)).toEqual({action:'walk',frame:7});
+ expect(unitAnimation('worker',0)).toEqual({action:'idle',frame:0});
+ expect(unitAnimation('worker',1000)).toEqual({action:'idle',frame:12});
+ expect(unitAnimation('worker',2500)).toEqual({action:'idle',frame:2});
+ expect(unitAnimation('worker',10000,.5)).toEqual({action:'walk',frame:7});
 });
 
 it.each([[1,1,0],[1,0,1],[1,-1,2],[0,-1,3],[-1,-1,4],[-1,0,5],[-1,1,6],[0,1,7]])('faces the mineral at offset %i,%i in screen direction %i', (dx,dy,dir)=>{
- const mining=vi.spyOn(animations,'unitMiningAnimation').mockReturnValue({action:'mine',frame:3});
- try {
-  const h=setup('worker');
-  const unit={...h.unit,gathering:{x:4+dx,y:4+dy}};
-  h.renderer.setFrame(h.frame(1,[unit]),100);h.internal.animate();
-  expect(h.last().slice(1)).toEqual([dir,{action:'mine',frame:3}]);
-  const moved={...unit,x:5,stats:{atk:3,def:1,range:1,attackMs:1000,moveMs:500}};
-  h.renderer.setFrame(h.frame(2,[moved]),100);h.internal.animate();
-  expect(h.last()[2]?.action).toBe('walk');
- }finally{mining.mockRestore();}
+ const h=setup('worker');
+ const unit={...h.unit,gathering:{x:4+dx,y:4+dy}};
+ h.renderer.setFrame(h.frame(1,[unit]),100);h.internal.animate();
+ expect(h.last()[1]).toBe(dir);expect(h.last()[2]?.action).toBe('mine');
+ const moved={...unit,x:5,stats:{atk:3,def:1,range:1,attackMs:1000,moveMs:500}};
+ h.renderer.setFrame(h.frame(2,[moved]),100);h.internal.animate();
+ expect(h.last()[2]?.action).toBe('walk');
 });
 
 it.each([0,1,2,3,4,5,6,7])('starts Worker melee direction %i at the actual contact pose',dir=>{
  const row=[0,1,2,3,4,3,2,1][dir];
- expect(unitAnimation('worker',1000,true,{at:1000,dir})).toEqual({action:'attack',frame:workerAtlas.attack.impactFrames[row]});
- expect(unitAnimation('worker',1400,false,{at:1000,dir})?.action).toBe('idle');
+ expect(unitAnimation('worker',1000,0,{at:1000,dir})).toEqual({action:'attack',frame:workerAtlas.attack.impactFrames[row]});
+ expect(unitAnimation('worker',1400,undefined,{at:1000,dir})?.action).toBe('idle');
 });
 it('locks a Worker melee hit to the target instead of the mineral or movement',()=>{
  const h=setup('worker');h.renderer.setFrame(h.frame(1),100);
@@ -212,8 +212,8 @@ it('freezes mining on pause and stops mining when work ends',()=>{
 
 it.each([0,1,2,3,4,5,6,7])('starts King melee direction %i at contact and resumes idle',dir=>{
  const row=[0,1,2,3,4,3,2,1][dir];
- expect(unitAnimation('king',1000,true,{at:1000,dir})).toEqual({action:'attack',frame:kingAtlas.attack.impactFrames[row]});
- expect(unitAnimation('king',1400,false,{at:1000,dir})?.action).toBe('idle');
+ expect(unitAnimation('king',1000,0,{at:1000,dir})).toEqual({action:'attack',frame:kingAtlas.attack.impactFrames[row]});
+ expect(unitAnimation('king',1400,undefined,{at:1000,dir})?.action).toBe('idle');
 });
 it('faces the King toward his attacker and freezes the strike on pause',()=>{
  const h=setup('king');h.renderer.setFrame(h.frame(1),100);

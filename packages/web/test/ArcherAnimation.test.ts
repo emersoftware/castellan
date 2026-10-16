@@ -3,16 +3,19 @@ import { expect, it, vi } from 'vitest';
 import { Texture, type Sprite, type Graphics } from 'pixi.js';
 import { rules, type EntityView, type SpectatorView } from '@aoa/shared';
 import { GameRenderer } from '../src/render/renderer';
-import { archerAnimation, SHOT_RECOVERY_MS } from '../src/render/archerAnimation';
+import { strikeMs, unitLook, type Strike } from '../src/render/look';
 import type { SpriteSet } from '../src/render/sprites';
 import atlas from '../public/sprites/archer/manifest.json';
 
 const row = [0, 1, 2, 3, 4, 3, 2, 1];
+const SHOT_RECOVERY_MS = strikeMs('archer')!;
+/** An archer standing (`walked` undefined) or walking. */
+const pose = (timeMs: number, walked: number | undefined, strike: Strike) => unitLook({ kind: 'archer', x: 0, y: 0 }, strike.dir, timeMs, { walked, strike }).animation!;
 it.each(row.map((_, dir) => dir))('starts direction %i at its release marker and returns to locomotion', (dir) => {
-  expect(archerAnimation(1000, true, { at: 1000, dir })).toEqual({ action: 'shoot', frame: atlas.shoot.releaseFrames[row[dir]] });
-  expect(archerAnimation(1000 + SHOT_RECOVERY_MS - 1, true, { at: 1000, dir }).frame).toBe(27);
-  expect(archerAnimation(1000 + SHOT_RECOVERY_MS, true, { at: 1000, dir }).action).toBe('walk');
-  expect(archerAnimation(1000 + SHOT_RECOVERY_MS, false, { at: 1000, dir }).action).toBe('idle');
+  expect(pose(1000, 0, { at: 1000, dir })).toEqual({ action: 'shoot', frame: atlas.shoot.releaseFrames[row[dir]] });
+  expect(pose(1000 + SHOT_RECOVERY_MS - 1, 0, { at: 1000, dir }).frame).toBe(27);
+  expect(pose(1000 + SHOT_RECOVERY_MS, 0, { at: 1000, dir }).action).toBe('walk');
+  expect(pose(1000 + SHOT_RECOVERY_MS, undefined, { at: 1000, dir }).action).toBe('idle');
 });
 
 function setup() {
@@ -74,7 +77,7 @@ it.each([50, 100, 200])('uses simulation time at replay tick duration %i ms, fre
   h.time(1000 + tickMs / 2);
   h.internal.animate();
   const halfway = h.lastArcher()[2];
-  expect(halfway).toEqual(archerAnimation(250, false, { at: 200, dir: 6 }));
+  expect(halfway).toEqual(pose(250, undefined, { at: 200, dir: 6 }));
   h.renderer.setPaused(true);
   h.time(10000);
   h.internal.animate();

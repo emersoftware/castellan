@@ -19,7 +19,7 @@ describe("reference bot production", () => {
     r.startMineral = 5000;
     r.trainingQueueLimit = 2;
     for (const [kind, cost] of Object.entries({ worker: 73, knight: 137, archer: 181, tower: 233 })) r.kinds[kind].cost = cost;
-    for (const kind of ["knight", "archer", "tower"]) {
+    for (const kind of ["knight", "archer", "tower"] as const) {
       r.kinds[kind].requires = `unlock_${kind}`;
       r.upgrades[`unlock_${kind}`] = { kind, stat: "unlock", levels: [{ cost: 107, researchMs: 500, value: 1 }] };
     }

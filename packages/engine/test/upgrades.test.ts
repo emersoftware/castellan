@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rules, playerGuide, viewToText, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { rules, playerGuide, viewToText, type Order, type RecordedKind, type ReplayFile, type Ruleset } from "@aoa/shared";
 import { createMatch, runReplay, type Match, type PlayerOrder } from "../src";
 
 const players = [{ id: "p1", name: "one" }, { id: "p2", name: "two" }];
@@ -142,7 +142,7 @@ describe("unlock research", () => {
   it("makes archers and towers producible only after their research, and gates their other research", async () => {
     // The current rules unlock nothing (v21d); the engine still supports gated kinds.
     const base = setupRules();
-    const unlock = (kind: string) => ({ kind, stat: "unlock" as const, levels: [{ cost: 100, researchMs: 3000, value: 1 }] });
+    const unlock = (kind: RecordedKind) => ({ kind, stat: "unlock" as const, levels: [{ cost: 100, researchMs: 3000, value: 1 }] });
     const gated: Ruleset = { ...base,
       kinds: { ...base.kinds, archer: { ...base.kinds.archer, requires: "archery" }, tower: { ...base.kinds.tower, requires: "engineering" } },
       upgrades: { ...base.upgrades, archery: unlock("archer"), engineering: unlock("tower") } };

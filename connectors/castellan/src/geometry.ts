@@ -8,17 +8,16 @@ import type { MapSpec } from "@aoa/shared";
 export interface Pt { x: number; y: number }
 
 /** Game distance: Euclidean rounded to the nearest whole tile (as in the rules). */
-export function dist(ax: number, ay: number, bx: number, by: number): number {
-  const n = (ax - bx) ** 2 + (ay - by) ** 2;
+export function dist(a: Pt, b: Pt): number {
+  const n = (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
   const r = Math.floor(Math.sqrt(n));
   return n - r * r > r ? r + 1 : r;
 }
-export const distP = (a: Pt, b: Pt): number => dist(a.x, a.y, b.x, b.y);
 /** Chebyshev distance: steps in 8 directions, ignoring the diagonal cost. */
-export const cheb = (a: Pt, b: Pt): number => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+const cheb = (a: Pt, b: Pt): number => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
 /** Where a tile of the listed layout lands for seat 0..3 (as listed, 180°, 90°, 270°). */
-export function seatToMap(x: number, y: number, seat: number, w: number, h: number): Pt {
+function seatToMap({ x, y }: Pt, seat: number, { width: w, height: h }: MapSpec): Pt {
   switch (seat) {
     case 1: return { x: w - 1 - x, y: h - 1 - y };
     case 2: return { x: w - 1 - y, y: x };
@@ -26,7 +25,7 @@ export function seatToMap(x: number, y: number, seat: number, w: number, h: numb
     default: return { x, y };
   }
 }
-export function mapToSeat(x: number, y: number, seat: number, w: number, h: number): Pt {
+function mapToSeat({ x, y }: Pt, seat: number, { width: w, height: h }: MapSpec): Pt {
   switch (seat) {
     case 1: return { x: w - 1 - x, y: h - 1 - y };
     case 2: return { x: y, y: w - 1 - x };
@@ -35,29 +34,20 @@ export function mapToSeat(x: number, y: number, seat: number, w: number, h: numb
   }
 }
 
-/** A seat's frame of reference: "local" coordinates are the listed layout, with home at the top-left. */
-export class Frame {
-  constructor(readonly seat: number, readonly width: number, readonly height: number) {}
-  toMap(p: Pt): Pt { return seatToMap(p.x, p.y, this.seat, this.width, this.height); }
-  toLocal(p: Pt): Pt { return mapToSeat(p.x, p.y, this.seat, this.width, this.height); }
-  inBounds(p: Pt): boolean { return p.x >= 0 && p.y >= 0 && p.x < this.width && p.y < this.height; }
-  /** The map tile of a local point, clamped to the map. */
-  local(x: number, y: number): Pt {
-    const p = this.toMap({ x, y });
-    return { x: Math.min(this.width - 1, Math.max(0, p.x)), y: Math.min(this.height - 1, Math.max(0, p.y)) };
-  }
-}
+const listedCastle = (map: MapSpec): Pt => map.start.find((s) => s.kind === "castle") ?? { x: 4, y: 4 };
+const seatBases = (map: MapSpec): Pt[] => Array.from({ length: map.seats ?? 2 }, (_, seat) => seatToMap(listedCastle(map), seat, map));
 
-/** Which seat starts at the corner where `castle` stands (null if it matches none). */
-export function detectSeat(map: MapSpec, castle: Pt): number | null {
+/** The seat whose listed start lands exactly on `p`, else the one whose base is nearest. */
+function seatAt(map: MapSpec, p: Pt): number {
   const listed = map.start.find((s) => s.kind === "castle") ?? map.start[0];
-  if (!listed) return null;
-  const seats = map.seats ?? 2;
-  for (let seat = 0; seat < seats; seat++) {
-    const p = seatToMap(listed.x, listed.y, seat, map.width, map.height);
-    if (p.x === castle.x && p.y === castle.y) return seat;
+  const bases = seatBases(map);
+  if (listed) for (let seat = 0; seat < bases.length; seat++) {
+    const q = seatToMap(listed, seat, map);
+    if (q.x === p.x && q.y === p.y) return seat;
   }
-  return null;
+  let best = 0;
+  for (let s = 1; s < bases.length; s++) if (dist(p, bases[s]) < dist(p, bases[best])) best = s;
+  return best;
 }
 
 export interface DepositCluster {
@@ -72,56 +62,62 @@ export interface DepositCluster {
   seat?: number;
 }
 
-/** Deposit tiles of every seat and the shared ones, grouped by adjacency, labelled from `mySeat`'s point of view. */
-export function depositClusters(map: MapSpec, mySeat: number): DepositCluster[] {
-  const seats = map.seats ?? 2;
-  const listedCastle = map.start.find((s) => s.kind === "castle") ?? { x: 4, y: 4 };
-  const tiles: { p: Pt; amount: number; seat?: number; home: boolean }[] = [];
-  for (let seat = 0; seat < seats; seat++) {
-    for (const d of map.deposits) {
-      const p = seatToMap(d.x, d.y, seat, map.width, map.height);
-      tiles.push({ p, amount: d.amount, seat, home: dist(d.x, d.y, listedCastle.x, listedCastle.y) <= 8 });
-    }
+/** A seat's frame of reference: "local" coordinates are the listed layout, with home at the top-left. */
+export class Frame {
+  readonly seat: number;
+  /** Seat 0 without an anchor; otherwise the seat whose corner holds it (a castle or the king), else the nearest. */
+  constructor(readonly map: MapSpec, anchor?: Pt) {
+    this.seat = anchor ? seatAt(map, anchor) : 0;
   }
-  for (const d of map.sharedDeposits) tiles.push({ p: { x: d.x, y: d.y }, amount: d.amount, home: false });
-  // Single-link clustering of tiles within 2 of each other that share a seat label.
+  /** The map tile of a local point, clamped to the map. */
+  toMap(p: Pt): Pt {
+    const m = seatToMap(p, this.seat, this.map);
+    return { x: Math.min(this.map.width - 1, Math.max(0, m.x)), y: Math.min(this.map.height - 1, Math.max(0, m.y)) };
+  }
+  toLocal(p: Pt): Pt { return mapToSeat(p, this.seat, this.map); }
+  /** The corner tile of every seat's base (where its castle is listed), in map coordinates. */
+  bases(): Pt[] { return seatBases(this.map); }
+
+  /** Deposit tiles of every seat and the shared ones, grouped by adjacency, labelled from this seat's point of view. */
+  clusters(): DepositCluster[] {
+    const map = this.map, castle = listedCastle(map);
+    const tiles: { x: number; y: number; amount: number; seat?: number; home: boolean }[] = [];
+    for (let seat = 0; seat < (map.seats ?? 2); seat++) {
+      for (const d of map.deposits) tiles.push({ ...seatToMap(d, seat, map), amount: d.amount, seat, home: dist(d, castle) <= 8 });
+    }
+    for (const d of map.sharedDeposits) tiles.push({ x: d.x, y: d.y, amount: d.amount, home: false });
+    return groupNearby(tiles, 2, (a, b) => a.seat === b.seat && a.home === b.home).map((members, i) => {
+      const seat = members[0].seat;
+      const kind: DepositCluster["kind"] = seat === undefined ? "center" : seat !== this.seat ? "foreign" : members[0].home ? "home" : "flank";
+      const center = { x: Math.round(members.reduce((n, t) => n + t.x, 0) / members.length), y: Math.round(members.reduce((n, t) => n + t.y, 0) / members.length) };
+      return { id: `c${i + 1}`, tiles: members.map((m) => ({ x: m.x, y: m.y })), center, mineral: members.reduce((n, t) => n + t.amount, 0), kind, seat };
+    });
+  }
+}
+
+/** Single-link groups in input order: an item joins when `same` accepts it and it is within Chebyshev `radius` of a member. */
+export function groupNearby<T extends Pt>(items: T[], radius: number, same: (a: T, b: T) => boolean): T[][] {
   const used = new Set<number>();
-  const out: DepositCluster[] = [];
-  for (let i = 0; i < tiles.length; i++) {
+  const groups: T[][] = [];
+  for (let i = 0; i < items.length; i++) {
     if (used.has(i)) continue;
     const group = [i];
     used.add(i);
-    for (let k = 0; k < group.length; k++) {
-      for (let j = 0; j < tiles.length; j++) {
-        if (used.has(j) || tiles[j].seat !== tiles[group[k]].seat || tiles[j].home !== tiles[group[k]].home) continue;
-        if (cheb(tiles[j].p, tiles[group[k]].p) <= 2) { used.add(j); group.push(j); }
-      }
+    for (let k = 0; k < group.length; k++) for (let j = 0; j < items.length; j++) {
+      if (used.has(j) || !same(items[j], items[group[k]])) continue;
+      if (cheb(items[j], items[group[k]]) <= radius) { used.add(j); group.push(j); }
     }
-    const members = group.map((g) => tiles[g]);
-    const cx = Math.round(members.reduce((n, t) => n + t.p.x, 0) / members.length);
-    const cy = Math.round(members.reduce((n, t) => n + t.p.y, 0) / members.length);
-    const seat = members[0].seat;
-    const kind: DepositCluster["kind"] = seat === undefined ? "center" : seat !== mySeat ? "foreign" : members[0].home ? "home" : "flank";
-    out.push({ id: `c${out.length + 1}`, tiles: members.map((m) => m.p), center: { x: cx, y: cy }, mineral: members.reduce((n, t) => n + t.amount, 0), kind, seat });
+    groups.push(group.map((g) => items[g]));
   }
-  return out;
-}
-
-/** The corner tile of every seat's base (where its castle is listed), in map coordinates. */
-export function seatBases(map: MapSpec): Pt[] {
-  const listed = map.start.find((s) => s.kind === "castle") ?? { x: 4, y: 4 };
-  return Array.from({ length: map.seats ?? 2 }, (_, seat) => seatToMap(listed.x, listed.y, seat, map.width, map.height));
+  return groups;
 }
 
 /** Tiles within Chebyshev radius r of p, nearest first (ties by reading order), inside the map. */
-export function ring(p: Pt, r: number, w: number, h: number): Pt[] {
+export function ring(p: Pt, r: number, { width: w, height: h }: MapSpec): Pt[] {
   const out: Pt[] = [];
   for (let y = p.y - r; y <= p.y + r; y++) for (let x = p.x - r; x <= p.x + r; x++) {
     if (x < 0 || y < 0 || x >= w || y >= h || (x === p.x && y === p.y)) continue;
     out.push({ x, y });
   }
-  return out.sort((a, b) => distP(a, p) - distP(b, p) || a.y - b.y || a.x - b.x);
+  return out.sort((a, b) => dist(a, p) - dist(b, p) || a.y - b.y || a.x - b.x);
 }
-
-export const samePt = (a: Pt | undefined, b: Pt | undefined): boolean => !!a && !!b && a.x === b.x && a.y === b.y;
-export const key = (p: Pt): string => `${p.x},${p.y}`;

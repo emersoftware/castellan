@@ -7,9 +7,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
-import { playerGuide, type Ruleset } from "@aoa/shared";
+import { playerGuide, type EntityKind, type Ruleset } from "@aoa/shared";
 // @ts-expect-error Plain Node launcher shared with external harnesses.
-import { isolatedExec, isolatedHome } from "../../../connectors/loop-keepers/codex/agent.mjs";
+import { codexBin, isolatedExec, isolatedHome } from "../../../connectors/loop-keepers/codex/agent.mjs";
 
 const OUT = "/tmp/aoa-probe";
 const arg = (name: string, fallback: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : fallback; };
@@ -39,7 +39,7 @@ async function ask(model: string, prompt: string): Promise<string> {
   const env: NodeJS.ProcessEnv = { ...process.env, CODEX_HOME: home };
   for (const k of ["OPENAI_API_KEY", "CODEX_API_KEY", "AOA_TOKEN", "AOA_DIRECTIVE"]) delete env[k];
   return new Promise((resolve) => {
-    const child = spawn("codex", [...isolatedExec({ workspace }), "--ephemeral",
+    const child = spawn(codexBin(env), [...isolatedExec({ workspace }), "--ephemeral",
       "-m", model, "-c", 'model_reasoning_effort="low"', "-o", out, "-"], { env, stdio: ["pipe", "ignore", "ignore"] });
     child.stdin.end(prompt);
     child.on("exit", () => { const text = existsSync(out) ? readFileSync(out, "utf8") : ""; rmSync(run, { recursive: true, force: true }); resolve(text); });
@@ -65,7 +65,7 @@ for (const target of targets) {
   }));
   writeFileSync(`${OUT}/${label}.json`, JSON.stringify({ version: ruleset.version, results }, null, 1));
   // Share of the combat mineral each model puts in knights, archers and towers.
-  const cost = (k: string) => ruleset.kinds[k]?.cost ?? 0;
+  const cost = (k: EntityKind) => ruleset.kinds[k]?.cost ?? 0;
   for (const model of MODELS) {
     const spent = { knight: 0, archer: 0, tower: 0 };
     let answered = 0;

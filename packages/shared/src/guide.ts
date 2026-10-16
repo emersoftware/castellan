@@ -5,8 +5,9 @@ import { kindSpec, withMineralNames } from "./legacy";
 /**
  * The rules in prose for an LLM player: what exists and how it works, never what to do.
  * Served by `GET /rules` and by every reference connector, so there is one copy.
+ * `room` describes the match; a series game also gets the series standings, the only part that changes during a match.
  */
-export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean; playerCount?: number; series?: SeriesProgress; tickRate?: number } = {}): string {
+export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean; playerCount?: number; tickRate?: number } = {}, series?: SeriesProgress): string {
   r = withMineralNames(r);
   const k = r.kinds;
   const tickRate = room.tickRate ?? 10;
@@ -38,10 +39,10 @@ export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean;
   const ruins = "An eliminated player's buildings stay as RUINS: inert and blind, still blocking, their doors passing only the owner's teammates; anyone can destroy them, for no kills or score.";
 
   return `# Age of Agents — rules (${r.version})
-${room.series ? `
+${series ? `
 ## Series
-Game ${room.series.gameNumber} of 3 in series ${room.series.id}; all three are played. Units, resources and scripts reset each game; player ids stay, positions can change.
-Game wins: ${JSON.stringify(room.series.score)}.${room.series.losses ? ` Game losses: ${JSON.stringify(room.series.losses)}.` : ""} Completed previous games: ${room.series.previousGames.join(", ") || "none"}.
+Game ${series.gameNumber} of 3 in series ${series.id}; all three are played. Units, resources and scripts reset each game; player ids stay, positions can change.
+Game wins: ${JSON.stringify(series.score)}.${series.losses ? ` Game losses: ${JSON.stringify(series.losses)}.` : ""} Completed previous games: ${series.previousGames.join(", ") || "none"}.
 The side with the most game wins wins the series.${r.drawsAreLosses ? " If opposing sides tie for the most wins, everyone loses the series." : " Tied opposing sides draw the series."}
 GET /history (MCP history, aoa history) lists them; game=N with section=summary|events|chat|scripts|orders shows one (offset and limit paginate: default 50, max 100).
 History has results, the events and chat you could see, and your own orders and scripts; never other players' private messages or opponents' scripts.
@@ -84,7 +85,7 @@ Distance for range, vision and script helpers is Euclidean, rounded to the neare
 ${r.tickPathCosts ? "Paths use each unit's actual straight and diagonal step times after rounding to ticks. " : ""}${r.coordinatedMovement ? "Moving allies can follow into tiles vacated this tick without pushing idle units. Units with explicit move orders to the same point receive distinct nearby reachable arrival tiles; each order finishes at its assigned tile. Script moveTo keeps its exact destination." : ""}
 
 ## Map
-"${r.map.name}" is ${r.map.width}x${r.map.height}, x→ right, y↓ down. ${r.map.description}${r.map.walls.length ? r.map.wallStyle === "wall" ? " Terrain walls (^) block movement and building; they have no owner or HP, cannot be attacked, and are not enemies. Sight and projectiles pass over them." : " Rock (^) blocks movement and building." : ""}
+"${r.map.name}" is ${r.map.width}x${r.map.height}, x→ right, y↓ down. ${r.map.description}${!r.map.walls.length ? "" : r.map.wallStyle === "wall" ? " Terrain walls (^) block movement and building; they have no owner or HP, cannot be attacked, and are not enemies. Sight and projectiles pass over them." : " Rock (^) blocks movement and building."}
 ${r.map.neutralWalls?.length ? "Neutral walls (%) are scenario ruins: owner neutral, ruin:true, same HP/defense as walls. They block movement and building on their tile, but give no vision, do not act, and impose no building-exclusion radius. Anyone can attack them; destroying one opens its tile and gives no kills or score. They appear in JSON enemy and script enemy helpers as attackable entities, separately labelled in text state. Their owner is not a participant or a victory target.\n" : ""}\
 ${three ? "Three of this map's four starting corners are occupied, with the same layout rotated 90°. The empty corner has no base or personal deposits. Distances between opponents are not symmetric." : four ? "Every corner has the same layout, rotated 90°." : "Each side mirrors the other (rotated 180°)."} Corners are assigned at random.
 

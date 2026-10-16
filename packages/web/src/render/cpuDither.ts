@@ -1,25 +1,9 @@
 /** The game's ramp dither on the CPU, for static images (portraits). */
 import type { Ramp } from "./palette";
-import { normalizeCharacterContrast } from "./characterContrast";
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
-/** Draws `src` into a `w`×`h` canvas and dithers its brightness along `ramp`. Transparent stays transparent. */
-export function ditherRamp(src: CanvasImageSource, w: number, h: number, ramp: Ramp, lift = 1, character = false): HTMLCanvasElement {
-  const cv = document.createElement("canvas");
-  cv.width = w;
-  cv.height = h;
-  const ctx = cv.getContext("2d")!;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(src, 0, 0, w, h);
-  const img = ctx.getImageData(0, 0, w, h);
-  if (character) normalizeCharacterContrast(img.data);
-  ditherPixels(img.data, w, h, ramp, lift);
-  ctx.putImageData(img, 0, 0);
-  return cv;
-}
-
-/** Three-tone ordered dither, also used by the static portrait renderer. */
+/** Three-tone ordered dither of RGBA pixels: brightness along `ramp`; transparent stays transparent. */
 export function ditherPixels(d: Uint8ClampedArray, w: number, h: number, ramp: Ramp, lift = 1): void {
   const steps = ramp.steps.map((c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)));
   for (let y = 0; y < h; y++) {

@@ -5,10 +5,10 @@
  * both sides and with several script sets: standard, the built-in defaults, group tactics and scripts players wrote.
  */
 import { existsSync, readFileSync } from "node:fs";
-import type { Ruleset } from "@aoa/shared";
+import { HOLD_SCRIPT, type EntityKind, type Ruleset } from "@aoa/shared";
 import type { Snapshot } from "./battles";
 
-type Kind = "knight" | "archer" | "tower";
+type Kind = Extract<EntityKind, "knight" | "archer" | "tower">;
 /** Share of the budget per kind. */
 type Force = Partial<Record<Kind, number>>;
 export interface Scenario {
@@ -57,17 +57,16 @@ const recorded: ScriptSet[] = (() => {
 /** Pairs of script sets (side A, side B) every scenario is fought with. */
 const PAIRS: [number, number][] = [[0, 0], [1, 1], [2, 2], ...recorded.slice(0, 6).flatMap((_, i) => (i % 2 ? [] : [[3 + i, 4 + i] as [number, number]]))];
 export const SYNTHETIC_COUNT = SCENARIOS.length * 2 * PAIRS.length;
-/** Index of a scenario (by position in SCENARIOS), side and script pair. */
 /** Scenario (position in SCENARIOS) of designed battle `i`. */
 export const scenarioOf = (i: number) => Math.floor(i / (2 * PAIRS.length));
-export const designedIndex = (sc: number, flip = false, pair = 0) => (sc * 2 + (flip ? 1 : 0)) * PAIRS.length + pair;
+/** Index of a scenario (by position in SCENARIOS), side (0 as designed, 1 mirrored) and script pair. */
+export const designedIndex = (sc: number, side = 0, pair = 0) => (sc * 2 + side) * PAIRS.length + pair;
 
 const W = 32, H = 20, FRONT = 10, GAP = 6;
 
 /** Knights close in; archers keep knights at arm's length and shoot the weakest in range. Without a visible
- *  enemy, an attacker marches on (tx, ty) and a defender holds. */
-function standard(advance: boolean, tx: number, ty: number): ScriptSet {
-  const idle = advance ? `self.moveTo(${tx}, ${ty});` : "self.hold();";
+ *  enemy they run `idle`. */
+function standard(idle: string): ScriptSet {
   return {
     knight: `const t = self.enemiesInRange()[0] || self.nearestEnemy();
 if (t) self.attack(t); else ${idle}`,
@@ -81,9 +80,8 @@ else { const e = self.nearestEnemy(); if (e) self.attack(e); else ${idle} }`,
 
 /** Group tactics. Archers kite together: they fall back, away from the enemy knights near the group, as soon as one
  *  closes on them or their nearest archer, regroup when strayed, and otherwise shoot the weakest in range. Knights
- *  screen: they go for the enemy closest to their archers, else the nearest. */
-function tactical(advance: boolean, tx: number, ty: number): ScriptSet {
-  const idle = advance ? `self.moveTo(${tx}, ${ty});` : "self.hold();";
+ *  screen: they go for the enemy closest to their archers, else the nearest. Without a visible enemy they run `idle`. */
+function tactical(idle: string): ScriptSet {
   return {
     knight: `const mates = self.nearbyAllies().filter((a) => a.type === "archer");
 let t = null, best = 99;
@@ -119,7 +117,7 @@ export function scenario(i: number, r: Ruleset): Snapshot {
   const X = (x: number) => (flip ? W - 1 - x : x);
   const entities: Snapshot["entities"] = [];
   let n = 0;
-  const put = (kind: string, owner: string, x: number, y: number) => {
+  const put = (kind: EntityKind, owner: string, x: number, y: number) => {
     const hp = r.kinds[kind].hp;
     entities.push({ id: `e${++n}`, kind, owner, x: X(x), y, hp, maxHp: hp });
   };
@@ -132,7 +130,7 @@ export function scenario(i: number, r: Ruleset): Snapshot {
     const towers = count("tower");
     for (let t = 0; t < towers; t++) put("tower", owner, front + dir * Math.floor(t / 4) * 2, 6 + (t % 4) * 2 + 1);
     const col = towers ? Math.ceil(towers / 4) * 2 : 0;
-    const mobile: Kind[] = [...Array(count("knight")).fill("knight"), ...Array(count("archer")).fill("archer")];
+    const mobile: Kind[] = [...Array<Kind>(count("knight")).fill("knight"), ...Array<Kind>(count("archer")).fill("archer")];
     mobile.forEach((k, j) => put(k, owner, front + dir * (col + Math.floor(j / 8)), 6 + (j % 8)));
   };
   const budget = sc.budget ?? BUDGET;
@@ -147,8 +145,11 @@ export function scenario(i: number, r: Ruleset): Snapshot {
     return [Math.round(own.reduce((a, e) => a + e.x, 0) / own.length), Math.round(own.reduce((a, e) => a + e.y, 0) / own.length)];
   };
   const [ax, ay] = centre("p1"), [bx, by] = centre("p2");
-  const set = (k: number, advance: boolean, tx: number, ty: number) =>
-    k === 0 ? standard(advance, tx, ty) : k === 1 ? {} : k === 2 ? tactical(advance, tx, ty) : recorded[k - 3];
+  // Without a visible enemy, an attacker marches on (tx, ty) and a defender holds.
+  const set = (k: number, advance: boolean, tx: number, ty: number) => {
+    const idle = advance ? `self.moveTo(${tx}, ${ty});` : HOLD_SCRIPT;
+    return k === 0 ? standard(idle) : k === 1 ? {} : k === 2 ? tactical(idle) : recorded[k - 3];
+  };
   return {
     format: "aoa-battle-v2", synthetic: true,
     id: `synthetic:${sc.name}${flip ? " (flipped)" : ""} [scripts ${pair[0]}/${pair[1]}]`,

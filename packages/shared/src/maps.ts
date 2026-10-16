@@ -21,7 +21,7 @@ const symmetric = (tiles: Tile[]): Tile[] => {
 const line = (from: number, to: number, at: (i: number) => Tile, gaps: number[] = []): Tile[] =>
   Array.from({ length: to - from + 1 }, (_, i) => from + i).filter((i) => !gaps.includes(i)).map(at);
 
-const base = {
+const base: Pick<MapSpec, "width" | "height" | "start" | "deposits"> = {
   width: W,
   height: H,
   start: [
@@ -56,10 +56,11 @@ const quarters = (t: { x: number; y: number; amount: number }) => [
   { ...t, x: t.y, y: W4 - 1 - t.x },
 ];
 
-const fortressStart = [
+type Placed = MapSpec["start"][number];
+const fortressStart: Placed[] = [
   ...base.start,
-  ...line(0, 13, y => ({ x: 13, y })).map(p => ({ ...p, kind: p.y === 7 ? "door" : "wall" })),
-  ...line(0, 12, x => ({ x, y: 13 })).map(p => ({ ...p, kind: p.x === 7 ? "door" : "wall" })),
+  ...line(0, 13, y => ({ x: 13, y })).map((p): Placed => ({ ...p, kind: p.y === 7 ? "door" : "wall" })),
+  ...line(0, 12, x => ({ x, y: 13 })).map((p): Placed => ({ ...p, kind: p.x === 7 ? "door" : "wall" })),
 ];
 
 export const MAPS: Record<string, MapSpec> = {

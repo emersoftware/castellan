@@ -24,11 +24,35 @@ export const routes = {
   wait: "/wait",
 };
 
+/** Player routes answer JSON, or compact text with `?format=text`. */
+export type ResponseFormat = "json" | "text";
+
+/** The game tools a player is offered (MCP tool names), in the order players are shown them. */
+export const GAME_TOOLS = ["rules", "state", "act", "run", "script", "chat", "history", "script_test"] as const;
+export type GameTool = (typeof GAME_TOOLS)[number];
+
+/** What `GET /history?section=` returns about a completed game. */
+export const HISTORY_SECTIONS = ["summary", "events", "chat", "scripts", "orders"] as const;
+export type HistorySection = (typeof HISTORY_SECTIONS)[number];
+
 /** The Cloudflare Worker publishes the replay and series catalogues read-only, at the same routes under `publishedApi`. */
 export const publishedApi = "/api";
 export const publishedRoutes = { replays: publishedApi + routes.replays, series: publishedApi + routes.series };
 
+/** The web app's pages, in its router's syntax: `$id` stands for a record's id. */
+export const pages = {
+  home: "/", battles: "/battles", docs: "/docs", watch: "/watch/$id", replay: "/replay/$id", record: "/record/$id",
+  seriesWatch: "/series/$id/watch", seriesReplay: "/series/$id/replay",
+} as const;
+/** A page's path for one record. */
+export const pagePath = (page: string, id: string) => page.replace("$id", id);
+
 const AGENT_HEADER = "x-aoa-agent";
+
+/** Connectors any agent can use; a harness that knows its agent declares a more specific one. */
+export type GenericConnector = "cli" | "mcp";
+const GENERIC_CONNECTORS: GenericConnector[] = ["cli", "mcp"];
+export const isGenericConnector = (connector: string | null): boolean => GENERIC_CONNECTORS.some((generic) => generic === connector);
 
 /** Sent on every connector call: the agent configuration it declares. */
 export const agentHeader = (declared: object) => ({ [AGENT_HEADER]: encodeURIComponent(JSON.stringify(declared)) });

@@ -16,7 +16,7 @@ const corridor: Ruleset["map"] = { name: "column", description: "", width: 30, h
   deposits: [], sharedDeposits: [],
   walls: [3, 5].flatMap(y => Array.from({ length: 13 }, (_, x) => ({ x, y }))),
   start: [{ kind: "king", x: 0, y: 0 }, { kind: "door", x: 8, y: 4 },
-    ...Array.from({ length: 6 }, (_, i) => ({ kind: "knight", x: i + 1, y: 4 }))] };
+    ...Array.from({ length: 6 }, (_, i) => ({ kind: "knight" as const, x: i + 1, y: 4 }))] };
 const advance = (m: Match, count: number) => { for (let i = 0; i < count; i++) m.step([]); };
 const columnOrders = (m: Match): PlayerOrder[] => units(m).map(e => ({ player: "a", order: { type: "move", unit: e.id, x: 20, y: 4 } }));
 

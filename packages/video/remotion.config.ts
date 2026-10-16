@@ -14,7 +14,7 @@ Config.setVideoImageFormat("png");
 Config.setCrf(12);
 Config.setOverwriteOutput(true);
 // The overlays are the web app's own components (packages/web): resolve its workspace imports.
-Config.overrideWebpackConfig((config) => ({
+Config.overrideBundlerConfig((config) => ({
   ...config,
-  resolve: { ...config.resolve, alias: { ...(config.resolve?.alias as object), "@aoa/shared": path.resolve(__dirname, "../shared/src/index.ts") } },
+  resolve: { ...config.resolve, alias: { ...(config.resolve?.alias as object), "@aoa/shared": path.resolve(process.cwd(), "../shared/src/index.ts") } },
 }));

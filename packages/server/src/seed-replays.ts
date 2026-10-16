@@ -2,13 +2,13 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
-import { BOTS, simulate } from "@aoa/sim";
-import { rules, outcomeText } from "@aoa/shared";
+import { BOTS, simulate, type BotName } from "@aoa/sim";
+import { replayArchive, rules, outcomeText } from "@aoa/shared";
 import { saveReplay } from "./app";
 
 const root = resolve(fileURLToPath(import.meta.url), "../../../..");
-const dir = resolve(process.env.REPLAY_DIR ?? resolve(root, "replays"));
-const pairs: [string, string][] = [["eco", "rush"], ["turtle", "eco"], ["rush", "turtle"], ["eco", "eco"]];
+const dir = resolve(process.env.REPLAY_DIR ?? resolve(root, replayArchive.local));
+const pairs: [BotName, BotName][] = [["eco", "rush"], ["turtle", "eco"], ["rush", "turtle"], ["eco", "eco"]];
 for (const [a, b] of pairs) {
   const seed = Math.floor(Math.random() * 2 ** 31);
   const r = await simulate({ bot: BOTS[a](), latencyMs: 3000 }, { bot: BOTS[b](), latencyMs: 3000 }, { seed });

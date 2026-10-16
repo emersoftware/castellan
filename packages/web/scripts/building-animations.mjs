@@ -1,13 +1,17 @@
+// @ts-check
 /** Package flag-only MiniMax loops. Keep every stone/pole pixel from the reference. */
 import sharp from 'sharp';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { ff, probeDuration } from './ffmpeg.mjs';
+import { ff, probe } from './ffmpeg.mjs';
+import { formerKind } from '../../shared/src/legacy.ts';
+/** @import { EntityKind } from '../../shared/src/ruleset.ts' */
 const root = new URL('../../../', import.meta.url).pathname;
 const spriteDir = `${root}packages/web/public/sprites`;
-const settings = {
-  castle: { file: 'castle', crop: {left:76,top:20,width:392,height:508}, width:180,height:234,pole:313, flagBottom:116, anchorX:0.5,anchorY:437/508 },
-  tower: { file: 'tower', crop: {left:150,top:20,width:254,height:508}, width:108,height:216,pole:287, flagBottom:116, anchorX:128/254,anchorY:440/508 },
-};
+/** @type {Map<EntityKind, { file: EntityKind, crop: import('sharp').Region, width: number, height: number, pole: number, flagBottom: number, anchorX: number, anchorY: number }>} */
+const settings = new Map([
+  ['castle', { file: 'castle', crop: {left:76,top:20,width:392,height:508}, width:180,height:234,pole:313, flagBottom:116, anchorX:0.5,anchorY:437/508 }],
+  ['tower', { file: 'tower', crop: {left:150,top:20,width:254,height:508}, width:108,height:216,pole:287, flagBottom:116, anchorX:128/254,anchorY:440/508 }],
+]);
 const manifest = JSON.parse(await readFile(`${spriteDir}/manifest.json`,'utf8'));
 function key(data) {
  for(let i=0;i<data.length;i+=4) {
@@ -18,12 +22,13 @@ function key(data) {
  }
  return data;
 }
-for(const [kind,s] of Object.entries(settings)) {
- const dir=`${root}assets/animations/buildings/${kind === "tower" ? "turret" : kind}`;
+for(const [kind,s] of settings) {
+ // Tower art predates its rename.
+ const dir=`${root}assets/animations/buildings/${kind === "tower" ? formerKind(kind) : kind}`;
  const out=`${spriteDir}/${kind}`;
  await mkdir(out,{recursive:true}); await mkdir(`${dir}/frames`,{recursive:true});
  const ref=key(await sharp(`${dir}/reference.png`).ensureAlpha().raw().toBuffer());
- const duration=probeDuration(`${dir}/generated.mp4`);
+ const {duration}=probe(`${dir}/generated.mp4`);
  ff('-i',`${dir}/generated.mp4`,'-vf',`fps=${28/duration},scale=544:544`,'-frames:v','28',`${dir}/frames/%02d.png`);
  const cells=[];
  for(let frame=0;frame<28;frame++) {

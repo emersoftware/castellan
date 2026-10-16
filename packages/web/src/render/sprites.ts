@@ -8,10 +8,11 @@
  * behind a building or a rock.
  */
 import { Rectangle, Texture } from "pixi.js";
-import { xrayMark } from "./xray";
+import { currentKind } from "@aoa/shared";
+import { CLIP_ART } from "./clips";
+import { spriteMasks } from "./xray";
 import { averageTerrainPatches } from "./terrain";
 import { isCharacter, normalizeCharacterContrast } from "./characterContrast";
-import { displayKind } from "./names";
 
 export const TILE_W = 32;
 export const TILE_H = 16;
@@ -47,12 +48,6 @@ export interface Facing {
   art: SpriteArt;
   flip: boolean;
 }
-
-/** Game kind → sprite file. */
-const FILES: Record<string, string> = {
-  king: "king", worker: "worker", knight: "knight", archer: "archer",
-  castle: "castle", door: "door", tower: "tower", wall: "wall", wallpost: "wallpost", deposit: "minerals-full", rock: "rock",
-};
 
 /**
  * Screen directions 0..7 = S, SE, E, NE, N, NW, W, SW. Turnaround sheets hold
@@ -110,22 +105,20 @@ async function buildSprites(base: string): Promise<SpriteSet> {
   const statics = Promise.all(
     Object.entries(manifest.sprites).map(async ([name, m]) => {
       const img = await loadImage(`${base}/${name}.${m.format ?? "png"}`);
-      let art = { ...derive(img, m.rasterWidth, m.rasterHeight, isCharacter(name), true, Math.round(manifest.scale)), scale: 1 / manifest.scale, anchorX: m.anchorX ?? 0.5, anchorY: m.anchorY };
+      let art = { ...derive(img, m.rasterWidth, m.rasterHeight, Math.round(manifest.scale), name), scale: 1 / manifest.scale, anchorX: m.anchorX ?? 0.5, anchorY: m.anchorY };
       if (m.displayWidth !== undefined) art = animationCell(art, { x: 0, y: 0, width: art.texture.width, height: art.texture.height, displayWidth: m.displayWidth, displayHeight: m.displayHeight });
       arts.set(name, m.frame ? cropSpriteArt(art, m.frame) : art);
     }),
   );
   const animations = new Map<string, SpriteArt[][]>();
-  const animated = Promise.all(["archer", "knight", "king", "worker", "castle", "tower", "wall", "wallpost", "door", "door-open", "wall-door-left", "wall-door-right", "wall-door-both"].map(async kind => {
+  const animated = Promise.all(CLIP_ART.map(async kind => {
     const metadata = await fetch(`${base}/${kind}/manifest.json`).then((r) => r.json()) as Partial<Record<AnimationFrame["action"], {
-      available?: boolean; masks?: boolean; image: string; frameCount: number; columns?: number; frameWidth: number; frameHeight: number; displayWidth?: number; displayHeight?: number; storedScale: number; anchorX: number; anchorY: number; rows: string[];
+      available?: boolean; image: string; frameCount: number; columns?: number; frameWidth: number; frameHeight: number; displayWidth?: number; displayHeight?: number; storedScale: number; anchorX: number; anchorY: number; rows: string[];
     }>>;
     await Promise.all(Object.entries(metadata).map(async ([action, m]) => {
       if (m.available === false) return;
       const img = await loadImage(`${base}/${kind}/${m.image}`);
-      // Collapsed buildings no longer participate in depth/x-ray passes. Their
-      // larger debris cells need only color, avoiding six unused atlas masks.
-      const atlas = { ...derive(img, undefined, undefined, isCharacter(kind), m.masks ?? (action !== 'death' || isCharacter(kind)), Math.round(m.storedScale)), scale: 1 / m.storedScale, anchorX: m.anchorX, anchorY: m.anchorY };
+      const atlas = { ...derive(img, undefined, undefined, Math.round(m.storedScale), kind, action as AnimationFrame["action"]), scale: 1 / m.storedScale, anchorX: m.anchorX, anchorY: m.anchorY };
       const columns = m.columns ?? m.frameCount;
       animations.set(`${kind}:${action}`, m.rows.map((_, row) => Array.from({ length: m.frameCount }, (_, frame) => animationCell(atlas, {
         x: (frame % columns) * m.frameWidth, y: (row * Math.ceil(m.frameCount / columns) + Math.floor(frame / columns)) * m.frameHeight, width: m.frameWidth, height: m.frameHeight, displayWidth: m.displayWidth, displayHeight: m.displayHeight,
@@ -133,19 +126,20 @@ async function buildSprites(base: string): Promise<SpriteSet> {
     }));
   }));
   await Promise.all([statics, animated]);
-  const fallback = arts.get("knight") ?? arts.get("knight_2") ?? [...arts.values()][0];
+  const fallback = arts.get("knight_2") ?? [...arts.values()][0];
   return (kind, dir = 2, animation) => {
-    kind = displayKind(kind);
+    kind = currentKind(kind);
     if (animation) {
-      const building = ["castle", "tower", "wall", "wallpost", "door", "door-open", "wall-door-left", "wall-door-right", "wall-door-both"].includes(kind);
-      const frames = animations.get(`${kind}:${animation.action}`)?.[building ? 0 : SHEET_VIEW[dir]];
-      if (frames) return { art: frames[Math.max(0, Math.min(frames.length - 1, Math.floor(animation.frame)))], flip: building ? false : MIRRORED[dir] };
+      // Buildings have one view, never mirrored; units a turnaround.
+      const rows = animations.get(`${kind}:${animation.action}`);
+      const single = rows?.length === 1;
+      const frames = rows?.[single ? 0 : SHEET_VIEW[dir]];
+      if (frames) return { art: frames[Math.max(0, Math.min(frames.length - 1, Math.floor(animation.frame)))], flip: single ? false : MIRRORED[dir] };
     }
-    const file = FILES[kind] ?? kind;
-    const view = arts.get(`${file}_${SHEET_VIEW[dir]}`);
+    const view = arts.get(`${kind}_${SHEET_VIEW[dir]}`);
     if (view) return { art: view, flip: MIRRORED[dir] };
     // Single renders face right (E): mirror for the west half.
-    return { art: arts.get(file) ?? fallback, flip: dir >= 5 };
+    return { art: arts.get(kind) ?? fallback, flip: dir >= 5 };
   };
 }
 
@@ -165,8 +159,13 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/** Builds the sprite texture plus its silhouette and x-ray variants. */
-function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHeight = Math.round(img.naturalHeight * rasterWidth / img.naturalWidth), character = false, needsMasks = true, maskRadius = 3): Pick<SpriteArt, "texture" | "silhouette" | "xray" | "outline"> {
+/**
+ * Builds the sprite texture of `name` (a static sprite, or a kind's `action` clip) plus its silhouette and x-ray variants.
+ * Characters get their contrast normalized. Collapses and fire no longer take part in the depth and x-ray passes:
+ * their larger cells need only colour, avoiding unused atlas masks.
+ */
+function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHeight = Math.round(img.naturalHeight * rasterWidth / img.naturalWidth), maskRadius: number, name: string, action?: AnimationFrame["action"]): Pick<SpriteArt, "texture" | "silhouette" | "xray" | "outline"> {
+  const character = isCharacter(name);
   // Generated source art can be large. Rasterize once at game resolution before
   // deriving the masks, preserving alpha and a consistent on-screen footprint.
   const w = rasterWidth;
@@ -185,7 +184,7 @@ function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHei
   }
   const texture = Texture.from(base);
   texture.source.scaleMode = "linear";
-  if (!needsMasks) return { texture, silhouette: texture, xray: [] };
+  if (!character && action && /^(death|fire)/.test(action)) return { texture, silhouette: texture, xray: [] };
   const masks = spriteMasks(src, w, h, maskRadius);
   const make = (pixels: Uint8ClampedArray<ArrayBuffer>) => {
     const cv = document.createElement("canvas");
@@ -202,53 +201,6 @@ function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHei
     xray: masks.xray.map(make),
     outline: masks.outline.map(make),
   };
-}
-
-/**
- * RGBA mask pixels of a sprite: a white silhouette, per-colour x-ray codes
- * (ring or interior) and per-colour exterior rings. The ring holds pixels
- * within 3 stored px (1 screen px) of the edge along either axis.
- */
-export function spriteMasks(src: Uint8ClampedArray, w: number, h: number, radius = 3) {
-  const n = w * h;
-  const solid = new Uint8Array(n);
-  for (let i = 0; i < n; i++) solid[i] = src[i * 4 + 3] > 127 ? 1 : 0;
-  // Filled through 32-bit views: bytes R, G, B, A on little-endian hosts.
-  const pixel = (b: number) => (0xff000000 | (b << 16) | 0xffff) >>> 0;
-  const colours = [0, 1, 2, 3];
-  const core = colours.map((c) => pixel(xrayMark(c, false)));
-  const ring = colours.map((c) => pixel(xrayMark(c, true)));
-  const silhouette = new Uint32Array(n);
-  const xray = colours.map(() => new Uint32Array(n));
-  const outline = colours.map(() => new Uint32Array(n));
-  const [x0, x1, x2, x3] = xray;
-  const [o0, o1, o2, o3] = outline;
-  // Keep approximately one world-pixel of outline at each distribution scale.
-  const diameter = radius * 2 + 1;
-  const column = new Uint8Array(w);
-  for (let y = 0; y < Math.min(radius, h); y++) for (let x = 0; x < w; x++) column[x] += solid[y * w + x];
-  for (let y = 0; y < h; y++) {
-    let row = 0;
-    for (let x = 0; x < Math.min(radius, w); x++) row += solid[y * w + x];
-    for (let x = 0; x < w; x++) {
-      const i = y * w + x;
-      const s = solid[i];
-      if (x + radius < w) row += solid[i + radius];
-      if (y + radius < h) column[x] += solid[i + radius * w];
-      const edge = s ? row < diameter || column[x] < diameter : row > 0 || column[x] > 0;
-      if (x >= radius) row -= solid[i - radius];
-      if (y >= radius) column[x] -= solid[i - radius * w];
-      if (s) {
-        silhouette[i] = 0xffffffff;
-        const mark = edge ? ring : core;
-        x0[i] = mark[0]; x1[i] = mark[1]; x2[i] = mark[2]; x3[i] = mark[3];
-      } else if (edge) {
-        o0[i] = ring[0]; o1[i] = ring[1]; o2[i] = ring[2]; o3[i] = ring[3];
-      }
-    }
-  }
-  const bytes = (a: Uint32Array<ArrayBuffer>) => new Uint8ClampedArray(a.buffer);
-  return { silhouette: bytes(silhouette), xray: xray.map(bytes), outline: outline.map(bytes) };
 }
 
 /** Smooth value noise in [0,1]. */

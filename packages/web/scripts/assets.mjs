@@ -1,3 +1,4 @@
+// @ts-check
 // Turns the renders in assets/raw/ (drawn by gen-templated.sh on the isometric
 // templates, subjects on flat magenta) into game sprites: magenta keyed out,
 // colour dropped, contrast stretched, cut per object, scaled from the template's
@@ -9,6 +10,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import sharp from "sharp";
+/** @import { EntityKind } from "../../shared/src/ruleset.ts" */
+/** @import { ClipArt } from "../src/render/clips.ts" */
 
 const RAW = resolve(import.meta.dirname, "../../../assets/raw");
 const OUT = resolve(import.meta.dirname, "../public/sprites");
@@ -25,8 +28,11 @@ const RING = 3;
  * Units instead set their on-screen height `fh` (outline included), shared by
  * the 5 facings, so each unit's size relative to the others is fixed here
  * whatever size the render drew it at.
+ * @typedef {{ name: string, cx: number, cy: number, dw: number } & ({ fw: number } | { fh: number })} Placement
  */
+/** @type {(name: EntityKind, fh: number) => Placement[]} */
 const unitRow = (name, fh) => [0, 1, 2, 3, 4].map((i) => ({ name: `${name}_${i}`, cx: 190 + i * 290, cy: 900, dw: 240, fh }));
+/** @type {Record<string, Placement[]> & { "buildings.png": (Placement & { name: ClipArt })[] }} */
 const LAYOUT = {
   "buildings.png": [
     { name: "castle", cx: 380, cy: 830, dw: 600, fw: 66 },
@@ -187,12 +193,12 @@ for (const [file, objects] of Object.entries(LAYOUT)) {
     return bbox(img, left, right);
   });
   const graded = grade(img, boxes.filter(Boolean));
-  const tallest = Math.max(...boxes.filter(Boolean).map((b) => b.h));
+  const tallest = Math.max(...boxes.filter((b) => b !== null).map((b) => b.h));
   for (const [i, o] of objects.entries()) {
     if (!boxes[i]) continue;
-    const k = o.fh ? (o.fh * SCALE - 2 * RING) / tallest : (o.fw * SCALE) / (o.dw * u);
+    const k = "fh" in o ? (o.fh * SCALE - 2 * RING) / tallest : (o.fw * SCALE) / (o.dw * u);
     // Units stand on their soles: the renders don't keep the diamond's height exactly.
-    const ay = o.fh ? boxes[i].y + boxes[i].h - 1 : o.cy * u;
+    const ay = "fh" in o ? boxes[i].y + boxes[i].h - 1 : o.cy * u;
     await emit(o.name, img, graded, boxes[i], k, o.cx * u, ay);
   }
   console.log(`${file}: ${objects.map((o) => o.name).join(" ")}`);

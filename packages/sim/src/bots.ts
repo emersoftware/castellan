@@ -3,7 +3,7 @@
  * ladder. A bot sees exactly what an LLM player sees (a PlayerView) and answers
  * with the same orders, so a bot with a decision delay models an LLM.
  */
-import { currentKind, rules, type Order, type PlayerView, type Ruleset } from "@aoa/shared";
+import { currentKind, rules, type EntityKind, type Order, type PlayerView, type Ruleset } from "@aoa/shared";
 
 export type Bot = (view: PlayerView) => Order[];
 
@@ -33,19 +33,21 @@ else if (self.memory.go && b) self.moveTo(b.x, b.y);
 else self.hold();
 `;
 
-const count = (v: PlayerView, kind: string) => v.mine.filter((e) => e.kind === kind).length;
+const count = (v: PlayerView, kind: EntityKind) => v.mine.filter((e) => e.kind === kind).length;
 const castle = (v: PlayerView) => v.mine.find((e) => currentKind(e.kind) === "castle");
 const mineral = (v: PlayerView) => v.players.find((p) => p.id === v.you)!.mineral ?? 0;
-const queued = (v: PlayerView, kind: string) => v.mine.reduce((n, e) => n + (e.training?.filter((j) => j.kind === kind).length ?? 0), 0);
+/** Whether one of your units has a build order, started or not. */
+export const hasBuildOrder = (v: PlayerView) => v.mine.some((e) => e.order?.startsWith("build"));
+const queued = (v: PlayerView, kind: EntityKind) => v.mine.reduce((n, e) => n + (e.training?.filter((j) => j.kind === kind).length ?? 0), 0);
 
 /** Unlock once; do not submit production while research is still in progress. */
-function unlock(v: PlayerView, kind: string, r: Ruleset, cap: number): Order[] {
+function unlock(v: PlayerView, kind: EntityKind, r: Ruleset, cap: number): Order[] {
   const id = r.kinds[kind]?.requires, p = v.players.find((p) => p.id === v.you)!;
   if (!id || (p.upgrades?.[id] ?? 0) > 0 || p.research) return [];
   const cost = r.upgrades[id]?.levels[0]?.cost;
   return cost !== undefined && cap >= cost ? [{ type: "upgrade", upgrade: id }] : [];
 }
-const locked = (v: PlayerView, kind: string, r: Ruleset) => {
+const locked = (v: PlayerView, kind: EntityKind, r: Ruleset) => {
   const id = r.kinds[kind]?.requires;
   return !!id && !(v.players.find((p) => p.id === v.you)!.upgrades?.[id]);
 };
@@ -67,10 +69,10 @@ function scouting(v: PlayerView, r: Ruleset, code: string): string {
 }
 
 /** Spends mineral on workers up to `workers`, then on `army` units. */
-function spend(v: PlayerView, r: Ruleset, workers: number, reserve = 0, army = "knight"): Order[] {
+function spend(v: PlayerView, r: Ruleset, workers: number, reserve = 0, army: EntityKind = "knight"): Order[] {
   const n = castle(v);
   if (!n) return [];
-  const out: Order[] = [];
+  const out: Order<EntityKind>[] = [];
   let cap = mineral(v) - reserve;
   const p = v.players.find((p) => p.id === v.you)!;
   let slots = Math.min(r.trainingQueueLimit - (n.training?.length ?? 0), r.popCap - (p.pop ?? 0) - (p.queuedPop ?? 0));
@@ -94,7 +96,7 @@ function spend(v: PlayerView, r: Ruleset, workers: number, reserve = 0, army = "
 }
 
 /** Keeps the script for `kind` set to `code`. */
-function ensureScript(v: PlayerView, code: string, state: { set?: string }, kind = "knight"): Order[] {
+function ensureScript(v: PlayerView, code: string, state: { set?: string }, kind: EntityKind = "knight"): Order[] {
   if (state.set === code) return [];
   state.set = code;
   return [{ type: "script", kind, code }];
@@ -123,11 +125,11 @@ export function turtle(r: Ruleset = rules): Bot {
   const s: { set?: string } = {};
   const spots = [[7, 7], [7, 3], [3, 7]];
   return (v) => {
-    const out: Order[] = [];
+    const out: Order<EntityKind>[] = [];
     const n = castle(v);
     const flip = n && n.x > r.map.width / 2;
     const towers = count(v, "tower");
-    const pending = v.mine.some((e) => e.order?.startsWith("build"));
+    const pending = hasBuildOrder(v);
     const towerCost = r.kinds.tower.cost;
     if (n && count(v, "worker") >= 5 && towers < spots.length && !pending && mineral(v) >= towerCost) {
       if (locked(v, "tower", r)) {
@@ -176,4 +178,6 @@ export function archers(r: Ruleset = rules): Bot {
   };
 }
 
-export const BOTS: Record<string, (r?: Ruleset) => Bot> = { rush, eco, turtle, kite, archers };
+const bots = { rush, eco, turtle, kite, archers };
+export type BotName = keyof typeof bots;
+export const BOTS: Record<string, (r?: Ruleset) => Bot> = bots;

@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { access } from "node:fs/promises";
+import { AGENT_ACTIVITY_STATES } from "@aoa/shared";
 // @ts-expect-error Plain Node launcher shared with external harnesses.
 import { play } from "../../loop-keepers/codex/agent.mjs";
 
@@ -45,6 +46,7 @@ it("resumes the same isolated conversation after a no-order decision, supplies f
   expect(launches[1].args).not.toContain("--ephemeral");
   expect(states.map(s => new URL(s).searchParams.get("since"))).toEqual(["0", "1", "2"]);
   expect(activities).toEqual(["deciding", "between_decisions", "deciding", "between_decisions", "stopped"]);
+  expect(AGENT_ACTIVITY_STATES).toEqual(expect.arrayContaining(activities));
   await expect(access(launches[0].env.CODEX_HOME!)).rejects.toThrow();
 });
 

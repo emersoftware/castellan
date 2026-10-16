@@ -1,10 +1,10 @@
 /** The combat and cost values the optimizer may move, with bounds and the design rules it must keep. */
-import { rules as base, currentKind, type Ruleset } from "@aoa/shared";
+import { rules as base, currentKind, type EntityKind, type Ruleset } from "@aoa/shared";
 import { currentUpgrade } from "./names";
 
 /** Values move on a grid: costs and health in tens, times in whole 100 ms ticks (the engine rounds to them), small
- *  stats in units. */
-export interface Param { key: string; min: number; max: number; step: number }
+ *  stats in units. `absent` is the value of a stat older rulesets lack, else the current one is used. */
+export interface Param { key: string; min: number; max: number; step: number; absent?: number }
 export const PARAMS: Param[] = [
   /** Knights and archers cost the same: models lean to whichever is cheaper (see the v12–v17 games). */
   { key: "knight.cost", min: 70, max: 150, step: 10 }, { key: "knight.hp", min: 60, max: 150, step: 10 }, { key: "knight.def", min: 2, max: 8, step: 1 },
@@ -15,7 +15,7 @@ export const PARAMS: Param[] = [
   { key: "tower.atk", min: 8, max: 24, step: 1 }, { key: "tower.range", min: 5, max: 7, step: 1 },
   { key: "castle.hp", min: 400, max: 800, step: 50 }, { key: "castle.def", min: 2, max: 8, step: 1 }, { key: "castle.atk", min: 3, max: 12, step: 1 },
   /** Time a unit must stand still after a step before it can attack. */
-  { key: "knight.aimMs", min: 100, max: 100, step: 100 }, { key: "archer.aimMs", min: 100, max: 500, step: 100 },
+  { key: "knight.aimMs", min: 100, max: 100, step: 100, absent: 0 }, { key: "archer.aimMs", min: 100, max: 500, step: 100, absent: 0 },
   /** Researches (knight and archer alike): mobility takes ms off step time, damage adds attack per level, cadence
    *  takes 100 ms off the attack interval per level. Costs are of the first level; a second costs 100 more. */
   { key: "up.mobility", min: 100, max: 200, step: 100 }, { key: "up.damage", min: 1, max: 3, step: 1 },
@@ -43,12 +43,12 @@ export function current(r: Source = base): Values {
   r = { kinds: Object.fromEntries(Object.entries(r.kinds).map(([kind, spec]) => [currentKind(kind), spec])),
     upgrades: Object.fromEntries(Object.entries(r.upgrades).map(([id, spec]) => [currentUpgrade(id), spec])) };
   const v: Values = {};
-  for (const { key } of PARAMS) {
+  for (const { key, absent } of PARAMS) {
     const [kind, stat] = key.split(".");
     const read = (src: Source) => (RESEARCH[key] ? RESEARCH[key](src) : (src.kinds[kind] as unknown as Record<string, number>)[stat]);
     let x: number | undefined;
     try { x = read(r); } catch { x = undefined; }
-    v[key] = typeof x === "number" && Number.isFinite(x) ? x : key.endsWith("aimMs") ? 0 : read(base);
+    v[key] = typeof x === "number" && Number.isFinite(x) ? x : absent ?? read(base);
   }
   return v;
 }
@@ -101,7 +101,8 @@ export function rulesWith(v: Values): Ruleset {
   const upgrades = structuredClone(base.upgrades);
   // Researches keep their step over the base value.
   const cost = (first: number, i: number) => first + 100 * i;
-  for (const k of ["knight", "archer"] as const) {
+  const researching: EntityKind[] = ["knight", "archer"];
+  for (const k of researching) {
     upgrades[`${k}_damage`].levels = upgrades[`${k}_damage`].levels.map((l, i) => ({ ...l, cost: cost(v["cost.damage"], i), value: kinds[k].atk! + v["up.damage"] * (i + 1) }));
     upgrades[`${k}_cadence`].levels = upgrades[`${k}_cadence`].levels.map((l, i) => ({ ...l, cost: cost(v["cost.cadence"], i), value: kinds[k].attackMs! - 100 * (i + 1) }));
     upgrades[`${k}_mobility`].levels = [{ ...upgrades[`${k}_mobility`].levels[0], cost: v["cost.mobility"], value: kinds[k].moveMs! - v["up.mobility"] }];

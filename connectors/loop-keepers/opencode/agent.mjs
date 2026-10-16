@@ -1,3 +1,4 @@
+// @ts-check
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -6,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 import { connectorVersion, launchConfiguration, reportConfiguration, reportActivity } from "../metadata.mjs";
-import { seat, serverUrl } from "../game.mjs";
+import { observedSeat, seat, seatOver, seatPlaying, serverUrl } from "../game.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_MODEL = "openrouter/~deepseek/deepseek-flash-latest";
@@ -28,12 +29,13 @@ export async function loadKey(env = process.env) {
   try {
     if ((await stat(file)).mode & 0o077) throw new Error(`OpenRouter key file must be private: chmod 600 ${file}`);
     return (await readFile(file, "utf8")).trim();
-  } catch (error) { if (error.code !== "ENOENT") throw error; }
+  } catch (error) { if (/** @type {NodeJS.ErrnoException} */ (error).code !== "ENOENT") throw error; }
   const auth = join(env.XDG_DATA_HOME || join(homedir(), ".local", "share"), "opencode", "auth.json");
   try { return JSON.parse(await readFile(auth, "utf8")).openrouter?.key?.trim() ?? ""; }
-  catch (error) { if (error.code === "ENOENT") return ""; throw error; }
+  catch (error) { if (/** @type {NodeJS.ErrnoException} */ (error).code === "ENOENT") return ""; throw error; }
 }
 
+/** @param {{ root: string, token: string, server?: string, key?: string, model?: string, variant?: string, env?: NodeJS.ProcessEnv }} player */
 export async function preparePlayer({ root, token, server = serverUrl(), key, model = DEFAULT_MODEL, variant, env = process.env }) {
   const workspace = join(root, "workspace"), home = join(root, "home");
   await mkdir(workspace, { recursive: true, mode: 0o700 });
@@ -141,8 +143,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   const watch = async () => {
     if (stopped) return;
     try {
-      const status = await game.status();
-      if (status.status === "finished" || status.alive === false) { finished = true; stop(); return; }
+      if (seatOver(await game.status())) { finished = true; stop(); return; }
     } catch { /* next poll */ }
     if (!stopped) watcher = setTimeout(watch, pollMs);
   };
@@ -152,9 +153,10 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
       const started = Date.now();
       try {
         const observation = await game.observation(lastDeliveredTick);
-        if (/ · finished · /.test(observation) || /^YOU\s+.* · OUT$/m.test(observation)) { finished = true; break; }
-        if (/ · (waiting|prep) · /.test(observation)) { await delay(1000); continue; }
-        const observedTick = Number(observation.match(/^tick (\d+)/)?.[1]);
+        const seen = observedSeat(observation);
+        if (seatOver(seen)) { finished = true; break; }
+        if (!seatPlaying(seen)) { await delay(1000); continue; }
+        const observedTick = seen.tick;
         const prompt = `${session ? "Next decision. The following is your current observation." : base}\n\n${observation}`;
         await reportActivity("deciding", { env, fetchImpl });
         child = spawnImpl(env.AOA_OPENCODE_BIN || "opencode", [...player.args, ...(session ? ["--session", session] : []), prompt],
@@ -163,7 +165,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         let pending = "";
         child.stdout.on("data", chunk => {
           process.stdout.write(chunk);
-          const parts = (pending + chunk).split("\n"); pending = parts.pop(); turn.push(...parts);
+          const parts = (pending + chunk).split("\n"); pending = parts.pop() ?? ""; turn.push(...parts);
         });
         const code = await new Promise((resolveCode, reject) => { child.on("error", reject); child.on("close", resolveCode); });
         turn.push(pending); child = undefined;
@@ -187,7 +189,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         if (stopped) break;
         failures++;
         const ms = Math.min(30_000, 2000 * failures);
-        console.error(`aoa opencode: ${error.message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
+        console.error(`aoa opencode: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
         await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + ms).toISOString() });
         await delay(ms).catch(() => {});
       }

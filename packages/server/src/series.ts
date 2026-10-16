@@ -2,11 +2,11 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createMatch } from "@aoa/engine";
-import type { GameEvent, ReplayFile, SeriesProgress, SeriesReplay, SeriesSummary } from "@aoa/shared";
+import type { GameEvent, HistorySection, ReplayFile, SeriesProgress, SeriesReplay, SeriesSummary } from "@aoa/shared";
 import { playerResult } from "@aoa/shared";
 import { Room, type RoomCheckpoint, type RoomOptions } from "./room";
 
-type Config = Omit<RoomOptions, "onFinish" | "id" | "createdAt" | "deferredStart">;
+type Config = Omit<RoomOptions, "onFinish" | "deferredStart">;
 interface StoredSeries {
   format: 1;
   id: string;
@@ -22,7 +22,6 @@ interface Entry extends Omit<StoredSeries, "games"> {
   readyGames: number;
   committedGames: number;
 }
-export type HistorySection = "summary" | "events" | "chat" | "scripts" | "orders";
 
 /** Series own progression and durable memory. The game engine remains unaware of series. */
 export class SeriesStore {
@@ -147,7 +146,7 @@ export class SeriesStore {
     const max = Math.max(0, ...Object.values(score));
     const leaders = entry.participants.filter((p) => score[p.id] === max);
     // Teammates win together; tied opposing sides have no series winner.
-    const winners = finished ? (new Set(leaders.map((p) => p.team)).size === 1 ? leaders.map((p) => p.id) : []) : undefined;
+    const winners = !finished ? undefined : new Set(leaders.map((p) => p.team)).size === 1 ? leaders.map((p) => p.id) : [];
     return { id, createdAt: entry.createdAt, totalGames: 3, currentGame: games.length,
       status: entry.error ? "error" : finished ? "finished" : "running", score, losses, winners,
       ...(finished && !winners?.length && entry.config.ruleset.drawsAreLosses ? { allDefeated: true as const } : {}),

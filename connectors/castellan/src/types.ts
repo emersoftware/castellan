@@ -1,5 +1,5 @@
 /** Shared shapes of the player: plan, tasks, episodes and journal entries. */
-import type { PlayerId } from "@aoa/shared";
+import type { PlayerId, RecordedKind } from "@aoa/shared";
 import type { Pt } from "./geometry";
 
 export type Posture = "boom" | "defend" | "attack" | "retreat";
@@ -29,6 +29,9 @@ export interface BuildTask {
   surplus?: boolean;
 }
 
+/** Who made a decision: these rules, or an ally's request in team chat. */
+export type DecisionSource = "rules" | `ally:${string}`;
+
 export type EpisodeStatus = "active" | "completed" | "failed_execution" | "failed_outcome" | "abandoned";
 
 /** A plan with a goal, so the journal can tell execution failures from bad strategic outcomes. */
@@ -36,7 +39,7 @@ export interface Episode {
   id: string;
   kind: "expansion" | "attack" | "defense" | "keep" | "fortify" | "scout" | "research" | "diplomacy";
   label: string;
-  source: string;
+  source: DecisionSource;
   startedTick: number;
   endedTick?: number;
   status: EpisodeStatus;
@@ -46,7 +49,7 @@ export interface Episode {
 
 export interface Sighting {
   id: string;
-  kind: string;
+  kind: RecordedKind;
   owner: PlayerId;
   x: number;
   y: number;
@@ -63,7 +66,7 @@ export interface ThreatGroup {
   y: number;
   owner: PlayerId;
   /** Closest own asset and its distance. */
-  near: { id: string; kind: string; d: number } | null;
+  near: { id: string; kind: RecordedKind; d: number } | null;
   tick: number;
 }
 
@@ -113,10 +116,15 @@ export interface Plan {
   primaryEnemy?: PlayerId;
   scout?: { unit: string; waypoints: Pt[]; since: number; done?: boolean };
   /** Defence of the expansion decided for the current threat (cleared when it passes). */
-  expansionDefense?: { choice: string; since: number; threatOwner: PlayerId };
+  expansionDefense?: { choice: ExpansionDefense; since: number; threatOwner: PlayerId };
   /** Decision taken for a home threat while attacking. */
-  homeThreatChoice?: { choice: string; since: number };
+  homeThreatChoice?: { choice: HomeThreatChoice; since: number };
 }
+
+/** Hold the expansion with the army, evacuate its workers, add a tower there, or strike their base instead. */
+export type ExpansionDefense = "army" | "evacuate" | "fortify" | "counter";
+/** A threat at home while attacking: recall the army, carry on, or send half of it home. */
+export type HomeThreatChoice = "recall" | "continue" | "split";
 
 export interface JournalEntry { t: number; tick: number; type: string; [key: string]: unknown }
 

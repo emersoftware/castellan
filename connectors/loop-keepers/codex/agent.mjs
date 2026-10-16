@@ -1,3 +1,4 @@
+// @ts-check
 import { spawn } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, symlink } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
@@ -5,9 +6,12 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 import { connectorVersion, launchConfiguration, reportConfiguration, reportActivity } from "../metadata.mjs";
-import { seat } from "../game.mjs";
+import { observedSeat, seat, seatOver, seatPlaying, serverUrl } from "../game.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
+/** The Codex CLI to run: AOA_CODEX_BIN, else `codex` on PATH. */
+export const codexBin = (env = process.env) => env.AOA_CODEX_BIN || "codex";
+
 /** `codex exec` cut off from the host: read-only in an empty workspace, without the user's config,
  * rules, project docs, web search or built-in tools, and never asking for approval. */
 export function isolatedExec({ workspace, session }) {
@@ -47,16 +51,15 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   let watcher;
   try {
     const { home, workspace } = await isolatedHome(root, env);
-    let base = await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
+    let base = env.AOA_PROMPT ?? await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
     if (env.AOA_DIRECTIVE) base += `\n\n${env.AOA_DIRECTIVE}`;
     await reportConfiguration(launchConfiguration({ connector: "codex", args, prompt: base, env,
-      connectorVersion: env.AOA_CONNECTOR_VERSION || await connectorVersion(env.AOA_CODEX_BIN || "codex") }), { env, fetchImpl });
+      connectorVersion: env.AOA_CONNECTOR_VERSION || await connectorVersion(codexBin(env)) }), { env, fetchImpl });
     process.on("SIGINT", stop); process.on("SIGTERM", stop);
     const watch = async () => {
       if (stopped) return;
       try {
-        const status = await game.status();
-        if (status.status === "finished" || status.alive === false) { finished = true; stop(); return; }
+        if (seatOver(await game.status())) { finished = true; stop(); return; }
       } catch { /* next poll */ }
       if (!stopped) watcher = setTimeout(watch, pollMs);
     };
@@ -65,13 +68,14 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
       const started = Date.now();
       try {
         const observation = await game.observation(lastDeliveredTick);
-        if (/ · finished · /.test(observation) || /^YOU\s+.* · OUT$/m.test(observation)) { finished = true; break; }
-        if (/ · (waiting|prep) · /.test(observation)) { await delay(1000); continue; }
-        const observedTick = Number(observation.match(/^tick (\d+)/)?.[1]);
+        const seen = observedSeat(observation);
+        if (seatOver(seen)) { finished = true; break; }
+        if (!seatPlaying(seen)) { await delay(1000); continue; }
+        const observedTick = seen.tick;
         const prompt = `${session ? "Next decision. The following is your current observation." : base}\n\n${observation}`;
         await reportActivity("deciding", { env, fetchImpl });
-        child = spawnImpl(env.AOA_CODEX_BIN || "codex", codexArgs({ workspace, session, args, prompt }), {
-          cwd: workspace, env: { ...env, CODEX_HOME: home }, stdio: ["ignore", "pipe", "inherit"],
+        child = spawnImpl(codexBin(env), codexArgs({ workspace, session, args, prompt }), {
+          cwd: workspace, env: { ...env, AOA_SERVER: serverUrl(env.AOA_SERVER), CODEX_HOME: home }, stdio: ["ignore", "pipe", "inherit"],
         });
         let pending = "", turnComplete = false;
         const line = raw => {
@@ -83,7 +87,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         };
         child.stdout.on("data", chunk => {
           process.stdout.write(chunk);
-          const lines = (pending + chunk).split("\n"); pending = lines.pop(); lines.forEach(line);
+          const lines = (pending + chunk).split("\n"); pending = lines.pop() ?? ""; lines.forEach(line);
         });
         const code = await new Promise((resolveCode, reject) => { child.on("error", reject); child.on("close", resolveCode); });
         line(pending); child = undefined;
@@ -97,7 +101,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         if (stopped) break;
         failures++;
         const ms = Math.min(30_000, 2000 * failures);
-        console.error(`aoa codex: ${error.message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
+        console.error(`aoa codex: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
         await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + ms).toISOString() });
         await delay(ms).catch(() => {});
       }

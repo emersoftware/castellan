@@ -1,13 +1,11 @@
+// @ts-check
 /** A single agy conversation, driven by fresh player observations rather than strategy. */
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { reportActivity } from "../metadata.mjs";
-import { seat } from "../game.mjs";
+import { observedSeat, seat, seatOver, seatPlaying } from "../game.mjs";
 
 const conversationId = value => typeof value === "string" && /^[a-f0-9-]{36}$/.test(value);
-const terminal = status => status.status === "finished" || status.alive === false;
-const observationStatus = text => text.match(/^tick \d+.*? · (waiting|prep|running|finished) · /)?.[1];
-const observationOut = text => /^YOU\s+.* · OUT$/m.test(text);
 
 function deferred() {
   let resolve, reject, settled = false;
@@ -38,7 +36,7 @@ function openSession({ binary, args, env, cwd, conversation, onConversation, sig
     try {
       if (process.platform !== "win32" && child.pid) process.kill(-child.pid, type);
       else child.kill(type);
-    } catch (error) { if (error.code !== "ESRCH") child.kill(type); }
+    } catch (error) { if (/** @type {NodeJS.ErrnoException} */ (error).code !== "ESRCH") child.kill(type); }
   };
   const rejectPending = error => { ready.reject(error); active?.reject(error); active = undefined; };
   function stopSession() {
@@ -89,7 +87,7 @@ function openSession({ binary, args, env, cwd, conversation, onConversation, sig
   };
   child.stdout.on("data", chunk => {
     output(chunk);
-    const lines = (pending + chunk).split("\n"); pending = lines.pop(); lines.forEach(line);
+    const lines = (pending + chunk).split("\n"); pending = lines.pop() ?? ""; lines.forEach(line);
   });
   child.stdin.on("error", error => rejectPending(new Error(`Antigravity input failed (${error.code || "stream error"})`)));
   child.on("error", error => rejectPending(new Error(`Antigravity process failed (${error.code || "launch error"})`)));
@@ -113,9 +111,14 @@ function openSession({ binary, args, env, cwd, conversation, onConversation, sig
   };
 }
 
+/**
+ * @param {{ env?: NodeJS.ProcessEnv, args?: string[], prompt: string, onConversation: (id: string) => unknown,
+ *   fetchImpl?: typeof fetch, spawnImpl?: typeof spawn, cwd?: string, output?: (chunk: Buffer) => unknown, pollMs?: number,
+ *   minIntervalMs?: number, retryMs?: number, maxFailures?: number, initTimeoutMs?: number, killAfterMs?: number }} player
+ */
 export async function drivePlayer({ env = process.env, args = [], prompt, onConversation,
   fetchImpl = fetch, spawnImpl = spawn, cwd = process.cwd(), output = chunk => process.stdout.write(chunk),
-  pollMs = 1000, minIntervalMs = 1500, retryMs = 2000, maxFailures = 3, initTimeoutMs = 30_000, killAfterMs = 2000 } = {}) {
+  pollMs = 1000, minIntervalMs = 1500, retryMs = 2000, maxFailures = 3, initTimeoutMs = 30_000, killAfterMs = 2000 }) {
   if (!env.AOA_TOKEN) throw new Error("set AOA_TOKEN");
   const abort = new AbortController(), game = seat({ env, fetchImpl, signal: abort.signal, redirect: "error" });
   let session, conversation, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0,
@@ -124,7 +127,7 @@ export async function drivePlayer({ env = process.env, args = [], prompt, onConv
   const delay = ms => sleep(ms, undefined, { signal: abort.signal });
   const watch = async () => {
     if (stopped) return;
-    try { if (terminal(await game.status())) { finished = true; stop(); return; } }
+    try { if (seatOver(await game.status())) { finished = true; stop(); return; } }
     catch { /* Main loop handles connection failures; a status poll never consumes observations. */ }
     if (!stopped) watcher = setTimeout(watch, pollMs);
   };
@@ -132,13 +135,13 @@ export async function drivePlayer({ env = process.env, args = [], prompt, onConv
   try {
     // /status deliberately does not connect a seat. Join once without spending a model turn.
     const initial = await game.observation(0);
-    if (observationStatus(initial) === "finished" || observationOut(initial)) return 0;
+    if (seatOver(observedSeat(initial))) return 0;
     watcher = setTimeout(watch, pollMs);
     while (!stopped) {
       try {
         const status = await game.status();
-        if (terminal(status)) { finished = true; break; }
-        if (status.status !== "running") { await delay(pollMs); continue; }
+        if (seatOver(status)) { finished = true; break; }
+        if (!seatPlaying(status)) { await delay(pollMs); continue; }
         if (!session) {
           session = openSession({ binary: env.AOA_AGY_BIN || "agy", args, env, cwd, conversation, signal: abort.signal,
             spawnImpl, output, initTimeoutMs, killAfterMs, onConversation: async id => {
@@ -149,9 +152,10 @@ export async function drivePlayer({ env = process.env, args = [], prompt, onConv
         }
         // Startup and permission registration may take time. Fetch only after both finish.
         const observation = await game.observation(lastDeliveredTick);
-        if (observationStatus(observation) === "finished" || observationOut(observation)) { finished = true; break; }
-        if (observationStatus(observation) !== "running") { await delay(pollMs); continue; }
-        const tick = Number(observation.match(/^tick (\d+)/)?.[1]);
+        const seen = observedSeat(observation);
+        if (seatOver(seen)) { finished = true; break; }
+        if (!seatPlaying(seen)) { await delay(pollMs); continue; }
+        const tick = seen.tick;
         const recovery = interrupted ? "The previous decision was interrupted. Some actions may already have taken effect; use this current observation instead of assuming they failed.\n\n" : "";
         const input = `${instructionsDelivered ? "Next decision. The following is your current observation." : prompt}\n\n${recovery}${observation}`;
         const started = Date.now();
@@ -164,9 +168,9 @@ export async function drivePlayer({ env = process.env, args = [], prompt, onConv
       } catch (error) {
         await session?.stop(); session = undefined;
         if (stopped) break;
-        if (++failures >= maxFailures) throw new Error(`Antigravity stopped after ${failures} failures: ${error.message}`);
+        if (++failures >= maxFailures) throw new Error(`Antigravity stopped after ${failures} failures: ${/** @type {Error} */ (error).message}`);
         interrupted = !!conversation;
-        console.error(`aoa antigravity: ${error.message}; retrying with the same conversation and observation cursor`);
+        console.error(`aoa antigravity: ${/** @type {Error} */ (error).message}; retrying with the same conversation and observation cursor`);
         const wait = retryMs * failures;
         await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + wait).toISOString() });
         await delay(wait).catch(() => {});

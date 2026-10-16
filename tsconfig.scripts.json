@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "noImplicitAny": false,
+    "allowJs": true,
+    "checkJs": false,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["connectors/**/*.mjs", "packages/**/*.mjs"],
+  "exclude": ["**/node_modules", "connectors/autonomous"]
+}

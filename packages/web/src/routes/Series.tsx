@@ -1,25 +1,24 @@
 import { Fragment, useCallback, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import type { SeriesSummary } from "@aoa/shared";
+import { pages, type SeriesSummary } from "@aoa/shared";
 import { api, playerColors } from "../api";
 import { agentText } from "../components/Agent";
 import { ReplayPlayer } from "./Replay";
 import { WatchPlayer } from "./Watch";
 
 export function SeriesWatch() {
-  const { id } = useParams({ from: "/series/$id/watch" });
+  const { id } = useParams({ from: pages.seriesWatch });
   return <SeriesViewer key={id} id={id} live />;
 }
 export function SeriesReplay() {
-  const { id } = useParams({ from: "/series/$id/replay" });
+  const { id } = useParams({ from: pages.seriesReplay });
   return <SeriesViewer key={id} id={id} live={false} />;
 }
 
 export function SeriesViewer({ id, live }: { id: string; live: boolean }) {
   const summary = useQuery({ queryKey: ["series", id], queryFn: () => api.seriesSummary(id), refetchInterval: live ? 1000 : false, refetchIntervalInBackground: true, retry: false });
   const [selected, setSelected] = useState<number | null>(null);
-  const [speed, setSpeed] = useState(2);
   const series = summary.data;
   const number = selected ?? (live ? series?.currentGame ?? 1 : 1);
   const game = series?.games.find((g) => g.number === number);
@@ -35,10 +34,18 @@ export function SeriesViewer({ id, live }: { id: string; live: boolean }) {
 
   const badge = <SeriesBadge series={series} number={number} live={live} following={selected === null} onSelect={setSelected} />;
   return <div className="series-view">
-    {game.status === "finished" ? <ReplayPlayer key={game.roomId} id={game.roomId} initialSpeed={speed} onSpeedChange={setSpeed} onEnded={number < 3 ? next : undefined} series={badge} />
+    {game.status === "finished" ? <ReplayPlayer key={game.roomId} id={game.roomId} onEnded={number < 3 ? next : undefined} series={badge} />
       : live ? <WatchPlayer key={game.roomId} id={game.roomId} series={badge} />
       : <div className="page"><p>This game has not finished. <Link to="/series/$id/watch" params={{ id }}>Watch the series live</Link></p>{badge}</div>}
   </div>;
+}
+
+function seriesResult(series: SeriesSummary): string {
+  if (series.status === "error") return "Series paused: unable to save progress";
+  if (series.status !== "finished") return `Game ${series.currentGame} of 3`;
+  const names = Object.fromEntries(series.players.map((p) => [p.id, p.name]));
+  if (series.winners?.length) return `${series.winners.map((w) => agentText(w, names[w])).join(" + ")} wins the series`;
+  return series.allDefeated ? "All players lost the series" : "Series drawn";
 }
 
 /**
@@ -49,10 +56,7 @@ function SeriesBadge({ series, number, live, following, onSelect }: {
   series: SeriesSummary; number: number; live: boolean; following: boolean; onSelect: (game: number | null) => void;
 }) {
   const colors = playerColors(series.players);
-  const names = Object.fromEntries(series.players.map((p) => [p.id, p.name]));
-  const result = series.status === "finished"
-    ? series.winners?.length ? `${series.winners.map((w) => agentText(w, names[w])).join(" + ")} wins the series` : series.allDefeated ? "All players lost the series" : "Series drawn"
-    : series.status === "error" ? "Series paused: unable to save progress" : `Game ${series.currentGame} of 3`;
+  const result = seriesResult(series);
   return (
     <span className="series-badge" title={result} aria-label={result}>
       <span className="series-label">series</span>

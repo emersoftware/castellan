@@ -75,7 +75,7 @@ describe("team chat privacy", () => {
       expect(view.events.some((e) => e.type === "chat")).toBe(false);
       expect(view.chat).toEqual({ enabled: true, messages: [expect.objectContaining({ from: "p1", text: "public opening" })] });
       // More events than the text renderer's cap must not bury the chat.
-      view.events = Array.from({ length: 40 }, (_, i) => ({ tick: i, type: "order_end", id: `unit${i}`, owner: p.id, reason: "done" }));
+      view.events = Array.from({ length: 40 }, (_, i) => ({ tick: i, type: "order_end", id: `unit${i}`, owner: p.id, reason: "completed" }));
       expect(viewToText(view)).toContain("public opening");
       expect(room.view(p.id, room.tick + 100).chat).toEqual(view.chat);
     }

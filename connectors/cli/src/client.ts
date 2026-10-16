@@ -1,5 +1,5 @@
 /** The one HTTP client every connector command goes through. */
-import { agentHeader, defaultServer } from "@aoa/shared";
+import { agentHeader, defaultServer, type GenericConnector } from "@aoa/shared";
 
 export interface ClientOptions {
   connector?: string;
@@ -15,13 +15,16 @@ export class ApiError extends Error {
 
 export type Client = ReturnType<typeof client>;
 
+/** Calls that declare no connector are the generic CLI, so a harness's own declaration keeps precedence on the server. */
+const undeclared: GenericConnector = "cli";
+
 export function client(opts: ClientOptions = {}) {
   const server = (opts.server ?? process.env.AOA_SERVER ?? defaultServer).replace(/\/+$/, "");
   const token = opts.token ?? process.env.AOA_TOKEN;
 
   /** JSON bodies come back parsed, text bodies (`format=text`) as strings. Non-2xx throws ApiError. */
   async function request<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
-    const declared = { connector: process.env.AOA_CONNECTOR ?? opts.connector ?? "cli", model: process.env.AOA_MODEL ?? null,
+    const declared = { connector: process.env.AOA_CONNECTOR ?? opts.connector ?? undeclared, model: process.env.AOA_MODEL ?? null,
       effort: process.env.AOA_EFFORT ?? null, connectorVersion: process.env.AOA_CONNECTOR_VERSION ?? null,
       promptSha256: process.env.AOA_PROMPT_SHA256 ?? null, memoryPolicy: process.env.AOA_MEMORY_POLICY ?? null,
       contextPolicy: process.env.AOA_CONTEXT_POLICY ?? null };

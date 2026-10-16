@@ -1,18 +1,28 @@
-import { publishedRoutes, replayArchive, routes, type Outcome, type PlayerTiming, type ReplayFile, type ReplayPlayerSummary, type SeriesReplay, type SeriesSummary } from "@aoa/shared";
-import { hasScriptedBot, replayFileDate } from "./replayCatalog";
+import { publishedRoutes, replayArchive, routes, rules, type MatchStatus, type Outcome, type PlayerTiming, type ReplayFile, type ReplayPlayerSummary, type RoomMode, type SeriesReplay, type SeriesSummary } from "@aoa/shared";
+import { analyticsHeaders } from "./analytics";
+import { catalogBattles } from "./replayCatalog";
+
+/** Only send browser identity to our API, never to third-party/static URLs. */
+function apiFetch(path: string, init?: RequestInit) {
+  const identity = analyticsHeaders();
+  if (!Object.keys(identity).length) return init ? fetch(path, init) : fetch(path);
+  const headers = new Headers(identity);
+  new Headers(init?.headers).forEach((value, key) => headers.set(key, value));
+  return fetch(path, { ...init, headers });
+}
 
 const published = () => import.meta.env.VITE_PUBLIC_REPLAYS === "true";
 const seriesPath = () => published() ? publishedRoutes.series : routes.series;
 
 export interface RoomSummary {
   id: string;
-  status: "waiting" | "prep" | "running" | "finished";
+  status: MatchStatus;
   tick: number;
   timeMs: number;
   createdAt: string;
   prepEndsAt?: string;
   map?: string;
-  mode?: "teams" | "ffa";
+  mode?: RoomMode;
   chat?: boolean;
   timing?: Record<string, PlayerTiming>;
   players: { id: string; name: string; bot?: string; connected: boolean; token?: string; side?: number; team?: number }[];
@@ -54,30 +64,28 @@ export type LiveScripts = Record<string, Record<string, { code: string; custom: 
 export const api = {
   /** A recorded match bundled with the landing, also available without an API. */
   showcase: (id: string) => fetch(`/showcase/${id}.json`).then((r) => json<ReplayFile>(r)),
-  series: () => fetch(seriesPath()).then((r) => json<SeriesSummary[]>(r)),
-  seriesSummary: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries.series) : fetch(`${seriesPath()}/${id}`).then((r) => json<SeriesSummary>(r)),
-  seriesReplay: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries) : fetch(`${seriesPath()}/${id}/replay.json`).then((r) => json<SeriesReplay>(r)),
-  room: (id: string) => fetch(`${routes.rooms}/${id}`).then((r) => json<RoomSummary>(r)),
+  series: () => apiFetch(seriesPath()).then((r) => json<SeriesSummary[]>(r)),
+  seriesSummary: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries.series) : apiFetch(`${seriesPath()}/${id}`).then((r) => json<SeriesSummary>(r)),
+  seriesReplay: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries) : apiFetch(`${seriesPath()}/${id}/replay.json`).then((r) => json<SeriesReplay>(r)),
+  room: (id: string) => apiFetch(`${routes.rooms}/${id}`).then((r) => json<RoomSummary>(r)),
   /** Live room: the code each player's scriptable kinds run now. */
-  roomScripts: (id: string) => fetch(`${routes.rooms}/${id}/scripts`, { headers: spectatorToken() ? { authorization: `Bearer ${spectatorToken()}` } : {} }).then((r) => json<LiveScripts>(r)),
+  roomScripts: (id: string) => apiFetch(`${routes.rooms}/${id}/scripts`, { headers: spectatorToken() ? { authorization: `Bearer ${spectatorToken()}` } : {} }).then((r) => json<LiveScripts>(r)),
 
-  /** Featured replays ship with the site; a local server adds yours. */
+  /** Featured replays ship with the site; a local server adds yours. Only the battles the catalog lists. */
   async replays(): Promise<ReplaySummary[]> {
     if (published()) {
-      const entries = await fetch(publishedRoutes.replays).then((r) => json<Omit<ReplaySummary, "source">[]>(r));
-      return entries.map((entry) => ({ ...entry, source: "published" as const }));
+      const entries = await apiFetch(publishedRoutes.replays).then((r) => json<Omit<ReplaySummary, "source">[]>(r));
+      return catalogBattles(entries.map((entry) => ({ ...entry, source: "published" as const })), rules.version);
     }
     const responses = await Promise.allSettled([
       fetch(`${replayArchive.featuredUrl}/${replayArchive.index}`).then(r => json<Omit<ReplaySummary, "source">[]>(r)),
-      fetch(routes.replays).then(r => json<Omit<ReplaySummary, "source">[]>(r)),
+      apiFetch(routes.replays).then(r => json<Omit<ReplaySummary, "source">[]>(r)),
     ]);
     if (responses.every(r => r.status === "rejected")) throw new Error("Battle catalogue unavailable");
     const featured = responses[0].status === "fulfilled" ? responses[0].value.map(x => ({ ...x, source: "featured" as const })) : [];
     const local = responses[1].status === "fulfilled" ? responses[1].value.map(x => ({ ...x, source: "local" as const })) : [];
     const seen = new Set(featured.map((f) => f.id));
-    return [...featured, ...local.filter((l) => !seen.has(l.id))]
-      .filter((replay) => !hasScriptedBot(replay.players))
-      .sort((a, b) => replayFileDate(b).localeCompare(replayFileDate(a)) || a.id.localeCompare(b.id));
+    return catalogBattles([...featured, ...local.filter((l) => !seen.has(l.id))], rules.version);
   },
 
   async replay(id: string): Promise<ReplayFile> {
@@ -87,11 +95,11 @@ export const api = {
       if (!dropped) throw new Error("no replay file loaded");
       return dropped;
     }
-    if (published()) return fetch(`${publishedRoutes.replays}/${id}`).then((r) => json<ReplayFile>(r));
+    if (published()) return apiFetch(`${publishedRoutes.replays}/${id}`).then((r) => json<ReplayFile>(r));
     try {
       return await fetch(`${replayArchive.featuredUrl}/${id}.json`).then((r) => json<ReplayFile>(r));
     } catch {
-      return fetch(`${routes.replays}/${id}`).then((r) => json<ReplayFile>(r));
+      return apiFetch(`${routes.replays}/${id}`).then((r) => json<ReplayFile>(r));
     }
   },
 };

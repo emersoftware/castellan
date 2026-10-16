@@ -1,3 +1,11 @@
+import type { LegacyKind } from "./legacy";
+
+/** Every kind of entity in today's rules (see rules.ts). */
+export const ENTITY_KINDS = ["worker", "king", "knight", "archer", "castle", "tower", "wall", "door"] as const;
+export type EntityKind = (typeof ENTITY_KINDS)[number];
+/** A kind as a match's rules name it: today's name, or a former one in old recordings (see `currentKind`). */
+export type RecordedKind = EntityKind | LegacyKind;
+
 /**
  * The shape of the rules (see rules.ts): every number, every kind of entity and the
  * starting map. Times are in milliseconds; the engine converts them to ticks.
@@ -39,7 +47,7 @@ export interface Ruleset {
    * Ranged attacks are real projectiles (Euclidean tiles/s). Only hostile entities stop
    * them, never rock; `flyOver` building kinds are hit only by a shot aimed at them.
    */
-  projectiles: { speed: number; unitRadius: number; buildingRadius: number; flyOver: string[] };
+  projectiles: { speed: number; unitRadius: number; buildingRadius: number; flyOver: RecordedKind[] };
   kinds: Record<string, KindSpec>;
   /** Research belongs to a player and affects one kind. */
   upgrades: Record<string, UpgradeSpec>;
@@ -53,7 +61,7 @@ export interface Ruleset {
 }
 
 export interface UpgradeSpec {
-  kind: string;
+  kind: RecordedKind;
   /** "unlock" makes the kind producible (see KindSpec.requires); its level value is unused. */
   stat: "atk" | "attackMs" | "moveMs" | "range" | "unlock";
   /**
@@ -103,9 +111,9 @@ export interface KindSpec {
   /** Can extract mineral from deposits. */
   gathers?: boolean;
   /** Building kinds this unit can place. */
-  builds?: string[];
+  builds?: RecordedKind[];
   /** Unit kinds this building produces. */
-  trains?: string[];
+  trains?: RecordedKind[];
   /** Gatherers unload mineral next to it. */
   dropoff?: boolean;
 }
@@ -128,7 +136,7 @@ export interface MapSpec {
   /** Destructible wall ruins owned by the scenario, never a competing player. Absolute coordinates, placed once. */
   neutralWalls?: { x: number; y: number }[];
   /** The first seat's corner. Every other seat gets the same layout, rotated. */
-  start: { kind: string; x: number; y: number }[];
+  start: { kind: RecordedKind; x: number; y: number }[];
   deposits: { x: number; y: number; amount: number }[];
   /** Deposits placed once (they should be symmetric by themselves). */
   sharedDeposits: { x: number; y: number; amount: number }[];
@@ -144,6 +152,9 @@ export interface ScriptLimits {
   gasPerPlayer: number;
   heapBytes: number;
 }
+
+/** What a kind runs without a script of its own: it stays put. */
+export const HOLD_SCRIPT = "self.hold();";
 
 /** How long this ruleset's match lasts on its map. */
 export const matchLengthMs = (r: Ruleset): number => (r.map.seats === 4 ? r.fourSeatMatchMs : r.matchMs);

@@ -1,10 +1,12 @@
 import { expect, it } from "vitest";
 import { createRequire } from "node:module";
-import { spriteMasks } from "../src/render/sprites";
-import { xrayMark } from "../src/render/xray";
+import { spriteMasks } from "../src/render/xray";
 import { normalizeCharacterContrast } from "../src/render/characterContrast";
 
 const sharp = createRequire(import.meta.url)("sharp");
+
+/** The x-ray shader's code of a colour's interior or ring. */
+const mark = (colour: number, ring: boolean) => (colour * 2 + (ring ? 2 : 1)) * 28;
 
 /** The original per-pixel mask loop, kept as the reference. */
 function reference(src: Uint8ClampedArray, w: number, h: number, radius = 3) {
@@ -27,8 +29,8 @@ function reference(src: Uint8ClampedArray, w: number, h: number, radius = 3) {
   };
   return {
     silhouette: make(() => [255, 255, 255]),
-    xray: [0, 1, 2, 3].map((colour) => make((ring) => [255, 255, xrayMark(colour, ring)])),
-    outline: [0, 1, 2, 3].map((colour) => make(() => [255, 255, xrayMark(colour, true)], true)),
+    xray: [0, 1, 2, 3].map((colour) => make((ring) => [255, 255, mark(colour, ring)])),
+    outline: [0, 1, 2, 3].map((colour) => make(() => [255, 255, mark(colour, true)], true)),
   };
 }
 

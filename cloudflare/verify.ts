@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import { collectPublication } from "./catalog";
-import { publishedApi, publishedRoutes } from "../packages/shared/src/http";
+import { pagePath, pages, publishedApi, publishedRoutes } from "../packages/shared/src/http";
 
 const base = process.argv[2] ?? "http://localhost:8787";
 const publication = await collectPublication(resolve(import.meta.dirname, ".."));
@@ -34,7 +34,7 @@ for (const path of [`${publishedRoutes.replays}/missing`, `${publishedRoutes.ser
   assert.match(response.headers.get("content-type") ?? "", /application\/json/);
 }
 assert.equal((await fetch(new URL(publishedRoutes.replays, base), { method: "POST", body: "{}" })).status, 405);
-for (const path of ["/", "/battles", `/replay/${publication.replays[0].replay.id}`, `/series/${publication.series[0]?.summary.id ?? "missing"}/replay`]) {
+for (const path of [pages.home, pages.battles, pagePath(pages.replay, publication.replays[0].replay.id), pagePath(pages.seriesReplay, publication.series[0]?.summary.id ?? "missing")]) {
   const response = await fetch(new URL(path, base));
   assert.equal(response.status, 200, path);
   assert.match(response.headers.get("content-type") ?? "", /text\/html/, path);

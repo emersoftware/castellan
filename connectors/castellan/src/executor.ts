@@ -3,8 +3,8 @@
  * It turns the plan into orders every cycle and keeps running whatever the
  * strategic layer is still deciding.
  */
-import type { EntityView, Order, OrderResult } from "@aoa/shared";
-import { distP, ring, type DepositCluster, type Pt } from "./geometry";
+import type { EntityKind, EntityView, Order, OrderResult } from "@aoa/shared";
+import { dist, ring, type DepositCluster, type Pt } from "./geometry";
 import type { Memory, World } from "./perception";
 import { STATIC_SCRIPT, SCRIPT_MAX_BYTES, kingScript, knightScript, archerScript, workerScript, type ArmyParams } from "./scripts";
 import type { BuildTask, JournalEntry, Plan } from "./types";
@@ -40,20 +40,22 @@ export class Executor {
   orders(w: World, mem: Memory): Order[] {
     const out: Order[] = [];
     this.lastWorld = w;
-    if (w.threats.some((t) => w.homeCastle && distP(t, w.homeCastle) <= 14)) this.lastThreatTick = w.tick;
-    const posture = `${this.plan.posture}:${this.plan.postureSince}`;
-    const postureChanged = posture !== this.lastPosture;
-    this.lastPosture = posture;
-    out.push(...this.scripts(w, postureChanged));
+    if (w.threats.some((t) => w.homeCastle && dist(t, w.homeCastle) <= 14)) this.lastThreatTick = w.tick;
+    out.push(...this.scripts(w));
     out.push(...this.construction(w));
     const research = this.research(w);
     out.push(...research);
     out.push(...this.production(w, research.length ? (w.rules.upgrades[this.plan.research[0]]?.levels[w.me.upgrades?.[this.plan.research[0]] ?? 0]?.cost ?? 0) : 0));
-    if (postureChanged) for (const u of w.army) if (u.order && this.roles.get(u.id) !== "s") out.push({ type: "stop", unit: u.id });
+    if (this.postureChanged()) for (const u of w.army) if (u.order && this.roles.get(u.id) !== "s") out.push({ type: "stop", unit: u.id });
+    this.lastPosture = this.posture();
     this.pendingOrders = out.map((order) => ({ order, tick: w.tick }));
     this.sent += out.length;
     return out;
   }
+
+  private posture(): string { return `${this.plan.posture}:${this.plan.postureSince}`; }
+  /** A new posture since the last orders: the army is re-scripted at once and its current orders dropped. */
+  private postureChanged(): boolean { return this.posture() !== this.lastPosture; }
 
   /** Learn from rejections: adjust tasks and back off where the engine said no. */
   onResults(orders: Order[], results: OrderResult[], tick: number): void {
@@ -80,9 +82,10 @@ export class Executor {
 
   // ───────────────────────── scripts ─────────────────────────
 
-  private scripts(w: World, force: boolean): Order[] {
+  private scripts(w: World): Order[] {
+    const postureChanged = this.postureChanged();
     const out: Order[] = [];
-    const upload = (kind: string, code: string, urgent = false) => {
+    const upload = (kind: EntityKind, code: string, urgent = false) => {
       if (!w.rules.kinds[kind]?.scriptable) return;
       if (code.length > SCRIPT_MAX_BYTES) { this.opts.log({ tick: w.tick, type: "script_too_long", kind, bytes: code.length }); return; }
       const last = this.installedTick.get(kind) ?? -1000;
@@ -97,7 +100,7 @@ export class Executor {
     const defendingExpansion = exp && p.expansionDefense?.choice === "army" && w.tick - p.expansionDefense.since < s(60);
     const evac = this.evacuation(w);
     const evacuating = Object.keys(evac).length > 0;
-    const big = w.threats.find((t) => w.homeCastle && distP(t, w.homeCastle) <= 12 && t.strength >= w.myStrength * 0.9);
+    const big = w.threats.find((t) => w.homeCastle && dist(t, w.homeCastle) <= 12 && t.strength >= w.myStrength * 0.9);
     const turtle = evacuating && !!big && p.keep.status === "built";
     if (turtle !== this.turtling) { this.turtling = turtle; this.opts.log({ tick: w.tick, type: "turtle", on: turtle, threat: big ? Math.round(big.strength) : 0, strength: Math.round(w.myStrength) }); }
     const guardPost = defendingExpansion ? exp!.site : p.rally;
@@ -109,31 +112,31 @@ export class Executor {
       // Everyone holds a tile inside: workers took theirs first, the army gets the rest (doors excluded).
       const taken = new Set(Object.values(evac).map((t) => `${t.x},${t.y}`));
       const free = p.keep.interior.filter((t) => w.placeable(t) && !taken.has(`${t.x},${t.y}`));
-      w.army.slice().sort((a, b) => distP(a, p.keep.cell) - distP(b, p.keep.cell)).forEach((u, i) => { roles[u.id] = "h"; posts[u.id] = free[i % Math.max(1, free.length)] ?? p.keep.cell; });
+      w.army.slice().sort((a, b) => dist(a, p.keep.cell) - dist(b, p.keep.cell)).forEach((u, i) => { roles[u.id] = "h"; posts[u.id] = free[i % Math.max(1, free.length)] ?? p.keep.cell; });
     } else {
       for (const u of w.army) { const r = this.roles.get(u.id); if (r && r !== "g") roles[u.id] = r; }
       // Behind walls (a fortress or the keep), archers post up inside next to a force outside and shoot over them;
       // knights keep the rally point instead of filing out through a door one by one.
       const fortress = (w.byKind.wall ?? []).length >= 16;
-      const near = w.threats.find((t) => w.homeCastle && distP(t, w.homeCastle) <= 14);
+      const near = w.threats.find((t) => w.homeCastle && dist(t, w.homeCastle) <= 14);
       if (near && (fortress || p.keep.status === "built") && p.posture !== "attack") {
         const inside = (t: Pt) => { if (p.keep.status === "built" && p.keep.interior.some((k) => k.x === t.x && k.y === t.y)) return true; if (!fortress) return false; const l = w.frame.toLocal(t); return l.x < 13 && l.y < 13; };
-        const spots = ring(near, 6, w.rules.map.width, w.rules.map.height).filter((t) => inside(t) && w.placeable(t)).sort((a, b) => distP(a, near) - distP(b, near));
+        const spots = ring(near, 6, w.rules.map).filter((t) => inside(t) && w.placeable(t)).sort((a, b) => dist(a, near) - dist(b, near));
         const archers = w.army.filter((u) => u.kind === "archer" && (this.roles.get(u.id) ?? "g") === "g");
         archers.forEach((u, i) => { if (spots[i]) { roles[u.id] = "h"; posts[u.id] = spots[i]; } });
       }
     }
     const params: ArmyParams = { role: "g", roles, rally: p.rally, target: p.attack?.staged ? p.attack.target : null, gp: guardPost === p.rally ? null : guardPost, posts,
       leash: defendingExpansion ? 8 : archerHeavy ? 3 : 6, engage: 8, wps: p.scout && !p.scout.done ? p.scout.waypoints : [], kite: true };
-    upload("knight", knightScript(params), force);
-    upload("archer", archerScript(params), force);
+    upload("knight", knightScript(params), postureChanged);
+    upload("archer", archerScript(params), postureChanged);
     this.assignWorkers(w);
     const assign: Record<string, string> = {};
     for (const [id, d] of this.assignments) if (w.workers.some((u) => u.id === id)) assign[id] = d;
     if (evacuating !== this.evacuating) { this.evacuating = evacuating; this.opts.log({ tick: w.tick, type: "evacuation", workers: Object.keys(evac).length, on: evacuating }); }
     upload("worker", workerScript({ safe: p.safe, assign, evac, fleeRadius: 5, fleeTicks: 15 }));
     const kingSafe = w.homeCastle || !exp?.castleId ? p.safe : this.safeNear(w, w.castles.find((c) => c.id === exp.castleId));
-    upload("king", kingScript({ safe: kingSafe }), force);
+    upload("king", kingScript({ safe: kingSafe }), postureChanged);
     upload("tower", STATIC_SCRIPT);
     upload("castle", STATIC_SCRIPT);
     return out;
@@ -143,13 +146,13 @@ export class Executor {
   private evacuation(w: World): Record<string, Pt> {
     const p = this.plan;
     if (p.keep.status !== "built" || !w.homeCastle) return {};
-    const threat = w.threats.find((t) => (t.strength >= 250 || t.units.length >= 3) && distP(t, w.homeCastle!) <= 12);
+    const threat = w.threats.find((t) => (t.strength >= 250 || t.units.length >= 3) && dist(t, w.homeCastle!) <= 12);
     if (threat) this.evacUntil = w.tick + s(15);
     if (w.tick >= this.evacUntil) return {};
     const cell = p.keep.cell;
     const pocket = p.keep.interior.filter((t) => w.placeable(t));
     const out: Record<string, Pt> = {};
-    const near = w.workers.filter((u) => distP(u, w.homeCastle!) <= 14).sort((a, b) => distP(a, cell) - distP(b, cell));
+    const near = w.workers.filter((u) => dist(u, w.homeCastle!) <= 14).sort((a, b) => dist(a, cell) - dist(b, cell));
     near.forEach((u, i) => { out[u.id] = pocket[i % Math.max(1, pocket.length)] ?? cell; });
     return out;
   }
@@ -157,14 +160,14 @@ export class Executor {
   private safeNear(w: World, castle?: EntityView): Pt {
     if (!castle) return this.plan.safe;
     const home = this.plan.safe;
-    return ring(castle, 1, w.rules.map.width, w.rules.map.height).filter((t) => w.placeable(t)).sort((a, b) => distP(a, home) - distP(b, home))[0] ?? this.plan.safe;
+    return ring(castle, 1, w.rules.map).filter((t) => w.placeable(t)).sort((a, b) => dist(a, home) - dist(b, home))[0] ?? this.plan.safe;
   }
 
   // ───────────────────────── economy ─────────────────────────
 
   private assignWorkers(w: World) {
     // Mines with fighters next to them are unsafe for a while; their workers mine elsewhere.
-    for (const c of w.clusters) if (w.threats.some((t) => distP(t, c.center) <= 7)) this.unsafeUntil.set(c.id, w.tick + s(20));
+    for (const c of w.clusters) if (w.threats.some((t) => dist(t, c.center) <= 7)) this.unsafeUntil.set(c.id, w.tick + s(20));
     const unsafe = new Set([...this.unsafeUntil].filter(([, until]) => until > w.tick).map(([id]) => id));
     const unsafeKey = [...unsafe].sort().join(",");
     const changed = unsafeKey !== this.lastUnsafe || w.events.some((e) => (e.type === "spawn" && e.owner === w.view.you && e.kind === "worker") || e.type === "depleted" || (e.type === "death" && e.owner === w.view.you));
@@ -204,7 +207,7 @@ export class Executor {
     if (left > 0) {
       // Home is saturated or empty: the nearest clusters with mineral, flanks before the centre (not while fighters roam).
       const home = w.homeCastle ?? w.king ?? { x: 0, y: 0 };
-      const others = unsafe.size ? [] : w.clusters.filter((c) => !homeIds.has(c.id) && c.id !== expCluster && tilesOf(c.id).length && (c.kind !== "foreign")).sort((a, b) => distP(a.center, home) - distP(b.center, home));
+      const others = unsafe.size ? [] : w.clusters.filter((c) => !homeIds.has(c.id) && c.id !== expCluster && tilesOf(c.id).length && (c.kind !== "foreign")).sort((a, b) => dist(a.center, home) - dist(b.center, home));
       for (const c of others) { if (left <= 0) break; const n = Math.min(left, tilesOf(c.id).length * 2); desired.set(c.id, (desired.get(c.id) ?? 0) + n); left -= n; }
       if (left > 0 && homeTiles) for (const id of homeIds) if (tilesOf(id).length) { desired.set(id, (desired.get(id) ?? 0) + left); break; }
     }
@@ -226,7 +229,7 @@ export class Executor {
       for (const [c, n] of desired) { const def = n - (count.get(c) ?? 0); if (def > bestDef && tilesOf(c).length) { bestDef = def; bestC = c; } }
       const pool = bestC ? tilesOf(bestC) : [...live.values()];
       if (!pool.length) continue;
-      pool.sort((a, b) => (perDeposit.get(a.id) ?? 0) - (perDeposit.get(b.id) ?? 0) || distP(a, u) - distP(b, u));
+      pool.sort((a, b) => (perDeposit.get(a.id) ?? 0) - (perDeposit.get(b.id) ?? 0) || dist(a, u) - dist(b, u));
       const d = pool[0];
       next.set(u.id, d.id); perDeposit.set(d.id, (perDeposit.get(d.id) ?? 0) + 1); count.set(d.cluster.id, (count.get(d.cluster.id) ?? 0) + 1);
     }
@@ -241,7 +244,7 @@ export class Executor {
     const open = this.plan.builds.filter((t) => !t.surplus && (t.status === "pending" || t.status === "assigned" || t.status === "started")).sort((a, b) => a.priority - b.priority || a.createdTick - b.createdTick);
     const active = open.filter((t) => t.status !== "pending");
     // A planned investment only holds mineral back while it is quiet; under threat the army comes first.
-    const quiet = this.plan.posture === "boom" && !w.threats.some((t) => w.homeCastle && distP(t, w.homeCastle) <= 14);
+    const quiet = this.plan.posture === "boom" && !w.threats.some((t) => w.homeCastle && dist(t, w.homeCastle) <= 14);
     const next = open[0];
     const reserve = (active.length ? active : next && (quiet || next.priority <= 1) ? [next] : []).reduce((n, t) => n + t.reserve, 0);
     return w.mineral - reserve;
@@ -257,9 +260,9 @@ export class Executor {
     const research = p.research[0] ? w.rules.upgrades[p.research[0]]?.levels[w.me.upgrades?.[p.research[0]] ?? 0] : undefined;
     if (research && !w.me.research && w.army.length >= 8 && w.mineral < research.cost) budget -= 150;
     let pop = w.pop + w.queuedPop;
-    const queued = (kind: string) => w.castles.reduce((n, c) => n + (c.training?.filter((j) => j.kind === kind).length ?? 0), 0);
+    const queued = (kind: EntityKind) => w.castles.reduce((n, c) => n + (c.training?.filter((j) => j.kind === kind).length ?? 0), 0);
     const queues = new Map(w.castles.map((c) => [c.id, c.training?.length ?? 0]));
-    const castleFor = (kind: string): EntityView | null => {
+    const castleFor = (kind: EntityKind): EntityView | null => {
       let list = w.castles.filter((c) => (queues.get(c.id) ?? 0) < (w.mineral > 600 ? 3 : 2));
       if (!list.length) return null;
       if (kind === "worker" && p.expansion?.status === "built" && p.expansion.castleId) {
@@ -270,7 +273,7 @@ export class Executor {
       list = list.sort((a, b) => (queues.get(a.id) ?? 0) - (queues.get(b.id) ?? 0));
       return list[0];
     };
-    const train = (kind: string) => {
+    const train = (kind: EntityKind) => {
       const cost = w.rules.kinds[kind]?.cost ?? 0;
       if (budget < cost || pop >= w.popCap) return false;
       const c = castleFor(kind);
@@ -293,7 +296,7 @@ export class Executor {
       for (let i = 0; i < 3; i++) {
         const total = knights + archers + i;
         const wantArchers = Math.round((total + 1) * p.composition.archer);
-        const kind = archers + (i > 0 ? 0 : 0) < wantArchers ? "archer" : "knight";
+        const kind: EntityKind = archers + (i > 0 ? 0 : 0) < wantArchers ? "archer" : "knight";
         if (army + i >= p.armyTarget + 4) break;
         if (!train(kind)) { if (!train(kind === "archer" ? "knight" : "archer")) break; }
       }
@@ -304,7 +307,7 @@ export class Executor {
   private research(w: World): Order[] {
     const id = this.plan.research[0];
     // Research pays off once there is an army to apply it to, never while a fight is on.
-    const quiet = this.plan.posture === "boom" && !w.threats.some((t) => w.homeCastle && distP(t, w.homeCastle) <= 14) && w.tick - this.lastThreatTick > s(30);
+    const quiet = this.plan.posture === "boom" && !w.threats.some((t) => w.homeCastle && dist(t, w.homeCastle) <= 14) && w.tick - this.lastThreatTick > s(30);
     if (!id || w.me.research || w.army.length < 8 || !quiet) return [];
     const spec = w.rules.upgrades[id];
     const level = (w.me.upgrades?.[id] ?? 0);
@@ -358,7 +361,7 @@ export class Executor {
       let worker = t.worker ? w.workers.find((u) => u.id === t.worker) : undefined;
       if (t.worker && !worker) { t.worker = undefined; t.status = "pending"; t.attempts++; this.opts.log({ tick: w.tick, type: "build_interrupted", task: t.id, label: t.label, reason: "builder lost", attempts: t.attempts }); }
       // Threat next to the site or the builder: pause, the worker's script runs away.
-      const danger = w.enemyVisible.some((e) => !w.rules.kinds[e.kind]?.building && e.kind !== "worker" && (distP(e, t) <= 5 || (worker && distP(e, worker) <= 4)));
+      const danger = w.enemyVisible.some((e) => !w.rules.kinds[e.kind]?.building && e.kind !== "worker" && (dist(e, t) <= 5 || (worker && dist(e, worker) <= 4)));
       if (danger) {
         if (worker && t.status !== "pending") { out.push({ type: "stop", unit: worker.id }); this.opts.log({ tick: w.tick, type: "build_interrupted", task: t.id, label: t.label, reason: "threat near the site", attempts: t.attempts }); }
         t.status = "pending"; t.worker = undefined;
@@ -370,7 +373,7 @@ export class Executor {
         if (w.mineral < committed + cost) { slots++; continue; }
         committed += cost;
         const candidates = w.workers.filter((u) => !busy.has(u.id) && !p.builds.some((o) => o !== t && o.worker === u.id && (o.status === "assigned" || o.status === "started")) && !(u.construction && (u.construction.x !== t.x || u.construction.y !== t.y)));
-        worker = candidates.sort((a, b) => (a.carrying ?? 0) - (b.carrying ?? 0) || distP(a, t) - distP(b, t))[0];
+        worker = candidates.sort((a, b) => (a.carrying ?? 0) - (b.carrying ?? 0) || dist(a, t) - dist(b, t))[0];
         if (!worker) continue;
         t.worker = worker.id; t.status = "assigned"; t.updatedTick = w.tick;
       }

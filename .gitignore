@@ -35,6 +35,8 @@ assets/animations/**/result.json
 # Cloudflare local database, generated runtime types and credentials.
 .wrangler/
 .dev.vars*
+.env.local
+.env.*.local
 cloudflare/worker-configuration.d.ts
 
 # Local experiments, session tooling and generated evidence.

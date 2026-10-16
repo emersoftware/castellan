@@ -2,6 +2,12 @@ import type { EntityView, GameEvent, PlayerView } from "./protocol";
 import { NEUTRAL_OWNER } from "./protocol";
 import { playerResult } from "./outcome";
 
+/** How a kind's script reads to its player: `custom` once uploaded, else `default`. */
+export const scriptOrigin = (script: { custom: boolean }) => (script.custom ? "custom" : "default");
+
+/** How the neutral owner reads wherever an owner is named. */
+export const NEUTRAL_OWNER_NAME = "scenario";
+
 /**
  * Compact text form of a player view, for LLM connectors. It carries the same
  * information as the JSON with a fraction of the tokens.
@@ -34,7 +40,7 @@ export function viewToText(v: PlayerView): string {
   if (v.status === "running" && workers.length) {
     const holding = workers.filter(e => e.doing === "hold" && !e.order && !e.construction);
     const visible = v.deposits.reduce((sum, d) => sum + d.amount, 0);
-    const remembered = v.lastSeen.reduce((sum, d) => sum + (d.kind === "deposit" && "amount" in d ? d.amount : 0), 0);
+    const remembered = v.lastSeen.reduce((sum, d) => sum + (d.kind === "deposit" ? d.amount : 0), 0);
     const tiles = v.visibility.join("");
     const unexplored = [...tiles].filter(tile => tile === "0").length;
     lines.push("", `economy: ${holding.length}/${workers.length} workers holding now${holding.length ? ` (${holding.map(e => e.id).join(", ")})` : ""} · resources in sight ${visible} · last seen outside vision ${remembered} (may have changed)${tiles.length ? ` · unexplored ${Math.round(unexplored / tiles.length * 100)}%` : ""}`);
@@ -85,15 +91,15 @@ export function viewToText(v: PlayerView): string {
     lines.push("last seen (outside your vision now; may have changed):");
     for (const l of v.lastSeen.slice(0, 20)) {
       const ago = `seen ${secs(Math.max(0, v.timeMs - l.seenMs))}s ago`;
-      lines.push(l.kind === "deposit" && "amount" in l ? `  ${l.id} deposit (${l.x},${l.y}) = ${l.amount} · ${ago}`
-        : "owner" in l ? `  ${l.id} ${l.kind} (${l.x},${l.y}) hp ${l.hp}/${l.maxHp}${l.ruin ? " · RUIN" : ""} · owner ${l.owner} · ${ago}${l.positionCleared ? " · former position now empty" : ""}` : "");
+      lines.push(l.kind === "deposit" ? `  ${l.id} deposit (${l.x},${l.y}) = ${l.amount} · ${ago}`
+        : `  ${l.id} ${l.kind} (${l.x},${l.y}) hp ${l.hp}/${l.maxHp}${l.ruin ? " · RUIN" : ""} · owner ${l.owner} · ${ago}${l.positionCleared ? " · former position now empty" : ""}`);
     }
     if (v.lastSeen.length > 20) lines.push(`  … ${v.lastSeen.length - 20} more`);
   }
   lines.push("deposits: " + v.deposits.map((d) => `${d.id}(${d.x},${d.y})=${d.amount}`).join(" "));
   if (v.projectiles) lines.push("projectiles (visible; velocity in tiles/s): " + (v.projectiles.map((p) =>
     `${p.id} owner ${p.owner} (${p.x.toFixed(2)},${p.y.toFixed(2)}) velocity (${p.vx.toFixed(2)},${p.vy.toFixed(2)}) destination (${p.endX},${p.endY})`).join("; ") || "none"));
-  const scripts = Object.entries(v.scripts).map(([k, s]) => `${k}:${s.custom ? "custom" : "default"}${s.errors.length ? ` ERR ${s.errors.at(-1)}` : ""}`);
+  const scripts = Object.entries(v.scripts).map(([k, s]) => `${k}:${scriptOrigin(s)}${s.errors.length ? ` ERR ${s.errors.at(-1)}` : ""}`);
   lines.push("scripts: " + scripts.join(" · "));
   // Unloads are already visible as mineral; listing them would bury the events that matter.
   // Chat has its own history above, so it cannot be buried by the events cap.
@@ -105,7 +111,7 @@ export function viewToText(v: PlayerView): string {
 function entityLine(e: EntityView): string {
   const extra = [
     e.vital ? "VITAL" : "",
-    e.ruin ? `RUIN (${e.owner === NEUTRAL_OWNER ? "scenario" : "owner eliminated"}: inert, blocks, can be destroyed)` : "",
+    e.ruin ? `RUIN (${e.owner === NEUTRAL_OWNER ? NEUTRAL_OWNER_NAME : "owner eliminated"}: inert, blocks, can be destroyed)` : "",
     e.training ? `training [${e.training.map((job) => `${job.kind}${job.completesAtMs !== undefined ? ` completes at ${(job.completesAtMs / 1000).toFixed(1)}s (waits if exits blocked)` : " queued"}`).join(", ")}]` : "",
     e.construction ? `building ${e.construction.kind} (${e.construction.x},${e.construction.y}), completes at ${(e.construction.completesAtMs / 1000).toFixed(1)}s` : "",
     e.stats ? `atk ${e.stats.atk} def ${e.stats.def} range ${e.stats.range} attack ${e.stats.attackMs}ms move ${e.stats.moveMs}ms` : "",

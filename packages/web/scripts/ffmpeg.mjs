@@ -1,12 +1,18 @@
 // ffmpeg as the asset and video scripts run it.
 import { execFileSync, spawn } from "node:child_process";
 
-/** Runs ffmpeg quietly, overwriting outputs. */
-export const ff = (...args) => execFileSync("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", ...args]);
+/** Runs ffmpeg quietly, overwriting outputs; returns what it writes to stdout (`-` as the output), such as raw samples. */
+export const ff = (...args) => execFileSync("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", ...args], { maxBuffer: 1 << 30 });
 
-/** A media file's length in seconds. */
-export const probeDuration = (file) =>
-  Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", file], { encoding: "utf8" }).trim());
+/** Starts ffmpeg quietly, to read its output (`-`) from stdout as it comes, such as frames. */
+export const ffStream = (...args) => spawn("ffmpeg", ["-hide_banner", "-loglevel", "error", ...args]);
+
+/** A media file's length in seconds; for a video also its size in pixels and frame rate (a fraction, as ffmpeg takes it). */
+export function probe(file) {
+  const { format, streams: [video] = [] } = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0",
+    "-show_entries", "format=duration:stream=width,height,r_frame_rate", "-of", "json", file], { encoding: "utf8" }));
+  return { duration: Number(format.duration), width: video?.width, height: video?.height, rate: video?.r_frame_rate };
+}
 
 /**
  * Encodes the frames written to its stdin as the delivery MP4: dithered pixels are the worst case for video

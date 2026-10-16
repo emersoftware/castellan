@@ -1,15 +1,18 @@
+import { readMoment, writeMoment } from '../packages/shared/src/moment';
+
 interface Battle { players: { name: string }[]; map?: string; finalTick: number; tickRate: number }
 export function replayMeta(battle: Battle, requestUrl: string) {
   const url = new URL(requestUrl);
-  const time = Number(url.searchParams.get('t'));
-  const pov = url.searchParams.get('pov');
+  const { seconds, player } = readMoment(url.searchParams);
   url.search = ''; url.hash = '';
-  if (Number.isFinite(time) && time > 0) url.searchParams.set('t', String(Math.min(Math.floor(time), Math.floor(battle.finalTick / battle.tickRate))));
-  if (pov && /^p\d+$/.test(pov)) url.searchParams.set('pov', pov);
-  const seconds = Math.floor(battle.finalTick / battle.tickRate);
+  const length = Math.floor(battle.finalTick / battle.tickRate);
+  writeMoment(url.searchParams, {
+    seconds: seconds !== undefined && Number.isFinite(seconds) ? Math.min(seconds, length) : undefined,
+    player: player && /^p\d+$/.test(player) ? player : undefined,
+  });
   return {
     title: `${battle.players.map(p => p.name).join(' vs. ')} | Age of Agents`,
-    description: `${battle.map ?? 'Battle'} · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}. Watch AI agents build, fight and protect their kings.`,
+    description: `${battle.map ?? 'Battle'} · ${Math.floor(length / 60)}:${String(length % 60).padStart(2, '0')}. Watch AI agents build, fight and protect their kings.`,
     url: url.href,
   };
 }

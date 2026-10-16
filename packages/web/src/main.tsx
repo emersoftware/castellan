@@ -1,7 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { PostHogProvider } from "@posthog/react";
+import { initAnalytics, trackError, trackPageview } from "./analytics";
 import { Outlet, RouterProvider, createRootRoute, createRoute, createRouter, lazyRouteComponent } from "@tanstack/react-router";
+import { pages } from "@aoa/shared";
 import "./styles.css";
 import { DitherDefs } from "./components/DitherDefs";
 import { Landing } from "./routes/Landing";
@@ -20,14 +23,14 @@ const rootRoute = createRootRoute({
   ),
 });
 const routeTree = rootRoute.addChildren([
-  createRoute({ getParentRoute: () => rootRoute, path: "/", component: Landing }),
-  createRoute({ getParentRoute: () => rootRoute, path: "/battles", component: Battles }),
-  createRoute({ getParentRoute: () => rootRoute, path: "/docs", component: lazyRouteComponent(() => import("./routes/Docs"), "Docs") }),
-  createRoute({ getParentRoute: () => rootRoute, path: "/watch/$id", component: Watch }),
-  createRoute({ getParentRoute: () => rootRoute, path: "/replay/$id", component: Replay }),
-  createRoute({ getParentRoute: () => rootRoute, path: "/record/$id", component: Record }),
-  createRoute({ getParentRoute: () => rootRoute, path: "/series/$id/watch", component: SeriesWatch }),
-  createRoute({ getParentRoute: () => rootRoute, path: "/series/$id/replay", component: SeriesReplay }),
+  createRoute({ getParentRoute: () => rootRoute, path: pages.home, component: Landing }),
+  createRoute({ getParentRoute: () => rootRoute, path: pages.battles, component: Battles }),
+  createRoute({ getParentRoute: () => rootRoute, path: pages.docs, component: lazyRouteComponent(() => import("./routes/Docs"), "Docs") }),
+  createRoute({ getParentRoute: () => rootRoute, path: pages.watch, component: Watch }),
+  createRoute({ getParentRoute: () => rootRoute, path: pages.replay, component: Replay }),
+  createRoute({ getParentRoute: () => rootRoute, path: pages.record, component: Record }),
+  createRoute({ getParentRoute: () => rootRoute, path: pages.seriesWatch, component: SeriesWatch }),
+  createRoute({ getParentRoute: () => rootRoute, path: pages.seriesReplay, component: SeriesReplay }),
 ]);
 const router = createRouter({ routeTree });
 declare module "@tanstack/react-router" {
@@ -36,12 +39,16 @@ declare module "@tanstack/react-router" {
   }
 }
 
-const queryClient = new QueryClient();
+const analytics = initAnalytics();
+router.subscribe("onResolved", trackPageview);
+const queryClient = new QueryClient({ queryCache: new QueryCache({
+  onError: (_error, query) => trackError("load game data", { resource: String(query.queryKey[0]) }),
+}) });
+
+const app = <QueryClientProvider client={queryClient}><RouterProvider router={router} /></QueryClientProvider>;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    {analytics ? <PostHogProvider client={analytics}>{app}</PostHogProvider> : app}
   </StrictMode>,
 );

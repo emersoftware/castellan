@@ -1,13 +1,17 @@
+// @ts-check
 /** Prepare MiniMax references, then package reviewed one-shot building collapses. */
 import sharp from 'sharp';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { ff, probeDuration } from './ffmpeg.mjs';
+import { ff, probe } from './ffmpeg.mjs';
+import { formerKind } from '../../shared/src/legacy.ts';
+/** @import { ClipArt } from '../src/render/clips.ts' */
 
 const root = new URL('../../../', import.meta.url).pathname;
 const sprites = `${root}packages/web/public/sprites`;
 const sources = `${root}assets/animations/buildings/collapse`;
 const manifest = JSON.parse(await readFile(`${sprites}/manifest.json`, 'utf8'));
-const files = { wall: 'wall', wallpost: 'wallpost', door: 'door', 'door-open': 'door-open', tower: 'tower', castle: 'castle' };
+/** @type {Map<ClipArt, ClipArt>} */
+const files = new Map([['wall', 'wall'], ['wallpost', 'wallpost'], ['door', 'door'], ['door-open', 'door-open'], ['tower', 'tower'], ['castle', 'castle']]);
 const prepare = process.argv.includes('--prepare');
 const onlyKind = process.argv.includes('--kind') ? process.argv[process.argv.indexOf('--kind') + 1] : undefined;
 
@@ -20,13 +24,14 @@ function key(data) {
   return data;
 }
 
-for (const [kind, file] of Object.entries(files)) {
+for (const [kind, file] of files) {
   if (onlyKind && onlyKind !== kind) continue;
   if (!prepare && kind === 'castle' && await readFile(`${root}assets/animations/buildings/castle/damage-stages/death-healthy/generated.mp4`).then(() => true, () => false)) {
     console.log('castle: inward fall is owned by castle-damage.mjs; preserved newer atlas');
     continue;
   }
-  const dir = `${sources}/${kind === "tower" ? "turret" : kind}`;
+  // Tower art predates its rename.
+  const dir = `${sources}/${kind === "tower" ? formerKind(kind) : kind}`;
   await mkdir(dir, { recursive: true });
   if (prepare) {
     try {
@@ -34,7 +39,7 @@ for (const [kind, file] of Object.entries(files)) {
       await readFile(`${dir}/reference-layout.json`);
       console.log(`${kind}: preserved existing generation reference`);
       continue;
-    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    } catch (error) { if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'ENOENT') throw error; }
     const m = manifest.sprites[file];
     const source = await sharp(`${sprites}/${file}.${m.format ?? 'png'}`).ensureAlpha().png().toBuffer();
     const { width, height } = await sharp(source).metadata();
@@ -55,7 +60,7 @@ for (const [kind, file] of Object.entries(files)) {
   const s = JSON.parse(await readFile(`${dir}/reference-layout.json`, 'utf8'));
   const exportSettings = JSON.parse(await readFile(`${sources}/export-settings.json`, 'utf8'))[kind] ?? {};
   await mkdir(`${dir}/frames`, { recursive: true });
-  const duration = probeDuration(`${dir}/generated.mp4`);
+  const { duration } = probe(`${dir}/generated.mp4`);
   const trim = exportSettings.trimStart ?? 0;
   const end = exportSettings.end ?? duration;
   ff('-ss', String(trim), '-i', `${dir}/generated.mp4`, '-vf', `fps=${26 / (end - trim)},scale=544:544`, '-frames:v', '26', `${dir}/frames/%02d.png`);
@@ -64,6 +69,7 @@ for (const [kind, file] of Object.entries(files)) {
   raw.push(Buffer.from(raw.at(-1)));
   // Full source canvas preserves scattered rubble, dust and the original ground.
   const size = Math.ceil(544 / s.scale);
+  /** @type {ClipArt[]} */
   const variants = kind === 'wall' ? ['wall', 'wall-door-left', 'wall-door-right', 'wall-door-both'] : [kind];
   for (const variant of variants) {
     const cells = [];
@@ -91,7 +97,7 @@ for (const [kind, file] of Object.entries(files)) {
     await sharp({ create: { width: size * 7, height: size * 4, channels: 4, background: '#00000000' } })
       .composite(cells.map((input, i) => ({ input, left: (i % 7) * size, top: Math.floor(i / 7) * size }))).png().toFile(`${out}/${variant}-death.png`);
     let metadata = {};
-    try { metadata = JSON.parse(await readFile(`${out}/manifest.json`, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    try { metadata = JSON.parse(await readFile(`${out}/manifest.json`, 'utf8')); } catch (error) { if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'ENOENT') throw error; }
     metadata.death = { image: `${variant}-death.png`, fps: 12, frameCount: 28, columns: 7, frameWidth: size, frameHeight: size, storedScale: 3,
       anchorX: s.anchorX, anchorY: s.anchorY, loop: false, rows: ['se'] };
     await writeFile(`${out}/manifest.json`, JSON.stringify(metadata, null, 2) + '\n');

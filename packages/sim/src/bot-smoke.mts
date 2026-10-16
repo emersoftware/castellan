@@ -1,12 +1,13 @@
 /** Current-rules reference-bot audit; no model calls. JSONL output, one independent match per row. */
 import { createMatch } from "@aoa/engine";
-import { MAPS, rules } from "@aoa/shared";
+import { MAPS, rules, type EntityKind } from "@aoa/shared";
 import { BOTS } from "./bots";
 
+const FIGHTERS: EntityKind[] = ["knight", "archer", "tower"];
 const seconds = Number(process.argv[2] ?? 90);
 if (!Number.isFinite(seconds) || seconds <= 0) throw new Error("Pass a positive duration in seconds");
 const names = process.argv[3]?.split(",") ?? Object.keys(BOTS);
-const maps = process.argv[4]?.split(",") ?? ["open", "fortress"];
+const maps = process.argv[4]?.split(",") ?? [MAPS.open.name, MAPS.fortress.name];
 if (names.some((name) => !BOTS[name]) || maps.some((map) => !MAPS[map])) throw new Error("Unknown bot or map name");
 for (const map of maps) for (const side of [0, 1]) for (const name of names) {
   const r = { ...rules, map: MAPS[map] };
@@ -23,7 +24,7 @@ for (const map of maps) for (const side of [0, 1]) for (const name of names) {
       for (const e of result.events) {
         if (e.type === "spawn") {
           owners.set(e.id, e.owner);
-          if (e.owner === "p1" && ["knight", "archer", "tower"].includes(e.kind)) {
+          if (e.owner === "p1" && FIGHTERS.some((k) => k === e.kind)) {
             military.add(e.id); produced[e.kind] = (produced[e.kind] ?? 0) + 1;
           }
         }

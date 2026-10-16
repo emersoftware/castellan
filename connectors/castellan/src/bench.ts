@@ -4,21 +4,21 @@
  */
 import { writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { playerResult } from "@aoa/shared";
+import { playerResult, type RoomMode } from "@aoa/shared";
 import { BOTS } from "@aoa/sim";
 import { playHeadless } from "../test/harness";
 
 const { values } = parseArgs({ args: process.argv.slice(2), options: {
   bots: { type: "string", default: Object.keys(BOTS).join(",") }, maps: { type: "string", default: "open,fortress" }, n: { type: "string", default: "2" }, json: { type: "string" }, every: { type: "string", default: "10" }, verbose: { type: "boolean", default: false }, seats: { type: "string" }, mode: { type: "string" }, seed: { type: "string" },
 } });
-const rows: Record<string, unknown>[] = [];
+const rows: ({ result: ReturnType<typeof playerResult> } & Record<string, unknown>)[] = [];
 const QUIET = new Set(["workers_assigned", "order_rejected", "build_planned"]);
 const verbose = values.verbose ? (p: string, e: { tick: number; type: string; [k: string]: unknown }) => { if (!QUIET.has(e.type)) { const { t, tick, type, ...rest } = e; console.log(`${p} [${(tick / 10).toFixed(0)}s] ${type} ${JSON.stringify(rest).slice(0, 200)}`); } } : undefined;
 if (values.seats) {
   // One match with explicit seats, e.g. --seats castellan,castellan,eco,rush --map quad --mode teams
   const seats = values.seats.split(",").map((k) => (k === "castellan" ? { kind: "castellan" as const } : { kind: "bot" as const, bot: k }));
   const map = values.maps!.split(",")[0];
-  const r = await playHeadless({ seats, map, seed: Number(values.seed ?? 100), everyTicks: Number(values.every), chat: true, mode: values.mode as "teams" | "ffa" | undefined, onEntry: verbose });
+  const r = await playHeadless({ seats, map, seed: Number(values.seed ?? 100), everyTicks: Number(values.every), chat: true, mode: values.mode as RoomMode | undefined, onEntry: verbose });
   for (const [pid, p] of Object.entries(r.players)) {
     if (!p.core) continue;
     const w = p.core.world!;

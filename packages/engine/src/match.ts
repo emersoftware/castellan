@@ -1,10 +1,10 @@
 import type {
   DepositView, EntityView, GameEvent, KindSpec, MatchStatus, Order, OrderResult, Outcome, PlayerId, PlayerStats,
-  LastSeen, PlayerView, ProjectileView, Ruleset, SpectatorView, UnderAttack, ActionFeedback, ActionAvailability, CombatSummary, UnitOrder, OrderProgress,
+  Doing, LastSeen, OrderEndReason, PlayerView, ProjectileView, RecordedKind, Ruleset, SpectatorView, UnderAttack, ActionFeedback, ActionAvailability, CombatSummary, UnitOrder, OrderProgress,
 } from "@aoa/shared";
-import { barrierAxes, matchLengthMs, NEUTRAL_OWNER, withMineralNames } from "@aoa/shared";
+import { barrierAxes, eventOwner, HOLD_SCRIPT, matchLengthMs, NEUTRAL_OWNER, withMineralNames } from "@aoa/shared";
 import { createScriptHost, testScript, type ScriptAction, type ScriptActionResult, type ScriptHost, type ScriptHostFactory, type ScriptWorld, type ScriptEvent, type UnitRun } from "@aoa/sandbox";
-import { DIRS, DIR_LIST, SEAT_DIRS, canCross, dist, findPath, hypot, inBounds, mapToSeat, seatToMap, type Grid } from "./grid";
+import { DIRS, DIR_LIST, SEAT_DIRS, canStep, dist, findPath, hypot, inBounds, mapToSeat, seatToMap, type Grid } from "./grid";
 import { segmentCircleHit } from "./projectiles";
 import { validateOrder } from "./validate";
 
@@ -47,7 +47,7 @@ type Intent =
 
 interface Entity {
   id: string;
-  kind: string;
+  kind: RecordedKind;
   spec: KindSpec;
   owner: PlayerId;
   x: number;
@@ -68,14 +68,14 @@ interface Entity {
   /** Consecutive ticks a unit stood in its way. */
   blocked: number;
   /** Last tick's intent, in words, for the owner's view. */
-  doing: string;
+  doing: Doing | "";
   lastStep: { dx: number; dy: number; tick: number } | null;
   lastAttacked?: { id: string; tick: number };
   /** Actual outcome of this unit's most recent script decision, available next tick. */
   lastActionResult?: ScriptActionResult;
   actionResult?: ActionFeedback;
-  construction?: { kind: string; x: number; y: number; completesAtTick: number };
-  training?: { kind: string; completesAtTick?: number }[];
+  construction?: { kind: RecordedKind; x: number; y: number; completesAtTick: number };
+  training?: { kind: RecordedKind; completesAtTick?: number }[];
 }
 
 interface Projectile extends ProjectileView { attack: number; launchedAt: number; source: string; aimedAt: string }
@@ -123,6 +123,9 @@ interface Player {
   research: { upgrade: string; level: number; completesAtTick: number } | null;
 }
 
+/** An enemy entity as last seen, and the tick it was. */
+type Sighting = Extract<LastSeen, { owner: PlayerId }> & { tick: number };
+
 /** Events kept for `view(player, since)`. */
 const EVENT_WINDOW_TICKS = 600;
 /** Occupancy marker for rock-wall terrain. */
@@ -158,9 +161,9 @@ export class Match {
   private explored = new Map<PlayerId, Set<number>>();
   private knownDeposits = new Map<PlayerId, Map<string, Deposit>>();
   /** View-only fog memory (not hashed, never shown to scripts): enemy buildings as last seen, and when each deposit was seen. */
-  private seenBuildings = new Map<PlayerId, Map<string, Extract<LastSeen, { owner: PlayerId }> & { tick: number }>>();
-  private seenUnits = new Map<PlayerId, Map<string, Extract<LastSeen, { owner: PlayerId }> & { tick: number }>>();
-  private combatLog = new Map<PlayerId, { tick: number; id: string; kind: string; owner: PlayerId; x: number; y: number; damage: number; death: boolean }[]>();
+  private seenBuildings = new Map<PlayerId, Map<string, Sighting>>();
+  private seenUnits = new Map<PlayerId, Map<string, Sighting>>();
+  private combatLog = new Map<PlayerId, { tick: number; id: string; kind: RecordedKind; owner: PlayerId; x: number; y: number; damage: number; death: boolean }[]>();
   private seenDeposits = new Map<PlayerId, Map<string, number>>();
   /** Eliminated players: their remaining buildings are inert ruins. */
   private ruined = new Set<PlayerId>();
@@ -230,7 +233,7 @@ export class Match {
 
   /** Applies the orders, then simulates one tick. */
   step(input: PlayerOrder[]): StepResult {
-    const results: OrderResult[] = input.map(() => ({ ok: false, reason: "not processed" }));
+    const orderResults: OrderResult[] = input.map(() => ({ ok: false, reason: "not processed" }));
     const events: GameEvent[] = [];
     if (this._outcome) return { results: input.map(() => ({ ok: false, reason: "match over" })), events };
     const T = this._tick;
@@ -266,7 +269,7 @@ export class Match {
           result.mineral = { spent: before - p.mineral, remaining: p.mineral,
             ...(result.ok && po.order.type === "build" ? { pending: this.ruleset.kinds[po.order.kind].cost } : {}) };
         }
-        results[index] = result;
+        orderResults[index] = result;
       }
     }
 
@@ -310,9 +313,10 @@ export class Match {
           continue;
         }
         const intent = this.scriptIntent(e, r.action);
+        const impossible = intent.t === "hold" && r.action.a !== "hold";
         e.lastActionResult = { tick: T, action: r.action,
-          status: r.error ? "invalid" : intent.t === "hold" ? r.action.a === "hold" ? "held" : "invalid" : "blocked",
-          ...(r.error ? { reason: r.error } : intent.t === "hold" && r.action.a !== "hold" ? { reason: "action has no valid target or cannot be performed" } : {}) };
+          status: r.error || impossible ? "invalid" : intent.t === "hold" ? "held" : "blocked",
+          ...(r.error ? { reason: r.error } : impossible ? { reason: "action has no valid target or cannot be performed" } : {}) };
         e.actionResult = { tick: T, source: "script", intent: describeIntent(intent), status: e.lastActionResult.status, ...(e.lastActionResult.reason ? { reason: e.lastActionResult.reason } : {}) };
         intents.set(e.id, intent);
       }
@@ -339,8 +343,7 @@ export class Match {
         const grid = this.movementGrid(e.owner);
         const occupant = next === undefined ? undefined : this.ents.get(this.occ[next] ?? "");
         // Never push idle units, borrow an enemy's turn, or exchange occupied tiles.
-        if (occupant && occupant.id !== e.id && !this.hostile(e.owner, occupant.owner)
-          && inBounds(grid, nx, ny) && !grid.isStatic(nx, ny) && canCross(grid, e.x, e.y, nx - e.x, ny - e.y)) move(occupant);
+        if (occupant && occupant.id !== e.id && !this.hostile(e.owner, occupant.owner) && canStep(grid, e.x, e.y, nx - e.x, ny - e.y)) move(occupant);
       }
       visiting.delete(e.id);
       moved.add(e.id);
@@ -434,10 +437,10 @@ export class Match {
     // A build may complete in the same tick as its order. Otherwise its later
     // spawn event carries the actual charge, rather than claiming it was prepaid.
     input.forEach(({ order, player }, i) => {
-      if (order?.type !== "build" || !results[i].ok) return;
-      if (input.some((later, j) => j > i && results[j].ok && later.player === player && later.order?.type === "build" && later.order.unit === order.unit)) return;
+      if (order?.type !== "build" || !orderResults[i].ok) return;
+      if (input.some((later, j) => j > i && orderResults[j].ok && later.player === player && later.order?.type === "build" && later.order.unit === order.unit)) return;
       const built = events.find((e) => e.type === "spawn" && e.builder === order.unit && e.owner === player && e.kind === order.kind && e.x === order.x && e.y === order.y);
-      if (built?.type === "spawn" && built.mineral) results[i].mineral = built.mineral;
+      if (built?.type === "spawn" && built.mineral) orderResults[i].mineral = built.mineral;
     });
     this.refreshVision();
     this._tick++;
@@ -446,7 +449,7 @@ export class Match {
     for (const [player, records] of this.combatLog) this.combatLog.set(player, records.filter(r => r.tick >= this._tick - this.ticks(120_000)));
     const cutoff = this._tick - EVENT_WINDOW_TICKS;
     if (this.log.length > 0 && this.log[0].tick < cutoff) this.log = this.log.filter((e) => e.tick >= cutoff);
-    return { results, events };
+    return { results: orderResults, events };
   }
 
   /** Events `player` may see with tick ≥ `since` (attacks excluded: too many). */
@@ -465,7 +468,7 @@ export class Match {
   }
 
   /** What `player` sees. Events are those with tick ≥ `since` (default: the last 10 s). */
-  view(player: PlayerId, since?: number, decisionContext = true): PlayerView {
+  view(player: PlayerId, since?: number): PlayerView {
     const p = this.player(player);
     const events = this.events(player, since ?? this._tick - this.ticks(10_000));
     const scripts: PlayerView["scripts"] = {};
@@ -484,8 +487,8 @@ export class Match {
       deposits: this.depositViews().filter((d) => this.canSee(player, d.x, d.y)),
       projectiles: this.projectileViews(player),
       scripts,
-      availableActions: decisionContext ? this.availableActions(p) : undefined,
-      combat: decisionContext ? this.combatSummary(player, since ?? this._tick - this.ticks(10_000)) : undefined,
+      availableActions: this.availableActions(p),
+      combat: this.combatSummary(player, since ?? this._tick - this.ticks(10_000)),
       events,
       underAttack: this.underAttack(player, since ?? this._tick - this.ticks(10_000)),
       lastSeen: this.lastSeen(player),
@@ -563,9 +566,9 @@ export class Match {
         const visible = this.visibleEntities(p.id);
         // The player's fog memory, so an observer sees explored ground as that player remembers it.
         const remembered = this.lastSeen(p.id);
-        const buildings: EntityView[] = remembered.flatMap((l) => "owner" in l && !l.positionCleared ? [{ id: l.id, kind: l.kind, owner: l.owner, x: l.x, y: l.y, hp: l.hp, maxHp: l.maxHp,
+        const buildings: EntityView[] = remembered.flatMap((l) => l.kind !== "deposit" && !l.positionCleared ? [{ id: l.id, kind: l.kind, owner: l.owner, x: l.x, y: l.y, hp: l.hp, maxHp: l.maxHp,
           vital: !!this.ruleset.kinds[l.kind]?.vital, ...(l.ruin ? { ruin: true } : {}), lastSeenMs: l.seenMs }] : []);
-        const deposits: DepositView[] = remembered.flatMap((l) => "amount" in l ? [{ id: l.id, x: l.x, y: l.y, amount: l.amount, lastSeenMs: l.seenMs }] : []);
+        const deposits: DepositView[] = remembered.flatMap((l) => l.kind === "deposit" ? [{ id: l.id, x: l.x, y: l.y, amount: l.amount, lastSeenMs: l.seenMs }] : []);
         return [p.id, { visibility: this.visibilityRows(p.id), entities: [...visible.mine, ...visible.allies, ...visible.enemy, ...buildings],
           projectiles: this.projectileViews(p.id),
           deposits: [...this.depositViews().filter(d => this.canSee(p.id, d.x, d.y)), ...deposits], players: this.stats(p.id).map((s) => ({ ...s, name: this.player(s.id).name })), events: [...this.events(p.id, from).filter((e) => e.type !== "log" && e.type !== "script_error"
@@ -578,6 +581,10 @@ export class Match {
           : e.channel !== "team" || options.includePrivateChat || options.includeTeamChat))),
       outcome: this._outcome ?? undefined,
     };
+  }
+
+  isAlive(player: PlayerId): boolean {
+    return this.player(player).alive;
   }
 
   /** Source of the script `player` runs for `kind`. */
@@ -703,7 +710,7 @@ export class Match {
     this.occ[y * this.grid.width + x] = id;
   }
 
-  private spawn(kind: string, owner: PlayerId, x: number, y: number): Entity {
+  private spawn(kind: RecordedKind, owner: PlayerId, x: number, y: number): Entity {
     const spec = owner === NEUTRAL_OWNER ? this.ruleset.kinds[kind] : this.effectiveSpec(this.player(owner), kind);
     const e: Entity = {
       id: `e${this.nextId++}`, kind, spec, owner, x, y, hp: spec.hp,
@@ -792,18 +799,18 @@ export class Match {
         this.assignOrder(e, { type: "gather", deposit: o.deposit }, emit);
         return { ok: true };
       case "build": {
-        const spec = this.ruleset.kinds[o.kind];
-        if (!e.spec.builds?.includes(o.kind) || !spec) return { ok: false, reason: `${e.kind} cannot build ${o.kind}` };
+        const spec = this.ruleset.kinds[o.kind], kind = e.spec.builds?.find((k) => k === o.kind);
+        if (!kind || !spec) return { ok: false, reason: `${e.kind} cannot build ${o.kind}` };
         if (this.locked(p, o.kind)) return { ok: false, reason: `${o.kind} requires ${spec.requires} research` };
         if (!inBounds(this.grid, o.x, o.y)) return { ok: false, reason: `(${o.x},${o.y}) is outside the map` };
         if (!this.canSee(p.id, o.x, o.y)) return { ok: false, reason: "build site must be visible" };
         if (this.grid.isStatic(o.x, o.y) && this.buildSites.get(o.y * this.grid.width + o.x) !== e.id) return { ok: false, reason: `(${o.x},${o.y}) is occupied` };
-        if (this.makesDoorCorner(p.id, o.kind, o.x, o.y)) return { ok: false, reason: "doors must stay on one wall axis; no corners or junctions" };
+        if (this.makesDoorCorner(p.id, kind, o.x, o.y)) return { ok: false, reason: "doors must stay on one wall axis; no corners or junctions" };
         if (p.mineral < spec.cost) return { ok: false, reason: `needs ${spec.cost} mineral, you have ${p.mineral}` };
         const near = this.enemyBuildingNear(p.id, o.x, o.y);
         if (near) return { ok: false, reason: `too close to enemy ${near.kind} ${near.id}: keep ${this.ruleset.buildExclusion}+ tiles away` };
         if (e.construction && (e.construction.kind !== o.kind || e.construction.x !== o.x || e.construction.y !== o.y)) this.clearConstruction(e);
-        this.assignOrder(e, { type: "build", kind: o.kind, x: o.x, y: o.y }, emit);
+        this.assignOrder(e, { type: "build", kind, x: o.x, y: o.y }, emit);
         return { ok: true };
       }
     }
@@ -824,7 +831,7 @@ export class Match {
 
   /** The script a kind runs while its player has none of its own. */
   private defaultScript(kind: string): string {
-    return this.ruleset.defaultScripts[kind] ?? "self.hold();";
+    return this.ruleset.defaultScripts[kind] ?? HOLD_SCRIPT;
   }
 
   /** A kind that needs a research this player has not completed. */
@@ -931,11 +938,12 @@ export class Match {
     return { ok: true };
   }
 
-  private train(p: Player, buildingId: string, kind: string, emit: (e: GameEvent) => void): OrderResult {
+  private train(p: Player, buildingId: string, ordered: string, emit: (e: GameEvent) => void): OrderResult {
     const b = this.ents.get(buildingId);
-    const spec = this.ruleset.kinds[kind];
+    const spec = this.ruleset.kinds[ordered];
     if (!b || b.owner !== p.id) return { ok: false, reason: `no building ${buildingId} of yours` };
-    if (!b.spec.trains?.includes(kind) || !spec) return { ok: false, reason: `${b.kind} cannot train ${kind}` };
+    const kind = b.spec.trains?.find((k) => k === ordered);
+    if (!kind || !spec) return { ok: false, reason: `${b.kind} cannot train ${ordered}` };
     const blockedBy = this.trainBlockers(p, b, kind);
     if (blockedBy.length) return { ok: false, reason: blockedBy[0] };
     if (spec.trainMs) {
@@ -975,7 +983,7 @@ export class Match {
     }
   }
 
-  private endOrder(e: Entity, reason: string, emit: (e: GameEvent) => void) {
+  private endOrder(e: Entity, reason: OrderEndReason, emit: (e: GameEvent) => void) {
     this.orderHistory.delete(e);
     delete e.moveTarget;
     if (this.ruleset.reactiveOrders && e.order) {
@@ -1328,7 +1336,7 @@ export class Match {
 
   private canStep(e: Entity, x: number, y: number): boolean {
     const grid = this.movementGrid(e.owner);
-    return inBounds(grid, x, y) && !grid.isStatic(x, y) && this.occ[y * grid.width + x] === null && canCross(grid, e.x, e.y, x - e.x, y - e.y);
+    return canStep(grid, e.x, e.y, x - e.x, y - e.y) && this.occ[y * grid.width + x] === null;
   }
 
   private moveTo(e: Entity, x: number, y: number) {
@@ -1380,7 +1388,7 @@ export class Match {
         const x = queue[i] % W, y = Math.floor(queue[i] / W);
         for (const [dx, dy] of this.dirs(e.owner)) {
           const nx = x + dx, ny = y + dy, tile = ny * W + nx;
-          if (seen.has(tile) || !inBounds(grid, nx, ny) || grid.isStatic(nx, ny) || !canCross(grid, x, y, dx, dy)) continue;
+          if (seen.has(tile) || !canStep(grid, x, y, dx, dy)) continue;
           seen.add(tile); queue.push(tile);
         }
       }
@@ -1505,9 +1513,9 @@ export class Match {
   }
 
   /** Check the prospective layout, including reserved builds, in either construction order. */
-  private makesDoorCorner(owner: PlayerId, kind: string, x: number, y: number): boolean {
+  private makesDoorCorner(owner: PlayerId, kind: RecordedKind, x: number, y: number): boolean {
     if (kind !== "wall" && !this.ruleset.kinds[kind]?.alliedPassage) return false;
-    const at = (tx: number, ty: number): string | undefined => {
+    const at = (tx: number, ty: number): RecordedKind | undefined => {
       if (tx === x && ty === y) return kind;
       if (!inBounds(this.grid, tx, ty)) return undefined;
       const tile = ty * this.grid.width + tx;
@@ -1714,23 +1722,27 @@ export class Match {
     return !!this.visible.get(player)?.has(y * this.grid.width + x);
   }
 
-  private refreshVision() {
+  /** Tiles within `e`'s vision, cached until it moves or its vision changes. */
+  private visionTiles(e: Entity): number[] {
+    const cached = this.visionFootprints.get(e);
+    if (cached && cached.x === e.x && cached.y === e.y && cached.radius === e.spec.vision) return cached.tiles;
     const { width, height } = this.grid;
+    const tiles: number[] = [];
+    for (let y = Math.max(0, e.y - e.spec.vision); y <= Math.min(height - 1, e.y + e.spec.vision); y++)
+      for (let x = Math.max(0, e.x - e.spec.vision); x <= Math.min(width - 1, e.x + e.spec.vision); x++)
+        if (dist(e.x, e.y, x, y) <= e.spec.vision) tiles.push(y * width + x);
+    this.visionFootprints.set(e, { x: e.x, y: e.y, radius: e.spec.vision, tiles });
+    return tiles;
+  }
+
+  private refreshVision() {
+    const { width } = this.grid;
     for (const p of this.players) {
       const visible = new Set<number>();
       const reveal = this.ruleset.revealAttackerMs ? this.ticks(this.ruleset.revealAttackerMs) : -1;
       for (const e of this.ents.values()) {
         if (this.hostile(p.id, e.owner) || this.ruined.has(e.owner)) continue;
-        let footprint = this.visionFootprints.get(e);
-        if (!footprint || footprint.x !== e.x || footprint.y !== e.y || footprint.radius !== e.spec.vision) {
-          const tiles: number[] = [];
-          for (let y = Math.max(0, e.y - e.spec.vision); y <= Math.min(height - 1, e.y + e.spec.vision); y++)
-            for (let x = Math.max(0, e.x - e.spec.vision); x <= Math.min(width - 1, e.x + e.spec.vision); x++)
-              if (dist(e.x, e.y, x, y) <= e.spec.vision) tiles.push(y * width + x);
-          footprint = { x: e.x, y: e.y, radius: e.spec.vision, tiles };
-          this.visionFootprints.set(e, footprint);
-        }
-        for (const tile of footprint.tiles) visible.add(tile);
+        for (const tile of this.visionTiles(e)) visible.add(tile);
         // Whoever recently damaged it is revealed, wherever it stands.
         const by = e.lastAttacked && this._tick - e.lastAttacked.tick <= reveal ? this.ents.get(e.lastAttacked.id) : undefined;
         if (by && this.hostile(p.id, by.owner)) visible.add(by.y * width + by.x);
@@ -1747,14 +1759,14 @@ export class Match {
       for (const id of depositSeen.keys()) if (!known.has(id)) depositSeen.delete(id);
       for (const d of known.values()) if (visible.has(d.y * width + d.x)) depositSeen.set(d.id, this._tick);
       this.seenDeposits.set(p.id, depositSeen);
-      const buildings = this.seenBuildings.get(p.id) ?? new Map();
+      const buildings = this.seenBuildings.get(p.id) ?? new Map<string, Sighting>();
       for (const [id, b] of buildings) if (visible.has(b.y * width + b.x) && !this.ents.has(id)) buildings.delete(id);
       for (const e of this.ents.values()) if (e.spec.building && this.hostile(p.id, e.owner) && visible.has(e.y * width + e.x)) {
         buildings.set(e.id, { id: e.id, kind: e.kind, owner: e.owner, x: e.x, y: e.y, hp: e.hp, maxHp: e.spec.hp,
           ...(this.ruined.has(e.owner) ? { ruin: true } : {}), seenMs: 0, tick: this._tick });
       }
       this.seenBuildings.set(p.id, buildings);
-      const units = this.seenUnits.get(p.id) ?? new Map();
+      const units = this.seenUnits.get(p.id) ?? new Map<string, Sighting>();
       // Unit sightings are history, not occupied tiles. Seeing an empty former
       // position marks it cleared without revealing the unit's hidden new one.
       for (const u of units.values()) if (visible.has(u.y * width + u.x)) u.positionCleared = true;
@@ -1772,7 +1784,8 @@ export class Match {
 
   private canSeeEvent(player: PlayerId, event: GameEvent): boolean {
     if (event.type === "match_end" || event.type === "eliminated" || event.type === "chat") return true;
-    if ("owner" in event && !this.hostile(player, event.owner)) return true;
+    const owner = eventOwner(event);
+    if (owner !== undefined && !this.hostile(player, owner)) return true;
     if (event.type === "research_started" || event.type === "upgrade_completed" || event.type === "training_queued" || event.type === "unload" || event.type === "log" || event.type === "script_error" || event.type === "order_end") return false;
     if ("x" in event) return this.canSee(player, Math.round(event.x), Math.round(event.y));
     if (event.type === "depleted") { const d = this.knownDeposits.get(player)?.get(event.id); return !!d && this.canSee(player, d.x, d.y); }
@@ -1877,7 +1890,7 @@ function arrow(dx: number, dy: number): string {
   return ARROWS[`${dx},${dy}`] ?? "·";
 }
 
-function describeIntent(it: Intent): string {
+function describeIntent(it: Intent): Doing {
   switch (it.t) {
     case "goto": return `→ ${it.x},${it.y}`;
     case "dir": return `step ${arrow(it.dx, it.dy)}`;

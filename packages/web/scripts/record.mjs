@@ -11,6 +11,7 @@ import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import puppeteer from "puppeteer-core";
 import { encodeMp4 } from "./ffmpeg.mjs";
+import { defaultServer } from "../../shared/src/http.ts";
 
 const { values: o, positionals } = parseArgs({
   allowPositionals: true,
@@ -18,7 +19,7 @@ const { values: o, positionals } = parseArgs({
     speed: { type: "string", default: "2" },
     fps: { type: "string", default: "30" },
     out: { type: "string" },
-    server: { type: "string", default: process.env.AOA_SERVER ?? "http://localhost:4400" },
+    server: { type: "string", default: process.env.AOA_SERVER ?? defaultServer },
     width: { type: "string", default: "1280" },
     height: { type: "string", default: "720" },
     scale: { type: "string", default: "2" },

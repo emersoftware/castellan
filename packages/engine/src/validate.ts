@@ -1,32 +1,33 @@
-import type { Order } from "@aoa/shared";
+import { isChatChannel, type Order } from "@aoa/shared";
 
 const isInt = (n: unknown) => typeof n === "number" && Number.isInteger(n);
 const isStr = (s: unknown) => typeof s === "string" && s.length > 0 && s.length < 64;
+
+/** The fields each order type needs, checked in this order. */
+const FIELDS: Record<Order["type"], Record<string, (v: unknown) => boolean>> = {
+  move: { unit: isStr, x: isInt, y: isInt },
+  attack: { unit: isStr, target: isStr },
+  gather: { unit: isStr, deposit: (v) => v === undefined || isStr(v) },
+  build: { unit: isStr, kind: isStr, x: isInt, y: isInt },
+  train: { building: isStr, kind: isStr },
+  upgrade: { upgrade: isStr },
+  stop: { unit: isStr },
+  script: { kind: isStr, code: (v) => v === null || typeof v === "string" },
+  chat: {
+    text: (v) => typeof v === "string" && v.trim().length > 0 && v.length <= 200,
+    channel: (v) => v === undefined || isChatChannel(v),
+    to: (v) => v === undefined || isStr(v),
+  },
+};
+const isOrderType = (type: unknown): type is Order["type"] => typeof type === "string" && Object.hasOwn(FIELDS, type);
 
 /** Orders arrive as untrusted JSON. Returns a reason if the shape is wrong. */
 export function validateOrder(o: unknown): string | null {
   if (!o || typeof o !== "object") return "order must be an object";
   const r = o as Record<string, unknown>;
-  const need = (fields: Record<string, (v: unknown) => boolean>) => {
-    for (const [k, ok] of Object.entries(fields)) if (!ok(r[k])) return `${r.type}: bad or missing "${k}"`;
-    return null;
-  };
-  switch (r.type) {
-    case "move": return need({ unit: isStr, x: isInt, y: isInt });
-    case "attack": return need({ unit: isStr, target: isStr });
-    case "gather": return need({ unit: isStr, deposit: (v) => v === undefined || isStr(v) });
-    case "build": return need({ unit: isStr, kind: isStr, x: isInt, y: isInt });
-    case "train": return need({ building: isStr, kind: isStr });
-    case "upgrade": return need({ upgrade: isStr });
-    case "stop": return need({ unit: isStr });
-    case "script": return need({ kind: isStr, code: (v) => v === null || typeof v === "string" });
-    case "chat": return need({
-      text: (v) => typeof v === "string" && v.trim().length > 0 && v.length <= 200,
-      channel: (v) => v === undefined || v === "all" || v === "team" || v === "private",
-      to: (v) => v === undefined || isStr(v),
-    });
-    default: return `unknown order type "${String(r.type)}" (move, attack, gather, build, train, upgrade, stop, script, chat)`;
-  }
+  if (!isOrderType(r.type)) return `unknown order type "${String(r.type)}" (${Object.keys(FIELDS).join(", ")})`;
+  for (const [k, ok] of Object.entries(FIELDS[r.type])) if (!ok(r[k])) return `${r.type}: bad or missing "${k}"`;
+  return null;
 }
 
 export type { Order };

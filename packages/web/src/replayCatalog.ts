@@ -4,33 +4,30 @@ export function hasScriptedBot(players: readonly { name: string; bot?: string }[
     || /^(rush|eco|kite|turtle)(?:[-_][a-z0-9]+)?$/i.test(player.name));
 }
 
-export const replayFileDate = (replay: { savedAt?: string; createdAt: string }) => replay.savedAt ?? replay.createdAt;
+interface Listed { id: string; players: readonly { name: string; bot?: string }[]; rulesVersion?: string; savedAt?: string; createdAt: string }
 
-/** 0.27.0 only renamed v26; keep its recordings visible without rewriting their rules. */
-export function matchesCatalogVersion(recorded: string | undefined, version: string): boolean {
-  return recorded === version || (version === "0.27.0" && recorded === "v26-coordinated-movement");
+/** Recordings are listed by the date of their original file, not by when the match started. */
+const listedAt = (replay: { savedAt?: string; createdAt: string }) => replay.savedAt ?? replay.createdAt;
+
+/** 0.27.0 only renamed v26; keep its recordings visible without rewriting their rules. Unknown and experimental versions stay excluded. */
+const onRules = (recorded: string | undefined, version: string) =>
+  recorded === version || (version === "0.27.0" && recorded === "v26-coordinated-movement");
+
+/** The battles a catalog lists: agents only, on `version`'s rules, the newest recording first. */
+export function catalogBattles<T extends Listed>(entries: readonly T[], version: string): T[] {
+  return entries.filter((entry) => !hasScriptedBot(entry.players) && onRules(entry.rulesVersion, version))
+    .sort((a, b) => listedAt(b).localeCompare(listedAt(a)) || a.id.localeCompare(b.id));
 }
 
-/** Unknown and experimental versions stay excluded; only the explicit rename is accepted. */
-export function currentBattles<T extends { rulesVersion?: string }>(entries: readonly T[], version: string): T[] {
-  return entries.filter(entry => matchesCatalogVersion(entry.rulesVersion, version));
-}
-
-export type BattleMode = "ffa" | "duel" | "teams";
-
-/** Two players are a duel; four in two teams of two are a 2v2; any other game of three or more is a free-for-all. */
-export function battleMode(replay: { players: readonly { team?: number }[] }): BattleMode {
-  const { players } = replay;
-  if (players.length === 2) return "duel";
-  const teams = new Map<number | undefined, number>();
-  for (const p of players) teams.set(p.team, (teams.get(p.team) ?? 0) + 1);
-  return players.length === 4 && teams.size === 2 && !teams.has(undefined) && [...teams.values()].every(n => n === 2) ? "teams" : "ffa";
-}
-
-/** Selected launch recordings: hero FFA, Opus/Sol duel, Claude/Codex 2v2. */
-const FEATURED_BATTLE_IDS = ["02eb6795", "1b4b65c9", "2346f20b"] as const;
-
-/** Missing selections stay absent instead of being replaced by unrelated matches. */
-export function featuredBattles<T extends { id: string }>(entries: readonly T[]): T[] {
-  return FEATURED_BATTLE_IDS.flatMap(id => entries.find(entry => entry.id === id) ?? []);
+/**
+ * Listed replays and every agent series whose three games are all listed, newest first.
+ * A series is dated by its newest game.
+ */
+export function battleList<R extends Listed, S extends { players: Listed["players"]; games: readonly { roomId: string }[] }>(replays: readonly R[], series: readonly S[]) {
+  const dates = new Map(replays.map((replay) => [replay.id, listedAt(replay)]));
+  return [
+    ...replays.map((replay) => ({ kind: "replay" as const, replay, date: listedAt(replay) })),
+    ...series.filter((s) => !hasScriptedBot(s.players) && s.games.length === 3 && s.games.every((game) => dates.has(game.roomId)))
+      .map((s) => ({ kind: "series" as const, series: s, date: s.games.map((game) => dates.get(game.roomId)!).sort().at(-1)! })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
 }

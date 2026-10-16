@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { AGENT_ACTIVITY_STATES } from "@aoa/shared";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -139,6 +140,7 @@ describe("OpenCode connector", () => {
     expect(launches[1].env.HOME).toBe(launches[0].env.HOME);
     expect(states).toEqual(["0", "1", "2"]);
     expect(activities).toEqual(["deciding", "between_decisions", "deciding", "between_decisions", "stopped"]);
+    expect(AGENT_ACTIVITY_STATES).toEqual(expect.arrayContaining(activities));
     const [run] = await readdir(join(home, ".local", "state", "aoa", "opencode"));
     expect(JSON.parse(await readFile(join(home, ".local", "state", "aoa", "opencode", run, "usage.json"), "utf8"))).toMatchObject({ steps: 2, input: 20, cost: 0.02 });
   });
@@ -153,6 +155,7 @@ describe("OpenCode connector", () => {
     expect(launches[1].args).not.toContain("--session");
     expect(launches[2].args).toContain(session);
     expect(activities.slice(0, 2)).toEqual(["deciding", "provider_wait"]);
+    expect(AGENT_ACTIVITY_STATES).toEqual(expect.arrayContaining(activities));
     expect(states.slice(0, 3)).toEqual(["0", "0", "2"]);
   });
 

@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { SeriesViewer } from "../src/routes/Series";
 import type { SeriesSummary } from "@aoa/shared";
 
-const mock = vi.hoisted(() => ({ series: {} as SeriesSummary, replay: {} as { id: string; initialSpeed: number; onEnded?: () => void; onSpeedChange: (speed: number) => void; series?: ReactNode }, watch: "" }));
+const mock = vi.hoisted(() => ({ series: {} as SeriesSummary, replay: {} as { id: string; onEnded?: () => void; series?: ReactNode }, watch: "" }));
 vi.mock("@tanstack/react-router", () => ({ Link: () => null }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: mock.series }) }));
 // The players render the series line under their title.
@@ -22,13 +22,11 @@ afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi
 const render = (live = false) => act(async () => root.render(createElement(SeriesViewer, { id: "test", live })));
 const button = (label: string) => host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
 
-it("plays all three games consecutively, preserves speed, and supports selection", async () => {
+it("plays all three games consecutively and supports selection", async () => {
   await render();
   expect(mock.replay.id).toBe("g1");
-  await act(async () => mock.replay.onSpeedChange(8));
   await act(async () => mock.replay.onEnded!());
   expect(mock.replay.id).toBe("g2");
-  expect(mock.replay.initialSpeed).toBe(8);
   await act(async () => mock.replay.onEnded!());
   expect(mock.replay.id).toBe("g3");
   expect(mock.replay.onEnded).toBeUndefined();

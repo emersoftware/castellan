@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import type { GameEvent, Ruleset, SpectatorMessage, SpectatorView } from "@aoa/shared";
+import { currentFrame, currentRuleset, pages, readMoment, type GameEvent, type Ruleset, type SpectatorMessage, type SpectatorView } from "@aoa/shared";
 import { api, fmtTime, playerColors, spectateUrl } from "../api";
 import { GameCanvas } from "../components/GameCanvas";
 import { DepositPanel, OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, UnitPanel, notableEvents } from "../components/Hud";
@@ -15,8 +15,8 @@ import { sfx } from "../audio/sfx";
 import type { HoverInfo } from "../render/renderer";
 
 export function Watch() {
-  const { id } = useParams({ from: "/watch/$id" });
-  return <WatchPlayer key={id} id={id} syncUrl initialPlayer={new URLSearchParams(location.search).get("pov")} />;
+  const { id } = useParams({ from: pages.watch });
+  return <WatchPlayer key={id} id={id} syncUrl initialPlayer={readMoment(new URLSearchParams(location.search)).player} />;
 }
 
 export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series }: {
@@ -53,13 +53,15 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series 
       ws = new WebSocket(spectateUrl(id));
       ws.onmessage = (m) => {
         const msg = JSON.parse(m.data) as SpectatorMessage;
+        // Shown under today's names, like replays.
         if (msg.type === "hello") {
-          setRuleset(msg.ruleset);
+          setRuleset(currentRuleset(msg.ruleset));
           setTickMs(1000 / msg.tickRate);
         }
-        setFrame(msg.view);
-        if (msg.view.perspectives) setPlayerEvents((old) => Object.fromEntries(Object.entries(msg.view.perspectives!).map(([id, view]) => [id, [...(old[id] ?? []), ...notable(view.events)].slice(-KEPT)])));
-        if (msg.view.events?.length) setEvents((old) => [...old, ...notable(msg.view.events)].slice(-KEPT));
+        const view = currentFrame(msg.view);
+        setFrame(view);
+        if (view.perspectives) setPlayerEvents((old) => Object.fromEntries(Object.entries(view.perspectives!).map(([id, p]) => [id, [...(old[id] ?? []), ...notable(p.events)].slice(-KEPT)])));
+        if (view.events?.length) setEvents((old) => [...old, ...notable(view.events)].slice(-KEPT));
         setLost(false);
       };
       ws.onclose = (event) => {
@@ -91,9 +93,9 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series 
   const unitScript = !shownUnit || !ruleset ? undefined : !ruleset.kinds[shownUnit.kind]?.scriptable ? null
     : scripts.data ? scripts.data[shownUnit.owner]?.[shownUnit.kind] ?? defaultScript(ruleset, shownUnit.kind) : undefined;
 
-  useEffect(() => { if (syncUrl) writeUrl({ pov: selectedPlayer }); }, [syncUrl, selectedPlayer]);
+  useEffect(() => { if (syncUrl) writeUrl({ player: selectedPlayer }); }, [syncUrl, selectedPlayer]);
 
-  if (archived) return <ReplayPlayer key={id} id={id} initialPlaying={false} initialPlayer={selectedPlayer} series={series} />;
+  if (archived) return <ReplayPlayer key={id} id={id} initialPlaying={false} series={series} />;
 
   const shownEvents = selectedPlayer ? playerEvents[selectedPlayer] ?? notable(playerPerspective(frame ? { ...frame, events } : null, selectedPlayer)?.events ?? []) : events;
   const players = display?.players && <PlayerList selectedPlayer={selectedPlayer} onSelectPlayer={(id) => { setSelectedPlayer(id); setHover(null); }} colors={colors} view={display} names={names} subtitle={series} />;

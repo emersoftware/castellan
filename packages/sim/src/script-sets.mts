@@ -2,15 +2,17 @@
 // run without errors and fight in a designed battle, for synthetic.ts.
 //   npx tsx src/script-sets.mts [count]   → /tmp/aoa-opt/script-sets.json
 import { readFileSync, writeFileSync } from "node:fs";
+import type { EntityKind } from "@aoa/shared";
 import { runBattle, type Snapshot } from "./battles";
 import { rulesWith, start } from "./balance-params";
 import { SCENARIOS, designedIndex, scenario } from "./synthetic";
 const want = Number(process.argv[2] ?? 8);
+const SCRIPTED: EntityKind[] = ["knight", "archer", "tower"];
 const battles: Snapshot[] = JSON.parse(readFileSync(process.env.BATTLES ?? "/tmp/aoa-opt/battles-all.json", "utf8"));
 const version = (v: string) => Number(v.match(/^v(\d+)/)?.[1] ?? 0);
 const seen = new Set<string>(), candidates: { set: Record<string, string>; version: number }[] = [];
 for (const b of battles) for (const kinds of Object.values(b.scripts)) {
-  const set = Object.fromEntries(Object.entries(kinds).filter(([k]) => ["knight", "archer", "tower"].includes(k)));
+  const set = Object.fromEntries(Object.entries(kinds).filter(([k]) => SCRIPTED.some((s) => s === k)));
   const key = JSON.stringify(set);
   if ((set.knight || set.archer) && !seen.has(key)) { seen.add(key); candidates.push({ set, version: version(b.version) }); }
 }

@@ -1,14 +1,24 @@
 import ts from "typescript";
 
-export interface Source { path: string; pkg: string; text: string; ast: ts.SourceFile }
-export interface Finding { file: string; line: number; score: number; message: string; sites?: { file: string; line: number }[] }
+export interface Source { path: string; abs: string; pkg: string; text: string; ast: ts.SourceFile }
+// `key` names the finding without its line, so it survives edits; acknowledged.ts refers to findings by it.
+export interface Finding { file: string; line: number; score: number; message: string; key: string; sites?: { file: string; line: number }[] }
 export interface Check { id: string; flag: string; chapter: number; hint: string; run(sources: Source[]): Finding[] }
 
 type Fn = ts.FunctionDeclaration | ts.MethodDeclaration | ts.ArrowFunction | ts.FunctionExpression;
 interface NamedFn { name: string; fn: Fn; exported: boolean; at: ts.Node }
 
 const lineOf = (s: Source, node: ts.Node) => s.ast.getLineAndCharacterOfPosition(node.getStart(s.ast)).line + 1;
-const finding = (s: Source, node: ts.Node, score: number, message: string): Finding => ({ file: s.path, line: lineOf(s, node), score, message });
+const finding = (s: Source, node: ts.Node, score: number, message: string, key: string): Finding => ({ file: s.path, line: lineOf(s, node), score, message, key });
+
+// The function or class around a node, or "(module)".
+function ownerName(node: ts.Node): string {
+  for (let p = node.parent; p && !ts.isSourceFile(p); p = p.parent) {
+    if ((ts.isFunctionLike(p) || ts.isClassLike(p)) && (p as ts.NamedDeclaration).name) return (p as ts.NamedDeclaration).name!.getText();
+    if (ts.isVariableDeclaration(p) && ts.isIdentifier(p.name) && p.initializer && (ts.isArrowFunction(p.initializer) || ts.isFunctionExpression(p.initializer))) return p.name.text;
+  }
+  return "(module)";
+}
 
 function walk(node: ts.Node, visit: (node: ts.Node) => void) {
   visit(node);
@@ -70,7 +80,7 @@ const passThrough: Check = {
         const args = call.arguments.map((a) => unwrap(ts.isSpreadElement(a) ? a.expression : a)).map((a) => (a && ts.isIdentifier(a) ? a.text : "?"));
         if (!params.length || params.includes("") || params.length !== args.length || [...params].sort().join() !== [...args].sort().join()) return [];
         const callee = call.expression.getText(s.ast).replace(/\s+/g, " ").slice(0, 60);
-        return [finding(s, at, exported ? 2 : 1, `${name}(${params.join(", ")}) → ${callee}(${args.join(", ")})`)];
+        return [finding(s, at, exported ? 2 : 1, `${name}(${params.join(", ")}) → ${callee}(${args.join(", ")})`, `${s.path}#${name}`)];
       }),
     ),
 };
@@ -88,7 +98,7 @@ const shallowModule: Check = {
       const lines = codeLines(s.text);
       const depth = lines / surface;
       if (fns.length < 4 || surface < 10 || depth >= 5) return [];
-      return [finding(s, s.ast.statements[0] ?? s.ast, 1 / depth, `${fns.length} exported functions, ${surface} interface elements, ${lines} code lines (depth ${depth.toFixed(1)})`)];
+      return [finding(s, s.ast.statements[0] ?? s.ast, 1 / depth, `${fns.length} exported functions, ${surface} interface elements, ${lines} code lines (depth ${depth.toFixed(1)})`, s.path)];
     }),
 };
 
@@ -128,7 +138,7 @@ const vagueName: Check = {
           if (ts.isIdentifier(use) && use.text === node.text && !isPropertyName(use)) last = Math.max(last, lineOf(s, use));
         });
         const span = last - lineOf(s, node);
-        if (span >= 15) out.push(finding(s, node, span, `"${node.text}" ${ts.isSourceFile(scope) ? "is module-level, read up to" : "is used"} ${span} lines ${ts.isSourceFile(scope) ? "away" : "after its declaration"}`));
+        if (span >= 15) out.push(finding(s, node, span, `"${node.text}" ${ts.isSourceFile(scope) ? "is module-level, read up to" : "is used"} ${span} lines ${ts.isSourceFile(scope) ? "away" : "after its declaration"}`, `${s.path}#${ownerName(node)}.${node.text}`));
       });
       return out;
     }),
@@ -167,7 +177,7 @@ const configParam: Check = {
           ...(booleans.length ? [`boolean ${booleans.map((p) => p.name.getText(s.ast)).join(", ")}`] : []),
           ...(optional >= 5 ? [`${optional} optional options`] : []),
         ];
-        return parts.length ? [finding(s, at, booleans.length * 3 + (optional >= 5 ? optional : 0), `${name}: ${parts.join("; ")}`)] : [];
+        return parts.length ? [finding(s, at, booleans.length * 3 + (optional >= 5 ? optional : 0), `${name}: ${parts.join("; ")}`, `${s.path}#${name}`)] : [];
       }),
     ),
 };
@@ -203,7 +213,7 @@ const exceptions: Check = {
       const total = throwing.reduce((sum, f) => sum + f.throws.length, 0);
       if (total < 2) return [];
       const names = throwing.map((f) => f.name);
-      return [finding(s, throwing[0].throws[0], total, `${total} throws in ${names.length} exported functions (${names.slice(0, 4).join(", ")}${names.length > 4 ? ", …" : ""})`)];
+      return [finding(s, throwing[0].throws[0], total, `${total} throws in ${names.length} exported functions (${names.slice(0, 4).join(", ")}${names.length > 4 ? ", …" : ""})`, s.path)];
     }),
 };
 
@@ -227,7 +237,7 @@ const hardToDescribe: Check = {
         const lines = leadingCommentLines(s, node);
         const named = ts.isVariableStatement(node) ? node.declarationList.declarations[0] : (node as ts.NamedDeclaration);
         const label = named.name?.getText(s.ast) ?? ts.SyntaxKind[node.kind];
-        if (lines >= 8) out.push(finding(s, node, lines, `${label}: ${lines}-line interface comment`));
+        if (lines >= 8) out.push(finding(s, node, lines, `${label}: ${lines}-line interface comment`, `${s.path}#${label}`));
       }
       return out;
     }),
@@ -269,7 +279,7 @@ const commentRepeatsCode: Check = {
         if (said.length < 2 || said.length > 8 || !code.trim()) continue;
         const known = codeWords(code);
         if (said.filter((w) => known.has(w)).length >= said.length * 0.75)
-          out.push({ file: s.path, line: i + 1, score: said.length, message: `"${lines[i].trim()}" over \`${code.trim().slice(0, 60)}\`` });
+          out.push({ file: s.path, line: i + 1, score: said.length, message: `"${lines[i].trim()}" over \`${code.trim().slice(0, 60)}\``, key: `${s.path}#${lines[i].trim()}` });
       }
       return out;
     }),
@@ -296,7 +306,7 @@ const nonobvious: Check = {
           ts.forEachChild(node, (child) => visit(child, 0, inner));
           if (inner.max >= 5) {
             const name = (node as ts.NamedDeclaration).name?.getText(s.ast) ?? "anonymous function";
-            out.push(finding(s, node, inner.max, `${name}: nesting depth ${inner.max}`));
+            out.push(finding(s, node, inner.max, `${name}: nesting depth ${inner.max}`, `${s.path}#${name}`));
           }
           return;
         }
@@ -307,7 +317,8 @@ const nonobvious: Check = {
           const nestedInside = [node.condition, node.whenTrue].some((e) => chainLength(e) > 0);
           const chain = chainLength(node);
           const problem = nestedInside ? "ternary nested in a condition or true branch" : !isLink && chain >= 4 ? `chain of ${chain} ternaries` : undefined;
-          if (problem && !out.some((f) => f.line === lineOf(s, node))) out.push(finding(s, node, Math.max(chain, 4), problem));
+          if (problem && !out.some((f) => f.line === lineOf(s, node)))
+            out.push(finding(s, node, Math.max(chain, 4), problem, `${s.path}#${ownerName(node)}: ${node.getText(s.ast).replace(/\s+/g, " ").slice(0, 60)}`));
         }
         const elseIf = ts.isIfStatement(node) && ts.isIfStatement(node.parent) && node.parent.elseStatement === node;
         const next = NESTING.has(node.kind) && !elseIf ? depth + 1 : depth;
@@ -319,7 +330,7 @@ const nonobvious: Check = {
     }),
 };
 
-const NOT_A_DECISION = /^(utf-?8|string|number|object|function|boolean|undefined|bigint|symbol|get|post|put|delete|patch|content-type|application\/json|text\/\w+|pipe|inherit|ignore|exit|close|data|error|message|end|open|exec|hex|base64|sha\d+|md5|SIG[A-Z]+|E[A-Z]{3,})$/i;
+const NOT_A_DECISION = /^(utf-?8|string|number|object|function|boolean|undefined|bigint|symbol|get|post|put|delete|patch|content-type|application\/json|text\/\w+|pipe|inherit|ignore|exit|close|data|drain|error|message|end|open|exec|hex|base64|sha\d+|md5|SIG[A-Z]+|E[A-Z]{3,})$/i;
 
 function isDecisionLiteral(node: ts.StringLiteral | ts.NoSubstitutionTemplateLiteral): boolean {
   const text = node.text;
@@ -332,28 +343,50 @@ function isDecisionLiteral(node: ts.StringLiteral | ts.NoSubstitutionTemplateLit
   return !((ts.isPropertyAssignment(p) || ts.isPropertySignature(p)) && p.name === node);
 }
 
+const COMPARISONS = new Set([ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken]);
+
+// A literal the compiler validates where it stands (a union member, a `keyof`, a typed field) has one owner: the type.
+function compilerChecked(checker: ts.TypeChecker, node: ts.Expression): boolean {
+  const literals = (t: ts.Type | undefined) => {
+    const parts = t ? (t.isUnion() ? t.types : [t]) : [];
+    return parts.some((x) => x.isStringLiteral()) && !parts.some((x) => x.flags & (ts.TypeFlags.String | ts.TypeFlags.Any | ts.TypeFlags.Unknown));
+  };
+  let p = node.parent;
+  while (ts.isParenthesizedExpression(p)) p = p.parent;
+  if (ts.isBinaryExpression(p) && COMPARISONS.has(p.operatorToken.kind)) return literals(checker.getTypeAtLocation(p.left === node ? p.right : p.left));
+  if (ts.isCaseClause(p)) return literals(checker.getTypeAtLocation(p.parent.parent.expression));
+  return literals(checker.getContextualType(node));
+}
+
 const leakage: Check = {
   id: "leakage",
   flag: "Information Leakage",
   chapter: 5,
-  hint: "The same literal (a design decision) lives in several packages. Give it one owner and export it from there.",
+  hint: "The same literal (a design decision) lives in several packages. Give it one owner: export it, or type it so the compiler checks every use.",
   run: (sources) => {
-    // Literals that some type declares ("attack" in a union) are shared vocabulary the compiler already checks.
-    const typed = new Set<string>();
-    for (const s of sources) walk(s.ast, (node) => ts.isLiteralTypeNode(node) && ts.isStringLiteral(node.literal) && typed.add(node.literal.text));
+    const program = ts.createProgram(sources.map((s) => s.abs), {
+      allowJs: true, jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022,
+      strict: true, skipLibCheck: true, noEmit: true, allowImportingTsExtensions: true, resolveJsonModule: true, esModuleInterop: true, types: ["node"],
+      lib: ["lib.es2022.d.ts", "lib.dom.d.ts", "lib.dom.iterable.d.ts"],
+    });
+    const checker = program.getTypeChecker();
     const seen = new Map<string, { pkgs: Set<string>; sites: { s: Source; node: ts.Node }[] }>();
-    for (const s of sources)
+    for (const source of sources) {
+      const s = { ...source, ast: program.getSourceFile(source.abs) ?? source.ast };
+      // Plain JS is type-checked only when it opts in with `// @ts-check` (tsconfig.scripts.json, run by `pnpm typecheck`).
+      const checked = !/\.m?js$/.test(s.path) || /^(#!.*\n)?\s*\/\/ @ts-check/.test(s.text);
       walk(s.ast, (node) => {
-        if (!(ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) || typed.has(node.text) || !isDecisionLiteral(node)) return;
+        if (!(ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) || !isDecisionLiteral(node) || (checked && compilerChecked(checker, node))) return;
         const entry = seen.get(node.text) ?? { pkgs: new Set(), sites: [] };
         entry.pkgs.add(s.pkg);
         entry.sites.push({ s, node });
         seen.set(node.text, entry);
       });
+    }
     return [...seen]
       .filter(([, e]) => e.pkgs.size >= 2)
       .map(([text, e]) => ({
-        ...finding(e.sites[0].s, e.sites[0].node, e.pkgs.size * 100 + e.sites.length, `"${text}" in ${[...e.pkgs].join(", ")} (${e.sites.length} sites)`),
+        ...finding(e.sites[0].s, e.sites[0].node, e.pkgs.size * 100 + e.sites.length, `"${text}" in ${[...e.pkgs].join(", ")} (${e.sites.length} sites)`, `${JSON.stringify(text)} @ ${[...e.pkgs].sort().join(",")}`),
         sites: e.sites.map(({ s, node }) => ({ file: s.path, line: lineOf(s, node) })),
       }));
   },
@@ -385,7 +418,7 @@ const setter: Check = {
       walk(s.ast, (node) => {
         if (ts.isClassLike(node))
           for (const member of node.members.filter((m) => isPublic(m) && trivialSetter(m)))
-            out.push(finding(s, member, 1, `${node.name?.text ?? "class"}.${member.name?.getText(s.ast)}`));
+            out.push(finding(s, member, 1, `${node.name?.text ?? "class"}.${member.name?.getText(s.ast)}`, `${s.path}#${node.name?.text ?? "class"}.${member.name?.getText(s.ast)}`));
       });
       return out;
     }),

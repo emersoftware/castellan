@@ -5,7 +5,7 @@ import { createMatch, type Match } from "../src";
 const matches: Match[] = [];
 afterEach(() => matches.splice(0).forEach(m => m.dispose()));
 async function setup(patch: Partial<Ruleset> = {}) {
-  const ruleset = { ...rules, matchMs: 180_000, startMineral: 2000, defaultScripts: Object.fromEntries(Object.keys(rules.defaultScripts).map(k => [k, "self.hold();"])),
+  const ruleset: Ruleset = { ...rules, matchMs: 180_000, startMineral: 2000, defaultScripts: Object.fromEntries(Object.keys(rules.defaultScripts).map(k => [k, "self.hold();"])),
     map: { ...rules.map, width: 12, height: 12, start: [{ kind: "king", x: 0, y: 0 }, { kind: "castle", x: 3, y: 3 }], walls: [], deposits: [], sharedDeposits: [] }, ...patch };
   const m = await createMatch({ ruleset, players: Array.from({ length: ruleset.map.seats ?? 2 }, (_, i) => ({ id: String.fromCharCode(97 + i), name: String.fromCharCode(65 + i), side: i })), seed: 1, tickRate: 10 });
   matches.push(m); return m;
@@ -38,7 +38,7 @@ it("uses command validation for queue, mineral, population and research blockers
 });
 
 it("keeps damage and losses after the victim is gone and declares expired history", async () => {
-  const map = { ...rules.map, width: 8, height: 9, walls: [], deposits: [], sharedDeposits: [],
+  const map: Ruleset["map"] = { ...rules.map, width: 8, height: 9, walls: [], deposits: [], sharedDeposits: [],
     start: [{ kind: "king", x: 0, y: 0 }, { kind: "knight", x: 3, y: 4 }] };
   const m = await setup({ map, kinds: { ...rules.kinds, knight: { ...rules.kinds.knight, hp: 10, atk: 50, range: 1 } } });
   const a = m.view("a").mine.find(e => e.kind === "knight")!, b = m.view("b").mine.find(e => e.kind === "knight")!;
@@ -51,7 +51,7 @@ it("keeps damage and losses after the victim is gone and declares expired histor
 });
 
 it("retains aged unit sightings without tracking hidden movement or hidden deaths", async () => {
-  const map = { ...rules.map, width: 20, height: 20, walls: [], deposits: [], sharedDeposits: [],
+  const map: Ruleset["map"] = { ...rules.map, width: 20, height: 20, walls: [], deposits: [], sharedDeposits: [],
     start: [{ kind: "king", x: 8, y: 8 }] };
   const m = await setup({ map, kinds: { ...rules.kinds, king: { ...rules.kinds.king, vision: 5 } } });
   const b = m.view("b").mine[0];

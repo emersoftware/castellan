@@ -2,7 +2,7 @@
 // (damage value dealt by each kind, and damage value taken scaled by what numbers predicted).
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
-import { runBattle, type Snapshot, type Variant } from "./battles";
+import { fighterLoss, runBattle, type Snapshot, type Variant } from "./battles";
 import { rulesWith, type Values } from "./balance-params";
 import { scenario } from "./synthetic";
 const battles: Snapshot[] = JSON.parse(readFileSync(process.env.BATTLES ?? "/tmp/aoa-opt/battles.json", "utf8"));
@@ -11,7 +11,7 @@ const add = (into: Record<string, number>, from: Record<string, number>, w = 1) 
 for await (const line of createInterface({ input: process.stdin })) {
   const { values, jobs } = JSON.parse(line) as { values: Values; jobs: [number, number][] };
   const ruleset = rulesWith(values);
-  const results = [];
+  const stats = [];
   for (const [b, v] of jobs) {
     const destroyed: Record<string, number> = {}, lost: Record<string, number> = {};
     // Indexes past the recorded battles are designed ones, built for these costs.
@@ -29,8 +29,7 @@ for await (const line of createInterface({ input: process.stdin })) {
       add(lost, x.taken, r);
     }
     // Designed battles also report what each side lost in fighters (castles aside): A is team 0, B team 1.
-    const loss = (team: string) => Object.entries(res.sides[team]?.taken ?? {}).reduce((a, [k, v]) => a + (k === "castle" ? 0 : v), 0);
-    results.push(b < battles.length ? { destroyed, lost } : { destroyed, lost, loss: [loss("0"), loss("1")] });
+    stats.push(b < battles.length ? { destroyed, lost } : { destroyed, lost, loss: [fighterLoss(res.sides["0"]), fighterLoss(res.sides["1"])] });
   }
-  process.stdout.write(JSON.stringify(results) + "\n");
+  process.stdout.write(JSON.stringify(stats) + "\n");
 }

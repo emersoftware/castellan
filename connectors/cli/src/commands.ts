@@ -4,7 +4,7 @@
  * connectors can call them without spawning processes.
  */
 import { spawn } from "node:child_process";
-import { eventLine, outcomeText, routes, type ChatChannel, type MatchStatus, type Outcome, type PlayerView, type SeriesSummary } from "@aoa/shared";
+import { eventLine, outcomeText, routes, type ChatChannel, type MatchStatus, type Outcome, type PlayerView, type RoomMode, type SeriesSummary } from "@aoa/shared";
 import { ApiError, client, query, type Client } from "./client";
 
 export interface Fmt {
@@ -12,33 +12,34 @@ export interface Fmt {
 }
 
 const pretty = (v: unknown) => JSON.stringify(v, null, 2);
-const format = (json?: boolean) => (json ? undefined : "text");
+
+/** What a command prints: the server's text rendering, or with `json` its JSON pretty-printed. */
+async function printed(o: Fmt, request: (format?: "text") => Promise<unknown>): Promise<string> {
+  const r = await request(o.json ? undefined : "text");
+  return o.json ? pretty(r) : (r as string);
+}
 
 export async function rules(c: Client, o: Fmt = {}): Promise<string> {
-  return o.json ? pretty(await c.get(routes.rules)) : c.get<string>(`${routes.rules}?format=text`);
+  return printed(o, (format) => c.get(`${routes.rules}${query({ format })}`));
 }
 
 export async function history(c: Client, o: Fmt & { game?: number; section?: string; offset?: number; limit?: number } = {}): Promise<string> {
-  const result = await c.get(`${routes.history}${query({ game: o.game, section: o.section, offset: o.offset, limit: o.limit, format: format(o.json) })}`);
-  return o.json ? pretty(result) : result as string;
+  return printed(o, (format) => c.get(`${routes.history}${query({ game: o.game, section: o.section, offset: o.offset, limit: o.limit, format })}`));
 }
 
 export async function state(c: Client, o: Fmt & { since?: number } = {}): Promise<string> {
-  const v = await c.get(`${routes.state}${query({ since: o.since, format: format(o.json) })}`);
-  return o.json ? pretty(v) : (v as string);
+  return printed(o, (format) => c.get(`${routes.state}${query({ since: o.since, format })}`));
 }
 
 /** Accepts one order or an array of them. */
 export async function act(c: Client, orders: unknown, o: Fmt = {}): Promise<string> {
   const list = Array.isArray(orders) ? orders : [orders];
-  const r = await c.post(`${routes.act}${query({ format: format(o.json) })}`, { orders: list });
-  return o.json ? pretty(r) : (r as string);
+  return printed(o, (format) => c.post(`${routes.act}${query({ format })}`, { orders: list }));
 }
 
 /** Runs a one-shot player script on the server: full JSON view and rules in scope, act() orders applied at once. */
 export async function runScript(c: Client, code: string, o: Fmt & { lang?: "js" | "ts" } = {}): Promise<string> {
-  const r = await c.post(`${routes.run}${query({ format: format(o.json) })}`, { code, lang: o.lang ?? "js" });
-  return o.json ? pretty(r) : (r as string);
+  return printed(o, (format) => c.post(`${routes.run}${query({ format })}`, { code, lang: o.lang ?? "js" }));
 }
 
 export interface ScriptInfo {
@@ -61,8 +62,7 @@ export async function getScript(c: Client, kind: string, o: Fmt = {}): Promise<s
 
 /** `code: null` restores the built-in script. */
 export async function putScript(c: Client, kind: string, code: string | null, o: Fmt & { lang?: "js" | "ts" } = {}): Promise<string> {
-  const r = await c.put(`${scriptPath(kind)}${query({ format: format(o.json) })}`, { code, lang: o.lang ?? "js" });
-  return o.json ? pretty(r) : (r as string);
+  return printed(o, (format) => c.put(`${scriptPath(kind)}${query({ format })}`, { code, lang: o.lang ?? "js" }));
 }
 
 export async function testScript(c: Client, kind: string, code: string, o: { lang?: "js" | "ts" } = {}): Promise<string> {
@@ -71,17 +71,12 @@ export async function testScript(c: Client, kind: string, code: string, o: { lan
 
 /** With text: sends publicly, to the team, or to one player. Without: visible history. */
 export async function chat(c: Client, text?: string, o: Fmt & { channel?: ChatChannel; to?: string } = {}): Promise<string> {
-  if (text === undefined) {
-    const r = await c.get(`${routes.chat}${query({ format: format(o.json) })}`);
-    return o.json ? pretty(r) : (r as string);
-  }
-  const r = await c.post(`${routes.chat}${query({ format: format(o.json) })}`, { text, channel: o.channel, to: o.to });
-  return o.json ? pretty(r) : (r as string);
+  if (text === undefined) return printed(o, (format) => c.get(`${routes.chat}${query({ format })}`));
+  return printed(o, (format) => c.post(`${routes.chat}${query({ format })}`, { text, channel: o.channel, to: o.to }));
 }
 
 export async function wait(c: Client, o: Fmt & { seconds?: number; since?: number; until?: string } = {}): Promise<string> {
-  const v = await c.get(`${routes.wait}${query({ since: o.since, max: o.seconds, until: o.until, format: format(o.json) })}`);
-  return o.json ? pretty(v) : (v as string);
+  return printed(o, (format) => c.get(`${routes.wait}${query({ since: o.since, max: o.seconds, until: o.until, format })}`));
 }
 
 /** Note: like every authenticated call, this counts as the player connecting. */
@@ -112,7 +107,7 @@ interface RoomSummary {
   status: MatchStatus;
   tick: number;
   map?: string;
-  mode?: "teams" | "ffa";
+  mode?: RoomMode;
   chat?: boolean;
   players: { id: string; name: string; bot?: string; token?: string; side?: number; team?: number }[];
   outcome?: Outcome;
@@ -124,7 +119,7 @@ const CORNERS = ["top", "bottom", "right", "left"];
 
 export async function newRoom(
   c: Client,
-  o: Fmt & { names?: string[]; bots?: string[]; prepMs?: number; seed?: number; map?: string; sides?: "random" | "fixed"; chat?: boolean; mode?: "teams" | "ffa"; series?: boolean } = {},
+  o: Fmt & { names?: string[]; bots?: string[]; prepMs?: number; seed?: number; map?: string; sides?: "random" | "fixed"; chat?: boolean; mode?: RoomMode; series?: boolean } = {},
 ): Promise<string> {
   const players = [...(o.names ?? []).map((name) => ({ name })), ...(o.bots ?? []).map((bot) => ({ bot }))];
   if (o.series) {

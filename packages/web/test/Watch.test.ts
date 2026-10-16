@@ -44,7 +44,7 @@ afterEach(async () => {
 it.each(["running", "finished"])("uses websocket %s over stale lobby prep status", async (status) => {
   expect(host.textContent).toContain("The battle begins in");
   await act(async () => socket.onmessage!({ data: JSON.stringify({
-    type: "frame", view: { status, events: [] },
+    type: "frame", view: { status, players: [], entities: [], events: [] },
   }) }));
   expect(host.textContent).not.toContain("The battle begins in");
   expect(host.querySelector(".live")?.textContent).toBe(status === "running" ? "● live" : "finished");

@@ -8,12 +8,23 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 // @ts-expect-error The reporter is a build-free executable Node module.
 import { launchConfiguration, reportConfiguration } from "../metadata.mjs";
+// @ts-expect-error Plain Node launcher.
+import { efforts as cursorEfforts } from "../cursor/agent.mjs";
+// @ts-expect-error Plain Node launcher.
+import { efforts as agyEfforts } from "../antigravity/preflight.mjs";
+// @ts-expect-error Plain Node launcher.
+import { efforts as dshEfforts } from "../deepseek/agent.mjs";
+import { EFFORTS } from "../../../packages/shared/src/replayMetadata";
 
 const exec = promisify(execFile);
 const dirs: string[] = [], servers: Server[] = [];
 afterEach(async () => {
   await Promise.all(servers.splice(0).map(s => new Promise<void>(r => s.close(() => r()))));
   await Promise.all(dirs.splice(0).map(p => rm(p, { recursive: true, force: true })));
+});
+
+it("accepts only efforts the replay catalogue knows", () => {
+  for (const efforts of [cursorEfforts, agyEfforts, dshEfforts]) expect(EFFORTS).toEqual(expect.arrayContaining(efforts));
 });
 
 it("records known CLI choices, leaves defaults unknown and never copies prompt or credentials", () => {

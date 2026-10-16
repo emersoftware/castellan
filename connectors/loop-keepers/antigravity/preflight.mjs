@@ -1,3 +1,4 @@
+// @ts-check
 /** Explicit paid-model diagnostic. Never joins a room or uses a player token. */
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -6,13 +7,25 @@ import { createServer } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { routes } from "../../../packages/shared/src/http.ts";
 import { preparePlayer } from "./play.mjs";
 import { startToolBridge } from "./tool.mjs";
+/** @import { Effort } from "../../../packages/shared/src/replayMetadata.ts" */
+
+// The diagnostic reads these routes; each one answers as the game tool of the same name.
+const probedRoutes = [routes.rules, routes.state];
+const probedTools = probedRoutes.map((route) => route.slice(1));
+
+/**
+ * What agy's --effort accepts.
+ * @type {Effort[]}
+ */
+export const efforts = ["low", "medium", "high", "xhigh", "max"];
 
 function stopGroup(child, signal) {
   if (!child?.pid) return;
   try { process.kill(-child.pid, signal); }
-  catch (error) { if (error.code !== "ESRCH") throw error; }
+  catch (error) { if (/** @type {NodeJS.ErrnoException} */ (error).code !== "ESRCH") throw error; }
 }
 
 /** One prompt, with a host deadline independent of agy's own timeout. */
@@ -58,9 +71,10 @@ async function invoke(agy, args, { cwd, env, timeoutMs }) {
   }
 }
 
+/** @param {{ model?: string, effort?: Effort, transport?: string, agy?: string, timeoutMs?: number, env?: NodeJS.ProcessEnv }} preflight */
 export async function runPreflight({ model, effort = "low", transport = "cli", agy, timeoutMs = 60_000, env = process.env }) {
   if (typeof model !== "string" || !model.trim()) throw new Error("Provide --model from agy models.");
-  if (!["low", "medium", "high", "xhigh", "max"].includes(effort)) throw new Error("Unsupported --effort.");
+  if (!efforts.includes(effort)) throw new Error("Unsupported --effort.");
   if (!["cli", "mcp"].includes(transport)) throw new Error("--transport must be cli or mcp.");
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 60_000) throw new Error("Preflight timeout must be between 1 and 60000 ms.");
   const workspace = await realpath(await mkdtemp(join(tmpdir(), "aap-")));
@@ -71,7 +85,7 @@ export async function runPreflight({ model, effort = "low", transport = "cli", a
   const calls = [];
   const server = createServer((req, res) => {
     const path = new URL(req.url || "/", "http://localhost").pathname;
-    if (req.headers.authorization !== `Bearer ${token}` || req.method !== "GET" || !["/rules", "/state"].includes(path)) {
+    if (req.headers.authorization !== `Bearer ${token}` || req.method !== "GET" || !probedRoutes.includes(path)) {
       res.writeHead(403, { "content-type": "text/plain" });
       res.end("Preflight permits only authenticated rules and state reads.");
       return;
@@ -84,11 +98,11 @@ export async function runPreflight({ model, effort = "low", transport = "cli", a
   let bridge;
   const started = Date.now();
   try {
-    await new Promise((resolveListen, reject) => {
+    await /** @type {Promise<void>} */ (new Promise((resolveListen, reject) => {
       server.once("error", reject);
       server.listen(0, "127.0.0.1", resolveListen);
-    });
-    const endpoint = `http://127.0.0.1:${server.address().port}`;
+    }));
+    const endpoint = `http://127.0.0.1:${/** @type {import("node:net").AddressInfo} */ (server.address()).port}`;
     if (transport === "cli") bridge = await startToolBridge({ socketPath: join(workspace, "tools.sock"), server: endpoint, token });
     const project = await preparePlayer({ workspace, projectId, server: endpoint, token, transport, bridge });
     if (transport === "mcp") project.permissionGrants.permissionGrants.allow.push(`read_file(${join(homedir(), ".gemini/antigravity-cli/mcp/aoa")})`);
@@ -107,12 +121,12 @@ export async function runPreflight({ model, effort = "low", transport = "cli", a
       "--project", projectId, "--model", model, "--effort", effort,
       "--output-format", "json", "--print-timeout", `${timeoutMs}ms`, "-p", prompt,
     ], { cwd: workspace, env: childEnv, timeoutMs });
-    const missing = ["rules", "state"].filter((name) => !calls.some((call) => call.tool === name));
+    const missing = probedTools.filter((name) => !calls.some((call) => call.tool === name));
     if (missing.length) throw new Error(`Antigravity preflight failed: no real calls to ${missing.join(", ")}, despite SUCCESS. The player was not connected.`);
     const response = typeof result.response === "string" ? result.response : "";
-    const unread = ["rules", "state"].filter((name) => !calls.some((call) => call.tool === name && response.includes(call.nonce)));
+    const unread = probedTools.filter((name) => !calls.some((call) => call.tool === name && response.includes(call.nonce)));
     if (unread.length) throw new Error(`Antigravity preflight failed: response did not confirm the actual ${unread.join(", ")} nonce.`);
-    return { ok: true, model, effort, transport, calls: Object.fromEntries(["rules", "state"].map((name) => [name, calls.filter((call) => call.tool === name).length])), durationMs: Date.now() - started };
+    return { ok: true, model, effort, transport, calls: Object.fromEntries(probedTools.map((name) => [name, calls.filter((call) => call.tool === name).length])), durationMs: Date.now() - started };
   } finally {
     try { await bridge?.close(); }
     finally {

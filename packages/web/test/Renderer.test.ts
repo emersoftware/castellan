@@ -38,13 +38,13 @@ it("keeps the depth source held by filters alive when the viewport changes", () 
   const internal = renderer as unknown as {
     app: { renderer: { resize: (w: number, h: number) => void }; screen: Rectangle };
     depthRT: RenderTexture; xrayFilter: ReturnType<typeof filter>; outlineFilter: ReturnType<typeof filter>;
-    fit(recenter: boolean): void;
+    fit(): void;
   };
   internal.app = { renderer: { resize: vi.fn() }, screen: new Rectangle(0, 0, 390, 600) };
   internal.depthRT = depth;
   internal.xrayFilter = filter();
   internal.outlineFilter = filter();
-  internal.fit(false);
+  internal.fit();
   expect(internal.depthRT.source).toBe(source);
   expect(source.destroyed).toBe(false);
   expect(source.width).toBe(390);

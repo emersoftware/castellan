@@ -6,10 +6,10 @@
 import { randomBytes } from "node:crypto";
 import { createMatch, type Match } from "@aoa/engine";
 import type {
-  ChatMessage, GameEvent, MatchStatus, Order, OrderResult, PlayerId, PlayerTiming, PlayerView, ReplayFile, Ruleset, SeriesProgress, SpectatorMessage, SpectatorView,
+  ChatMessage, GameEvent, MatchStatus, Order, OrderResult, PlayerId, PlayerTiming, PlayerView, ReplayFile, RoomMode, Ruleset, SeatStatus, SeriesProgress, SpectatorMessage, SpectatorView,
 } from "@aoa/shared";
 import { BOTS, type Bot } from "@aoa/sim";
-import { playerGuide, type AgentConfiguration, type ExperimentManifest } from "@aoa/shared";
+import { AGENT_ACTIVITY_STATES, isGenericConnector, playerGuide, type AgentActivity, type AgentConfiguration, type ExperimentManifest } from "@aoa/shared";
 import { engineIdentity, sha256, unknownAgent } from "./experiment";
 import { createIsolatedScriptHost } from "./script-isolation";
 
@@ -33,15 +33,13 @@ export interface RoomPlayer {
 export interface RoomOptions {
   /** Host-only capability, persisted across restarts; never sent to players. */
   spectatorToken?: string;
-  id?: string;
-  createdAt?: string;
   /** Series rooms start only after their credentials/checkpoint have been saved. */
   deferredStart?: boolean;
   ruleset: Ruleset;
   /** One per occupied seat; a three-player FFA leaves one of four corners empty. `team` defaults to each player alone (2 seats) or 2v2 in list order (4 seats). */
   players: { name: string; bot?: string; team?: number; agent?: AgentConfiguration }[];
   /** Four-seat maps default to teams; ffa gives every player their own side. */
-  mode?: "teams" | "ffa";
+  mode?: RoomMode;
   tickRate: number;
   seed: number;
   /** "random" (default) shuffles which corner each player starts in, from the seed. "fixed": list order. */
@@ -54,9 +52,12 @@ export interface RoomOptions {
   onFinish: (replay: ReplayFile) => void;
 }
 
+/** Who a room is: kept by its checkpoint, so a restart restores the same room. */
+interface RoomIdentity { id: string; createdAt: string }
+
 export interface RoomCheckpoint {
   experiment?: ExperimentManifest;
-  options: Omit<RoomOptions, "onFinish">;
+  options: Omit<RoomOptions, "onFinish"> & RoomIdentity;
   players: { id: string; token: string; side: number; team: number }[];
   tick: number;
   hash: string;
@@ -115,10 +116,10 @@ export class Room {
   /** The whole conversation (events only keep the last minute). */
   private chatLog: ChatMessage[] = [];
 
-  private constructor(private opts: RoomOptions) {
+  private constructor(private opts: RoomOptions, identity?: RoomIdentity) {
     this.spectatorToken = opts.spectatorToken ?? randomBytes(24).toString("hex");
-    this.id = opts.id ?? randomBytes(4).toString("hex");
-    this.createdAt = opts.createdAt ? new Date(opts.createdAt) : new Date();
+    this.id = identity?.id ?? randomBytes(4).toString("hex");
+    this.createdAt = identity ? new Date(identity.createdAt) : new Date();
     this.ruleset = opts.ruleset;
     this.tickRate = opts.tickRate;
     const every = Math.max(1, Math.round((opts.botLatencyMs * opts.tickRate) / 1000));
@@ -132,7 +133,7 @@ export class Room {
         bot: make ? { name: p.bot!, fn: make(opts.ruleset), every, offset: (i * 7) % every } : undefined,
         seen: !!make,
         side: i % 2,
-        team: opts.mode === "ffa" ? i : p.team ?? (opts.players.length === 4 ? (i < 2 ? 0 : 1) : i),
+        team: opts.mode === "ffa" ? i : p.team ?? (opts.players.length === 4 ? Math.floor(i / 2) : i),
       };
     });
     if (opts.players.length === 4 || (opts.ruleset.map.seats === 4 && opts.mode === "ffa" && opts.players.length === 3)) {
@@ -171,7 +172,8 @@ export class Room {
   }
 
   static async restore(saved: RoomCheckpoint, onFinish: RoomOptions["onFinish"]): Promise<Room> {
-    const room = new Room({ ...saved.options, deferredStart: true, onFinish });
+    const { id, createdAt, ...options } = saved.options;
+    const room = new Room({ ...options, deferredStart: true, onFinish }, { id, createdAt });
     for (const p of room.players) Object.assign(p, saved.players.find((s) => s.id === p.id));
     room.match = await createMatch({ scriptHostFactory: createIsolatedScriptHost, ruleset: room.ruleset, seed: saved.options.seed, tickRate: room.tickRate, players: room.players });
     const byTick = new Map<number, typeof saved.orders>();
@@ -222,6 +224,10 @@ export class Room {
     return new Set(this.players.map((p) => p.team)).size < this.players.length;
   }
 
+  get mode(): RoomMode {
+    return this.teams ? "teams" : "ffa";
+  }
+
   get state(): MatchStatus {
     return this.status;
   }
@@ -256,25 +262,32 @@ export class Room {
     if (this.status === "running") t.waitMs += waitedMs;
   }
 
-  configureAgent(player: PlayerId, configuration: AgentConfiguration, merge = false) {
+  /** The host's declaration of a player's agent, replacing the previous one. */
+  configureAgent(player: PlayerId, configuration: AgentConfiguration) {
     const record = this.experiment.players[player];
-    // A connector can add known fields without erasing a host's more complete configuration.
-    const merged = merge ? { ...record.configuration, ...Object.fromEntries(Object.entries(configuration).filter(([, value]) => value !== null)) } as AgentConfiguration : configuration;
-    if (merge && ["cli", "mcp"].includes(configuration.connector ?? "") && record.configuration.connector && !["cli", "mcp"].includes(record.configuration.connector)) merged.connector = record.configuration.connector;
-    if (JSON.stringify(record.configuration) === JSON.stringify(merged)) return;
+    if (JSON.stringify(record.configuration) === JSON.stringify(configuration)) return;
     if (record.changes.length >= 128) throw new Error("too many agent configuration changes");
-    record.changes.push({ tick: this.tick, configuration: merged });
-    record.configuration = merged;
+    record.changes.push({ tick: this.tick, configuration });
+    record.configuration = configuration;
+  }
+
+  /** A connector's declaration on each call: it adds known fields without erasing a host's more complete configuration. */
+  declareAgent(player: PlayerId, configuration: AgentConfiguration) {
+    const current = this.experiment.players[player].configuration;
+    const merged = { ...current, ...Object.fromEntries(Object.entries(configuration).filter(([, value]) => value !== null)) } as AgentConfiguration;
+    if (isGenericConnector(configuration.connector) && current.connector && !isGenericConnector(current.connector)) merged.connector = current.connector;
+    this.configureAgent(player, merged);
   }
 
   recordAgentActivity(player: PlayerId, body: unknown) {
-    const data = body as { state?: string; retryAt?: string } | null;
-    if (!data || !["deciding", "provider_wait", "connector_retry", "between_decisions", "stopped"].includes(data.state ?? "")) throw new Error("invalid agent activity");
+    const data = body as { state?: unknown; retryAt?: string } | null;
+    const state = AGENT_ACTIVITY_STATES.find((s) => s === data?.state);
+    if (!data || !state) throw new Error("invalid agent activity");
     if (data.retryAt !== undefined && (typeof data.retryAt !== "string" || !Number.isFinite(Date.parse(data.retryAt)))) throw new Error("invalid retryAt");
     const history = this.experiment.agentActivity ??= [];
     if (history.length >= 20_000) return;
-    history.push({ player, tick: this.tick, activity: { state: data.state as import("@aoa/shared").AgentActivity["state"], at: new Date().toISOString(),
-      ...(data.retryAt ? { retryAt: new Date(data.retryAt).toISOString() } : {}) } });
+    const activity: AgentActivity = { state, at: new Date().toISOString(), ...(data.retryAt ? { retryAt: new Date(data.retryAt).toISOString() } : {}) };
+    history.push({ player, tick: this.tick, activity });
   }
 
   openCall(player: PlayerId, tool: string): ExperimentManifest["calls"][number] {
@@ -354,8 +367,9 @@ export class Room {
     return v;
   }
 
-  isAlive(player: PlayerId): boolean {
-    return this.match.view(player, this.tick, false).players.find(p => p.id === player)?.alive ?? false;
+  /** For harness supervisors: where a player's match stands, without counting as a call. */
+  playerStatus(player: PlayerId): SeatStatus {
+    return { room: this.id, player, status: this.status, tick: this.tick, alive: this.match.isAlive(player) };
   }
 
   /** Queues orders for the next tick and resolves with their results once applied. */
@@ -391,13 +405,15 @@ export class Room {
     return { results: settled.map((s) => s.result), tick: settled[0]?.tick ?? this.tick };
   }
 
-  /** The script `player` runs for `kind`. */
-  script(player: PlayerId, kind: string): { code: string; custom: boolean } | null {
-    return this.match.scriptSource(player, kind);
+  /** The script `player` runs now for each scriptable kind. */
+  scripts(player: PlayerId): Record<string, { code: string; custom: boolean } | null> {
+    return Object.fromEntries(Object.entries(this.ruleset.kinds).filter(([, k]) => k.scriptable).map(([kind]) => [kind, this.match.scriptSource(player, kind)]));
   }
 
+  /** Probes compiled `code` on the player's units of `kind` in their visible context; installs nothing. */
   testScript(player: PlayerId, kind: string, code: string) {
-    return this.match.testScript(player, kind, code);
+    return { ...this.match.testScript(player, kind, code), freshMemory: true, actionsApplied: false,
+      note: "Probe of owned units in the current visible context with fresh memory; proposed actions only. Does not advance the game or install the script." };
   }
 
   /**
@@ -435,7 +451,7 @@ export class Room {
       createdAt: this.createdAt.toISOString(),
       prepEndsAt: this.status === "prep" ? new Date(this.prepEndsAt).toISOString() : undefined,
       map: this.ruleset.map.name,
-      mode: this.teams ? "teams" : "ffa",
+      mode: this.mode,
       chat: this.opts.chat,
       timing: this.timingStats(),
       players: this.players.map((p) => ({ id: p.id, name: p.name, bot: p.bot?.name, connected: p.seen, side: p.side, team: p.team })),

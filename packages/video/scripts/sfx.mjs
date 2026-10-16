@@ -1,33 +1,28 @@
 // Mixes a shot's board sounds (<clip>.sounds.json, written by packages/web/scripts/record.mjs) into a WAV with the
-// game's own samples and rules (packages/web/src/audio/sfx.ts): rate limits per sound, a voice cap, quieter when
-// repeated, blows of a tick spread a little, slight pitch jitter on noises; the wind loop underneath.
+// game's own samples and mixing rules (packages/web/src/audio/mix.ts); the wind loop underneath.
 // The king's horn and the end fanfare are left out: too loud for a reel.
 //   node scripts/sfx.mjs public/promo/s1-pov.mp4 [--wind-in s] [--wind-out s]
-import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { probeDuration } from "../../web/scripts/ffmpeg.mjs";
+import { ff, probe } from "../../web/scripts/ffmpeg.mjs";
+import { AMBIENT_GAIN, Mix } from "../../web/src/audio/mix.ts";
 
-const { positionals, values: o } = parseArgs({ allowPositionals: true, options: { "wind-in": { type: "string" }, "wind-out": { type: "string" } } });
+const { positionals, values: o } = parseArgs({ allowPositionals: true, options: { "wind-in": { type: "string" }, "wind-out": { type: "string" }, "ending-cues": { type: "boolean", default: false } } });
 const clip = positionals[0];
 const RATE = 48000;
 const SOUNDS = new URL("../../web/public/sounds/", import.meta.url).pathname;
-const SKIP = new Set(["horn", "fanfare"]);
-const MIN_GAP_MS = { sword: 90, hit: 160, arrow: 200, tower: 250, death: 90, spawn: 120, pick: 110, footstep: 180 };
-const MAX_PER_SOUND = { sword: 3, hit: 2, arrow: 2, tower: 2, death: 3, pick: 2, footstep: 2 };
-const MAX_VOICES = 12, SPREAD_S = 0.06, DENSITY_WINDOW_MS = 800, AMBIENT_GAIN = 0.22, MASTER = 0.7;
+const SKIP = new Set(o["ending-cues"] ? [] : ["horn", "fanfare"]);
+const MASTER = 0.7;
 /** The game plays effects quietly under the music; the reel brings them forward (+7 dB). */
 const REEL_GAIN = 2.2;
-const PITCHED = new Set(["sword", "spawn", "horn", "fanfare"]);
-const MIX = { arrow: [{ sample: "whoosh" }], tower: [{ sample: "whoosh", rate: 0.75 }] };
 
 const decode = (file) => {
-  const r = spawnSync("ffmpeg", ["-v", "error", "-i", file, "-f", "f32le", "-ac", "1", "-ar", String(RATE), "-"], { maxBuffer: 1 << 30 });
-  return new Float32Array(r.stdout.buffer, r.stdout.byteOffset, r.stdout.byteLength / 4);
+  const pcm = ff("-i", file, "-f", "f32le", "-ac", "1", "-ar", String(RATE), "-");
+  return new Float32Array(pcm.buffer, pcm.byteOffset, pcm.byteLength / 4);
 };
 const manifest = JSON.parse(readFileSync(`${SOUNDS}manifest.json`, "utf8"));
 const buffers = Object.fromEntries(Object.entries(manifest.files).map(([k, files]) => [k, files.map((f) => decode(SOUNDS + f))]));
-const duration = probeDuration(clip);
+const { duration } = probe(clip);
 const n = Math.ceil(duration * RATE);
 const L = new Float32Array(n), R = new Float32Array(n);
 
@@ -48,35 +43,19 @@ const add = (buf, at, rate, gain, pan) => {
   }
 };
 
-const last = new Map(), recent = new Map();
-let busy = [];
+const mix = new Mix(random);
+const lengths = (sample) => buffers[sample]?.map((buf) => buf.length / RATE);
 const sounds = JSON.parse(readFileSync(clip.replace(/\.mp4$/, ".sounds.json"), "utf8"));
 let played = 0;
 for (const s of sounds) {
-  if (SKIP.has(s.name) || s.volume <= 0.01 || s.t < 0) continue;
-  const nowMs = s.t * 1000;
-  const layers = MIX[s.name] ?? [{ sample: s.name }];
-  if (!buffers[layers[0].sample]) continue;
-  if (nowMs - (last.get(s.name) ?? -1e9) < (MIN_GAP_MS[s.name] ?? 40)) continue;
-  busy = busy.filter((v) => v.until > nowMs);
-  if (busy.length >= MAX_VOICES) continue;
-  if (busy.filter((v) => v.name === s.name).length >= (MAX_PER_SOUND[s.name] ?? MAX_VOICES)) continue;
-  last.set(s.name, nowMs);
-  const r = (recent.get(s.name) ?? []).filter((t) => t > nowMs - DENSITY_WINDOW_MS);
-  r.push(nowMs);
-  recent.set(s.name, r);
-  const gain = (s.volume / Math.sqrt(r.length)) * MASTER;
-  const jitter = 0.95 + random() * 0.1;
-  const spread = MIN_GAP_MS[s.name] ? random() * SPREAD_S : 0;
-  let dur = 0;
-  for (const { sample, gain: g = 1, delay = 0, rate = 1 } of layers) {
-    const variants = buffers[sample];
-    const buf = variants[Math.floor(random() * variants.length)];
-    const pitch = PITCHED.has(sample) ? rate : rate * jitter;
-    add(buf, s.t + spread + delay, pitch, gain * g, s.pan);
-    dur = Math.max(dur, spread + delay + buf.length / RATE / pitch);
-  }
-  busy.push({ name: s.name, until: nowMs + dur * 1000 });
+  if (SKIP.has(s.name) || s.t < 0) continue;
+  const sound = mix.play(s.name, s.t * 1000, s.volume, lengths);
+  if (!sound) continue;
+  const gain = sound.gain * MASTER;
+  // The refreshed king/end samples can accompany landscape shots without
+  // jumping over the music; preserve the old reel's mix unless requested.
+  const cueGain = s.name === "horn" ? 0.4 : s.name === "fanfare" ? 0.25 : 1;
+  for (const { sample, variant, delay, rate, gain: g } of sound.voices) add(buffers[sample][variant], s.t + sound.spread + delay, rate, gain * g * cueGain, s.pan);
   played++;
 }
 

@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { SpectatorView } from '@aoa/shared';
-import { Landing } from '../src/routes/Landing';
+import { Landing, featuredBattles } from '../src/routes/Landing';
 import { ReplayPlayer } from '../src/routes/Replay';
 import { ShareMoment, momentUrl } from '../src/components/ShareMoment';
-import { currentBattles } from '../src/replayCatalog';
+import { catalogBattles } from '../src/replayCatalog';
 import { showcaseStart } from '../src/showcase';
 
 vi.mock('@tanstack/react-router', () => ({ Link: ({children}: any) => createElement('a', null, children), useParams: () => ({id:'test'}) }));
@@ -24,7 +24,7 @@ beforeEach(() => {
   host=document.createElement('div'); document.body.append(host); root=createRoot(host);
   client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:0}}});
 });
-afterEach(async()=>{await act(async()=>root.unmount());client.clear();host.remove();vi.unstubAllGlobals();vi.restoreAllMocks();});
+afterEach(async()=>{await act(async()=>root.unmount());client.clear();host.remove();sessionStorage.clear();vi.unstubAllGlobals();vi.restoreAllMocks();});
 const render = (view: ReturnType<typeof createElement>) => act(async()=>root.render(createElement(QueryClientProvider,{client},view)));
 
 it('shows the hero copy and controls while its battle and catalogue are still pending',async()=>{
@@ -36,18 +36,19 @@ it('shows the hero copy and controls while its battle and catalogue are still pe
   expect(host.querySelector('.hero-field img')).toBeNull();
 });
 it('preserves recordings across the version rename without admitting other rules or rewriting metadata',()=>{
+  const entry = (id: string, rulesVersion?: string) => ({id, rulesVersion, players: [], createdAt: '2026-10-01'});
   const entries = [
-    {id:'old',rulesVersion:'v25'}, {id:'unknown'},
-    {id:'new',rulesVersion:'0.27.0'},
-    {id:'renamed',rulesVersion:'v26-coordinated-movement'},
-    {id:'experiment',rulesVersion:'0.27.0+stats:test'},
-    {id:'old-experiment',rulesVersion:'v26-coordinated-movement+stats:test'},
-    {id:'patch',rulesVersion:'0.27.1'}, {id:'future',rulesVersion:'0.28.0'},
+    entry('old','v25'), entry('unknown'),
+    entry('new','0.27.0'),
+    entry('renamed','v26-coordinated-movement'),
+    entry('experiment','0.27.0+stats:test'),
+    entry('old-experiment','v26-coordinated-movement+stats:test'),
+    entry('patch','0.27.1'), entry('future','0.28.0'),
   ];
   const before = structuredClone(entries);
-  expect(currentBattles(entries,'0.27.0').map(r=>r.id)).toEqual(['new','renamed']);
+  expect(catalogBattles(entries,'0.27.0').map(r=>r.id)).toEqual(['new','renamed']);
   expect(entries).toEqual(before);
-  expect(currentBattles(entries,'0.28.0').map(r=>r.id)).toEqual(['future']);
+  expect(catalogBattles(entries,'0.28.0').map(r=>r.id)).toEqual(['future']);
 });
 it('starts eight seconds before the first casualty using the recorded tick rate',()=>{
   const frames=[{tick:0,events:[]},{tick:100,events:[{type:'attack'}]},{tick:205,events:[{type:'death'}]}] as SpectatorView[];
@@ -80,4 +81,34 @@ it('explains a failed replay download and retries it from the page',async()=>{
   await act(async()=>host.querySelector('button')!.click());
   expect(fetcher.mock.calls.length).toBeGreaterThan(before);
   vi.unstubAllEnvs();
+});
+it('keeps the chosen replay speed for the next game in this tab',async()=>{
+  vi.stubGlobal('fetch',vi.fn(()=>new Promise(()=>{})));
+  await render(createElement(ReplayPlayer,{id:'g1'}));
+  const speed=(label: string)=>[...host.querySelectorAll('.speeds button')].find(b=>b.textContent===label)!;
+  expect(speed('2×').className).toBe('on');
+  await act(async()=>(speed('8×') as HTMLButtonElement).click());
+  await render(createElement(ReplayPlayer,{id:'g2',key:'g2'}));
+  expect(speed('8×').className).toBe('on');
+});
+describe("featured battles", () => {
+  const battle = (id: string, names: string[], teams: (number | undefined)[], savedAt: string) =>
+    ({ id, createdAt: savedAt, savedAt, players: names.map((name, i) => ({ id: `p${i + 1}`, name, team: teams[i] })) });
+  it("keeps the three selected Claude/Codex recordings despite newer games or display names", () => {
+    const featured = featuredBattles([
+      battle("2346f20b", ["Opus 5.5", "Fable 5.1", "Sol 6.1", "Astra 6"], [0, 0, 1, 1], "2026-10-13"),
+      battle("new-duel", ["Sol 6.1", "Opus 5.5"], [0, 1], "2026-10-15"),
+      battle("242b57f9", ["Argon", "Argon", "Astra 6", "Fable 5.1"], [0, 1, 0, 1], "2026-10-15"),
+      battle("02eb6795", ["Opus 5.5", "Sol 6.1", "Fable 5.1", "Astra 6"], [0, 1, 2, 3], "2026-10-13"),
+      battle("new-ffa", ["Argon", "Astra 6", "Fable 5.1"], [0, 1, 2], "2026-10-15"),
+      battle("1b4b65c9", ["Claude Opus 5.5 Low", "GPT Sol 6.1 Low"], [0, 1], "2026-10-13"),
+    ]);
+    expect(featured.map(r => r.id)).toEqual(["02eb6795", "1b4b65c9", "2346f20b"]);
+  });
+  it("leaves unavailable selections absent and never substitutes another battle", () => {
+    const duel = battle("1b4b65c9", ["Opus 5.5", "Sol 6.1"], [0, 1], "2026-10-13");
+    const other = battle("11cfcefc", ["Fable 5.1", "Astra 6"], [0, 1], "2026-10-14");
+    expect(featuredBattles([duel, other, duel])).toEqual([duel]);
+    expect(featuredBattles([other])).toEqual([]);
+  });
 });

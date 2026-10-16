@@ -5,7 +5,7 @@
  */
 import { createMatch, type PlayerOrder } from "@aoa/engine";
 import { BOTS, type Bot } from "@aoa/sim";
-import { MAPS, rules as baseRules, type ChatMessage, type GameEvent, type Order, type Outcome, type PlayerView, type Ruleset } from "@aoa/shared";
+import { MAPS, rules as baseRules, type ChatMessage, type GameEvent, type Order, type Outcome, type PlayerView, type RoomMode, type Ruleset } from "@aoa/shared";
 import { Castellan } from "../src/core";
 import type { JournalEntry } from "../src/types";
 
@@ -23,7 +23,7 @@ export interface HeadlessOptions {
   everyTicks?: number;
   botEveryTicks?: number;
   chat?: boolean;
-  mode?: "teams" | "ffa";
+  mode?: RoomMode;
   ruleset?: Ruleset;
   onEntry?: (player: string, e: JournalEntry) => void;
 }

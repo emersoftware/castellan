@@ -325,10 +325,14 @@ function describe(ctx: QuickJSContext, err: QuickJSHandle): string {
 }
 
 const DIRS = new Set(["N", "NE", "E", "SE", "S", "SW", "W", "NW"]);
+const ORDER_CONTROLS: NonNullable<UnitRun["orderControl"]>[] = ["continue", "suspend", "cancel"];
+
+/** A unit's result as the VM reports it: every field is checked before use. */
+type Reported = { a?: { a?: ScriptAction["a"]; dir?: unknown; x?: unknown; y?: unknown; id?: unknown }; err?: unknown; log?: unknown; orderControl?: unknown } | null;
 
 /** The VM is untrusted: anything malformed becomes `hold`. */
 function parseRun(raw: string): UnitRun {
-  let r: any;
+  let r: Reported;
   try {
     r = JSON.parse(raw);
   } catch {
@@ -338,9 +342,10 @@ function parseRun(raw: string): UnitRun {
   const out: UnitRun = { action: { a: "hold" } };
   if (typeof r?.err === "string") out.error = r.err.slice(0, 300);
   if (typeof r?.log === "string") out.log = r.log.slice(0, 200);
-  if (["continue", "suspend", "cancel"].includes(r?.orderControl)) out.orderControl = r.orderControl;
-  const int = (n: unknown) => typeof n === "number" && Number.isInteger(n);
-  if (a.a === "move" && DIRS.has(a.dir)) out.action = { a: "move", dir: a.dir };
+  const control = ORDER_CONTROLS.find((c) => c === r?.orderControl);
+  if (control) out.orderControl = control;
+  const int = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n);
+  if (a.a === "move" && typeof a.dir === "string" && DIRS.has(a.dir)) out.action = { a: "move", dir: a.dir };
   else if (a.a === "moveTo" && int(a.x) && int(a.y)) out.action = { a: "moveTo", x: a.x, y: a.y };
   else if ((a.a === "attack" || a.a === "flee") && typeof a.id === "string") out.action = { a: a.a, id: a.id };
   else if (a.a === "gather" && (a.id === undefined || typeof a.id === "string")) out.action = { a: "gather", ...(a.id === undefined ? {} : { id: a.id }) };

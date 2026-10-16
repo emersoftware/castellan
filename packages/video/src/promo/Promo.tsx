@@ -2,7 +2,6 @@ import { Audio } from "@remotion/media";
 import { AbsoluteFill, interpolate, Series, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { Agents } from "../../../web/src/components/Agent";
 import { EventFeed } from "../../../web/src/components/Hud";
-import { displayKind } from "../../../web/src/render/names";
 import { Hud } from "../Hud";
 import { ScriptCard } from "../ScriptCard";
 import type { Timeline } from "../timeline";
@@ -11,8 +10,8 @@ import { Moment, REEL_H, REEL_W, SAFE, TITLE_CSS } from "./Moment";
 export type Timelines = Record<string, Timeline>;
 /** "Sol 6.1 Low (knights)", "Opus 5.5 Low A" → the model: effort, seat letter and experiment notes aside. */
 const short = (name: string) => name.replace(/ \(.*\)$/, "").replace(/ (Low|Medium|High)( [AB])?$/i, "");
-const names = (t: Timeline) => Object.fromEntries(t.players.map((p) => [p.id, short(p.name)]));
-const colors = (t: Timeline) => Object.fromEntries(t.players.map((p) => [p.id, p.side]));
+export const names = (t: Timeline) => Object.fromEntries(t.players.map((p) => [p.id, short(p.name)]));
+export const colors = (t: Timeline) => Object.fromEntries(t.players.map((p) => [p.id, p.side]));
 
 /** Minified one-liners as players send them, laid out a statement per line for reading. */
 function pretty(code: string) {
@@ -34,7 +33,7 @@ function pretty(code: string) {
 }
 
 /** The gist of a script for the screen: callbacks of sort/filter shown as "…", and only its first `lines`. */
-function excerpt(code: string, lines: number) {
+export function excerpt(code: string, lines: number) {
   let out = "";
   for (let i = 0; i < code.length; i++) {
     const m = /^\.(sort|filter)\(/.exec(code.slice(i));
@@ -75,7 +74,7 @@ const Shot: React.FC<{ id: (typeof SHOTS)[number]["id"]; tl: Timelines; seconds:
       { at: 0, title: "AI models play a real\u2011time strategy game.", subtitle: `No humans. This is all ${names(t).p1} can see.` }]} />;
   }
   if (id === "kite") {
-    const t = tl.eb3ebd01, s = t.scripts.find((x) => displayKind(x.kind) === "archer" && Math.round(x.ms / 1000) === 156)!;
+    const t = tl.eb3ebd01, s = t.scripts.find((x) => x.kind === "archer" && Math.round(x.ms / 1000) === 156)!;
     return <Moment clip="s2-kite.mp4" fromS={155} speed={2} seconds={seconds} match={<Match t={t} />} captions={[
       { at: 0, title: "They code their own units.", subtitle: `${names(t)[s.player]} tells its archers: never let a knight close in.` },
       { at: 3.2, title: "The archers kite.", subtitle: "Archers vs knights: step back, shoot, step back." }]}

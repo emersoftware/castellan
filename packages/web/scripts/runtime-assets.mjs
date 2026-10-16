@@ -1,3 +1,4 @@
+// @ts-check
 // Distribution copies only: source art/music remains untouched in public/ and assets/.
 import { readdir, readFile, writeFile, mkdir, copyFile, stat } from 'node:fs/promises';
 import { resolve, relative, dirname } from 'node:path';
@@ -5,9 +6,9 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import sharp from 'sharp';
 import { buildHeroSprites } from './hero-assets.mjs';
+import { CLIP_ART as kinds } from '../src/render/clips.ts';
 const root = resolve(import.meta.dirname, '../public');
 const out = resolve(root, 'game-assets');
-const kinds = ['archer','knight','king','worker','castle','tower','wall','wallpost','door','door-open','wall-door-left','wall-door-right','wall-door-both'];
 const inputs = ['sprites/manifest.json', ...kinds.map(k => `sprites/${k}/manifest.json`)];
 for (const path of [...inputs]) {
   const m = JSON.parse(await readFile(resolve(root,path),'utf8'));
@@ -19,6 +20,7 @@ for (const name of ['mineral.png','door.svg']) if (!inputs.includes(`sprites/${n
 for (const track of ['theme','battle']) inputs.push(`music/${track}.mp3`,`music/${track}.json`);
 const hash = createHash('sha256').update(await readFile(new URL(import.meta.url)));
 hash.update(await readFile(new URL('./hero-assets.mjs', import.meta.url)));
+hash.update(JSON.stringify(kinds));
 for (const path of inputs) hash.update(path).update(await readFile(resolve(root,path)));
 const signature = hash.digest('hex');
 let cached; try { cached=JSON.parse(await readFile(resolve(out,'build.json'),'utf8')); } catch {}

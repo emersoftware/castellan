@@ -1,3 +1,4 @@
+// @ts-check
 /** A closed command transport for the same eight game MCP tools. */
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
@@ -5,9 +6,9 @@ import { chmod, stat, writeFile, rm } from "node:fs/promises";
 import { createServer, createConnection } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { gameTools } from "../game.mjs";
+import { GAME_TOOLS } from "../../../packages/shared/src/http.ts";
 
-const names = new Set(gameTools);
+const names = new Set(GAME_TOOLS);
 const mcpBin = fileURLToPath(new URL("../../mcp/bin/aoa-mcp.mjs", import.meta.url));
 // Resolve the SDK through the package that owns it, including in frozen runs.
 const requireMcp = createRequire(new URL("../../mcp/package.json", import.meta.url));
@@ -47,7 +48,7 @@ function argumentsObject(args) {
 function commandRequest(argv) {
   const [name, json] = argv;
   if (argv.length !== 2 || !names.has(name)) {
-    throw new Error(`usage: aoa-tool <${gameTools.join("|")}> '<JSON object>'`);
+    throw new Error(`usage: aoa-tool <${GAME_TOOLS.join("|")}> '<JSON object>'`);
   }
   let args;
   try { args = JSON.parse(json); }
@@ -128,10 +129,10 @@ export async function startToolBridge({ socketPath, server, token }) {
   };
   try {
     const definitions = (await client.listTools()).tools.filter((tool) => names.has(tool.name));
-    await new Promise((resolve, reject) => {
+    await /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
       local.once("error", reject);
       local.listen(socketPath, () => { local.off("error", reject); listening = true; resolve(); });
-    });
+    }));
     await chmod(socketPath, 0o600);
     return { socketPath, definitions, close };
   } catch (error) {
@@ -170,7 +171,11 @@ export async function callTool(argv, { socketPath }) {
   });
 }
 
-/** Only mutation receipts have a known result header followed by a view. */
+/**
+ * Only mutation receipts have a known result header followed by a view.
+ * @param {[import("../../../packages/shared/src/http.ts").GameTool, string]} argv
+ * @param {string} text
+ */
 function mutationPreview(argv, text) {
   const [name, json] = argv;
   const args = JSON.parse(json); // callTool already validated this object.

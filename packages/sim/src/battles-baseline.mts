@@ -1,5 +1,6 @@
 // Baseline: every recorded battle under the current rules, as recorded and without walls.
 import { readFileSync } from "node:fs";
+import type { EntityKind } from "@aoa/shared";
 import { runBattle, type Snapshot } from "./battles";
 const battles: Snapshot[] = JSON.parse(readFileSync(process.argv[2] ?? "/tmp/aoa-opt/battles.json", "utf8"));
 const t0 = Date.now();
@@ -12,4 +13,5 @@ for (const b of battles) for (const variant of [{}, { open: true }]) {
   sum(destroyed, res.destroyedBy); sum(lost, res.lostKind); sum(engaged, res.engaged);
 }
 console.log(`${n} battles in ${((Date.now() - t0) / 1000).toFixed(1)} s, ${ticks} ticks`);
-for (const k of ["knight", "archer", "tower", "castle", "worker", "king", "wall"]) console.log(k.padEnd(8), "engaged", String(engaged[k] ?? 0).padStart(7), "destroyed", String(destroyed[k] ?? 0).padStart(7), "lost", String(lost[k] ?? 0).padStart(7), "trade", ((destroyed[k] ?? 0) / Math.max(1, lost[k] ?? 0)).toFixed(2));
+const shown: EntityKind[] = ["knight", "archer", "tower", "castle", "worker", "king", "wall"];
+for (const k of shown) console.log(k.padEnd(8), "engaged", String(engaged[k] ?? 0).padStart(7), "destroyed", String(destroyed[k] ?? 0).padStart(7), "lost", String(lost[k] ?? 0).padStart(7), "trade", ((destroyed[k] ?? 0) / Math.max(1, lost[k] ?? 0)).toFixed(2));

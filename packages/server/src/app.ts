@@ -11,10 +11,12 @@ import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { transform } from "esbuild";
-import { MAPS, declaredAgent, playerGuide, publishedApi, replayArchive, replayPlayerSummaries, routes, rules, viewToText, type ExperimentManifest, type Order, type ReplayFile, type ReplayPlayerSummary, type Ruleset } from "@aoa/shared";
+import { HISTORY_SECTIONS, MAPS, declaredAgent, isChatChannel, isRoomMode, playerGuide, publishedApi, replayArchive, replayPlayerSummaries, routes, rules, viewToText,
+  type ExperimentManifest, type HistorySection, type KindSpec, type Order, type ReplayFile, type ReplayPlayerSummary, type ResponseFormat, type RoomMode, type Ruleset } from "@aoa/shared";
 import { BOTS } from "@aoa/sim";
-import { Room } from "./room";
-import { SeriesStore, type HistorySection } from "./series";
+import { Room, type RoomOptions } from "./room";
+import { SeriesStore } from "./series";
+import { serverAnalytics } from "./analytics";
 import { agentConfiguration } from "./experiment";
 import { runOnceIsolated, validateScriptIsolated } from "./script-isolation";
 
@@ -25,7 +27,6 @@ export interface ServerOptions {
   ruleset?: Ruleset;
   tickRate?: number;
   prepMs?: number;
-  logger?: boolean;
 }
 
 export async function buildServer(opts: ServerOptions): Promise<FastifyInstance> {
@@ -43,9 +44,10 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
 
   // Player/spectator capabilities can be in WebSocket/query URLs. Never log
   // queries, headers or bodies, including when LOG=1 enables access logging.
-  const app = Fastify({ logger: opts.logger ? { serializers: { req: (req) => ({ method: req.method, url: req.url?.split("?")[0] }) } } : false, bodyLimit: 64 * 1024 });
+  const app = Fastify({ logger: process.env.LOG === "1" ? { serializers: { req: (req) => ({ method: req.method, url: req.url?.split("?")[0] }) } } : false, bodyLimit: 64 * 1024 });
   await app.register(cors, { origin: true });
   await app.register(websocket);
+  const analytics = serverAnalytics(app);
 
   const auth = (req: FastifyRequest, reply: FastifyReply) => {
     const h = req.headers.authorization ?? "";
@@ -57,7 +59,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     }
     try {
       const declared = declaredAgent(req.headers);
-      if (declared !== undefined) who.room.configureAgent(who.player, agentConfiguration(declared), true);
+      if (declared !== undefined) who.room.declareAgent(who.player, agentConfiguration(declared));
     } catch (error) { reply.code(400).send({ error: (error as Error).message }); return null; }
     who.room.touch(who.player);
     who.room.beginCall(who.player);
@@ -76,7 +78,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     }
   });
   const int = (v: unknown, fallback: number) => (v === undefined || v === "" || !Number.isFinite(Number(v)) ? fallback : Math.trunc(Number(v)));
-  const wantsText = (req: FastifyRequest) => (req.query as Record<string, string>)?.format === "text";
+  const wantsText = (req: FastifyRequest) => (req.query as { format?: ResponseFormat })?.format === "text";
 
   // ───────────────────────── lobby ─────────────────────────
 
@@ -106,14 +108,14 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   const createRoom = async (req: FastifyRequest, reply: FastifyReply) => {
     const body = (req.body ?? {}) as {
       players?: { name?: string; bot?: string; team?: number; agent?: unknown }[]; seed?: number; prepMs?: number; tickRate?: number; botLatencyMs?: number;
-      map?: string; sides?: "random" | "fixed"; chat?: boolean; mode?: "teams" | "ffa";
+      map?: string; sides?: "random" | "fixed"; chat?: boolean; mode?: RoomMode;
       stats?: { label: string; kinds: Record<string, Record<string, unknown>>; upgrades: Ruleset["upgrades"] };
     };
     // Experiments only (server started with AOA_CUSTOM_STATS=1): play today's engine with another version's stats.
     if (body.stats && process.env.AOA_CUSTOM_STATS !== "1") return reply.code(400).send({ error: "custom stats are disabled on this server" });
     const map = maps[body.map ?? "open"];
     if (!map) return reply.code(400).send({ error: `unknown map ${body.map}; available: ${Object.keys(maps).join(", ")}` });
-    if (body.mode !== undefined && body.mode !== "teams" && body.mode !== "ffa") return reply.code(400).send({ error: 'mode must be "teams" or "ffa"' });
+    if (body.mode !== undefined && !isRoomMode(body.mode)) return reply.code(400).send({ error: 'mode must be "teams" or "ffa"' });
     if (body.mode === "ffa" && body.players?.some((p) => p.team !== undefined)) return reply.code(400).send({ error: "ffa does not accept teams" });
     // Four-seat maps support 2v2 (default), four-player FFA, or an explicit
     // three-player FFA with one empty corner. Other lobby defaults stay full.
@@ -130,20 +132,26 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
       if (count(0) !== 2 || count(1) !== 2) return reply.code(400).send({ error: "4-seat maps are 2v2: give two players team 0 and two team 1 (or no teams: list order)" });
     }
     for (const p of players) if (p.bot && !BOTS[p.bot]) return reply.code(400).send({ error: `unknown bot ${p.bot}; available: ${Object.keys(BOTS).join(", ")}` });
-    const config = {
+    const config: Omit<RoomOptions, "onFinish"> = {
       ruleset: { ...(body.stats ? withStats(ruleset, body.stats) : ruleset), map },
       players,
       mode: body.mode,
-      sides: body.sides === "fixed" ? "fixed" as const : "random" as const,
+      sides: body.sides === "fixed" ? "fixed" : "random",
       chat: body.chat !== false,
       seed: int(body.seed, Math.floor(Math.random() * 2 ** 31)),
       tickRate: int(body.tickRate, opts.tickRate ?? 10),
       prepMs: int(body.prepMs, opts.prepMs ?? ruleset.prepMs),
       botLatencyMs: int(body.botLatencyMs, 3000),
     };
-    if (req.routeOptions.url === routes.series) return series.create(config);
+    const properties = { map: map.name, mode: body.mode ?? (seats === 4 ? "teams" : "duel"), player_count: players.length, rules_version: config.ruleset.version };
+    if (req.routeOptions.url === routes.series) {
+      const created = await series.create(config);
+      analytics.capture(req, "series_created", `series:${created.id}`, { ...properties, series_id: created.id });
+      return created;
+    }
     const room = await Room.create({ ...config, onFinish: (replay) => void saveReplay(opts.replayDir, replay) });
     register(room);
+    analytics.capture(req, "match_created", `room:${room.id}`, { ...properties, room_id: room.id });
     return {
       ...room.summary(),
       players: room.players.map((p) => ({ id: p.id, name: p.name, bot: p.bot?.name, side: p.side, team: p.team, token: p.bot ? undefined : p.token })),
@@ -178,8 +186,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const room = rooms.get((req.params as { id: string }).id);
     if (!room) return reply.code(404).send({ error: "no such room" });
     if (room.state !== "finished" && !spectatorAllowed(req, room)) return reply.code(403).send({ error: "live observation requires the host spectator link" });
-    const kinds = Object.entries(room.ruleset.kinds).filter(([, k]) => k.scriptable).map(([kind]) => kind);
-    return Object.fromEntries(room.players.map((p) => [p.id, Object.fromEntries(kinds.map((kind) => [kind, room.script(p.id, kind)]))]));
+    return Object.fromEntries(room.players.map((p) => [p.id, room.scripts(p.id)]));
   });
 
   const replayMetadata = new Map<string, { rulesVersion?: string; map?: string; players: ReplayPlayerSummary[] }>();
@@ -229,7 +236,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const h = req.headers.authorization ?? "";
     const room = tokens.get(h.startsWith("Bearer ") ? h.slice(7) : "")?.room;
     const r = room?.ruleset ?? ruleset;
-    const guide = playerGuide(r, { chat: room?.chat ?? true, teams: room?.teams, playerCount: room?.players.length, series: room?.seriesProgress?.(), tickRate: room?.tickRate ?? opts.tickRate ?? 10 });
+    const guide = playerGuide(r, { chat: room?.chat ?? true, teams: room?.teams, playerCount: room?.players.length, tickRate: room?.tickRate ?? opts.tickRate ?? 10 }, room?.seriesProgress?.());
     if (wantsText(req)) return guide;
     return { ruleset: r, guide };
   });
@@ -239,7 +246,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const h = req.headers.authorization ?? "";
     const who = tokens.get(h.startsWith("Bearer ") ? h.slice(7) : "");
     if (!who) return reply.code(401).send({ error: "missing or invalid token (Authorization: Bearer <token>)" });
-    return { room: who.room.id, player: who.player, status: who.room.state, tick: who.room.tick, alive: who.room.isAlive(who.player) };
+    return who.room.playerStatus(who.player);
   });
 
   app.get(routes.state, async (req, reply) => {
@@ -254,14 +261,14 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const who = auth(req, reply);
     if (!who) return;
     const q = req.query as Record<string, string>;
-    const section = q.section ?? "summary";
-    if (!["summary", "events", "chat", "scripts", "orders"].includes(section)) return reply.code(400).send({ error: "section must be summary, events, chat, scripts or orders" });
+    const section: HistorySection | undefined = q.section === undefined ? "summary" : HISTORY_SECTIONS.find((s) => s === q.section);
+    if (!section) return reply.code(400).send({ error: "section must be summary, events, chat, scripts or orders" });
     const game = q.game === undefined ? undefined : Number(q.game);
     const offset = q.offset === undefined ? 0 : Number(q.offset);
     const limit = q.limit === undefined ? 50 : Number(q.limit);
     if ((game !== undefined && (!Number.isInteger(game) || game < 1 || game > 3)) || !Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) return reply.code(400).send({ error: "game must be 1..3, offset >= 0, limit 1..100 (integers)" });
     try {
-      const history = await series.history(who.room.id, who.player, game, section as HistorySection, offset, limit);
+      const history = await series.history(who.room.id, who.player, game, section, offset, limit);
       return wantsText(req) ? JSON.stringify(history, null, 2) : history;
     } catch (error) {
       if (error instanceof Error && error.message.startsWith("only completed previous")) return reply.code(403).send({ error: error.message });
@@ -299,7 +306,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const view = who.room.view(who.player);
     const out = await runOnceIsolated(code, { view, rules: who.room.ruleset ?? ruleset });
     if (out.operationalFailure && out.error) who.room.recordOperationalFailure(who.player, out.error);
-    const allowed = new Set(["move", "attack", "gather", "build", "train", "upgrade", "stop"]);
+    const allowed = new Set<Order["type"]>(["move", "attack", "gather", "build", "train", "upgrade", "stop"]);
     const orders = out.orders.filter((o): o is Order => !!o && typeof o === "object" && allowed.has((o as Order).type));
     const rejected = out.orders.length - orders.length;
     const { results, tick } = orders.length ? await who.room.act(who.player, orders) : { results: [], tick: who.room.tick };
@@ -328,7 +335,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     if (!who) return;
     const { text, channel, to } = (req.body as { text?: unknown; channel?: unknown; to?: unknown } | undefined) ?? {};
     if (typeof text !== "string") return reply.code(400).send({ error: 'body must be {"text":"..."} (max 200 chars)' });
-    if (channel !== undefined && channel !== "all" && channel !== "team" && channel !== "private") return reply.code(400).send({ error: 'channel must be "all", "team" or "private"' });
+    if (channel !== undefined && !isChatChannel(channel)) return reply.code(400).send({ error: 'channel must be "all", "team" or "private"' });
     if (to !== undefined && (typeof to !== "string" || !to.length || to.length >= 64)) return reply.code(400).send({ error: "to must be a player id" });
     const { results } = await who.room.act(who.player, [{ type: "chat", text, channel, to }]);
     const r = results[0];
@@ -338,8 +345,8 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   app.get(`${routes.scripts}/:kind`, async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
-    const s = who.room.script(who.player, (req.params as { kind: string }).kind);
-    return s ?? reply.code(404).send({ error: "that kind is not scriptable" });
+    const kind = (req.params as { kind: string }).kind, scripts = who.room.scripts(who.player);
+    return (Object.hasOwn(scripts, kind) && scripts[kind]) || reply.code(404).send({ error: "that kind is not scriptable" });
   });
 
   app.put(`${routes.scripts}/:kind`, async (req, reply) => {
@@ -366,8 +373,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     if (!prepared.ok) return reply.code(400).send({ ok: false, error: prepared.error });
     const result = who.room.testScript(who.player, kind, prepared.code!);
     if (!result.ok) reply.code(400);
-    return { ...result, freshMemory: true, actionsApplied: false,
-      note: "Probe of owned units in the current visible context with fresh memory; proposed actions only. Does not advance the game or install the script." };
+    return result;
   });
 
   app.get(routes.wait, async (req, reply) => {
@@ -459,7 +465,7 @@ async function readIndex(dir: string): Promise<ReplayIndexEntry[]> {
 }
 
 /** Numbers that describe a kind; everything else (capabilities, symbols) stays as today. */
-const STATS = ["hp", "def", "atk", "range", "minRange", "vision", "moveMs", "attackMs", "cost", "aimMs", "trainMs", "buildMs", "requires"];
+const STATS: (keyof KindSpec)[] = ["hp", "def", "atk", "range", "minRange", "vision", "moveMs", "attackMs", "cost", "aimMs", "trainMs", "buildMs", "requires"];
 
 /** Today's rules with another version's unit stats and research (for experiments). */
 function withStats(r: Ruleset, stats: { label: string; kinds: Record<string, Record<string, unknown>>; upgrades: Ruleset["upgrades"] }): Ruleset {

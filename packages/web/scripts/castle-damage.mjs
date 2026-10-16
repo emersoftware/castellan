@@ -1,7 +1,7 @@
 /** Export the two reviewed damage states, HF fire loops, collapse clips and emitters. */
 import sharp from 'sharp';
 import { readFile, writeFile, mkdir, access } from 'node:fs/promises';
-import { ff, probeDuration } from './ffmpeg.mjs';
+import { ff, probe } from './ffmpeg.mjs';
 
 const root = new URL('../../../', import.meta.url).pathname;
 const dir = `${root}assets/animations/buildings/castle/damage-stages`;
@@ -52,13 +52,20 @@ function groups(pixels, inputWidth=width, inputHeight=height) {
       radius:Math.max(.8,(g.maxX-g.minX)*(reference?1:w/width)*size/544/3*.35)};
   });
 }
-function key(data, fireOnly=false) {
+// Alpha from the magenta screen behind the generated frames.
+const screen=(r,g,b)=>{const chroma=Math.min(r,b)-g;return chroma>45?0:chroma>15?Math.round(255*(45-chroma)/30):255;};
+// Material stays grayscale; flames are grayscale heat, tinted by the fire key in game.
+function keyMaterial(data) {
   for(let i=0;i<data.length;i+=4) {
-    const [r,g,b]=[data[i],data[i+1],data[i+2]],chroma=Math.min(r,b)-g;
-    let a=chroma>45?0:chroma>15?Math.round(255*(45-chroma)/30):255;
-    if(fireOnly) a = a && warm(r,g,b) ? 255 : 0;
-    // Material stays grayscale; flames are grayscale heat, tinted by the fire key in game.
-    data[i]=data[i+1]=data[i+2]=fireOnly?Math.max(r,g,b):g;data[i+3]=a;
+    const [r,g,b]=[data[i],data[i+1],data[i+2]];
+    data[i]=data[i+1]=data[i+2]=g;data[i+3]=screen(r,g,b);
+  }
+  return data;
+}
+function keyFire(data) {
+  for(let i=0;i<data.length;i+=4) {
+    const [r,g,b]=[data[i],data[i+1],data[i+2]];
+    data[i+3]=screen(r,g,b)&&warm(r,g,b)?255:0;data[i]=data[i+1]=data[i+2]=Math.max(r,g,b);
   }
   return data;
 }
@@ -67,12 +74,12 @@ async function scaled(data) {
   for(let i=3;i<pixels.length;i+=4) if(pixels[i]<=8)pixels[i]=0;
   return sharp(pixels,{raw:{width:size,height:size,channels:4}}).png().toBuffer();
 }
-async function atlas(name,cells,loop,masks=true) {
+async function atlas(name,cells,loop) {
   const columns=Math.min(7,cells.length),rows=Math.ceil(cells.length/columns);
   await sharp({create:{width:size*columns,height:size*rows,channels:4,background:'#00000000'}})
     .composite(cells.map((input,i)=>({input,left:i%columns*size,top:Math.floor(i/columns)*size}))).png().toFile(`${out}/${name}.png`);
   return {image:`${name}.png`,fps:12,frameCount:cells.length,columns,frameWidth:size,frameHeight:size,storedScale:3,
-    anchorX:layout.anchorX,anchorY:layout.anchorY,loop,rows:['se'],masks};
+    anchorX:layout.anchorX,anchorY:layout.anchorY,loop,rows:['se']};
 }
 
 await mkdir(out,{recursive:true});
@@ -137,17 +144,17 @@ for(const stage of ['healthy',25,50]) {
   if(stage!=='healthy')manifest[`damaged${stage}`]=await atlas(`castle-damaged-${stage}`,[await scaled(material)],false);
   for(const action of (stage==='healthy'?['death']:['fire','death'])) {
     const folder=`${dir}/${action}-${stage}`;await mkdir(`${folder}/frames`,{recursive:true});
-    const duration=probeDuration(`${folder}/generated.mp4`);
+    const {duration}=probe(`${folder}/generated.mp4`);
     // Inward collapses start at the battlements. Preserve the whole top-to-bottom motion.
     const trim=0;
     ff('-ss',String(trim),'-i',`${folder}/generated.mp4`,'-vf',`fps=${28/(duration-trim)},scale=544:544`,'-frames:v','28',`${folder}/frames/%02d.png`);
     const cells=[],fireCells=[],tracks=[];
     for(let f=1;f<=28;f++) {
       const raw=await sharp(`${folder}/frames/${String(f).padStart(2,'0')}.png`).ensureAlpha().raw().toBuffer();
-      const frame=key(Buffer.from(raw),action==='fire');
+      const frame=(action==='fire'?keyFire:keyMaterial)(Buffer.from(raw));
       if(action==='death') {
         tracks.push(groups(raw,544,544));
-        fireCells.push(await scaled(key(Buffer.from(raw),true)));
+        fireCells.push(await scaled(keyFire(Buffer.from(raw))));
         for(let i=0;i<frame.length;i+=4)if(warm(raw[i],raw[i+1],raw[i+2]))frame[i+3]=0;
       }
       if(action==='fire') {
@@ -162,15 +169,15 @@ for(const stage of ['healthy',25,50]) {
     if(action==='death') {
       cells[0]=await scaled(material);
       cells[26]=cells[27];
-      fireCells[0]=await scaled(key(await sharp(`${folder}/reference.png`).ensureAlpha().raw().toBuffer(),true));
+      fireCells[0]=await scaled(keyFire(await sharp(`${folder}/reference.png`).ensureAlpha().raw().toBuffer()));
       fireCells[26]=fireCells[27];tracks[0]=fires;tracks[26]=tracks[27];
       if(stage!=='healthy') {
-        manifest[`deathFire${stage}`]=await atlas(`castle-death-fire-${stage}`,fireCells,false,false);
+        manifest[`deathFire${stage}`]=await atlas(`castle-death-fire-${stage}`,fireCells,false);
         emitters.collapses[String(stage)]=tracks;
       }
     }
     const suffix=stage==='healthy'?'':String(stage);
-    manifest[`${action}${suffix}`]=await atlas(stage==='healthy'?'castle-death':`castle-${action}-${stage}`,cells,action==='fire',false);
+    manifest[`${action}${suffix}`]=await atlas(stage==='healthy'?'castle-death':`castle-${action}-${stage}`,cells,action==='fire');
     await mkdir(`${folder}/sprite-frames`,{recursive:true});
     for(let f=0;f<cells.length;f++)await writeFile(`${folder}/sprite-frames/${String(f).padStart(2,'0')}.png`,cells[f]);
     ff('-framerate','12','-i',`${folder}/sprite-frames/%02d.png`,'-filter_complex','split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse=alpha_threshold=64',`${folder}/sprite-preview.gif`);

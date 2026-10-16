@@ -1,7 +1,6 @@
-import { displayKind, displayGameText } from "../render/names";
 import { useSyncExternalStore, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { ChatMessage, DepositView, EntityView, GameEvent, PlayerStats, SpectatorView } from "@aoa/shared";
-import { mineralBalance, NEUTRAL_OWNER } from "@aoa/shared";
+import type { ChatChannel, ChatMessage, DepositView, EntityView, GameEvent, Outcome, PlayerStats, RecordedKind, SpectatorView } from "@aoa/shared";
+import { eventKind, eventOwner, NEUTRAL_OWNER, scriptOrigin } from "@aoa/shared";
 import type { HoverInfo } from "../render/renderer";
 import { fmtTime, winnersOf } from "../api";
 import { Agent, Agents, agentText } from "./Agent";
@@ -66,15 +65,23 @@ function ViewButton({ on, label, onClick }: { on: boolean; label: string; onClic
 
 /** Always there, one line tall, so the list keeps its height when the first upgrade lands. */
 function UpgradesRow({ upgrades = {}, cols }: { upgrades?: Record<string, number>; cols: number }) {
-  const text = Object.entries(upgrades).map(([id, level]) => `${displayGameText(id).replaceAll("_", " ")} L${level}`).join(" · ");
+  const text = Object.entries(upgrades).map(([id, level]) => `${id.replaceAll("_", " ")} L${level}`).join(" · ");
   return <tr className="timing upgrades"><td colSpan={cols} title={text || undefined}>{text || "\u00a0"}</td></tr>;
 }
 
+/** Why a player's scripts or connector are not running, when they aren't. */
+function playerNotice({ scriptRuntime, agentActivity }: PlayerStats): string | null {
+  if (scriptRuntime) return `Scripts stopped at tick ${scriptRuntime.tick}: ${scriptRuntime.message}`;
+  switch (agentActivity?.state) {
+    case "provider_wait": return `Provider retry pending${agentActivity.retryAt ? ` until ${agentActivity.retryAt}` : ""}`;
+    case "connector_retry": return "Connector retry pending";
+    case "stopped": return "Connector stopped";
+    default: return null;
+  }
+}
+
 function PlayerRows({ p, cols, name, color, selected, onSelect }: { cols: number; selected?: boolean; onSelect?: () => void; p: PlayerStats; name: string; color: number }) {
-  const notice = p.scriptRuntime ? `Scripts stopped at tick ${p.scriptRuntime.tick}: ${p.scriptRuntime.message}`
-    : p.agentActivity?.state === "provider_wait" ? `Provider retry pending${p.agentActivity.retryAt ? ` until ${p.agentActivity.retryAt}` : ""}`
-    : p.agentActivity?.state === "connector_retry" ? "Connector retry pending"
-    : p.agentActivity?.state === "stopped" ? "Connector stopped" : null;
+  const notice = playerNotice(p);
   return (
     <>
       <tr className={p.alive ? "" : "dead"}>
@@ -85,7 +92,7 @@ function PlayerRows({ p, cols, name, color, selected, onSelect }: { cols: number
             <span className="pid">({p.id})</span>
           </div>
         </td>
-        <td>{mineralBalance(p) ?? "—"}</td>
+        <td>{p.mineral ?? "—"}</td>
         <td>{p.pop ?? "—"}/{p.popCap}{p.queuedPop ? ` (+${p.queuedPop})` : ""}</td>
         <td>{p.kills ?? "—"}</td>
         <td>{p.score ?? "—"}</td>
@@ -113,25 +120,29 @@ function Who({ id, names, colors }: { id: string; names: Names; colors: Colors }
   return <Agent id={id} name={names[id]} color={colors[id]} />;
 }
 
+/** Units are trained; the rest is built. */
+const TRAINED = new Set<RecordedKind>(["knight", "archer", "worker"]);
+
 function EventText({ e, names, colors }: { e: GameEvent; names: Names; colors: Colors }) {
-  const who = "owner" in e ? <Who id={e.owner} names={names} colors={colors} /> : null;
-  const kind = "kind" in e ? displayKind(e.kind) : "";
+  const owner = eventOwner(e);
+  const who = owner !== undefined ? <Who id={owner} names={names} colors={colors} /> : null;
+  const kind = eventKind(e) ?? "";
   const namedKind = `${/^[aeiou]/i.test(kind) ? "an" : "a"} ${kind}`;
   switch (e.type) {
     case "death": return e.owner === NEUTRAL_OWNER ? <>Neutral wall destroyed</> : <>{who} lost {namedKind}</>;
-    case "spawn": return <>{who} {["knight", "archer", "worker"].includes(kind) ? "trained" : "built"} {namedKind}</>;
+    case "spawn": return <>{who} {TRAINED.has(e.kind) ? "trained" : "built"} {namedKind}</>;
     case "chat": return <ChatText from={e.owner} text={e.text} channel={e.channel} to={e.to} names={names} colors={colors} />;
     case "eliminated": return <>{who} is out</>;
     case "match_end": return <b>The battle is over</b>;
     case "construction_started": return <>{who} started building {namedKind}</>;
-    case "research_started": return <>{who} researching {displayGameText(e.upgrade).replaceAll("_", " ")} L{e.level}</>;
-    case "upgrade_completed": return <>{who} completed {displayGameText(e.upgrade).replaceAll("_", " ")} L{e.level}</>;
+    case "research_started": return <>{who} researching {e.upgrade.replaceAll("_", " ")} L{e.level}</>;
+    case "upgrade_completed": return <>{who} completed {e.upgrade.replaceAll("_", " ")} L{e.level}</>;
     default: return null;
   }
 }
 
 /** Public chat is the default and carries no tag; team and private say so. */
-function ChatText({ from, text, channel, to, names, colors }: { from: string; text: string; channel?: string; to?: string; names: Names; colors: Colors }) {
+function ChatText({ from, text, channel, to, names, colors }: { from: string; text: string; channel?: ChatChannel; to?: string; names: Names; colors: Colors }) {
   return <>
     <Who id={from} names={names} colors={colors} />
     {channel === "private" ? <span className="channel"> [private <Arrow dir="right" /> {to ? <Agent id={to} name={names[to]} color={colors[to]} /> : "?"}]</span> : channel === "team" && <span className="channel"> [team]</span>}: <q><Mentions text={text} names={names} colors={colors} /></q>
@@ -268,11 +279,11 @@ export function Tooltip({ hover, names = {}, colors = {} }: { hover: HoverInfo |
       <span className="muted">({hover.x}, {hover.y})</span>{" "}
       {e && (
         <>
-          <b>{displayKind(e.kind)}</b> {e.id} · <Agent id={e.owner} name={names[e.owner]} color={colors[e.owner]} /> · {e.hp}/{e.maxHp} hp{e.order ? ` · ${displayGameText(e.order)}${e.orderSuspended ? " (suspended)" : ""}` : ""}
+          <b>{e.kind}</b> {e.id} · <Agent id={e.owner} name={names[e.owner]} color={colors[e.owner]} /> · {e.hp}/{e.maxHp} hp{e.order ? ` · ${e.order}${e.orderSuspended ? " (suspended)" : ""}` : ""}
           {e.vital ? " · VITAL" : ""}
-          {e.construction && ` · building ${displayKind(e.construction.kind)} (${e.construction.x},${e.construction.y})`}
+          {e.construction && ` · building ${e.construction.kind} (${e.construction.x},${e.construction.y})`}
           {e.stats && ` · atk ${e.stats.atk} · def ${e.stats.def} · range ${e.stats.range} · attack ${e.stats.attackMs}ms · move ${e.stats.moveMs}ms`}
-          {e.doing ? ` · ${displayGameText(e.doing)}` : e.heading ? ` · ${e.heading}` : ""}
+          {e.doing ? ` · ${e.doing}` : e.heading ? ` · ${e.heading}` : ""}
         </>
       )}
       {d && (
@@ -302,24 +313,24 @@ export function UnitPanel({ entity, last, script, tickMs, names = {}, colors = {
     e.ruin && "ruin",
     e.stats && `atk ${e.stats.atk} · def ${e.stats.def} · range ${e.stats.range} · attack ${e.stats.attackMs}ms${e.stats.moveMs ? ` · move ${e.stats.moveMs}ms` : ""}`,
     e.carrying ? `carrying ${e.carrying}` : "",
-    e.construction && `building ${displayKind(e.construction.kind)} (${e.construction.x},${e.construction.y})`,
-    e.training?.length ? `training ${e.training.map((t) => displayKind(t.kind)).join(", ")}` : "",
+    e.construction && `building ${e.construction.kind} (${e.construction.x},${e.construction.y})`,
+    e.training?.length ? `training ${e.training.map((t) => t.kind).join(", ")}` : "",
   ].filter(Boolean);
   return (
     <div className="unit-panel">
       <button className="unit-close" onClick={onClose} aria-label="close" title="close (Esc)">×</button>
       <div className="unit-head">
-        <b>{displayKind(e.kind)}</b> {e.id} · <Agent id={e.owner} name={names[e.owner]} color={colors[e.owner]} /> · ({e.x}, {e.y})
+        <b>{e.kind}</b> {e.id} · <Agent id={e.owner} name={names[e.owner]} color={colors[e.owner]} /> · ({e.x}, {e.y})
         <span className="unit-hp"><span className={`unit-hp-bar${e.owner === NEUTRAL_OWNER ? "" : ` bg${colors[e.owner] ?? 0}`}`} style={{ width: `${pct}%`, ...(e.owner === NEUTRAL_OWNER ? { background: "var(--grey)" } : {}) }} /></span>{e.hp}/{e.maxHp} hp
       </div>
       {!entity && <div className="muted">not visible from this view</div>}
-      {entity && <div>{e.ruin ? "Inert, destructible ruin" : e.order ? <>order: <b>{displayGameText(e.order)}</b>{e.orderSuspended ? " (suspended by script)" : ""}</> : "running its script"}{e.doing ? ` · now ${displayGameText(e.doing)}` : e.heading ? ` · ${e.heading}` : ""}</div>}
+      {entity && <div>{e.ruin ? "Inert, destructible ruin" : e.order ? <>order: <b>{e.order}</b>{e.orderSuspended ? " (suspended by script)" : ""}</> : "running its script"}{e.doing ? ` · now ${e.doing}` : e.heading ? ` · ${e.heading}` : ""}</div>}
       {details.length > 0 && <div className="muted">{details.join(" · ")}</div>}
       {e.ruin ? null : script === undefined ? <div className="muted">loading script…</div> : script === null ? <div className="muted">no script</div> : (
         <div className="unit-script">
           <div className="muted">
-            {displayKind(e.kind)} script of <Agent id={e.owner} name={names[e.owner]} color={colors[e.owner]} />: {script.custom ? `custom${script.sinceTick !== undefined ? `, loaded at ${fmtTime(script.sinceTick * tickMs)}` : ""}` : "default"}
-            {e.order ? reactiveOrders ? " · runs during orders" : " · paused while the order runs" : ""}
+            {e.kind} script of <Agent id={e.owner} name={names[e.owner]} color={colors[e.owner]} />: {`${scriptOrigin(script)}${script.custom && script.sinceTick !== undefined ? `, loaded at ${fmtTime(script.sinceTick * tickMs)}` : ""}`}
+            {!e.order ? "" : reactiveOrders ? " · runs during orders" : " · paused while the order runs"}
           </div>
           <pre><code>{highlightJs(script.code.trim())}</code></pre>
         </div>
@@ -339,6 +350,13 @@ export function DepositPanel({ deposit, onClose }: { deposit: DepositView; onClo
   );
 }
 
+function outcomeReason(o: Outcome): string {
+  if (o.reason === "vital_lost") return o.allDefeated ? "no surviving side: everyone loses" : "a vital unit has fallen";
+  if (o.reason !== "timeout") return "forfeit";
+  if (winnersOf(o).length) return "time ran out: victory on score under this replay's rules";
+  return o.allDefeated ? "time limit reached: everyone loses" : "time limit reached: draw";
+}
+
 /** The result over the map; `dismissible` lets the viewer fold it away to look at the field. */
 export function OutcomeBanner({ view, names, colors = {}, dismissible, children }: { view: SpectatorView; names: Record<string, string>; colors?: Colors; dismissible?: boolean; children?: ReactNode }) {
   const [open, setOpen] = useState(true);
@@ -346,7 +364,7 @@ export function OutcomeBanner({ view, names, colors = {}, dismissible, children 
   if (!o) return null;
   const winners = winnersOf(o);
   const title = winners.length ? <><Agents ids={winners} names={names} colors={colors} /> {winners.length > 1 ? "are" : "is"} victorious</> : o.allDefeated ? "All players defeated" : "Stalemate";
-  const reason = o.reason === "vital_lost" ? (o.allDefeated ? "no surviving side: everyone loses" : "a vital unit has fallen") : o.reason === "timeout" ? (winners.length ? "time ran out: victory on score under this replay's rules" : o.allDefeated ? "time limit reached: everyone loses" : "time limit reached: draw") : "forfeit";
+  const reason = outcomeReason(o);
   if (!open) return <button className="banner-mini" onClick={() => setOpen(true)} title="show the result">{title}</button>;
   return (
     <div className="banner">

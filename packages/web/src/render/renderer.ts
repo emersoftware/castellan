@@ -6,23 +6,20 @@
  * corpses on the field.
  */
 import { Application, Container, Graphics, RenderTexture, Sprite, Text, type Filter } from "pixi.js";
-import type { DepositView, EntityView, GameEvent, ProjectileView, Ruleset, SpectatorView } from "@aoa/shared";
+import type { DepositView, EntityView, GameEvent, KindSpec, ProjectileView, Ruleset, SoundName, SpectatorView } from "@aoa/shared";
 import type { CameraBox } from "../showcaseCamera";
 import { TILE_H, TILE_W, loadSprites, screenDir, terrainTexture, type SpriteArt, type SpriteSet } from "./sprites";
-import { createXrayFilter, depthTint, occluderTint } from "./xray";
+import type { ClipArt } from "./clips";
+import { createOutlineFilter, createXrayFilter, depthTint, occluderTint } from "./xray";
 import { createDitherFilter } from "./dither";
 import { createDissolveFilter } from "./dissolve";
 import { RAMPS, PLAYER_RAMPS, dim } from "./palette";
 import { depositSprite, initialDepositAmount } from "./deposits";
-import { type ArcherShot } from "./archerAnimation";
-import { displayKind } from "./names";
 
-import { barrierAxes, NEUTRAL_OWNER } from "@aoa/shared";
+import { barrierAxes, currentKind, NEUTRAL_OWNER } from "@aoa/shared";
 
-import { animatedUnit, unitAnimation, recoveryMs, hasUnitAnimation, unitDeathAnimation, unitMiningAnimation, miningStrikes } from "./unitAnimation";
-import { buildingCollapse } from "./buildingCollapse";
+import { animatedUnit, buildingLook, fall, strikeMs, unitLook, type FireLook, type Strike } from "./look";
 import { corpseFade } from "./corpseFade";
-import { castleDamageStage, castleMaterial, castleFire, castleEmitters, castleCollapseFire, fireParticles, type FireEmitter } from "./castleDamage";
 
 export interface HoverInfo {
   x: number;
@@ -33,9 +30,10 @@ export interface HoverInfo {
   deposit?: DepositView;
 }
 
-export type SoundName = "sword" | "hit" | "arrow" | "tower" | "pick" | "footstep" | "death" | "collapse" | "spawn" | "build" | "horn" | "fanfare" | "chat";
 /** Plays a named sound effect, panned -1 (left) … 1 (right). */
 export type SoundSink = (name: SoundName, pan: number, volume: number) => void;
+/** Only units on screen are heard walking and mining. */
+const ON_SCREEN_ONLY = new Set<SoundName>(["footstep", "pick"]);
 
 interface Drawn {
   view: EntityView;
@@ -48,7 +46,7 @@ interface Drawn {
   to: { x: number; y: number };
   /** Screen direction 0..7 (S, SE, E, NE, N, NW, W, SW) the unit faces. */
   dir: number;
-  shot?: ArcherShot;
+  shot?: Strike;
   /** Simulation time of the next possible tile step; unchanged ticks are not idle. */
   walkUntil?: number;
   step?: { at: number; ms: number };
@@ -61,11 +59,11 @@ interface Drawn {
   flashUntil: number;
   lungeUntil: number;
   lunge: { x: number; y: number };
-  /** Half-tile footfalls walked so far, and the pick's swing phase: sound cues. */
+  /** Half-tile footfalls walked so far, and whether the pick is in the rock: sound cues. */
   footfalls?: number;
-  swing?: number;
+  pickDown?: boolean;
   /** Preserve the visible barrier shape and axis when it is destroyed. */
-  barrierArt?: string;
+  barrierArt?: ClipArt;
   flame?: Sprite;
   sparks?: Graphics;
   /** One mask clips masonry, flame and particles together at a fixed ground edge. */
@@ -101,6 +99,15 @@ function smoothDamp(from: number, to: number, velocity: number, smoothS: number,
 const sway = (t: number, phase: number) =>
   (Math.sin(t * 0.69 + phase) + 0.6 * Math.sin(t * 1.43 + phase * 2.1) + 0.3 * Math.sin(t * 2.97 + phase * 3.7)) / 1.9;
 const iso = (x: number, y: number) => ({ sx: (x - y) * (TILE_W / 2), sy: (x + y) * (TILE_H / 2) });
+/** The piece a barrier shows: a door open or shut, a wall running along one axis (cut for doors beside it), or a post. */
+function barrierPiece(view: EntityView, axes: { alongX: boolean; alongY: boolean }, doorAt: (sign: number) => boolean): ClipArt {
+  if (view.kind === "door") return view.open ? "door-open" : "door";
+  if (axes.alongX === axes.alongY) return "wallpost";
+  const left = doorAt(1), right = doorAt(-1);
+  if (left && right) return "wall-door-both";
+  if (left) return "wall-door-left";
+  return right ? "wall-door-right" : "wall";
+}
 /** Grid steps between two points, Chebyshev like the engine: a diagonal step is one step, so feet keep the same cadence. */
 const gridSteps = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
@@ -142,6 +149,7 @@ export class GameRenderer {
   private pausedAt?: number;
   private pauseOffset = 0;
   private zoomLevel = 1;
+  private fitted = false;
   /** Hero camera: tiles to frame (`null` the whole map); undefined when the view is the viewer's. */
   private focusBox?: CameraBox | null;
   /** Hero camera: the canvas region (CSS px) where shots are framed; the rest of the canvas shows what lies around them. */
@@ -217,7 +225,7 @@ export class GameRenderer {
 
     this.buildGround();
     this.fit();
-    this.resize = new ResizeObserver(() => this.fit(this.fitOnResize));
+    this.resize = new ResizeObserver(() => this.fit());
     this.resize.observe(this.host);
     if (this.interactive) this.bindInput();
     this.app.ticker.add(() => this.animate());
@@ -495,7 +503,7 @@ export class GameRenderer {
           d.walkUntil = undefined;
           d.step = undefined;
           d.walkDistance = 0;
-          d.swing = undefined;
+          d.pickDown = undefined;
           d.from = d.to = { x: e.x, y: e.y };
         }
         else if (e.x !== d.to.x || e.y !== d.to.y) {
@@ -618,8 +626,10 @@ export class GameRenderer {
     const g = new Sprite(texture);
     g.position.set(-originX, -originY);
     this.ground.addChild(g);
-    const terrainWall = this.ruleset.map.wallStyle === "wall";
-    const { art } = this.sprites(terrainWall ? "wall" : "rock");
+    // Terrain walls take the art of their style.
+    const style = this.ruleset.map.wallStyle ?? "rock";
+    const terrainWall = style === "wall";
+    const { art } = this.sprites(style);
     for (const w of this.ruleset.map.walls ?? []) {
       const { sx, sy } = iso(w.x, w.y);
       const r = new Sprite(art.texture);
@@ -640,14 +650,14 @@ export class GameRenderer {
     return s;
   }
 
-  /** Mirrors an occluder into the depth pass, tinted with its depth code. */
-  private syncDepth(src: Sprite, depth: Sprite, colour?: number, building = false) {
+  /** Mirrors an occluder into the depth pass, tinted with its depth code, its owner's colour and its kind. */
+  private syncDepth(src: Sprite, depth: Sprite, colour?: number, kind?: KindSpec) {
     depth.position.copyFrom(src.position);
     depth.scale.copyFrom(src.scale);
     depth.anchor.copyFrom(src.anchor);
     depth.rotation = src.rotation;
     depth.zIndex = src.zIndex;
-    depth.tint = occluderTint(src.zIndex, colour, building);
+    depth.tint = occluderTint(src.zIndex, colour, kind);
     depth.visible = src.visible && src.alpha > 0.5;
   }
 
@@ -659,13 +669,9 @@ export class GameRenderer {
     const at = new Map<string, Drawn>();
     for (const d of this.drawn.values()) if (d.view.kind === "wall" || d.view.kind === "door") at.set(`${d.to.x},${d.to.y},${d.view.owner}`, d);
     for (const d of at.values()) {
-      const { alongX, alongY } = barrierAxes(d.to.x, d.to.y, (x, y) => at.has(`${x},${y},${d.view.owner}`));
-      let kind = d.view.kind === "door" ? (d.view.open ? "door-open" : "door") : alongX !== alongY ? "wall" : "wallpost";
-      if (kind === "wall") {
-        const doorAt = (sign: number) => at.get(`${d.to.x + (alongX ? sign : 0)},${d.to.y + (alongY ? sign : 0)},${d.view.owner}`)?.view.kind === "door";
-        const left = doorAt(1), right = doorAt(-1);
-        if (left || right) kind = `wall-door-${left && right ? "both" : left ? "left" : "right"}`;
-      }
+      const axes = barrierAxes(d.to.x, d.to.y, (x, y) => at.has(`${x},${y},${d.view.owner}`));
+      const { alongX, alongY } = axes;
+      const kind = barrierPiece(d.view, axes, (sign) => at.get(`${d.to.x + (alongX ? sign : 0)},${d.to.y + (alongY ? sign : 0)},${d.view.owner}`)?.view.kind === "door");
       const { art } = this.sprites(kind);
       d.barrierArt = kind;
       d.sprite.texture = art.texture;
@@ -675,8 +681,10 @@ export class GameRenderer {
     }
   }
 
-  /** Canvas at CSS size (the dither dot is one CSS pixel); zoom fits the map on first layout. */
-  private fit(recenter = true) {
+  /** Canvas at CSS size (the dither dot is one CSS pixel); zoom fits the map on first layout, and on each with `fitOnResize`. */
+  private fit() {
+    const recenter = this.fitOnResize || !this.fitted;
+    this.fitted = true;
     const w = Math.max(64, this.host.clientWidth);
     const h = Math.max(64, this.host.clientHeight);
     this.app.renderer.resize(w, h);
@@ -692,7 +700,7 @@ export class GameRenderer {
     if (!this.xrayFilter) {
       this.xrayFilter = createXrayFilter(this.depthRT);
       this.xrayLayer.filters = [this.xrayFilter];
-      this.outlineFilter = createXrayFilter(this.depthRT, true);
+      this.outlineFilter = createOutlineFilter(this.depthRT);
       this.outlineLayer.filters = [this.outlineFilter];
     } else {
       this.xrayFilter.resources.uDepth = this.depthRT.source;
@@ -744,7 +752,7 @@ export class GameRenderer {
         this.outlineLayer.addChild(outline);
       }
     }
-    const r = spec?.building ? (displayKind(e.kind) === "castle" ? 22 : 12) : 6;
+    const r = !spec?.building ? 6 : currentKind(e.kind) === "castle" ? 22 : 12;
     const shadow = new Graphics().ellipse(0, 0, r, r / 2.6).fill({ color: 0x000000, alpha: 0.4 });
     this.shadows.addChild(shadow);
     this.objects.addChild(sprite);
@@ -790,27 +798,19 @@ export class GameRenderer {
       d.sprite.zIndex = Math.round((x + y) * 10) + 5;
       d.sprite.tint = this.fogDim(now < d.flashUntil ? RAMPS.neutral.key : this.ownerTint(d.view.owner), d.to.x, d.to.y);
       if (!building) {
-        if (d.shot && animationMs >= d.shot.at + recoveryMs(d.view.kind)) d.shot = undefined;
+        if (d.shot && animationMs >= d.shot.at + (strikeMs(d.view.kind) ?? 0)) d.shot = undefined;
         // Decide locomotion from confirmed simulation ticks, not the end of
         // one tick's interpolation. This also avoids an idle flash just before
         // the next movement snapshot arrives at the cadence boundary.
-        const walking = this.gameMs < (d.walkUntil ?? 0);
-        const distance = (d.walkDistance ?? 0) + gridSteps({ x, y }, d.from);
-        const mining = !walking && !d.shot ? d.view.gathering : undefined;
-        const animation = (mining && unitMiningAnimation(d.view.kind, animationMs)) || unitAnimation(d.view.kind, animationMs, walking, d.shot, distance);
-        if (mining) {
-          const dx = mining.x - d.view.x, dy = mining.y - d.view.y;
-          d.dir = screenDir(dx - dy, (dx + dy) / 2);
-        }
-        // Footfalls and pick strikes follow the animation. Only units on screen are heard.
-        const footfalls = walking ? Math.floor(distance * 2) : undefined;
-        if (footfalls !== undefined && d.footfalls !== undefined && footfalls > d.footfalls) this.play("footstep", x, y, 0.2, false);
-        d.footfalls = footfalls;
-        const strikes = miningStrikes(d.dir);
-        const swing = animation?.action === "mine" ? Number(animation.frame >= strikes[0] && animation.frame < strikes[1]) : undefined;
-        if (swing !== undefined && d.swing !== undefined && swing !== d.swing) this.play("pick", x, y, 0.4, false);
-        d.swing = swing;
-        const { art, flip } = this.sprites(d.view.kind, d.shot?.dir ?? d.dir, animation);
+        const walked = this.gameMs < (d.walkUntil ?? 0) ? (d.walkDistance ?? 0) + gridSteps({ x, y }, d.from) : undefined;
+        const look = unitLook(d.view, d.dir, animationMs, { walked, strike: d.shot });
+        d.dir = look.heading;
+        // Footfalls and pick strikes follow the animation.
+        if (look.footfalls !== undefined && d.footfalls !== undefined && look.footfalls > d.footfalls) this.play("footstep", x, y, 0.2);
+        d.footfalls = look.footfalls;
+        if (look.pickDown !== undefined && d.pickDown !== undefined && look.pickDown !== d.pickDown) this.play("pick", x, y, 0.4);
+        d.pickDown = look.pickDown;
+        const { art, flip } = this.sprites(d.view.kind, d.shot?.dir ?? d.dir, look.animation);
         d.sprite.texture = art.texture;
         d.sprite.anchor.set(art.anchorX, art.anchorY);
         d.sprite.scale.set(flip ? -art.scale : art.scale, art.scale);
@@ -833,21 +833,19 @@ export class GameRenderer {
           d.outline.zIndex = d.sprite.zIndex;
         }
       }
-      if (building && ["castle", "tower"].includes(displayKind(d.view.kind))) {
-        const damage = castleMaterial(d.view.kind, d.view.hp, d.view.maxHp);
-        const { art } = this.sprites(d.view.kind, 1, damage ?? { action: "idle", frame: Math.floor(Math.max(0, animationMs) * 12 / 1000) % 28 });
+      const standing = building ? buildingLook(d.view, animationMs) : undefined;
+      if (standing) {
+        const { art } = this.sprites(d.view.kind, 1, standing.animation);
         d.sprite.texture = art.texture;
         d.sprite.anchor.set(art.anchorX, art.anchorY);
         d.sprite.scale.set(art.scale);
         if (d.depth) d.depth.texture = art.silhouette;
-        const fire = castleFire(d.view.kind, d.view.hp, d.view.maxHp, animationMs);
-        const stage = castleDamageStage(d.view.kind, d.view.hp, d.view.maxHp);
         const visible = !this.visibility || this.visibility[d.to.y]?.[d.to.x] === '2';
-        if (fire && stage && visible) this.drawCastleFire(d, fire, castleEmitters(stage), animationMs);
+        if (standing.fire && visible) this.drawCastleFire(d, standing.fire);
         else this.clearCastleFire(d);
       }
       // Colour separates overlapping units; only the building tag enables x-ray.
-      if (d.depth) this.syncDepth(d.sprite, d.depth, d.view.owner === NEUTRAL_OWNER ? undefined : d.color, !!building);
+      if (d.depth) this.syncDepth(d.sprite, d.depth, d.view.owner === NEUTRAL_OWNER ? undefined : d.color, this.ruleset.kinds[d.view.kind]);
       d.shadow.position.set(sx, sy + (building ? 2 : 3));
       this.drawBar(d, sx);
     }
@@ -934,7 +932,8 @@ export class GameRenderer {
       const attackDir = b.sx !== a.sx || b.sy !== a.sy ? screenDir(b.sx - a.sx, b.sy - a.sy) : from.dir;
       if ((spec?.range ?? 1) > 1) {
         from.dir = attackDir;
-        if (displayKind(from.view.kind) === "archer") {
+        // A shot drawn from a clip leaves the shooter's sprite.
+        if (strikeMs(from.view.kind) !== undefined) {
           const position = this.position(from, this.alpha(now), this.animationMs(now));
           const visible = iso(position.x, position.y);
           const shot = ev.projectile && this.shots.get(ev.projectile);
@@ -950,7 +949,7 @@ export class GameRenderer {
         if (!ev.projectile && to) this.effects.push(this.arrow(from, to));
         this.play(spec?.building ? "tower" : "arrow", from.to.x, from.to.y, 0.35);
       } else if (targetPosition) {
-        const animatedAttack = hasUnitAnimation(from.view.kind, "attack");
+        const animatedAttack = strikeMs(from.view.kind) !== undefined;
         if (animatedAttack) {
           // The engine may hit one tick after a step. Preserve that step's
           // cadence and walking heading instead of rushing its remainder in
@@ -975,13 +974,13 @@ export class GameRenderer {
       const vital = this.ruleset.kinds[ev.kind]?.vital;
       const building = this.ruleset.kinds[ev.kind]?.building;
       this.play(vital ? "horn" : building ? "collapse" : "death", ev.x, ev.y, vital ? 0.8 : building ? 0.7 : 0.4);
-      if (vital) this.effects.push(this.floatText(displayKind(ev.kind) === "king" ? "KING DOWN" : `${ev.kind.toUpperCase()} DESTROYED`, ev.x, ev.y, RAMPS.neutral.key, 3200, 12));
+      if (vital) this.effects.push(this.floatText(currentKind(ev.kind) === "king" ? "KING DOWN" : `${ev.kind.toUpperCase()} DESTROYED`, ev.x, ev.y, RAMPS.neutral.key, 3200, 12));
     } else if (ev.type === "spawn") {
       const building = this.ruleset.kinds[ev.kind]?.building;
       this.effects.push(this.dust(ev.x, ev.y, 0xaaaaaa, building ? 14 : 6));
       this.play(building ? "build" : "spawn", ev.x, ev.y, 0.5);
     } else if (ev.type === "chat") {
-      const king = [...this.drawn.values()].find((d) => d.view.owner === ev.owner && displayKind(d.view.kind) === "king");
+      const king = [...this.drawn.values()].find((d) => d.view.owner === ev.owner && currentKind(d.view.kind) === "king");
       if (king) {
         this.effects.push(this.bubble(`${ev.channel === "private" ? `[private → ${ev.to}] ` : ev.channel === "team" ? "[team] " : ""}${ev.text}`, king));
         this.play("chat", king.to.x, king.to.y, 0.6);
@@ -991,8 +990,8 @@ export class GameRenderer {
     }
   }
 
-  /** Pans with the screen position; quieter the farther off-screen, or silent there. */
-  private play(name: SoundName, x: number, y: number, volume: number, offscreen = true) {
+  /** Pans with the screen position; quieter the farther off-screen, where footsteps and picks go silent. */
+  private play(name: SoundName, x: number, y: number, volume: number) {
     const { sx, sy } = iso(x, y);
     const px = this.world.x + sx * this.zoomLevel;
     const py = this.world.y + sy * this.zoomLevel;
@@ -1000,24 +999,22 @@ export class GameRenderer {
     const h = this.app.renderer.height;
     const pan = Math.max(-1, Math.min(1, (px / w) * 2 - 1));
     const off = Math.max(0, Math.abs(px - w / 2) - w / 2, Math.abs(py - h / 2) - h / 2);
-    if (off > 0 && !offscreen) return;
+    if (off > 0 && ON_SCREEN_ONLY.has(name)) return;
     this.sound(name, pan, volume * Math.max(0.15, 1 - off / 400));
   }
 
   /** A fallen unit stays on the field and fades out, like AoE corpses. */
   private corpse(d: Drawn): Effect {
-    const building = this.ruleset.kinds[d.view.kind]?.building;
+    const { way, art: fallen, at } = fall(d.view, this.ruleset.kinds[d.view.kind], d.barrierArt);
+    const collapsing = way === "collapse";
+    const animated = collapsing || way === "death";
     const start = this.presentationNow();
-    const collapseKind = d.barrierArt ?? d.view.kind;
-    const damageStage = castleDamageStage(d.view.kind, d.view.hp, d.view.maxHp);
-    const collapsing = !!building && !!buildingCollapse(collapseKind, 0);
-    const animated = collapsing || (!building && hasUnitAnimation(d.view.kind, 'death'));
     const facing = d.shot?.dir ?? d.dir;
     const barrierFlip = d.sprite.scale.x < 0;
     let previous = start, elapsed = 0;
     d.sprite.tint = collapsing ? this.ownerTint(d.view.owner) : dim(this.ownerTint(d.view.owner), 0.45);
-    if (building && !collapsing) this.effects.push(this.dust(d.to.x, d.to.y, 0xaaaaaa, 24, 14));
-    else if (!animated) {
+    if (way === "rubble") this.effects.push(this.dust(d.to.x, d.to.y, 0xaaaaaa, 24, 14));
+    else if (way === "corpse") {
       d.sprite.anchor.set(0.5, 0.5);
       d.sprite.rotation = (Math.PI / 2) * Math.sign(d.sprite.scale.x);
       d.sprite.y -= 3;
@@ -1045,22 +1042,18 @@ export class GameRenderer {
         // after the final snapshot so a lethal King hit can finish its animation.
         elapsed += Math.max(0, now - previous) * (animated ? this.gameTickMs / this.tickMs : 1);
         previous = now;
-        const collapse = collapsing ? buildingCollapse(collapseKind, elapsed, damageStage) : undefined;
-        if (animated) {
-          const { art, flip } = this.sprites(collapsing ? collapseKind : d.view.kind, facing,
-            collapse?.animation ?? unitDeathAnimation(d.view.kind, elapsed));
+        const look = at(elapsed);
+        if (look.animation) {
+          const { art, flip } = this.sprites(fallen, facing, look.animation);
           d.sprite.texture = art.texture;
           d.sprite.anchor.set(art.anchorX, art.anchorY);
-          d.sprite.scale.set((collapsing && d.barrierArt ? barrierFlip : flip) ? -art.scale : art.scale, art.scale);
+          const mirrored = collapsing && d.barrierArt ? barrierFlip : flip;
+          d.sprite.scale.set(mirrored ? -art.scale : art.scale, art.scale);
         }
-        const burning = d.view.maxHp > 0 && d.view.hp / d.view.maxHp <= .5;
-        const deathFire = burning && damageStage && collapse ? castleCollapseFire(damageStage, collapse.animation.frame) : undefined;
-        const intensity = Math.max(0, 1 - Math.max(0, elapsed - 2300) / 1000);
-        if (deathFire && intensity > 0) this.drawCastleFire(d, deathFire.animation, deathFire.emitters, elapsed, intensity);
+        if (look.fire) this.drawCastleFire(d, look.fire);
         else this.clearCastleFire(d);
-        const k = elapsed / (building ? 1500 : 6000);
-        d.sprite.alpha = collapse?.alpha ?? corpseFade(elapsed, 0, building ? 1500 : 6000).alpha;
-        d.shadow.alpha = Math.max(0, 1 - k * 2);
+        d.sprite.alpha = look.alpha;
+        d.shadow.alpha = look.shadow;
         if (d.sprite.alpha > 0) return true;
         destroy();
         return false;
@@ -1074,22 +1067,22 @@ export class GameRenderer {
   }
 
   /** Fire and sparks use the dedicated key inside the actual game dither pass. */
-  private drawCastleFire(d: Drawn, animation: import('./sprites').AnimationFrame, emitters: readonly FireEmitter[], timeMs: number, intensity = 1) {
-    const { art } = this.sprites(d.view.kind, 1, animation);
+  private drawCastleFire(d: Drawn, fire: FireLook) {
+    const { art } = this.sprites(d.view.kind, 1, fire.animation);
     const layer = d.collapseLayer ?? this.objects;
     if (!d.flame) { d.flame = new Sprite(art.texture); layer.addChild(d.flame); }
     d.flame.texture = art.texture;
     d.flame.anchor.set(art.anchorX, art.anchorY);
     d.flame.scale.set(art.scale);
     d.flame.position.copyFrom(d.sprite.position);
-    d.flame.tint = dim(RAMPS.fire.key, intensity);
+    d.flame.tint = dim(RAMPS.fire.key, fire.intensity);
     d.flame.zIndex = d.sprite.zIndex + 1;
     if (!d.sparks) { d.sparks = new Graphics(); layer.addChild(d.sparks); }
     d.sparks.position.copyFrom(d.sprite.position);
     d.sparks.zIndex = d.sprite.zIndex + 2;
     d.sparks.clear();
-    for (const p of fireParticles(emitters, timeMs)) {
-      d.sparks.rect(p.x, p.y, p.size, p.size).fill(dim(RAMPS.fire.key, p.heat * intensity));
+    for (const p of fire.particles) {
+      d.sparks.rect(p.x, p.y, p.size, p.size).fill(dim(RAMPS.fire.key, p.heat * fire.intensity));
     }
   }
 
