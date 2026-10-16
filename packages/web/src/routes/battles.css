@@ -1,17 +1,17 @@
 .page.battles { padding-top: 76px; filter: none; }
 .battles .page-sound { position: absolute; }
-.battles .page-head { text-align: left; margin-bottom: 32px; filter: url(#aoa-dither); }
+.battles .page-head { text-align: left; margin-bottom: 32px; filter: url(#aoa-dither); will-change: transform; }
 .battles .page-head .brand { font-size: 17px; text-transform: none; }
 .battles .page-head h1 { font-size: 48px; margin: 18px 0 12px; letter-spacing: 0; }
 .battles .page-head p { line-height: 1.6; margin: 0 0 16px; }
 .battles-manual { font-size: 14px; text-decoration: underline; text-underline-offset: 5px; }
-.battles-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; filter: url(#aoa-dither); }
+.battles-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; filter: url(#aoa-dither); will-change: transform; }
 .battles-filters { display: flex; flex-wrap: wrap; gap: 8px; }
 .battles-filters button { letter-spacing: 0; }
 .battles-filters button span { margin-left: 8px; font-variant-numeric: tabular-nums; }
 .battles-order { font-size: 12px; color: var(--grey); }
 .battles .battle-list { gap: 0; }
-.battles .battle, .battles-empty, .battles .load-state { filter: url(#aoa-dither); }
+.battles .battle, .battles-empty, .battles .load-state { filter: url(#aoa-dither); will-change: transform; }
 .battles-empty { padding: 24px 0 40px; }
 .battles-empty p { margin: 0 0 20px; }
 .battles button:focus-visible, .battles a:focus-visible, .battles summary:focus-visible { outline: 1px solid var(--white); outline-offset: 4px; }

@@ -1,6 +1,6 @@
 .manual { max-width: 1180px; margin: 0 auto; padding: 76px 32px 0; }
 .manual .page-sound { position: absolute; }
-.manual-header, .manual-index, .manual-section { filter: url(#aoa-dither); }
+.manual-header, .manual-index, .manual-section { filter: url(#aoa-dither); will-change: transform; }
 .manual-header { margin: 0 0 64px 232px; }
 .manual-header .brand { font-size: 17px; color: var(--grey); }
 .manual h1 { font-size: clamp(42px, 5vw, 64px); color: var(--white); margin: 18px 0 12px; }

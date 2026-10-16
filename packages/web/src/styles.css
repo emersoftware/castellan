@@ -238,20 +238,22 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
 }
 
 /* ─────────── dither + titles ─────────── */
-/* Every piece of interface goes through the dither filter; the game canvas never does. */
+/* Every piece of interface goes through the dither filter; the game canvas never does.
+   Each filtered element gets its own layer (will-change): iOS Safari measures the filter's
+   user space from the enclosing layer, so the Bayer cells at (0, 0) miss the element and it vanishes. */
 .hero-copy, .pillars, .unit h4, .unit p, .unit .stat, .units h2, .recent, .host, footer, .page,
-.page-sound, .scores, .feed, .tooltip, .unit-panel, .corner, .banner, .banner-mini, .controls, .zoom, .side .tabs, .log-body { filter: url(#aoa-dither); }
+.page-sound, .scores, .feed, .tooltip, .unit-panel, .corner, .banner, .banner-mini, .controls, .zoom, .side .tabs, .log-body { filter: url(#aoa-dither); will-change: transform; }
 /* Letters without anti-aliasing: each pixel is the text colour or the background, so the dither never mixes greys into them. */
 body { -webkit-font-smoothing: none; font-smooth: never; }
 .arrow { display: inline-block; vertical-align: 0.1em; }
 /* Times New Roman titles keep their original look: anti-aliased, dithered softly
    (a dithered title inside a dithered box passes the box's filter unchanged). */
 h1, h2, h3, h4, .brand, .scores .clock .time, .scores .brand-head, .banner .big, .corner.brandmark, .battle .title, .tagline {
-  -webkit-font-smoothing: auto; font-smooth: auto; filter: url(#aoa-dither-soft);
+  -webkit-font-smoothing: auto; font-smooth: auto; filter: url(#aoa-dither-soft); will-change: transform;
 }
 /* Dark letters on a light fill (selected buttons, the primary call to action):
    aliased they break into hairlines, so they keep the original soft look too. */
-button.on, .btn.primary { -webkit-font-smoothing: auto; font-smooth: auto; filter: url(#aoa-dither-soft); }
+button.on, .btn.primary { -webkit-font-smoothing: auto; font-smooth: auto; filter: url(#aoa-dither-soft); will-change: transform; }
 
 /* Times New Roman for titles at every size. */
 .hero h1, .banner .big, .page-head h1, .units h2, .recent h2, .host h2 {
@@ -389,11 +391,11 @@ button.on { background: linear-gradient(to bottom, #ffffff, #8c8c8c); }
 /* The box behind is dithered like the timeline's (which goes through the filter whole). */
 .side-players::after, .side-log::after {
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background: linear-gradient(to bottom, rgba(24,24,24,0.94), rgba(0,0,0,0.8)); filter: url(#aoa-dither);
+  background: linear-gradient(to bottom, rgba(24,24,24,0.94), rgba(0,0,0,0.8)); filter: url(#aoa-dither); will-change: transform;
 }
 /* The frame alone goes through the dither (like the buttons and the ground); the box behind stays as is. */
 .side-players::before, .side-log::before {
-  content: ""; position: absolute; inset: -1px; border: 1px solid var(--dark-grey); pointer-events: none; z-index: 1; filter: url(#aoa-dither);
+  content: ""; position: absolute; inset: -1px; border: 1px solid var(--dark-grey); pointer-events: none; z-index: 1; filter: url(#aoa-dither); will-change: transform;
 }
 /* The split is set once per match, never by the content: builder rows come and go every tick. */
 .side.seats4 { grid-template-rows: minmax(0, 60%) minmax(0, 1fr); }
