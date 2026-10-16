@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReplayFile, SpectatorView } from "@aoa/shared";
 import type { WorkerIn, WorkerOut } from "./replay.worker";
 import type { ReplayOptions } from "@aoa/engine";
+import { frameCompactor } from "./compactFrames";
 
 /**
  * Re-simulates a replay in a worker. `frames` fills progressively; `check`
@@ -19,10 +20,11 @@ export function useReplayFrames(replay: ReplayFile | undefined | null, attempt =
     setCheck(null);
     setError(null);
     const w = new Worker(new URL("./replay.worker.ts", import.meta.url), { type: "module" });
+    const compact = frameCompactor();
     w.onmessage = (e: MessageEvent<WorkerOut>) => {
       const m = e.data;
       if (m.type === "frames") {
-        frames.current.push(...m.frames);
+        frames.current.push(...m.frames.map(compact));
         setLoaded(frames.current.length);
       } else if (m.type === "done") setCheck({ verified: m.verified, desyncAt: m.desyncAt });
       else setError(m.message);

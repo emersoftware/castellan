@@ -15,8 +15,17 @@ import { displayKind } from "./names";
 
 export const TILE_W = 32;
 export const TILE_H = 16;
-/** Half-resolution distribution for the landing's fixed, whole-map view. */
+/** Half-resolution distribution for the landing's fixed, whole-map view, and for phones. */
 export const HERO_SPRITE_BASE = "/game-assets/hero-sprites";
+const FULL_SPRITE_BASE = "/game-assets/sprites";
+
+/**
+ * Full atlases and their masks run past the memory iOS Safari allows a tab, which
+ * then reloads in a loop. Touch screens get the half-resolution set instead.
+ */
+function defaultSpriteBase() {
+  return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches ? HERO_SPRITE_BASE : FULL_SPRITE_BASE;
+}
 
 export interface SpriteArt {
   texture: Texture;
@@ -83,7 +92,7 @@ export function cropSpriteArt(art: SpriteArt, frame: { x: number; y: number; wid
 // Reconnects and replay perspective switches create new renderers. Atlas GPU
 // sources are shared; rebuilding their masks on each mount wastes memory.
 const spriteLoads = new Map<string, Promise<SpriteSet>>();
-export function loadSprites(base = "/game-assets/sprites"): Promise<SpriteSet> {
+export function loadSprites(base = defaultSpriteBase()): Promise<SpriteSet> {
   let pending = spriteLoads.get(base);
   if (!pending) {
     pending = buildSprites(base).catch((error) => { spriteLoads.delete(base); throw error; });
