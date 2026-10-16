@@ -40,7 +40,8 @@ self.onmessage = async (e: MessageEvent<WorkerIn>) => {
       // to choose its opening; neither should wait for a full transport batch.
       const firstCasualty = !sentFirstCasualty && v.events.some(event => event.type === "death");
       if (firstCasualty) sentFirstCasualty = true;
-      if (v.tick === 0 || firstCasualty || batch.length >= 200) flush();
+      // Each batch is decoded and compacted on the main thread at once; small ones fit between animation frames.
+      if (v.tick === 0 || firstCasualty || batch.length >= 25) flush();
     }, options);
     flush();
     (self as unknown as Worker).postMessage({ type: "done", ...check } satisfies WorkerOut);

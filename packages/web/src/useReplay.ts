@@ -21,17 +21,24 @@ export function useReplayFrames(replay: ReplayFile | undefined | null, attempt =
     setError(null);
     const w = new Worker(new URL("./replay.worker.ts", import.meta.url), { type: "module" });
     const compact = frameCompactor();
+    // Every `loaded` change re-renders the page, so it follows the frames at most four times a second.
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    const publish = () => { clearTimeout(pending); pending = undefined; setLoaded(frames.current.length); };
     w.onmessage = (e: MessageEvent<WorkerOut>) => {
       const m = e.data;
       if (m.type === "frames") {
+        const first = !frames.current.length;
         frames.current.push(...m.frames.map(compact));
-        setLoaded(frames.current.length);
-      } else if (m.type === "done") setCheck({ verified: m.verified, desyncAt: m.desyncAt });
-      else setError(m.message);
+        if (first) publish();
+        else pending ??= setTimeout(publish, 250);
+      } else if (m.type === "done") {
+        publish();
+        setCheck({ verified: m.verified, desyncAt: m.desyncAt });
+      } else setError(m.message);
     };
     w.onerror = () => setError("Couldn’t prepare this replay.");
     w.postMessage({ replay, options: { includePerspectives } } satisfies WorkerIn);
-    return () => w.terminate();
+    return () => { clearTimeout(pending); w.terminate(); };
   }, [replay, attempt, includePerspectives]);
   return { frames, loaded, check, error };
 }
