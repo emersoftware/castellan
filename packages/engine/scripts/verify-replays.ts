@@ -4,13 +4,14 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
-import type { Outcome, ReplayFile } from "@aoa/shared";
+import { replayArchive, type Outcome, type ReplayFile } from "@aoa/shared";
 import { runReplay } from "../src";
 
 const root = resolve(import.meta.dirname, "../../..");
+const local = resolve(root, replayArchive.local), featured = resolve(root, replayArchive.featured);
 const files = [
-  ...readdirSync(resolve(root, "replays")).filter((f) => f.endsWith(".json.gz")).map((f) => resolve(root, "replays", f)),
-  ...readdirSync(resolve(root, "packages/web/public/featured")).filter((f) => /^[0-9a-f]+\.json$/.test(f)).map((f) => resolve(root, "packages/web/public/featured", f)),
+  ...readdirSync(local).filter((f) => f.endsWith(".json.gz")).map((f) => resolve(local, f)),
+  ...readdirSync(featured).filter((f) => /^[0-9a-f]+\.json$/.test(f)).map((f) => resolve(featured, f)),
 ];
 let bad = 0;
 for (const f of files) {

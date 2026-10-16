@@ -3,11 +3,13 @@
 //   npx tsx src/choice-probe.mts label=replayId|rules.json … [--reps 4] [--models gpt-6.1-sol,gpt-6-astra]
 //   → /tmp/aoa-probe/<label>.json and a summary
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { playerGuide, type Ruleset } from "@aoa/shared";
+// @ts-expect-error Plain Node launcher shared with external harnesses.
+import { isolatedExec, isolatedHome } from "../../../connectors/loop-keepers/codex/agent.mjs";
 
 const OUT = "/tmp/aoa-probe";
 const arg = (name: string, fallback: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : fallback; };
@@ -30,18 +32,14 @@ function rulesOf(source: string): Ruleset {
 }
 
 /** One isolated, tool-less Codex call (same isolation as the player connector, without the game tools). */
-function ask(model: string, prompt: string): Promise<string> {
+async function ask(model: string, prompt: string): Promise<string> {
   const run = mkdtempSync(join(tmpdir(), "aoa-probe-"));
-  mkdirSync(join(run, "home")); mkdirSync(join(run, "workspace"));
-  const home = process.env.CODEX_HOME ?? join(process.env.HOME!, ".codex");
-  symlinkSync(join(home, "auth.json"), join(run, "home", "auth.json"));
+  const { home, workspace } = await isolatedHome(run);
   const out = join(run, "answer.txt");
-  const env: NodeJS.ProcessEnv = { ...process.env, CODEX_HOME: join(run, "home") };
+  const env: NodeJS.ProcessEnv = { ...process.env, CODEX_HOME: home };
   for (const k of ["OPENAI_API_KEY", "CODEX_API_KEY", "AOA_TOKEN", "AOA_DIRECTIVE"]) delete env[k];
   return new Promise((resolve) => {
-    const child = spawn("codex", ["exec", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "--ignore-rules",
-      "-s", "read-only", "-C", join(run, "workspace"), "--disable", "shell_tool", "--disable", "unified_exec",
-      "-c", 'web_search="disabled"', "-c", "project_doc_max_bytes=0", "-c", "approval_policy=never",
+    const child = spawn("codex", [...isolatedExec({ workspace }), "--ephemeral",
       "-m", model, "-c", 'model_reasoning_effort="low"', "-o", out, "-"], { env, stdio: ["pipe", "ignore", "ignore"] });
     child.stdin.end(prompt);
     child.on("exit", () => { const text = existsSync(out) ? readFileSync(out, "utf8") : ""; rmSync(run, { recursive: true, force: true }); resolve(text); });

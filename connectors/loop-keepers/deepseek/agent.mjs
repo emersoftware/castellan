@@ -7,12 +7,14 @@ import { parseArgs } from "node:util";
 import { cli, runtimeDir, VERSION, verifyRuntime } from "./runtime.mjs";
 import { loadKey } from "./key.mjs";
 import { launchConfiguration, reportConfiguration } from "../metadata.mjs";
+import { serverUrl } from "../game.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
+const DEFAULT_MODEL = "deepseek-flash", DEFAULT_EFFORT = "low";
 export function options(args) {
   const { values } = parseArgs({ args, options: {
-    model: { type: "string", default: "deepseek-flash" },
-    effort: { type: "string", default: "low" },
+    model: { type: "string", default: DEFAULT_MODEL },
+    effort: { type: "string", default: DEFAULT_EFFORT },
     check: { type: "boolean", default: false },
   } });
   if (!/^[\w.-]+$/.test(values.model)) throw new Error("Invalid DeepSeek model id");
@@ -20,7 +22,7 @@ export function options(args) {
   return values;
 }
 
-export async function preparePlayer({ root, token, server = "http://localhost:4400", key, model = "deepseek-flash", effort = "low", env = process.env, baseURL }) {
+export async function preparePlayer({ root, token, server = serverUrl(), key, model = DEFAULT_MODEL, effort = DEFAULT_EFFORT, env = process.env, baseURL }) {
   const workspace = join(root, "workspace"), home = join(root, "dsh");
   await mkdir(workspace, { recursive: true, mode: 0o700 });
   await mkdir(home, { recursive: true, mode: 0o700 });
@@ -87,7 +89,7 @@ export async function main(args = process.argv.slice(2), env = process.env) {
   const runs = join(homedir(), ".local", "state", "aoa", "deepseek");
   await mkdir(runs, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(join(runs, "run-"));
-  const player = await preparePlayer({ root, token: env.AOA_TOKEN ?? "check-only", server: env.AOA_SERVER, key, ...opts, env });
+  const player = await preparePlayer({ root, token: env.AOA_TOKEN ?? "check-only", server: serverUrl(env.AOA_SERVER), key, ...opts, env });
   let prompt = await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
   if (env.AOA_RESUME) prompt = `You were restarted in the middle of the match: call state first, then keep playing.\n\n${prompt}`;
   // Optional experiment instruction for this player only; kept across relaunches.

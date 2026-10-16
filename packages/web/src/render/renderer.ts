@@ -744,7 +744,7 @@ export class GameRenderer {
         this.outlineLayer.addChild(outline);
       }
     }
-    const r = spec?.building ? ((e.kind === "castle" || e.kind === "nexus") ? 22 : 12) : 6;
+    const r = spec?.building ? (displayKind(e.kind) === "castle" ? 22 : 12) : 6;
     const shadow = new Graphics().ellipse(0, 0, r, r / 2.6).fill({ color: 0x000000, alpha: 0.4 });
     this.shadows.addChild(shadow);
     this.objects.addChild(sprite);
@@ -975,13 +975,13 @@ export class GameRenderer {
       const vital = this.ruleset.kinds[ev.kind]?.vital;
       const building = this.ruleset.kinds[ev.kind]?.building;
       this.play(vital ? "horn" : building ? "collapse" : "death", ev.x, ev.y, vital ? 0.8 : building ? 0.7 : 0.4);
-      if (vital) this.effects.push(this.floatText(["king", "agent"].includes(ev.kind) ? "KING DOWN" : `${ev.kind.toUpperCase()} DESTROYED`, ev.x, ev.y, RAMPS.neutral.key, 3200, 12));
+      if (vital) this.effects.push(this.floatText(displayKind(ev.kind) === "king" ? "KING DOWN" : `${ev.kind.toUpperCase()} DESTROYED`, ev.x, ev.y, RAMPS.neutral.key, 3200, 12));
     } else if (ev.type === "spawn") {
       const building = this.ruleset.kinds[ev.kind]?.building;
       this.effects.push(this.dust(ev.x, ev.y, 0xaaaaaa, building ? 14 : 6));
       this.play(building ? "build" : "spawn", ev.x, ev.y, 0.5);
     } else if (ev.type === "chat") {
-      const king = [...this.drawn.values()].find((d) => d.view.owner === ev.owner && ["king", "agent"].includes(d.view.kind));
+      const king = [...this.drawn.values()].find((d) => d.view.owner === ev.owner && displayKind(d.view.kind) === "king");
       if (king) {
         this.effects.push(this.bubble(`${ev.channel === "private" ? `[private → ${ev.to}] ` : ev.channel === "team" ? "[team] " : ""}${ev.text}`, king));
         this.play("chat", king.to.x, king.to.y, 0.6);

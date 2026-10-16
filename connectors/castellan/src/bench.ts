@@ -1,14 +1,15 @@
 /**
  * Headless benchmark against the reference bots (no server, no real time):
- *   pnpm --filter @aoa/castellan bench [--bots rush,eco,turtle,kite,archers] [--maps open,fortress] [--n 2] [--json out.json]
+ *   pnpm --filter @aoa/castellan bench [--bots rush,eco] [--maps open,fortress] [--n 2] [--json out.json]
  */
 import { writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { playerResult } from "@aoa/shared";
+import { BOTS } from "@aoa/sim";
 import { playHeadless } from "../test/harness";
 
 const { values } = parseArgs({ args: process.argv.slice(2), options: {
-  bots: { type: "string", default: "rush,eco,turtle,kite,archers" }, maps: { type: "string", default: "open,fortress" }, n: { type: "string", default: "2" }, json: { type: "string" }, every: { type: "string", default: "10" }, verbose: { type: "boolean", default: false }, seats: { type: "string" }, mode: { type: "string" }, seed: { type: "string" },
+  bots: { type: "string", default: Object.keys(BOTS).join(",") }, maps: { type: "string", default: "open,fortress" }, n: { type: "string", default: "2" }, json: { type: "string" }, every: { type: "string", default: "10" }, verbose: { type: "boolean", default: false }, seats: { type: "string" }, mode: { type: "string" }, seed: { type: "string" },
 } });
 const rows: Record<string, unknown>[] = [];
 const QUIET = new Set(["workers_assigned", "order_rejected", "build_planned"]);

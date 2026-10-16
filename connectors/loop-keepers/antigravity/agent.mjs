@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { connectorVersion, launchConfiguration, reportConfiguration } from "../metadata.mjs";
+import { seat } from "../game.mjs";
 import { drivePlayer } from "./runtime.mjs";
 
 export async function play({ env = process.env, args = process.argv.slice(2), cwd = process.cwd(), ...runtime } = {}) {
@@ -41,11 +42,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), cw
   }
   // Room mechanics and tool schemas are stable context; include them once so the
   // player does not need two preparatory tool/file round trips before deciding.
-  const response = await (runtime.fetchImpl || fetch)(`${(env.AOA_SERVER || "http://localhost:4400").replace(/\/$/, "")}/rules?format=text`, {
-    headers: { authorization: `Bearer ${env.AOA_TOKEN}` }, signal: AbortSignal.timeout(8000), redirect: "error",
-  });
-  if (!response.ok) throw new Error(`game rules HTTP ${response.status}`);
-  prompt += `\n\nRoom rules:\n${await response.text()}`;
+  prompt += `\n\nRoom rules:\n${await seat({ env, fetchImpl: runtime.fetchImpl, redirect: "error" }).rules()}`;
   if (transport === "cli") prompt += `\n\nGame tool schemas:\n${await readFile(join(cwd, ".agents/tool-schemas.json"), "utf8")}`;
   const configuration = launchConfiguration({ connector: "antigravity", args, prompt, env,
     connectorVersion: env.AOA_CONNECTOR_VERSION || await connectorVersion(agy) });

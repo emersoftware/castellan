@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import type { ReplayFile } from "../../packages/shared/src/protocol";
 import { rules } from "../../packages/shared/src/rules";
+import { replayArchive } from "../../packages/shared/src/replayArchive";
 import { createMatch } from "../../packages/engine/src";
 import { collectPublication, completeSeries, publicationSQL, publicReplay, type Publication } from "../catalog";
 
@@ -101,11 +102,11 @@ it("counts a shared loss in addition to each side's one win and one defeat", () 
 
 it.each([["low", "low"], ["PRIVATE-INVALID-EFFORT", null]])("reads fresh payloads and publishes only safe catalogue metadata (effort %s)", async (declaredEffort, expectedEffort) => {
   const root = await mkdtemp(join(tmpdir(), "aoa-catalog-test-")); directories.push(root);
-  const featured = join(root, "packages/web/public/featured");
-  await mkdir(featured, { recursive: true }); await mkdir(join(root, "replays"));
+  const featured = join(root, replayArchive.featured), local = join(root, replayArchive.local);
+  await mkdir(featured, { recursive: true }); await mkdir(local);
   const old = entry(fixture).summary;
   old.savedAt = "2026-09-01T00:00:00.000Z";
-  await writeFile(join(featured, "index.json"), JSON.stringify([old]));
+  await writeFile(join(featured, replayArchive.index), JSON.stringify([old]));
   await writeFile(join(featured, `${fixture.id}.json`), JSON.stringify(fixture));
   const fresh = { ...structuredClone(fixture), token: "PRIVATE-TOP-LEVEL", players: fixture.players.map((p) => ({ ...p, token: "PRIVATE-PLAYER" })),
     experiment: { players: {
@@ -114,10 +115,10 @@ it.each([["low", "low"], ["PRIVATE-INVALID-EFFORT", null]])("reads fresh payload
     }, calls: [{ token: "PRIVATE-CALL" }] } };
   fresh.players[0].name = "Fresh agent";
   fresh.players[1].name = "Model Low"; // A display name is not recorded configuration.
-  await writeFile(join(root, "replays", `${fixture.id}.json.gz`), gzipSync(JSON.stringify(fresh)));
+  await writeFile(join(local, `${fixture.id}.json.gz`), gzipSync(JSON.stringify(fresh)));
   for (const [id, name] of [["bot-game", "bot:rush"], ["demo-game", "demo:mixed"]]) {
     const replay = structuredClone(fixture); replay.id = id; replay.players[0].name = name;
-    await writeFile(join(root, "replays", `${id}.json.gz`), gzipSync(JSON.stringify(replay)));
+    await writeFile(join(local, `${id}.json.gz`), gzipSync(JSON.stringify(replay)));
   }
   const publication = await collectPublication(root);
   expect(publication.replays).toHaveLength(1);

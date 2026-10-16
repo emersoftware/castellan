@@ -205,7 +205,7 @@ export class Match {
       for (const p of this.players) {
         for (const [kind, spec] of Object.entries(this.ruleset.kinds)) {
           if (!spec.scriptable) continue;
-          const code = this.ruleset.defaultScripts[kind] ?? "self.hold();";
+          const code = this.defaultScript(kind);
           p.host.setScript(kind, code);
           p.scripts.set(kind, { code, custom: false, errors: [] });
         }
@@ -812,7 +812,7 @@ export class Match {
   private setScript(p: Player, kind: string, code: string | null): OrderResult {
     const cur = p.scripts.get(kind);
     if (!cur) return { ok: false, reason: `${kind} is not scriptable` };
-    const source = code ?? this.ruleset.defaultScripts[kind] ?? "self.hold();";
+    const source = code ?? this.defaultScript(kind);
     const r = p.host.setScript(kind, source);
     if (!r.ok) {
       p.host.setScript(kind, cur.code);
@@ -820,6 +820,11 @@ export class Match {
     }
     p.scripts.set(kind, { code: source, custom: code !== null, errors: [] });
     return { ok: true };
+  }
+
+  /** The script a kind runs while its player has none of its own. */
+  private defaultScript(kind: string): string {
+    return this.ruleset.defaultScripts[kind] ?? "self.hold();";
   }
 
   /** A kind that needs a research this player has not completed. */

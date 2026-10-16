@@ -1,8 +1,7 @@
-import type { Ruleset } from "@aoa/shared";
+import { currentKind, type Ruleset } from "@aoa/shared";
 
 /** Compare historical samples under current names without rewriting their scripts. */
-export const currentKind = (kind: string): string => kind === "ranger" ? "archer" : kind === "turret" ? "tower" : kind;
-export const currentUpgrade = (id: string): string => id.replace(/^(ranger|turret)(?=_)/, currentKind);
+export const currentUpgrade = (id: string): string => id.replace(/^[a-z]+(?=_)/, currentKind);
 
 /** Keep the identifiers a recorded VM knows while applying candidate stats. */
 export function candidateForRecordedNames(candidate: Ruleset, recorded: Ruleset): Pick<Ruleset, "kinds" | "upgrades"> {

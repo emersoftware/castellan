@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 import { connectorVersion, launchConfiguration, reportConfiguration, reportActivity } from "../metadata.mjs";
+import { seat, serverUrl } from "../game.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_MODEL = "openrouter/~deepseek/deepseek-flash-latest";
@@ -33,7 +34,7 @@ export async function loadKey(env = process.env) {
   catch (error) { if (error.code === "ENOENT") return ""; throw error; }
 }
 
-export async function preparePlayer({ root, token, server = "http://localhost:4400", key, model = DEFAULT_MODEL, variant, env = process.env }) {
+export async function preparePlayer({ root, token, server = serverUrl(), key, model = DEFAULT_MODEL, variant, env = process.env }) {
   const workspace = join(root, "workspace"), home = join(root, "home");
   await mkdir(workspace, { recursive: true, mode: 0o700 });
   await mkdir(home, { recursive: true, mode: 0o700 });
@@ -115,11 +116,10 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   if (!env.AOA_TOKEN) throw new Error("set AOA_TOKEN (see aoa new or aoa run-series)");
   const key = await loadKey(env);
   if (!key) throw new Error("set OPENROUTER_API_KEY, save it in ~/.config/aoa/openrouter-api-key, or log in with `opencode auth login`");
-  const server = (env.AOA_SERVER || "http://localhost:4400").replace(/\/$/, "");
   const runs = join(homedir(), ".local", "state", "aoa", "opencode");
   await mkdir(runs, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(join(runs, "run-"));
-  const player = await preparePlayer({ root, token: env.AOA_TOKEN, server, key, ...opts, env });
+  const player = await preparePlayer({ root, token: env.AOA_TOKEN, server: serverUrl(env.AOA_SERVER), key, ...opts, env });
   let base = await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
   if (env.AOA_RESUME) base = `You were restarted in the middle of the match; your earlier conversation is gone.\n\n${base}`;
   // Optional experiment instruction for this player only; kept across relaunches.
@@ -134,18 +134,14 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   const lines = [];
   const abort = new AbortController();
   const stop = () => { stopped = true; abort.abort(); child?.kill("SIGTERM"); };
-  const get = async path => {
-    const res = await fetchImpl(server + path, { headers: { authorization: `Bearer ${env.AOA_TOKEN}` }, signal: AbortSignal.any([abort.signal, AbortSignal.timeout(8000)]) });
-    if (!res.ok) throw new Error(`game HTTP ${res.status}`);
-    return path.includes("format=text") ? res.text() : res.json();
-  };
+  const game = seat({ env, fetchImpl, signal: abort.signal });
   const delay = ms => sleep(ms, undefined, { signal: abort.signal });
   process.on("SIGINT", stop); process.on("SIGTERM", stop);
   // A model request in flight when the match ends would otherwise keep the process alive.
   const watch = async () => {
     if (stopped) return;
     try {
-      const status = await get("/status");
+      const status = await game.status();
       if (status.status === "finished" || status.alive === false) { finished = true; stop(); return; }
     } catch { /* next poll */ }
     if (!stopped) watcher = setTimeout(watch, pollMs);
@@ -155,7 +151,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
     while (!stopped) {
       const started = Date.now();
       try {
-        const observation = await get(`/state?format=text&since=${lastDeliveredTick}`);
+        const observation = await game.observation(lastDeliveredTick);
         if (/ · finished · /.test(observation) || /^YOU\s+.* · OUT$/m.test(observation)) { finished = true; break; }
         if (/ · (waiting|prep) · /.test(observation)) { await delay(1000); continue; }
         const observedTick = Number(observation.match(/^tick (\d+)/)?.[1]);

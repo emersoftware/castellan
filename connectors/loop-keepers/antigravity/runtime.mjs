@@ -2,6 +2,7 @@
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { reportActivity } from "../metadata.mjs";
+import { seat } from "../game.mjs";
 
 const conversationId = value => typeof value === "string" && /^[a-f0-9-]{36}$/.test(value);
 const terminal = status => status.status === "finished" || status.alive === false;
@@ -116,32 +117,26 @@ export async function drivePlayer({ env = process.env, args = [], prompt, onConv
   fetchImpl = fetch, spawnImpl = spawn, cwd = process.cwd(), output = chunk => process.stdout.write(chunk),
   pollMs = 1000, minIntervalMs = 1500, retryMs = 2000, maxFailures = 3, initTimeoutMs = 30_000, killAfterMs = 2000 } = {}) {
   if (!env.AOA_TOKEN) throw new Error("set AOA_TOKEN");
-  const abort = new AbortController(), server = (env.AOA_SERVER || "http://localhost:4400").replace(/\/$/, "");
+  const abort = new AbortController(), game = seat({ env, fetchImpl, signal: abort.signal, redirect: "error" });
   let session, conversation, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0,
     instructionsDelivered = false, interrupted = false, watcher;
   const stop = () => { stopped = true; abort.abort(); };
   const delay = ms => sleep(ms, undefined, { signal: abort.signal });
-  const get = async path => {
-    const response = await fetchImpl(server + path, { headers: { authorization: `Bearer ${env.AOA_TOKEN}` },
-      signal: AbortSignal.any([abort.signal, AbortSignal.timeout(8000)]), redirect: "error" });
-    if (!response.ok) throw new Error(`game HTTP ${response.status}`);
-    return path.includes("format=text") ? response.text() : response.json();
-  };
   const watch = async () => {
     if (stopped) return;
-    try { if (terminal(await get("/status"))) { finished = true; stop(); return; } }
+    try { if (terminal(await game.status())) { finished = true; stop(); return; } }
     catch { /* Main loop handles connection failures; a status poll never consumes observations. */ }
     if (!stopped) watcher = setTimeout(watch, pollMs);
   };
   process.on("SIGINT", stop); process.on("SIGTERM", stop);
   try {
     // /status deliberately does not connect a seat. Join once without spending a model turn.
-    const initial = await get("/state?format=text&since=0");
+    const initial = await game.observation(0);
     if (observationStatus(initial) === "finished" || observationOut(initial)) return 0;
     watcher = setTimeout(watch, pollMs);
     while (!stopped) {
       try {
-        const status = await get("/status");
+        const status = await game.status();
         if (terminal(status)) { finished = true; break; }
         if (status.status !== "running") { await delay(pollMs); continue; }
         if (!session) {
@@ -153,7 +148,7 @@ export async function drivePlayer({ env = process.env, args = [], prompt, onConv
           await session.initialize();
         }
         // Startup and permission registration may take time. Fetch only after both finish.
-        const observation = await get(`/state?format=text&since=${lastDeliveredTick}`);
+        const observation = await game.observation(lastDeliveredTick);
         if (observationStatus(observation) === "finished" || observationOut(observation)) { finished = true; break; }
         if (observationStatus(observation) !== "running") { await delay(pollMs); continue; }
         const tick = Number(observation.match(/^tick (\d+)/)?.[1]);

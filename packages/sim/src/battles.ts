@@ -4,8 +4,8 @@
  * deliberately new matches. The old view-only recordings cannot reproduce those states.
  */
 import { createMatch, type Match, type MatchConfig, type PlayerOrder } from "@aoa/engine";
-import { rules as baseRules, type GameEvent, type KindSpec, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
-import { candidateForRecordedNames, currentKind } from "./names";
+import { rules as baseRules, currentKind, kindSpec, type GameEvent, type KindSpec, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { candidateForRecordedNames } from "./names";
 
 export interface Snapshot {
   format?: "aoa-battle-v2";
@@ -69,7 +69,6 @@ export interface Side { army: number; dealt: Record<string, number>; taken: Reco
 export const KING_VALUE = 600;
 /** Damage only counts against these. In army strength a castle counts as one tower: most of its cost is economy. */
 const TARGETS = ["knight", "archer", "tower", "castle"];
-const kindSpec = (r: Ruleset, kind: string) => r.kinds[kind] ?? r.kinds[kind === "archer" ? "ranger" : kind === "tower" ? "turret" : kind];
 const armyValue = (r: Ruleset, kind: string) => (kind === "castle" ? value(r, "tower") : TARGETS.includes(kind) ? value(r, kind) : 0);
 const value = (r: Ruleset, kind: string) => (kind === "king" ? KING_VALUE : kindSpec(r, kind)?.cost ?? 0);
 
@@ -168,7 +167,7 @@ export async function runBattle(s: Snapshot, ruleset: Ruleset = baseRules, varia
       if (!kindSpec(r, kind)) continue;
       if (!s.continuation && variant.open && (e.kind === "wall" || e.kind === "door")) continue;
       let { x, y } = e;
-      if (!s.continuation && variant.jitter && !kindSpec(r, kind).building) {
+      if (!s.continuation && variant.jitter && !kindSpec(r, kind)!.building) {
         for (let tries = 0; tries < 8; tries++) {
           const nx = Math.max(0, Math.min(s.map.width - 1, e.x + Math.round((random() * 2 - 1) * variant.jitter)));
           const ny = Math.max(0, Math.min(s.map.height - 1, e.y + Math.round((random() * 2 - 1) * variant.jitter)));
@@ -211,9 +210,9 @@ export async function runBattle(s: Snapshot, ruleset: Ruleset = baseRules, varia
     const damage = (fromKind: string | undefined, fromOwner: string | undefined, target: string, dmg: number) => {
       const tk = kindOf.get(target), owner = ownerOf.get(target);
       if (!tk || !owner || !TARGETS.includes(tk) || !dmg) return;
-      const left = hp.get(target) ?? kindSpec(r, tk).hp;
+      const left = hp.get(target) ?? kindSpec(r, tk)!.hp;
       hp.set(target, left - dmg);
-      const v = (Math.max(0, Math.min(dmg, left)) * value(r, tk)) / (maxHp.get(target) ?? kindSpec(r, tk).hp);
+      const v = (Math.max(0, Math.min(dmg, left)) * value(r, tk)) / (maxHp.get(target) ?? kindSpec(r, tk)!.hp);
       side(owner).taken[tk] = (side(owner).taken[tk] ?? 0) + v;
       if (fromKind && fromOwner && TARGETS.includes(fromKind)) side(fromOwner).dealt[fromKind] = (side(fromOwner).dealt[fromKind] ?? 0) + v;
     };

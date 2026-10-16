@@ -1,7 +1,7 @@
 /** Package flag-only MiniMax loops. Keep every stone/pole pixel from the reference. */
 import sharp from 'sharp';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { execFileSync } from 'node:child_process';
+import { ff, probeDuration } from './ffmpeg.mjs';
 const root = new URL('../../../', import.meta.url).pathname;
 const spriteDir = `${root}packages/web/public/sprites`;
 const settings = {
@@ -23,8 +23,8 @@ for(const [kind,s] of Object.entries(settings)) {
  const out=`${spriteDir}/${kind}`;
  await mkdir(out,{recursive:true}); await mkdir(`${dir}/frames`,{recursive:true});
  const ref=key(await sharp(`${dir}/reference.png`).ensureAlpha().raw().toBuffer());
- const duration=Number(execFileSync('ffprobe',['-v','error','-show_entries','format=duration','-of','default=nw=1:nk=1',`${dir}/generated.mp4`],{encoding:'utf8'}).trim());
- execFileSync('ffmpeg',['-y','-hide_banner','-loglevel','error','-i',`${dir}/generated.mp4`,'-vf',`fps=${28/duration},scale=544:544`,'-frames:v','28',`${dir}/frames/%02d.png`]);
+ const duration=probeDuration(`${dir}/generated.mp4`);
+ ff('-i',`${dir}/generated.mp4`,'-vf',`fps=${28/duration},scale=544:544`,'-frames:v','28',`${dir}/frames/%02d.png`);
  const cells=[];
  for(let frame=0;frame<28;frame++) {
    const video=key(await sharp(`${dir}/frames/${String(frame+1).padStart(2,'0')}.png`).ensureAlpha().raw().toBuffer());

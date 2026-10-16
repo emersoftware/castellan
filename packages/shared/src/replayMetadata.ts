@@ -5,7 +5,11 @@ export type ReplayPlayerSummary = ReplayFile["players"][number] & {
   effort?: string | null;
 };
 
-const EFFORTS = new Set(["none", "off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]);
+const OFF = ["none", "off"];
+const EFFORTS = new Set([...OFF, "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]);
+
+/** Whether a declared effort turns reasoning off. */
+export const reasoningOff = (effort: string) => OFF.includes(effort);
 
 /** Public catalogue metadata, without copying the manifest or guessing from names. */
 export function replayPlayerSummaries(replay: Pick<ReplayFile, "players" | "experiment">): ReplayPlayerSummary[] {

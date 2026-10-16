@@ -1,7 +1,7 @@
 /** Export the two reviewed damage states, HF fire loops, collapse clips and emitters. */
 import sharp from 'sharp';
 import { readFile, writeFile, mkdir, access } from 'node:fs/promises';
-import { execFileSync } from 'node:child_process';
+import { ff, probeDuration } from './ffmpeg.mjs';
 
 const root = new URL('../../../', import.meta.url).pathname;
 const dir = `${root}assets/animations/buildings/castle/damage-stages`;
@@ -17,7 +17,6 @@ const size = Math.ceil(544 * gameScale / (h / height));
 const layout = { sourceWidth: width, sourceHeight: height, sourceAnchor, referenceWidth: 544, referenceHeight: 544,
   left, top, w, h, frameWidth: size, frameHeight: size, storedScale: 3,
   anchorX: (left + sourceAnchor.x / width * w) / 544, anchorY: (top + sourceAnchor.y / height * h) / 544 };
-const ff = (...args) => execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', ...args]);
 const warm = (r,g,b) => r > b + 35 && r > g + 12 && g > b + 8;
 
 function groups(pixels, inputWidth=width, inputHeight=height) {
@@ -138,7 +137,7 @@ for(const stage of ['healthy',25,50]) {
   if(stage!=='healthy')manifest[`damaged${stage}`]=await atlas(`castle-damaged-${stage}`,[await scaled(material)],false);
   for(const action of (stage==='healthy'?['death']:['fire','death'])) {
     const folder=`${dir}/${action}-${stage}`;await mkdir(`${folder}/frames`,{recursive:true});
-    const duration=Number(execFileSync('ffprobe',['-v','error','-show_entries','format=duration','-of','default=nw=1:nk=1',`${folder}/generated.mp4`],{encoding:'utf8'}).trim());
+    const duration=probeDuration(`${folder}/generated.mp4`);
     // Inward collapses start at the battlements. Preserve the whole top-to-bottom motion.
     const trim=0;
     ff('-ss',String(trim),'-i',`${folder}/generated.mp4`,'-vf',`fps=${28/(duration-trim)},scale=544:544`,'-frames:v','28',`${folder}/frames/%02d.png`);

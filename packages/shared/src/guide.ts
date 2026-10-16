@@ -1,6 +1,6 @@
 import { matchLengthMs, type Ruleset } from "./ruleset";
 import type { SeriesProgress } from "./protocol";
-import { withMineralNames } from "./legacy";
+import { kindSpec, withMineralNames } from "./legacy";
 
 /**
  * The rules in prose for an LLM player: what exists and how it works, never what to do.
@@ -102,7 +102,7 @@ A door joins same-owner walls or doors along X or along Y, never both: no corner
 Walls and doors block movement, not shots. A unit standing in a door can be targeted by its id; the door by the door's id. Doors report open:true/false, and the grid shows a unit standing in one.
 
 ## Orders (POST /act {"orders":[...]}, several per call)
-- {"type":"train","building":"<castle id>","kind":${(k.castle?.trains ?? k.nexus?.trains ?? []).map(kind => JSON.stringify(kind)).join("|")}}
+- {"type":"train","building":"<castle id>","kind":${(kindSpec(r, "castle")?.trains ?? []).map(kind => JSON.stringify(kind)).join("|")}}
 - {"type":"build","unit":"<worker id>","kind":${(k.worker.builds ?? []).map((kind) => JSON.stringify(kind)).join("|")},"x":X,"y":Y}
 - {"type":"move","unit":"<id>","x":X,"y":Y}
 - {"type":"attack","unit":"<id>","target":"<enemy id>"} (chases until the target dies)

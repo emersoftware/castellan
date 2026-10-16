@@ -8,7 +8,7 @@ import { displayKind } from './names';
 
 function unitAtlas(kind: string): Partial<Record<AnimationFrame['action'], { image: string; available?: boolean; impactFrames?: number[]; fps: number; frameCount: number }>> {
   kind = displayKind(kind);
-  return kind === 'archer' ? archer : kind === 'knight' ? knight : kind === 'king' || kind === 'agent' ? king : kind === 'worker' ? worker : {};
+  return kind === 'archer' ? archer : kind === 'knight' ? knight : kind === 'king' ? king : kind === 'worker' ? worker : {};
 }
 export function hasUnitAnimation(kind: string, action: AnimationFrame['action']): boolean {
   const atlas = unitAtlas(kind);

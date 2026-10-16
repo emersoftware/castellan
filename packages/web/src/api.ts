@@ -1,8 +1,8 @@
-import type { Outcome, PlayerTiming, ReplayFile, ReplayPlayerSummary, SeriesReplay, SeriesSummary } from "@aoa/shared";
+import { publishedRoutes, replayArchive, routes, type Outcome, type PlayerTiming, type ReplayFile, type ReplayPlayerSummary, type SeriesReplay, type SeriesSummary } from "@aoa/shared";
 import { hasScriptedBot, replayFileDate } from "./replayCatalog";
 
 const published = () => import.meta.env.VITE_PUBLIC_REPLAYS === "true";
-const seriesPath = () => published() ? "/api/series" : "/series";
+const seriesPath = () => published() ? publishedRoutes.series : routes.series;
 
 export interface RoomSummary {
   id: string;
@@ -57,19 +57,19 @@ export const api = {
   series: () => fetch(seriesPath()).then((r) => json<SeriesSummary[]>(r)),
   seriesSummary: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries.series) : fetch(`${seriesPath()}/${id}`).then((r) => json<SeriesSummary>(r)),
   seriesReplay: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries) : fetch(`${seriesPath()}/${id}/replay.json`).then((r) => json<SeriesReplay>(r)),
-  room: (id: string) => fetch(`/rooms/${id}`).then((r) => json<RoomSummary>(r)),
+  room: (id: string) => fetch(`${routes.rooms}/${id}`).then((r) => json<RoomSummary>(r)),
   /** Live room: the code each player's scriptable kinds run now. */
-  roomScripts: (id: string) => fetch(`/rooms/${id}/scripts`, { headers: spectatorToken() ? { authorization: `Bearer ${spectatorToken()}` } : {} }).then((r) => json<LiveScripts>(r)),
+  roomScripts: (id: string) => fetch(`${routes.rooms}/${id}/scripts`, { headers: spectatorToken() ? { authorization: `Bearer ${spectatorToken()}` } : {} }).then((r) => json<LiveScripts>(r)),
 
   /** Featured replays ship with the site; a local server adds yours. */
   async replays(): Promise<ReplaySummary[]> {
     if (published()) {
-      const entries = await fetch("/api/replays").then((r) => json<Omit<ReplaySummary, "source">[]>(r));
+      const entries = await fetch(publishedRoutes.replays).then((r) => json<Omit<ReplaySummary, "source">[]>(r));
       return entries.map((entry) => ({ ...entry, source: "published" as const }));
     }
     const responses = await Promise.allSettled([
-      fetch("/featured/index.json").then(r => json<Omit<ReplaySummary, "source">[]>(r)),
-      fetch("/replays").then(r => json<Omit<ReplaySummary, "source">[]>(r)),
+      fetch(`${replayArchive.featuredUrl}/${replayArchive.index}`).then(r => json<Omit<ReplaySummary, "source">[]>(r)),
+      fetch(routes.replays).then(r => json<Omit<ReplaySummary, "source">[]>(r)),
     ]);
     if (responses.every(r => r.status === "rejected")) throw new Error("Battle catalogue unavailable");
     const featured = responses[0].status === "fulfilled" ? responses[0].value.map(x => ({ ...x, source: "featured" as const })) : [];
@@ -87,11 +87,11 @@ export const api = {
       if (!dropped) throw new Error("no replay file loaded");
       return dropped;
     }
-    if (published()) return fetch(`/api/replays/${id}`).then((r) => json<ReplayFile>(r));
+    if (published()) return fetch(`${publishedRoutes.replays}/${id}`).then((r) => json<ReplayFile>(r));
     try {
-      return await fetch(`/featured/${id}.json`).then((r) => json<ReplayFile>(r));
+      return await fetch(`${replayArchive.featuredUrl}/${id}.json`).then((r) => json<ReplayFile>(r));
     } catch {
-      return fetch(`/replays/${id}`).then((r) => json<ReplayFile>(r));
+      return fetch(`${routes.replays}/${id}`).then((r) => json<ReplayFile>(r));
     }
   },
 };
@@ -114,7 +114,7 @@ export async function readReplayFile(file: File): Promise<ReplayFile | SeriesRep
 
 export function spectateUrl(id: string) {
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  return `${proto}://${location.host}/spectate/${id}${spectatorToken() ? `?spectator=${encodeURIComponent(spectatorToken()!)}` : ""}`;
+  return `${proto}://${location.host}${routes.spectate}/${id}${spectatorToken() ? `?spectator=${encodeURIComponent(spectatorToken()!)}` : ""}`;
 }
 
 /** The host capability is in the fragment, so it is not sent in page requests/referrers. */

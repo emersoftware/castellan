@@ -5,14 +5,29 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 import { connectorVersion, launchConfiguration, reportConfiguration, reportActivity } from "../metadata.mjs";
+import { seat } from "../game.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-export function codexArgs({ workspace, session, args, prompt }) {
+/** `codex exec` cut off from the host: read-only in an empty workspace, without the user's config,
+ * rules, project docs, web search or built-in tools, and never asking for approval. */
+export function isolatedExec({ workspace, session }) {
   return ["exec", "-s", "read-only", "-C", workspace, ...(session ? ["resume", session] : []),
-    "--skip-git-repo-check", "--ignore-user-config", "--ignore-rules", "--json",
+    "--skip-git-repo-check", "--ignore-user-config", "--ignore-rules",
     ...["shell_tool", "unified_exec", "view_image", "browser_use", "browser_use_external", "in_app_browser", "computer_use",
       "image_generation", "apps", "plugins", "remote_plugin", "hooks", "multi_agent", "memories", "skill_search", "tool_suggest", "goals", "sleep_tool"].flatMap(f => ["--disable", f]),
-    "-c", 'web_search="disabled"', "-c", "project_doc_max_bytes=0", "-c", "approval_policy=never",
+    "-c", 'web_search="disabled"', "-c", "project_doc_max_bytes=0", "-c", "approval_policy=never"];
+}
+
+/** A private CODEX_HOME in root that shares only the user's Codex login, and an empty workspace. */
+export async function isolatedHome(root, env = process.env) {
+  const home = join(root, "home"), workspace = join(root, "workspace");
+  await mkdir(home); await mkdir(workspace);
+  await symlink(join(env.CODEX_HOME || join(homedir(), ".codex"), "auth.json"), join(home, "auth.json"));
+  return { home, workspace };
+}
+
+export function codexArgs({ workspace, session, args, prompt }) {
+  return [...isolatedExec({ workspace, session }), "--json",
     "-c", 'mcp_servers.aoa.command="node"', "-c", `mcp_servers.aoa.args=${JSON.stringify([resolve(here, "../../mcp/bin/aoa-mcp.mjs")])}`,
     "-c", 'mcp_servers.aoa.env_vars=["AOA_SERVER","AOA_TOKEN"]',
     "-c", "mcp_servers.aoa.tool_timeout_sec=60", "-c", 'mcp_servers.aoa.default_tools_approval_mode="approve"', ...args, prompt];
@@ -23,21 +38,15 @@ export function codexArgs({ workspace, session, args, prompt }) {
 export async function play({ env = process.env, args = process.argv.slice(2), fetchImpl = fetch, spawnImpl = spawn,
   minIntervalMs = 1500, pollMs = 2000 } = {}) {
   if (!env.AOA_TOKEN) throw new Error("set AOA_TOKEN");
-  const server = (env.AOA_SERVER || "http://localhost:4400").replace(/\/$/, "");
-  const root = await mkdtemp(join(tmpdir(), "aoa-codex-")), home = join(root, "home"), workspace = join(root, "workspace");
+  const root = await mkdtemp(join(tmpdir(), "aoa-codex-"));
   let child, session, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0;
   const abort = new AbortController();
   const stop = () => { stopped = true; abort.abort(); child?.kill("SIGTERM"); };
-  const get = async path => {
-    const res = await fetchImpl(server + path, { headers: { authorization: `Bearer ${env.AOA_TOKEN}` }, signal: AbortSignal.any([abort.signal, AbortSignal.timeout(8000)]) });
-    if (!res.ok) throw new Error(`game HTTP ${res.status}`);
-    return path.includes("format=text") ? res.text() : res.json();
-  };
+  const game = seat({ env, fetchImpl, signal: abort.signal });
   const delay = ms => sleep(ms, undefined, { signal: abort.signal });
   let watcher;
   try {
-    await mkdir(home); await mkdir(workspace);
-    await symlink(join(env.CODEX_HOME || join(homedir(), ".codex"), "auth.json"), join(home, "auth.json"));
+    const { home, workspace } = await isolatedHome(root, env);
     let base = await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
     if (env.AOA_DIRECTIVE) base += `\n\n${env.AOA_DIRECTIVE}`;
     await reportConfiguration(launchConfiguration({ connector: "codex", args, prompt: base, env,
@@ -46,7 +55,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
     const watch = async () => {
       if (stopped) return;
       try {
-        const status = await get("/status");
+        const status = await game.status();
         if (status.status === "finished" || status.alive === false) { finished = true; stop(); return; }
       } catch { /* next poll */ }
       if (!stopped) watcher = setTimeout(watch, pollMs);
@@ -55,7 +64,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
     while (!stopped) {
       const started = Date.now();
       try {
-        const observation = await get(`/state?format=text&since=${lastDeliveredTick}`);
+        const observation = await game.observation(lastDeliveredTick);
         if (/ · finished · /.test(observation) || /^YOU\s+.* · OUT$/m.test(observation)) { finished = true; break; }
         if (/ · (waiting|prep) · /.test(observation)) { await delay(1000); continue; }
         const observedTick = Number(observation.match(/^tick (\d+)/)?.[1]);

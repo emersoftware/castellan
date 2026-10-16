@@ -1,25 +1,28 @@
 import { replayMeta } from "./social";
 import type { SeriesSummary } from "../packages/shared/src/protocol";
+import { publishedApi, publishedRoutes } from "../packages/shared/src/http";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "x-content-type-options": "nosniff" };
 const error = (message: string, status: number) => Response.json({ error: message }, { status, headers: { "cache-control": "no-store" } });
+const replayPattern = new RegExp(`^${publishedRoutes.replays}/([a-zA-Z0-9_-]+)$`);
+const seriesPattern = new RegExp(`^${publishedRoutes.series}/([a-zA-Z0-9_-]+)(/replay.json)?$`);
 
 /** The public Worker only reads D1. Publishing uses Wrangler on the host computer. */
 async function readAPI(path: string, db: D1Database): Promise<Response> {
-  if (path === "/api/replays" || path === "/api/series") {
-    const table = path === "/api/replays" ? "replays" : "series";
+  if (path === publishedRoutes.replays || path === publishedRoutes.series) {
+    const table = path === publishedRoutes.replays ? "replays" : "series";
     const summary = table === "replays"
       ? "json_set(summary_json, '$.rulesVersion', json_extract(replay_json, '$.ruleset.version')) AS summary_json"
       : "summary_json";
     const { results } = await db.prepare(`SELECT ${summary} FROM ${table} ORDER BY saved_at DESC, id`).all<{ summary_json: string }>();
     return new Response(`[${results.map((r) => r.summary_json).join(",")}]`, { headers: jsonHeaders });
   }
-  const replay = /^\/api\/replays\/([a-zA-Z0-9_-]+)$/.exec(path);
+  const replay = replayPattern.exec(path);
   if (replay) {
     const row = await db.prepare("SELECT replay_json, content_hash FROM replays WHERE id = ?").bind(replay[1]).first<{ replay_json: string; content_hash: string }>();
     return row ? new Response(row.replay_json, { headers: { ...jsonHeaders, etag: `"${row.content_hash}"` } }) : error("Replay not found", 404);
   }
-  const series = /^\/api\/series\/([a-zA-Z0-9_-]+)(\/replay.json)?$/.exec(path);
+  const series = seriesPattern.exec(path);
   if (series) {
     const raw = await db.prepare("SELECT summary_json FROM series WHERE id = ?").bind(series[1]).first<string>("summary_json");
     if (!raw) return error("Series not found", 404);
@@ -53,7 +56,7 @@ export default {
         return page;
       }
     }
-    if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
+    if (!url.pathname.startsWith(`${publishedApi}/`)) return env.ASSETS.fetch(request);
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new Response(null, { status: 405, headers: { allow: "GET, HEAD", "cache-control": "no-store" } });
     }

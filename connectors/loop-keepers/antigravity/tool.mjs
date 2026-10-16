@@ -5,8 +5,9 @@ import { chmod, stat, writeFile, rm } from "node:fs/promises";
 import { createServer, createConnection } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { gameTools } from "../game.mjs";
 
-const names = new Set(["rules", "state", "act", "script", "run", "chat", "history", "script_test"]);
+const names = new Set(gameTools);
 const mcpBin = fileURLToPath(new URL("../../mcp/bin/aoa-mcp.mjs", import.meta.url));
 // Resolve the SDK through the package that owns it, including in frozen runs.
 const requireMcp = createRequire(new URL("../../mcp/package.json", import.meta.url));
@@ -46,7 +47,7 @@ function argumentsObject(args) {
 function commandRequest(argv) {
   const [name, json] = argv;
   if (argv.length !== 2 || !names.has(name)) {
-    throw new Error("usage: aoa-tool <rules|state|act|run|script|chat|history|script_test> '<JSON object>'");
+    throw new Error(`usage: aoa-tool <${gameTools.join("|")}> '<JSON object>'`);
   }
   let args;
   try { args = JSON.parse(json); }

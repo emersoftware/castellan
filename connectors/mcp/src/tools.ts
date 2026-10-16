@@ -84,7 +84,7 @@ export function createServer(c: aoa.Client = aoa.client({ connector: process.env
     ({ kind, code, lang }) =>
       reply(async () => {
         if (code !== undefined) return aoa.putScript(c, kind, code, { lang });
-        const s = await c.get<{ code: string; custom: boolean }>(`/scripts/${encodeURIComponent(kind)}`);
+        const s = await aoa.script(c, kind);
         return `// ${kind}: ${s.custom ? "custom" : "default"}\n${s.code}`;
       }),
   );

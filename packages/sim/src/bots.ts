@@ -3,7 +3,7 @@
  * ladder. A bot sees exactly what an LLM player sees (a PlayerView) and answers
  * with the same orders, so a bot with a decision delay models an LLM.
  */
-import { rules, type Order, type PlayerView, type Ruleset } from "@aoa/shared";
+import { currentKind, rules, type Order, type PlayerView, type Ruleset } from "@aoa/shared";
 
 export type Bot = (view: PlayerView) => Order[];
 
@@ -34,7 +34,7 @@ else self.hold();
 `;
 
 const count = (v: PlayerView, kind: string) => v.mine.filter((e) => e.kind === kind).length;
-const castle = (v: PlayerView) => v.mine.find((e) => (e.kind === "castle" || e.kind === "nexus"));
+const castle = (v: PlayerView) => v.mine.find((e) => currentKind(e.kind) === "castle");
 const mineral = (v: PlayerView) => v.players.find((p) => p.id === v.you)!.mineral ?? 0;
 const queued = (v: PlayerView, kind: string) => v.mine.reduce((n, e) => n + (e.training?.filter((j) => j.kind === kind).length ?? 0), 0);
 
@@ -162,7 +162,7 @@ export function archers(r: Ruleset = rules): Bot {
     const archers = v.mine.filter((e) => e.kind === "archer");
     const { centre, goal } = waypoints(v, r);
     for (const unit of archers) if (Math.hypot(unit.x - centre.x, unit.y - centre.y) <= 2) scouted.add(unit.id);
-    const target = v.enemy.find((e) => (e.kind === "castle" || e.kind === "nexus"))
+    const target = v.enemy.find((e) => currentKind(e.kind) === "castle")
       ?? [...v.enemy].sort((a, b) => Math.min(...archers.map((u) => Math.hypot(a.x - u.x, a.y - u.y)))
         - Math.min(...archers.map((u) => Math.hypot(b.x - u.x, b.y - u.y))))[0];
     const attack: Order[] = archers.length >= 8 ? archers.filter((unit) => {

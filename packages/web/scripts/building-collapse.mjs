@@ -1,7 +1,7 @@
 /** Prepare MiniMax references, then package reviewed one-shot building collapses. */
 import sharp from 'sharp';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { execFileSync } from 'node:child_process';
+import { ff, probeDuration } from './ffmpeg.mjs';
 
 const root = new URL('../../../', import.meta.url).pathname;
 const sprites = `${root}packages/web/public/sprites`;
@@ -10,7 +10,6 @@ const manifest = JSON.parse(await readFile(`${sprites}/manifest.json`, 'utf8'));
 const files = { wall: 'wall', wallpost: 'wallpost', door: 'door', 'door-open': 'door-open', tower: 'tower', castle: 'castle' };
 const prepare = process.argv.includes('--prepare');
 const onlyKind = process.argv.includes('--kind') ? process.argv[process.argv.indexOf('--kind') + 1] : undefined;
-const ff = (...args) => execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', ...args]);
 
 function key(data) {
   for (let i = 0; i < data.length; i += 4) {
@@ -56,7 +55,7 @@ for (const [kind, file] of Object.entries(files)) {
   const s = JSON.parse(await readFile(`${dir}/reference-layout.json`, 'utf8'));
   const exportSettings = JSON.parse(await readFile(`${sources}/export-settings.json`, 'utf8'))[kind] ?? {};
   await mkdir(`${dir}/frames`, { recursive: true });
-  const duration = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', `${dir}/generated.mp4`], { encoding: 'utf8' }).trim());
+  const duration = probeDuration(`${dir}/generated.mp4`);
   const trim = exportSettings.trimStart ?? 0;
   const end = exportSettings.end ?? duration;
   ff('-ss', String(trim), '-i', `${dir}/generated.mp4`, '-vf', `fps=${26 / (end - trim)},scale=544:544`, '-frames:v', '26', `${dir}/frames/%02d.png`);

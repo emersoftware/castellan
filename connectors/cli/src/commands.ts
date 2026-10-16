@@ -4,7 +4,7 @@
  * connectors can call them without spawning processes.
  */
 import { spawn } from "node:child_process";
-import { eventLine, outcomeText, type ChatChannel, type MatchStatus, type Outcome, type PlayerView, type SeriesSummary } from "@aoa/shared";
+import { eventLine, outcomeText, routes, type ChatChannel, type MatchStatus, type Outcome, type PlayerView, type SeriesSummary } from "@aoa/shared";
 import { ApiError, client, query, type Client } from "./client";
 
 export interface Fmt {
@@ -15,72 +15,79 @@ const pretty = (v: unknown) => JSON.stringify(v, null, 2);
 const format = (json?: boolean) => (json ? undefined : "text");
 
 export async function rules(c: Client, o: Fmt = {}): Promise<string> {
-  return o.json ? pretty(await c.get("/rules")) : c.get<string>("/rules?format=text");
+  return o.json ? pretty(await c.get(routes.rules)) : c.get<string>(`${routes.rules}?format=text`);
 }
 
 export async function history(c: Client, o: Fmt & { game?: number; section?: string; offset?: number; limit?: number } = {}): Promise<string> {
-  const result = await c.get(`/history${query({ game: o.game, section: o.section, offset: o.offset, limit: o.limit, format: format(o.json) })}`);
+  const result = await c.get(`${routes.history}${query({ game: o.game, section: o.section, offset: o.offset, limit: o.limit, format: format(o.json) })}`);
   return o.json ? pretty(result) : result as string;
 }
 
 export async function state(c: Client, o: Fmt & { since?: number } = {}): Promise<string> {
-  const v = await c.get(`/state${query({ since: o.since, format: format(o.json) })}`);
+  const v = await c.get(`${routes.state}${query({ since: o.since, format: format(o.json) })}`);
   return o.json ? pretty(v) : (v as string);
 }
 
 /** Accepts one order or an array of them. */
 export async function act(c: Client, orders: unknown, o: Fmt = {}): Promise<string> {
   const list = Array.isArray(orders) ? orders : [orders];
-  const r = await c.post(`/act${query({ format: format(o.json) })}`, { orders: list });
+  const r = await c.post(`${routes.act}${query({ format: format(o.json) })}`, { orders: list });
   return o.json ? pretty(r) : (r as string);
 }
 
 /** Runs a one-shot player script on the server: full JSON view and rules in scope, act() orders applied at once. */
 export async function runScript(c: Client, code: string, o: Fmt & { lang?: "js" | "ts" } = {}): Promise<string> {
-  const r = await c.post(`/run${query({ format: format(o.json) })}`, { code, lang: o.lang ?? "js" });
+  const r = await c.post(`${routes.run}${query({ format: format(o.json) })}`, { code, lang: o.lang ?? "js" });
   return o.json ? pretty(r) : (r as string);
 }
 
-interface ScriptInfo {
+export interface ScriptInfo {
   code: string;
   custom: boolean;
 }
 
+const scriptPath = (kind: string) => `${routes.scripts}/${encodeURIComponent(kind)}`;
+
+/** The script `kind` runs now, built-in or custom. */
+export function script(c: Client, kind: string): Promise<ScriptInfo> {
+  return c.get<ScriptInfo>(scriptPath(kind));
+}
+
 /** Prints only the code, so `aoa script knight > k.js` round-trips. */
 export async function getScript(c: Client, kind: string, o: Fmt = {}): Promise<string> {
-  const s = await c.get<ScriptInfo>(`/scripts/${encodeURIComponent(kind)}`);
+  const s = await script(c, kind);
   return o.json ? pretty(s) : s.code;
 }
 
 /** `code: null` restores the built-in script. */
 export async function putScript(c: Client, kind: string, code: string | null, o: Fmt & { lang?: "js" | "ts" } = {}): Promise<string> {
-  const r = await c.put(`/scripts/${encodeURIComponent(kind)}${query({ format: format(o.json) })}`, { code, lang: o.lang ?? "js" });
+  const r = await c.put(`${scriptPath(kind)}${query({ format: format(o.json) })}`, { code, lang: o.lang ?? "js" });
   return o.json ? pretty(r) : (r as string);
 }
 
 export async function testScript(c: Client, kind: string, code: string, o: { lang?: "js" | "ts" } = {}): Promise<string> {
-  return pretty(await c.post(`/scripts/${encodeURIComponent(kind)}/test`, { code, lang: o.lang ?? "js" }));
+  return pretty(await c.post(`${scriptPath(kind)}/test`, { code, lang: o.lang ?? "js" }));
 }
 
 /** With text: sends publicly, to the team, or to one player. Without: visible history. */
 export async function chat(c: Client, text?: string, o: Fmt & { channel?: ChatChannel; to?: string } = {}): Promise<string> {
   if (text === undefined) {
-    const r = await c.get(`/chat${query({ format: format(o.json) })}`);
+    const r = await c.get(`${routes.chat}${query({ format: format(o.json) })}`);
     return o.json ? pretty(r) : (r as string);
   }
-  const r = await c.post(`/chat${query({ format: format(o.json) })}`, { text, channel: o.channel, to: o.to });
+  const r = await c.post(`${routes.chat}${query({ format: format(o.json) })}`, { text, channel: o.channel, to: o.to });
   return o.json ? pretty(r) : (r as string);
 }
 
 export async function wait(c: Client, o: Fmt & { seconds?: number; since?: number; until?: string } = {}): Promise<string> {
-  const v = await c.get(`/wait${query({ since: o.since, max: o.seconds, until: o.until, format: format(o.json) })}`);
+  const v = await c.get(`${routes.wait}${query({ since: o.since, max: o.seconds, until: o.until, format: format(o.json) })}`);
   return o.json ? pretty(v) : (v as string);
 }
 
 /** Note: like every authenticated call, this counts as the player connecting. */
 export async function status(c: Client): Promise<MatchStatus> {
   // /status neither counts as a player call nor moves the player's event cursor.
-  return (await c.get<{ status: MatchStatus }>("/status")).status;
+  return (await c.get<{ status: MatchStatus }>(routes.status)).status;
 }
 
 /**
@@ -88,10 +95,10 @@ export async function status(c: Client): Promise<MatchStatus> {
  * until the match finishes. Built for line-based monitors.
  */
 export async function watch(c: Client, print: (line: string) => void, o: Fmt & { since?: number } = {}): Promise<Outcome | undefined> {
-  let since = o.since ?? (await c.get<PlayerView>("/state?since=999999999")).tick;
+  let since = o.since ?? (await c.get<PlayerView>(`${routes.state}?since=999999999`)).tick;
   let last: MatchStatus | undefined;
   for (;;) {
-    const v = await c.get<PlayerView>(`/wait${query({ since, max: 30 })}`);
+    const v = await c.get<PlayerView>(`${routes.wait}${query({ since, max: 30 })}`);
     if (v.status !== last) print(o.json ? JSON.stringify({ tick: v.tick, type: "status", status: v.status }) : `[${v.tick}] status ${v.status}`);
     for (const e of v.events) if (e.tick >= since) print(o.json ? JSON.stringify(e) : eventLine(e).trim());
     last = v.status;
@@ -121,10 +128,10 @@ export async function newRoom(
 ): Promise<string> {
   const players = [...(o.names ?? []).map((name) => ({ name })), ...(o.bots ?? []).map((bot) => ({ bot }))];
   if (o.series) {
-    const r = await c.post<Omit<SeriesSummary, "players"> & { players: { id: string; name: string; token?: string; bot?: string }[]; watch: string }>("/series", { players: players.length ? players : undefined, prepMs: o.prepMs, seed: o.seed, map: o.map, sides: o.sides, chat: o.chat, mode: o.mode });
+    const r = await c.post<Omit<SeriesSummary, "players"> & { players: { id: string; name: string; token?: string; bot?: string }[]; watch: string }>(routes.series, { players: players.length ? players : undefined, prepMs: o.prepMs, seed: o.seed, map: o.map, sides: o.sides, chat: o.chat, mode: o.mode });
     return o.json ? pretty(r) : [`series ${r.id} · 3 games`, ...r.players.map((p) => `${p.id} ${p.name} ${p.bot ? `(bot ${p.bot})` : `AOA_TOKEN=${p.token}`}`), `watch ${c.server}${r.watch}`].join("\n");
   }
-  const r = await c.post<RoomSummary>("/rooms", { players: players.length ? players : undefined, prepMs: o.prepMs, seed: o.seed, map: o.map, sides: o.sides, chat: o.chat, mode: o.mode });
+  const r = await c.post<RoomSummary>(routes.rooms, { players: players.length ? players : undefined, prepMs: o.prepMs, seed: o.seed, map: o.map, sides: o.sides, chat: o.chat, mode: o.mode });
   if (o.json) return pretty(r);
   return [
     `room ${r.id} (${r.status})${r.map ? ` · map ${r.map}` : ""}${r.players.length > 2 && r.mode === "ffa" ? " · free-for-all" : ""}${r.chat ? " · chat on" : ""}`,
@@ -138,7 +145,7 @@ export async function newRoom(
 }
 
 export async function rooms(c: Client, o: Fmt = {}): Promise<string> {
-  const list = await c.get<RoomSummary[]>("/rooms");
+  const list = await c.get<RoomSummary[]>(routes.rooms);
   if (o.json) return pretty(list);
   if (!list.length) return "no rooms";
   return list
@@ -172,7 +179,7 @@ export async function run(c: Client, cmd: string[], o: RunOptions = {}): Promise
     const code = await exec(cmd, attempt ? { ...env, AOA_RESUME: "1" } : env);
     let s: MatchStatus | "unreachable";
     try {
-      const current = await c.get<{ status: MatchStatus; alive?: boolean }>("/status");
+      const current = await c.get<{ status: MatchStatus; alive?: boolean }>(routes.status);
       if (current.alive === false) { log("aoa run: player eliminated"); return 0; }
       s = current.status;
     } catch (e) {
@@ -202,7 +209,7 @@ export async function runSeries(c: Client, cmd: string[], o: RunOptions = {}): P
   let last: string | undefined;
   for (;;) {
     let joined: { series: SeriesSummary; game: { id: string; number: number; token: string; status: MatchStatus } };
-    try { joined = await c.get("/series/current"); }
+    try { joined = await c.get(routes.currentSeries); }
     catch (error) {
       if (!(error instanceof ApiError) || error.status === 401) throw error;
       log("aoa run-series: waiting for server");

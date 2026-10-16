@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { seat } from "./game.mjs";
 
 function flag(args, names) {
   let result;
@@ -65,10 +66,7 @@ export function connectorVersion(binary) {
 export async function reportConfiguration(configuration, { env = process.env, fetchImpl = fetch, warn = console.error } = {}) {
   if (!env.AOA_TOKEN) return false;
   try {
-    const res = await fetchImpl(`${(env.AOA_SERVER || "http://localhost:4400").replace(/\/$/, "")}/agent-config`, {
-      method: "POST", headers: { authorization: `Bearer ${env.AOA_TOKEN}`, "content-type": "application/json" },
-      body: JSON.stringify(configuration), signal: AbortSignal.timeout(3000), redirect: "error",
-    });
+    const res = await seat({ env, fetchImpl, redirect: "error" }).report("/agent-config", configuration);
     if (res.ok) return true;
     warn(`aoa: experiment configuration was not recorded (HTTP ${res.status}).`);
   } catch {
@@ -82,10 +80,7 @@ export async function reportConfiguration(configuration, { env = process.env, fe
 export async function reportActivity(state, { env = process.env, fetchImpl = fetch, retryAt } = {}) {
   if (!env.AOA_TOKEN) return;
   try {
-    await fetchImpl(`${(env.AOA_SERVER || "http://localhost:4400").replace(/\/$/, "")}/agent-status`, {
-      method: "POST", headers: { authorization: `Bearer ${env.AOA_TOKEN}`, "content-type": "application/json" },
-      body: JSON.stringify({ state, ...(retryAt ? { retryAt } : {}) }), signal: AbortSignal.timeout(3000), redirect: "error",
-    });
+    await seat({ env, fetchImpl, redirect: "error" }).report("/agent-status", { state, ...(retryAt ? { retryAt } : {}) });
   } catch { /* telemetry never stops a player */ }
 }
 

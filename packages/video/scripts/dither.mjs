@@ -5,6 +5,7 @@
 // Scaling happens in RGB: nearest-neighbour scaling of YUV frames loses their colour.
 //   node scripts/dither.mjs in.mp4 out.mp4
 import { spawn } from "node:child_process";
+import { encodeMp4 } from "../../web/scripts/ffmpeg.mjs";
 
 const [input, output] = process.argv.slice(2);
 if (!input || !output) throw new Error("usage: node scripts/dither.mjs in.mp4 out.mp4");
@@ -48,9 +49,8 @@ const probe = await new Promise((res, rej) => {
 const [W, H, rate] = probe.split(",");
 const w = Number(W) / PIXEL, h = Number(H) / PIXEL, frameBytes = w * h * 3;
 const dec = spawn("ffmpeg", ["-v", "error", "-i", input, "-vf", `format=rgb24,scale=${w}:${h}:flags=neighbor`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]);
-const enc = spawn("ffmpeg", ["-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", `${w}x${h}`, "-framerate", rate, "-i", "-",
-  "-i", input, "-map", "0:v", "-map", "1:a?", "-c:a", "copy",
-  "-vf", `scale=${W}:${H}:flags=neighbor,format=yuv420p`, "-c:v", "libx264", "-preset", "slow", "-crf", "12", "-pix_fmt", "yuv420p", "-movflags", "+faststart", output], { stdio: ["pipe", "inherit", "inherit"] });
+const enc = encodeMp4(["-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", `${w}x${h}`, "-framerate", rate, "-i", "-",
+  "-i", input, "-map", "0:v", "-map", "1:a?", "-c:a", "copy", "-vf", `scale=${W}:${H}:flags=neighbor,format=yuv420p`], output);
 let buf = Buffer.alloc(0), frames = 0;
 dec.stdout.on("data", (chunk) => {
   buf = Buffer.concat([buf, chunk]);

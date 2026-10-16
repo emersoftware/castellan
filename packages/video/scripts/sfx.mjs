@@ -6,6 +6,7 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
+import { probeDuration } from "../../web/scripts/ffmpeg.mjs";
 
 const { positionals, values: o } = parseArgs({ allowPositionals: true, options: { "wind-in": { type: "string" }, "wind-out": { type: "string" } } });
 const clip = positionals[0];
@@ -26,7 +27,7 @@ const decode = (file) => {
 };
 const manifest = JSON.parse(readFileSync(`${SOUNDS}manifest.json`, "utf8"));
 const buffers = Object.fromEntries(Object.entries(manifest.files).map(([k, files]) => [k, files.map((f) => decode(SOUNDS + f))]));
-const duration = Number(spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", clip]).stdout.toString());
+const duration = probeDuration(clip);
 const n = Math.ceil(duration * RATE);
 const L = new Float32Array(n), R = new Float32Array(n);
 

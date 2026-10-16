@@ -11,6 +11,7 @@
     "test:agents": "pnpm test --project agents",
     "test:web": "pnpm test --project web",
     "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --filter video typecheck",
+    "design:audit": "tsx tools/design-audit/index.ts",
     "server": "pnpm --filter @aoa/server start",
     "web": "pnpm --filter @aoa/web dev",
     "sim": "pnpm --filter @aoa/sim sim",

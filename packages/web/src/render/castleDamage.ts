@@ -1,12 +1,13 @@
 import atlas from '../../public/sprites/castle/manifest.json';
 import mapping from '../../public/sprites/castle/fire-pixels.json';
 import type { AnimationFrame } from './sprites';
+import { displayKind } from './names';
 
 export type CastleDamageStage = 25 | 50;
 interface Meta { fps: number; frameCount: number }
 const clips = atlas as Partial<Record<AnimationFrame['action'], Meta>>;
 export interface FireEmitter { x: number; y: number; radius: number }
-const isCastle = (kind: string) => kind === 'castle' || kind === 'nexus';
+const isCastle = (kind: string) => displayKind(kind) === 'castle';
 
 /** The two art stages describe destruction, while ignition uses remaining HP. */
 export function castleDamageStage(kind: string, hp: number, maxHp: number): CastleDamageStage | undefined {

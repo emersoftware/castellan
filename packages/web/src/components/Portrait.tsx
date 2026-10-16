@@ -4,7 +4,7 @@ import { ditherRamp } from "../render/cpuDither";
 import { isCharacter, normalizeCharacterContrast } from "../render/characterContrast";
 import { displayKind } from "../render/names";
 
-const FILES: Record<string, string> = { nexus: "castle", tower: "tower", deposit: "mineral", agent: "king_1", king: "king_1", worker: "worker_1", knight: "knight_1", archer: "archer_1" };
+const FILES: Record<string, string> = { tower: "tower", deposit: "mineral", king: "king_1", worker: "worker_1", knight: "knight_1", archer: "archer_1" };
 interface Idle { image: string; frameCount: number; fps: number; frameWidth: number; frameHeight: number; rows: string[] }
 const imageLoads = new Map<string, Promise<HTMLImageElement>>();
 function loadImage(src: string) {
@@ -44,10 +44,9 @@ export function Portrait({ kind, team = 0, height = 120, idle = false, spriteBas
     const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; });
     observer.observe(cv);
     async function prepare() {
-      const canonical = kind === "nexus" ? "castle" : kind === "agent" ? "king" : kind;
       let meta: Idle | undefined;
-      if (idle && ["king", "knight", "archer", "worker", "castle", "tower"].includes(canonical)) {
-        const manifest: { idle?: Idle } = await fetch(`${spriteBase}/${canonical}/manifest.json`).then(r => r.ok ? r.json() : {});
+      if (idle && ["king", "knight", "archer", "worker", "castle", "tower"].includes(kind)) {
+        const manifest: { idle?: Idle } = await fetch(`${spriteBase}/${kind}/manifest.json`).then(r => r.ok ? r.json() : {});
         meta = manifest.idle;
       }
       let format = kind === "door" ? "svg" : "webp";
@@ -56,7 +55,7 @@ export function Portrait({ kind, team = 0, height = 120, idle = false, spriteBas
         format = manifest.sprites[FILES[kind] ?? kind]?.format ?? format;
       }
       if (disposed) return;
-      const img = await loadImage(meta ? `${spriteBase}/${canonical}/${meta.image}` : `${spriteBase}/${FILES[kind] ?? kind}.${format}`);
+      const img = await loadImage(meta ? `${spriteBase}/${kind}/${meta.image}` : `${spriteBase}/${FILES[kind] ?? kind}.${format}`);
       if (disposed) return;
       const source = document.createElement("canvas");
       source.width = meta?.frameWidth ?? (idle && isCharacter(kind) ? 112 : img.width);

@@ -11,7 +11,7 @@ import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { transform } from "esbuild";
-import { MAPS, playerGuide, replayPlayerSummaries, rules, viewToText, type ExperimentManifest, type Order, type ReplayFile, type ReplayPlayerSummary, type Ruleset } from "@aoa/shared";
+import { MAPS, declaredAgent, playerGuide, publishedApi, replayArchive, replayPlayerSummaries, routes, rules, viewToText, type ExperimentManifest, type Order, type ReplayFile, type ReplayPlayerSummary, type Ruleset } from "@aoa/shared";
 import { BOTS } from "@aoa/sim";
 import { Room } from "./room";
 import { SeriesStore, type HistorySection } from "./series";
@@ -56,8 +56,8 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
       return null;
     }
     try {
-      const declared = req.headers["x-aoa-agent"];
-      if (typeof declared === "string") who.room.configureAgent(who.player, agentConfiguration(JSON.parse(decodeURIComponent(declared))), true);
+      const declared = declaredAgent(req.headers);
+      if (declared !== undefined) who.room.configureAgent(who.player, agentConfiguration(declared), true);
     } catch (error) { reply.code(400).send({ error: (error as Error).message }); return null; }
     who.room.touch(who.player);
     who.room.beginCall(who.player);
@@ -80,10 +80,10 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
 
   // ───────────────────────── lobby ─────────────────────────
 
-  app.get("/health", async () => ({ ok: true }));
+  app.get(routes.health, async () => ({ ok: true }));
 
   // Harness metadata must not connect/start a player or consume its observation cursor.
-  app.post("/agent-config", async (req, reply) => {
+  app.post(routes.agentConfig, async (req, reply) => {
     const token = (req.headers.authorization ?? "").replace(/^Bearer /, "");
     const who = tokens.get(token);
     if (!who) return reply.code(401).send({ error: "a valid player token is required" });
@@ -93,7 +93,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return { ok: true };
   });
 
-  app.post("/agent-status", async (req, reply) => {
+  app.post(routes.agentStatus, async (req, reply) => {
     const token = (req.headers.authorization ?? "").replace(/^Bearer /, "");
     const who = tokens.get(token);
     if (!who) return reply.code(401).send({ error: "a valid player token is required" });
@@ -141,7 +141,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
       prepMs: int(body.prepMs, opts.prepMs ?? ruleset.prepMs),
       botLatencyMs: int(body.botLatencyMs, 3000),
     };
-    if (req.routeOptions.url === "/series") return series.create(config);
+    if (req.routeOptions.url === routes.series) return series.create(config);
     const room = await Room.create({ ...config, onFinish: (replay) => void saveReplay(opts.replayDir, replay) });
     register(room);
     return {
@@ -150,31 +150,31 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
       watch: `/watch/${room.id}#spectator=${room.spectatorToken}`,
     };
   };
-  app.post("/rooms", createRoom);
-  app.post("/series", createRoom);
-  app.get("/series", async () => series.list());
-  app.get("/series/current", async (req, reply) => {
+  app.post(routes.rooms, createRoom);
+  app.post(routes.series, createRoom);
+  app.get(routes.series, async () => series.list());
+  app.get(routes.currentSeries, async (req, reply) => {
     const token = (req.headers.authorization ?? "").replace(/^Bearer /, "");
     return series.current(token) ?? reply.code(401).send({ error: "a valid series participant token is required" });
   });
-  app.get("/series/:id", async (req, reply) => series.summary((req.params as { id: string }).id) ?? reply.code(404).send({ error: "no such series" }));
-  app.get("/series/:id/replay.json", async (req, reply) => {
+  app.get(`${routes.series}/:id`, async (req, reply) => series.summary((req.params as { id: string }).id) ?? reply.code(404).send({ error: "no such series" }));
+  app.get(`${routes.series}/:id/replay.json`, async (req, reply) => {
     const id = (req.params as { id: string }).id;
     if (!series.summary(id)) return reply.code(404).send({ error: "no such series" });
     return series.replay(id) ?? reply.code(409).send({ error: "series replay is available after all three games finish" });
   });
 
-  app.get("/maps", async () => Object.values(maps).map(({ name, description, width, height, walls, wallStyle, neutralWalls, seats }) => ({ name, description, width, height, walls, ...(wallStyle ? { wallStyle } : {}), ...(neutralWalls?.length ? { neutralWalls } : {}), players: seats ?? 2 })));
+  app.get(routes.maps, async () => Object.values(maps).map(({ name, description, width, height, walls, wallStyle, neutralWalls, seats }) => ({ name, description, width, height, walls, ...(wallStyle ? { wallStyle } : {}), ...(neutralWalls?.length ? { neutralWalls } : {}), players: seats ?? 2 })));
 
-  app.get("/rooms", async () => [...rooms.values()].map((r) => r.summary()).reverse());
+  app.get(routes.rooms, async () => [...rooms.values()].map((r) => r.summary()).reverse());
 
-  app.get("/rooms/:id", async (req, reply) => {
+  app.get(`${routes.rooms}/:id`, async (req, reply) => {
     const room = rooms.get((req.params as { id: string }).id);
     return room ? room.summary() : reply.code(404).send({ error: "no such room" });
   });
 
   // Observer view of the code each player's scriptable kinds run now (the watch page's unit panel).
-  app.get("/rooms/:id/scripts", async (req, reply) => {
+  app.get(`${routes.rooms}/:id/scripts`, async (req, reply) => {
     const room = rooms.get((req.params as { id: string }).id);
     if (!room) return reply.code(404).send({ error: "no such room" });
     if (room.state !== "finished" && !spectatorAllowed(req, room)) return reply.code(403).send({ error: "live observation requires the host spectator link" });
@@ -183,7 +183,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   });
 
   const replayMetadata = new Map<string, { rulesVersion?: string; map?: string; players: ReplayPlayerSummary[] }>();
-  app.get("/replays", async () => Promise.all((await readIndex(opts.replayDir)).map(async entry => {
+  app.get(routes.replays, async () => Promise.all((await readIndex(opts.replayDir)).map(async entry => {
     const path = join(opts.replayDir, `${entry.id}.json.gz`);
     const savedAt = await stat(path).then(file => file.mtime.toISOString()).catch(() => entry.createdAt);
     const key = `${entry.id}:${savedAt}`;
@@ -199,7 +199,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   })));
 
 
-  app.get("/replays/:id", async (req, reply) => {
+  app.get(`${routes.replays}/:id`, async (req, reply) => {
     const id = (req.params as { id: string }).id;
     if (!/^[\w-]+$/.test(id)) return reply.code(400).send({ error: "bad id" });
     const file = join(opts.replayDir, `${id}.json.gz`);
@@ -208,7 +208,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return gunzipSync(await readFile(file)).toString("utf8");
   });
 
-  app.get("/spectate/:id", { websocket: true }, (socket, req) => {
+  app.get(`${routes.spectate}/:id`, { websocket: true }, (socket, req) => {
     const room = rooms.get((req.params as { id: string }).id);
     if (!room) return socket.close(4404, "no such room");
     if (room.state !== "finished" && !spectatorAllowed(req, room)) return socket.close(4403, "live observation requires the host spectator link");
@@ -225,7 +225,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   // ───────────────────────── players ─────────────────────────
 
   // With a token: the rules of that player's room (its map). Without: the defaults.
-  app.get("/rules", async (req) => {
+  app.get(routes.rules, async (req) => {
     const h = req.headers.authorization ?? "";
     const room = tokens.get(h.startsWith("Bearer ") ? h.slice(7) : "")?.room;
     const r = room?.ruleset ?? ruleset;
@@ -235,14 +235,14 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   });
 
   // For harness supervisors: checks a token's match without counting as a player call or connection.
-  app.get("/status", async (req, reply) => {
+  app.get(routes.status, async (req, reply) => {
     const h = req.headers.authorization ?? "";
     const who = tokens.get(h.startsWith("Bearer ") ? h.slice(7) : "");
     if (!who) return reply.code(401).send({ error: "missing or invalid token (Authorization: Bearer <token>)" });
     return { room: who.room.id, player: who.player, status: who.room.state, tick: who.room.tick, alive: who.room.isAlive(who.player) };
   });
 
-  app.get("/state", async (req, reply) => {
+  app.get(routes.state, async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
     const q = req.query as Record<string, string>;
@@ -250,7 +250,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return wantsText(req) ? viewToText(v) : v;
   });
 
-  app.get("/history", async (req, reply) => {
+  app.get(routes.history, async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
     const q = req.query as Record<string, string>;
@@ -269,7 +269,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     }
   });
 
-  app.post("/act", async (req, reply) => {
+  app.post(routes.act, async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
     const body = req.body as { orders?: unknown; since?: number } | undefined;
@@ -286,7 +286,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   });
 
   // A one-shot player script: reads the full JSON view and rules, returns orders applied like /act.
-  app.post("/run", async (req, reply) => {
+  app.post(routes.run, async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
     const body = req.body as { code?: unknown; lang?: unknown } | undefined;
@@ -314,7 +314,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     ].join("\n");
   });
 
-  app.get("/chat", async (req, reply) => {
+  app.get(routes.chat, async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
     const log = who.room.conversation(who.player);
@@ -323,7 +323,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return log.length ? log.map((m) => `[${m.tick}] ${m.from}${m.name === m.from ? "" : ` ${m.name}`}${m.from === who.player ? " (you)" : ""}${m.channel === "private" ? ` [private to ${m.to}]` : m.channel === "team" ? " [team]" : ""}: ${m.text}`).join("\n") : "no messages yet";
   });
 
-  app.post("/chat", async (req, reply) => {
+  app.post(routes.chat, async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
     const { text, channel, to } = (req.body as { text?: unknown; channel?: unknown; to?: unknown } | undefined) ?? {};
@@ -335,14 +335,14 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return answer(req, reply, who, r.ok ? "message sent" : `FAILED ${r.reason}`, { ok: r.ok, error: r.ok ? undefined : r.reason }, r.ok ? 200 : 400);
   });
 
-  app.get("/scripts/:kind", async (req, reply) => {
+  app.get(`${routes.scripts}/:kind`, async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
     const s = who.room.script(who.player, (req.params as { kind: string }).kind);
     return s ?? reply.code(404).send({ error: "that kind is not scriptable" });
   });
 
-  app.put("/scripts/:kind", async (req, reply) => {
+  app.put(`${routes.scripts}/:kind`, async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
     const kind = (req.params as { kind: string }).kind;
@@ -356,7 +356,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return answer(req, reply, who, line, { ok: r.ok, error: r.ok ? undefined : r.reason, appliedAt: r.ok ? tick : undefined }, r.ok ? 200 : who.room.state === "running" ? 400 : 409);
   });
 
-  app.post("/scripts/:kind/test", async (req, reply) => {
+  app.post(`${routes.scripts}/:kind/test`, async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
     const kind = (req.params as { kind: string }).kind;
@@ -370,7 +370,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
       note: "Probe of owned units in the current visible context with fresh memory; proposed actions only. Does not advance the game or install the script." };
   });
 
-  app.get("/wait", async (req, reply) => {
+  app.get(routes.wait, async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;
     const q = req.query as Record<string, string>;
@@ -394,7 +394,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
 
   if (opts.webDir && existsSync(opts.webDir)) {
     await app.register(fastifyStatic, { root: opts.webDir, wildcard: true });
-    app.setNotFoundHandler((req, reply) => (req.method === "GET" && !req.url.startsWith("/api") ? reply.sendFile("index.html") : reply.code(404).send({ error: "not found" })));
+    app.setNotFoundHandler((req, reply) => (req.method === "GET" && !req.url.startsWith(publishedApi) ? reply.sendFile("index.html") : reply.code(404).send({ error: "not found" })));
   }
 
   app.addHook("onClose", async () => {
@@ -442,7 +442,7 @@ export function saveReplay(dir: string, replay: ReplayFile): Promise<void> {
     await rename(`${path}.tmp`, path);
     const index = (await readIndex(dir)).filter((r) => r.id !== replay.id);
     index.unshift({ id: replay.id, createdAt: replay.createdAt, players: replayPlayerSummaries(replay), outcome: replay.outcome, finalTick: replay.finalTick, tickRate: replay.tickRate, rulesVersion: replay.ruleset.version, map: replay.ruleset.map.name });
-    const indexPath = join(dir, "index.json");
+    const indexPath = join(dir, replayArchive.index);
     await writeFile(`${indexPath}.tmp`, JSON.stringify(index, null, 1));
     await rename(`${indexPath}.tmp`, indexPath);
   });
@@ -452,7 +452,7 @@ export function saveReplay(dir: string, replay: ReplayFile): Promise<void> {
 
 async function readIndex(dir: string): Promise<ReplayIndexEntry[]> {
   try {
-    return JSON.parse(await readFile(join(dir, "index.json"), "utf8"));
+    return JSON.parse(await readFile(join(dir, replayArchive.index), "utf8"));
   } catch {
     return [];
   }

@@ -1,8 +1,8 @@
 /** Actual Pixi/browser QA. Start the web dev server first. */
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
-import { execFileSync } from 'node:child_process';
 import puppeteer from 'puppeteer-core';
+import { ff } from './ffmpeg.mjs';
 
 const output = new URL('../../../assets/animations/buildings/collapse/review/', import.meta.url).pathname;
 await mkdir(output, { recursive: true });
@@ -71,10 +71,10 @@ try {
       await page.evaluate(ms => window.collapseReview.step(ms), 15000 + frame * 1000 / 12);
       await page.screenshot({ path: `${output}/movie-frames/${String(frame).padStart(3, '0')}.png` });
     }
-    execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-framerate', '12', '-i', `${output}/movie-frames/%03d.png`,
-      '-frames:v','85','-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', `${output}/in-game-collapse.mp4`]);
-    execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-i', `${output}/in-game-collapse.mp4`,
-      '-filter_complex', 'fps=12,scale=960:-1,split[a][b];[a]palettegen[p];[b][p]paletteuse', `${output}/in-game-collapse.gif`]);
+    ff('-framerate', '12', '-i', `${output}/movie-frames/%03d.png`,
+      '-frames:v','85','-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', `${output}/in-game-collapse.mp4`);
+    ff('-i', `${output}/in-game-collapse.mp4`,
+      '-filter_complex', 'fps=12,scale=960:-1,split[a][b];[a]palettegen[p];[b][p]paletteuse', `${output}/in-game-collapse.gif`);
   }
   assert.deepEqual(errors, []);
   console.log(`Pixi QA passed: four buildings, four player colors, full fall at fixed height, held final frame, fade in place without translation or clipping, pause and seek. Screenshots: ${output}`);

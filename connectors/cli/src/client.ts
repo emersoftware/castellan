@@ -1,4 +1,5 @@
 /** The one HTTP client every connector command goes through. */
+import { agentHeader, defaultServer } from "@aoa/shared";
 
 export interface ClientOptions {
   connector?: string;
@@ -15,17 +16,16 @@ export class ApiError extends Error {
 export type Client = ReturnType<typeof client>;
 
 export function client(opts: ClientOptions = {}) {
-  const server = (opts.server ?? process.env.AOA_SERVER ?? "http://localhost:4400").replace(/\/+$/, "");
+  const server = (opts.server ?? process.env.AOA_SERVER ?? defaultServer).replace(/\/+$/, "");
   const token = opts.token ?? process.env.AOA_TOKEN;
 
   /** JSON bodies come back parsed, text bodies (`format=text`) as strings. Non-2xx throws ApiError. */
   async function request<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
-    const headers: Record<string, string> = {};
     const declared = { connector: process.env.AOA_CONNECTOR ?? opts.connector ?? "cli", model: process.env.AOA_MODEL ?? null,
       effort: process.env.AOA_EFFORT ?? null, connectorVersion: process.env.AOA_CONNECTOR_VERSION ?? null,
       promptSha256: process.env.AOA_PROMPT_SHA256 ?? null, memoryPolicy: process.env.AOA_MEMORY_POLICY ?? null,
       contextPolicy: process.env.AOA_CONTEXT_POLICY ?? null };
-    headers["x-aoa-agent"] = encodeURIComponent(JSON.stringify(declared));
+    const headers: Record<string, string> = agentHeader(declared);
     if (token) headers.authorization = `Bearer ${token}`;
     if (body !== undefined) headers["content-type"] = "application/json";
     let res: Response;

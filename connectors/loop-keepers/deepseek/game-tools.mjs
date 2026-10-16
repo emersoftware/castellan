@@ -1,8 +1,10 @@
 // A harness plugin, not a replacement agent loop. Deny every non-game tool
 // at execution as well as filtering the model-visible catalog.
+import { gameTools } from "../game.mjs";
+
 export const name = "aoa-game-tools";
 export const inject = ["tools"];
-export const TOOLS = ["act", "chat", "history", "rules", "run", "script", "script_test", "state"].map((t) => `mcp__aoa__${t}`);
+export const TOOLS = gameTools.map((t) => `mcp__aoa__${t}`);
 export function apply(ctx) {
   ctx.tools.guard((call) => TOOLS.includes(call.name) ? undefined : "Only AoA game tools are available to this player.");
   ctx.on("agent/created", ({ agent }) => {

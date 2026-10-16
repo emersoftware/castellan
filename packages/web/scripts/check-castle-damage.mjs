@@ -1,9 +1,9 @@
 /** Actual Pixi QA and preview of the two selected states, mapped fire and inward falls. */
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
-import { execFileSync } from 'node:child_process';
 import puppeteer from 'puppeteer-core';
 import sharp from 'sharp';
+import { ff } from './ffmpeg.mjs';
 
 const output=new URL('../../../assets/animations/buildings/castle/damage-stages/review/',import.meta.url).pathname;
 await mkdir(output,{recursive:true});
@@ -63,8 +63,8 @@ try {
       await page.screenshot({path:`${output}/movie-frames/${String(n).padStart(3,'0')}.png`});
       if(n===48||n===63||n===76)await page.screenshot({path:`${output}/${n===48?'upper-fall':n===63?'inward-fall':'rubble'}.png`});
     }
-    execFileSync('ffmpeg',['-y','-hide_banner','-loglevel','error','-framerate','12','-i',`${output}/movie-frames/%03d.png`,'-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',`${output}/in-game-fire-and-inward-collapse.mp4`]);
-    execFileSync('ffmpeg',['-y','-hide_banner','-loglevel','error','-i',`${output}/in-game-fire-and-inward-collapse.mp4`,'-filter_complex','fps=12,scale=960:-1,split[a][b];[a]palettegen[p];[b][p]paletteuse',`${output}/in-game-fire-and-inward-collapse.gif`]);
+    ff('-framerate','12','-i',`${output}/movie-frames/%03d.png`,'-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',`${output}/in-game-fire-and-inward-collapse.mp4`);
+    ff('-i',`${output}/in-game-fire-and-inward-collapse.mp4`,'-filter_complex','fps=12,scale=960:-1,split[a][b];[a]palettegen[p];[b][p]paletteuse',`${output}/in-game-fire-and-inward-collapse.gif`);
     assert.ok((await page.evaluate(()=>window.damageReview.cells())).every(c=>c.destroyed&&!c.flame&&!c.particles));
   }
   assert.deepEqual(errors,[]);

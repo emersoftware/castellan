@@ -6,6 +6,7 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { startToolBridge } from "./tool.mjs";
+import { serverUrl } from "../game.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -77,7 +78,7 @@ async function main() {
   const onInt = () => forward("SIGINT");
   const onTerm = () => forward("SIGTERM");
   try {
-    const server = process.env.AOA_SERVER || "http://localhost:4400";
+    const server = serverUrl(process.env.AOA_SERVER);
     const transport = process.env.AOA_AGY_TRANSPORT || "cli";
     if (transport === "cli") bridge = await startToolBridge({
       socketPath: join(workspace, "tools.sock"), server, token: process.env.AOA_TOKEN,

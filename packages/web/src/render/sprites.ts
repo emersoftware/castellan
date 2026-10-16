@@ -50,8 +50,8 @@ export interface Facing {
 
 /** Game kind → sprite file. */
 const FILES: Record<string, string> = {
-  agent: "king", king: "king", worker: "worker", knight: "knight", archer: "archer",
-  castle: "castle", nexus: "castle", door: "door", tower: "tower", wall: "wall", wallpost: "wallpost", deposit: "minerals-full", rock: "rock",
+  king: "king", worker: "worker", knight: "knight", archer: "archer",
+  castle: "castle", door: "door", tower: "tower", wall: "wall", wallpost: "wallpost", deposit: "minerals-full", rock: "rock",
 };
 
 /**
@@ -137,9 +137,8 @@ async function buildSprites(base: string): Promise<SpriteSet> {
   return (kind, dir = 2, animation) => {
     kind = displayKind(kind);
     if (animation) {
-      const canonical = kind === "agent" ? "king" : kind === "nexus" ? "castle" : kind;
-      const building = ["castle", "tower", "wall", "wallpost", "door", "door-open", "wall-door-left", "wall-door-right", "wall-door-both"].includes(canonical);
-      const frames = animations.get(`${canonical}:${animation.action}`)?.[building ? 0 : SHEET_VIEW[dir]];
+      const building = ["castle", "tower", "wall", "wallpost", "door", "door-open", "wall-door-left", "wall-door-right", "wall-door-both"].includes(kind);
+      const frames = animations.get(`${kind}:${animation.action}`)?.[building ? 0 : SHEET_VIEW[dir]];
       if (frames) return { art: frames[Math.max(0, Math.min(frames.length - 1, Math.floor(animation.frame)))], flip: building ? false : MIRRORED[dir] };
     }
     const file = FILES[kind] ?? kind;

@@ -6,11 +6,11 @@
 // at high quality. A screen recording (QuickTime) gets neither and looks smeared.
 //   node scripts/record.mjs <replayId> [--speed 2] [--fps 30] [--scale 2] [--out file.mp4] [--clean]
 //     [--camera auto|x,y] [--zoom k] [--pov p1] [--from s] [--to s] [--fade-in s] [--fade-out s] [--world-in s] [--world-out s]
-import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import puppeteer from "puppeteer-core";
+import { encodeMp4 } from "./ffmpeg.mjs";
 
 const { values: o, positionals } = parseArgs({
   allowPositionals: true,
@@ -73,9 +73,8 @@ try {
   console.log(`replay ${id}: ${ticks} ticks, verified ${verified}; ${frames} frames → ${out}`);
 
   const scale = Math.max(1, Math.round(Number(o.scale)));
-  const ffmpeg = spawn("ffmpeg", ["-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", String(fps), "-i", "-",
-    "-vf", `scale=iw*${scale}:ih*${scale}:flags=neighbor`,
-    "-c:v", "libx264", "-preset", "slow", "-crf", "12", "-pix_fmt", "yuv420p", "-movflags", "+faststart", out], { stdio: ["pipe", "inherit", "inherit"] });
+  const ffmpeg = encodeMp4(["-loglevel", "error", "-f", "image2pipe", "-framerate", String(fps), "-i", "-",
+    "-vf", `scale=iw*${scale}:ih*${scale}:flags=neighbor`], out);
   const cdp = await page.createCDPSession();
   const started = Date.now();
   for (let k = 0; k < frames; k++) {

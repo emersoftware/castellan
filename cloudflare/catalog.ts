@@ -5,6 +5,7 @@ import { gunzipSync } from "node:zlib";
 import type { ReplayFile, SeriesSummary } from "../packages/shared/src/protocol";
 import { playerResult } from "../packages/shared/src/outcome";
 import { replayPlayerSummaries, type ReplayPlayerSummary } from "../packages/shared/src/replayMetadata";
+import { replayArchive } from "../packages/shared/src/replayArchive";
 import { hasScriptedBot } from "../packages/web/src/replayCatalog";
 
 interface Entry {
@@ -83,15 +84,16 @@ export async function collectPublication(root: string): Promise<Publication> {
   let titles: { replays: Record<string, string>; series: Record<string, string> } = { replays: {}, series: {} };
   try { titles = JSON.parse(await readFile(join(root, "cloudflare/titles.json"), "utf8")); }
   catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; }
-  const featured = join(root, "packages/web/public/featured");
-  const previous = new Map((await optionalIndex(join(featured, "index.json"))).map((e) => [e.id, e]));
-  const localIndex = new Map((await optionalIndex(join(root, "replays/index.json"))).map((e) => [e.id, e]));
+  const featured = join(root, replayArchive.featured);
+  const local = join(root, replayArchive.local);
+  const previous = new Map((await optionalIndex(join(featured, replayArchive.index))).map((e) => [e.id, e]));
+  const localIndex = new Map((await optionalIndex(join(local, replayArchive.index))).map((e) => [e.id, e]));
   const files = new Map<string, { path: string; compressed: boolean }>();
   for (const id of previous.keys()) files.set(id, { path: join(featured, `${id}.json`), compressed: false });
   let localFiles: string[] = [];
-  try { localFiles = await readdir(join(root, "replays")); }
+  try { localFiles = await readdir(local); }
   catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; }
-  for (const file of localFiles.filter((file) => file.endsWith(".json.gz"))) files.set(file.slice(0, -8), { path: join(root, "replays", file), compressed: true });
+  for (const file of localFiles.filter((file) => file.endsWith(".json.gz"))) files.set(file.slice(0, -8), { path: join(local, file), compressed: true });
   const replays: Publication["replays"] = [];
   let excluded = 0;
   for (const [id, { path, compressed }] of files) {

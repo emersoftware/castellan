@@ -13,14 +13,14 @@ import { displayKind } from './names';
 
 interface CollapseAtlas { death?: { fps: number; frameCount: number; available?: boolean }; death25?: { fps: number; frameCount: number }; death50?: { fps: number; frameCount: number } }
 const atlases: Record<string, CollapseAtlas> = {
-  castle, nexus: castle, tower, wall, wallpost, door, 'door-open': openDoor,
+  castle, tower, wall, wallpost, door, 'door-open': openDoor,
   'wall-door-left': leftWall, 'wall-door-right': rightWall, 'wall-door-both': bothWall,
 };
 
 /** Play the full collapse, hold its final frame, then fade the remains in place. */
 export function buildingCollapse(kind: string, elapsedMs: number, damageStage?: 25 | 50): { animation: AnimationFrame; alpha: number } | undefined {
   kind = displayKind(kind);
-  const action = (kind === 'castle' || kind === 'nexus') && damageStage ? damageStage === 25 ? 'death25' : 'death50' : 'death';
+  const action = kind === 'castle' && damageStage ? damageStage === 25 ? 'death25' : 'death50' : 'death';
   const meta = atlases[kind]?.[action] ?? atlases[kind]?.death;
   if (!meta || ('available' in meta && meta.available === false)) return undefined;
   const elapsed = Math.max(0, elapsedMs);

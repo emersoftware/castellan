@@ -1,9 +1,9 @@
 /**
  * The real-time loop over the HTTP API: wait for a fresh view, decide, act, repeat.
  */
-import { client, type Client } from "@aoa/cli";
+import { client, query, type Client } from "@aoa/cli";
 import type { MatchStatus, Order, OrderResult, Outcome, PlayerView, Ruleset } from "@aoa/shared";
-import { outcomeText } from "@aoa/shared";
+import { outcomeText, routes } from "@aoa/shared";
 import { Castellan } from "./core";
 import { Journal } from "./journal";
 
@@ -33,8 +33,8 @@ export class Runtime {
   async run(): Promise<Outcome | undefined> {
     const echo = this.opts.echo ?? ((l: string) => console.error(l));
     const started = Date.now();
-    const status = await this.client.get<{ room: string; player: string; status: MatchStatus }>("/status");
-    const { ruleset } = await this.client.get<{ ruleset: Ruleset }>("/rules");
+    const status = await this.client.get<{ room: string; player: string; status: MatchStatus }>(routes.status);
+    const { ruleset } = await this.client.get<{ ruleset: Ruleset }>(routes.rules);
     this.journal = new Journal(this.opts.logDir, this.opts.name ?? `${status.room}-${status.player}`, echo);
     this.core = new Castellan({ rules: ruleset, log: (e) => this.journal.write(e) });
     this.journal.write({ t: Date.now(), tick: 0, type: "runtime", room: status.room, player: status.player, map: ruleset.map.name, server: this.client.server });
@@ -47,7 +47,7 @@ export class Runtime {
         // During waiting/prep the clock is stopped; wait returns on the status change.
         const running: boolean = view !== null && view.status === "running";
         const waitS: number = running ? (this.opts.waitS ?? 1) : 30;
-        view = await this.client.get<PlayerView>(`/wait?max=${waitS}`);
+        view = await this.client.get<PlayerView>(`${routes.wait}${query({ max: waitS })}`);
         this.cycleStats.waits++;
         backoff = 500;
       } catch (e) {
@@ -67,7 +67,7 @@ export class Runtime {
       if (view.status === "finished") break;
       if (orders.length && view.status === "running") {
         try {
-          const r = await this.client.post<{ results: OrderResult[]; view: PlayerView }>("/act", { orders });
+          const r = await this.client.post<{ results: OrderResult[]; view: PlayerView }>(routes.act, { orders });
           this.cycleStats.acts++;
           this.core.report(orders, r.results);
           this.lastOrders = orders;
