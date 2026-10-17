@@ -19,8 +19,8 @@ async function printed(o: Fmt, request: (format?: "text") => Promise<unknown>): 
   return o.json ? pretty(r) : (r as string);
 }
 
-export async function rules(c: Client, o: Fmt = {}): Promise<string> {
-  return printed(o, (format) => c.get(`${routes.rules}${query({ format })}`));
+export async function guide(c: Client, o: Fmt = {}): Promise<string> {
+  return printed(o, (format) => c.get(`${routes.guide}${query({ format })}`));
 }
 
 export async function history(c: Client, o: Fmt & { game?: number; section?: string; offset?: number; limit?: number } = {}): Promise<string> {
@@ -37,7 +37,7 @@ export async function act(c: Client, orders: unknown, o: Fmt = {}): Promise<stri
   return printed(o, (format) => c.post(`${routes.act}${query({ format })}`, { orders: list }));
 }
 
-/** Runs a one-shot player script on the server: full JSON view and rules in scope, act() orders applied at once. */
+/** Runs a one-shot player script on the server: full JSON view and game settings in scope, act() orders applied at once. */
 export async function runScript(c: Client, code: string, o: Fmt & { lang?: "js" | "ts" } = {}): Promise<string> {
   return printed(o, (format) => c.post(`${routes.run}${query({ format })}`, { code, lang: o.lang ?? "js" }));
 }

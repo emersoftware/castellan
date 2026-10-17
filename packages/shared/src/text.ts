@@ -36,14 +36,19 @@ export function viewToText(v: PlayerView): string {
   const errors = Object.entries(v.scripts).filter(([, s]) => s.errors.length);
   if (errors.length) lines.push("", "script errors (latest recorded):",
     ...errors.map(([kind, s]) => `  ${kind}: ${s.errors.at(-1)}`));
-  const workers = v.mine.filter(e => e.kind === "worker" && !e.ruin);
-  if (v.status === "running" && workers.length) {
-    const holding = workers.filter(e => e.doing === "hold" && !e.order && !e.construction);
+  // The same idle count for every mobile kind, so no unit type is singled out.
+  const mobile = ["worker", "knight", "archer"].map(kind => [kind, v.mine.filter(e => e.kind === kind && !e.ruin)] as const).filter(([, units]) => units.length);
+  if (v.status === "running" && mobile.length) {
+    const idle = mobile.map(([kind, units]) => {
+      const holding = units.filter(e => e.doing === "hold" && !e.order && !e.construction);
+      return `${kind}s ${holding.length}/${units.length}${holding.length ? ` (${holding.map(e => e.id).join(", ")})` : ""}`;
+    });
     const visible = v.deposits.reduce((sum, d) => sum + d.amount, 0);
     const remembered = v.lastSeen.reduce((sum, d) => sum + (d.kind === "deposit" ? d.amount : 0), 0);
     const tiles = v.visibility.join("");
     const unexplored = [...tiles].filter(tile => tile === "0").length;
-    lines.push("", `economy: ${holding.length}/${workers.length} workers holding now${holding.length ? ` (${holding.map(e => e.id).join(", ")})` : ""} · resources in sight ${visible} · last seen outside vision ${remembered} (may have changed)${tiles.length ? ` · unexplored ${Math.round(unexplored / tiles.length * 100)}%` : ""}`);
+    lines.push("", `idle now (hold, no order): ${idle.join(" · ")}`,
+      `economy: resources in sight ${visible} · last seen outside vision ${remembered} (may have changed)${tiles.length ? ` · unexplored ${Math.round(unexplored / tiles.length * 100)}%` : ""}`);
   }
   if (v.underAttack?.length) {
     lines.push("", "under attack since your last view:");

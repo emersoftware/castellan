@@ -46,12 +46,12 @@ it("reuses the real MCP connection across CLI invocations and binds each socket 
   }));
   const first = await fixture("first-player", url);
   const second = await fixture("second-player", url);
-  expect(first.bridge.definitions.map((tool: { name: string }) => tool.name).sort()).toEqual(["act", "chat", "history", "rules", "run", "script", "script_test", "state"]);
+  expect(first.bridge.definitions.map((tool: { name: string }) => tool.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "script_test", "state"]);
   expect(requests).toHaveLength(0);
   expect((await stat(first.socketPath)).mode & 0o777).toBe(0o600);
   const poisonedEnv = { ...process.env, AOA_SERVER: "http://127.0.0.1:1", AOA_TOKEN: "wrong-player", AOA_AGY_SOCKET: second.socketPath };
   for (let i = 0; i < 4; i++) {
-    expect((await exec(process.execPath, [first.wrapper, "rules", "{}"], { env: poisonedEnv })).stdout).toBe("complete result\n");
+    expect((await exec(process.execPath, [first.wrapper, "guide", "{}"], { env: poisonedEnv })).stdout).toBe("complete result\n");
   }
   await exec(process.execPath, [second.wrapper, "state", "{}"], { env: poisonedEnv });
   expect(requests.map((request) => request.authorization)).toEqual(["Bearer first-player", "Bearer first-player", "Bearer first-player", "Bearer first-player", "Bearer second-player"]);
@@ -90,7 +90,7 @@ it("preserves errors and long custom results, rejects malformed commands before 
   const forged = await new Promise<string>((resolve, reject) => {
     const socket = connect(player.socketPath);
     let response = "";
-    socket.on("connect", () => socket.end(JSON.stringify({ name: "rules", arguments: {}, server: "http://other", token: "other" }) + "\n"));
+    socket.on("connect", () => socket.end(JSON.stringify({ name: "guide", arguments: {}, server: "http://other", token: "other" }) + "\n"));
     socket.on("data", (chunk) => { response += chunk; });
     socket.on("error", reject);
     socket.on("end", () => resolve(response));
@@ -104,7 +104,7 @@ it("preserves errors and long custom results, rejects malformed commands before 
   await rejected;
   await player.bridge.close(); // cleanup is idempotent
   await expect(stat(player.socketPath)).rejects.toMatchObject({ code: "ENOENT" });
-  await expect(exec(process.execPath, [player.wrapper, "rules", "{}"])).rejects.toMatchObject({ code: 1 });
+  await expect(exec(process.execPath, [player.wrapper, "guide", "{}"])).rejects.toMatchObject({ code: 1 });
   servers[0].closeAllConnections();
 });
 

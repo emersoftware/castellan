@@ -2,7 +2,7 @@
 
 Current numbers are generated from
 `packages/shared/src/rules.ts` into [CURRENT-RULES.md](docs/CURRENT-RULES.md).
-`GET /rules` returns the exact guide for a room. Run `pnpm docs:rules` after edits;
+`GET /guide` returns the exact guide for a room. Run `pnpm docs:rules` after edits;
 `pnpm docs:check` checks that the snapshot is current.
 Everything from **Archived base economy and combat** onward is historical and
 must not be used as a current rules reference.
@@ -274,7 +274,7 @@ POST /act
 {"orders":[{"type":"upgrade","upgrade":"worker_damage"}]}
 ```
 
-The same order works through CLI `act` and MCP `act`. `rules` lists IDs, levels,
+The same order works through CLI `act` and MCP `act`. `guide` lists IDs, levels,
 costs and times. `state` and action responses show completed levels, current
 research, and effective unit stats. Purchase results expose mineral spent and
 remaining. `wait` can filter `upgrade_completed`. Scripts see effective `atk`,

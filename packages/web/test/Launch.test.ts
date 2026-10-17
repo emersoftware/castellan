@@ -35,7 +35,7 @@ it('shows the hero copy and controls while its battle and catalogue are still pe
   expect(host.textContent).toContain('Loading battles');
   expect(host.querySelector('.hero-field img')).toBeNull();
 });
-it('preserves recordings across the version rename without admitting other rules or rewriting metadata',()=>{
+it('lists every patch of the current release and the renamed v26 recordings, without admitting other rules or rewriting metadata',()=>{
   const entry = (id: string, rulesVersion?: string) => ({id, rulesVersion, players: [], createdAt: '2026-10-01'});
   const entries = [
     entry('old','v25'), entry('unknown'),
@@ -46,7 +46,9 @@ it('preserves recordings across the version rename without admitting other rules
     entry('patch','0.27.1'), entry('future','0.28.0'),
   ];
   const before = structuredClone(entries);
-  expect(catalogBattles(entries,'0.27.0').map(r=>r.id)).toEqual(['new','renamed']);
+  // Patch releases keep the mechanics, so 0.27.0 and 0.27.1 share one catalog; variants and other minors stay out.
+  expect(catalogBattles(entries,'0.27.1').map(r=>r.id)).toEqual(['new','patch','renamed']);
+  expect(catalogBattles(entries,'0.27.0').map(r=>r.id)).toEqual(['new','patch','renamed']);
   expect(entries).toEqual(before);
   expect(catalogBattles(entries,'0.28.0').map(r=>r.id)).toEqual(['future']);
 });

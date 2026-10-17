@@ -22,8 +22,8 @@ const order = z.object({
   type: z.enum(["move", "attack", "gather", "build", "train", "upgrade", "stop"]),
   unit: z.string().optional().describe("id of the unit (except train and upgrade)"),
   building: z.string().optional().describe("train: id of any completed castle you own"),
-  kind: z.string().optional().describe("train: worker|knight|archer; build: tower|wall|door|castle (see rules for availability and construction time)"),
-  upgrade: z.string().optional().describe("upgrade: research id from rules, e.g. knight_damage; buys its next level"),
+  kind: z.string().optional().describe("train: worker|knight|archer; build: tower|wall|door|castle (see guide for availability and construction time)"),
+  upgrade: z.string().optional().describe("upgrade: research id from guide, e.g. knight_damage; buys its next level"),
   target: z.string().optional().describe("attack: enemy id"),
   deposit: z.string().optional().describe("gather: deposit id (optional, nearest if omitted)"),
   x: z.number().int().optional(),
@@ -50,9 +50,9 @@ export function createServer(c: aoa.Client = aoa.client({ connector })): McpServ
       },
     }, (args) => reply(() => aoa.history(c, args))),
 
-    rules: tool(
-      { description: "The rules of this room: victory, unit stats and costs, research, order shapes and the script APIs." },
-      () => reply(() => aoa.rules(c)),
+    guide: tool(
+      { description: "How this room's game works: victory conditions, unit stats and costs, research, order shapes and the script APIs." },
+      () => reply(() => aoa.guide(c)),
     ),
 
     state: tool(
@@ -68,8 +68,8 @@ export function createServer(c: aoa.Client = aoa.client({ connector })): McpServ
         description:
           "Send a batch of orders (max 50), applied next tick; only while running. Shapes: " +
           "{type:'train',building,kind:'worker'|'knight'|'archer'} {type:'build',unit,kind:'tower'|'wall'|'door'|'castle',x,y} {type:'move',unit,x,y} " +
-          "{type:'attack',unit,target} {type:'gather',unit,deposit?} {type:'stop',unit} {type:'upgrade',upgrade:'<id from rules>'}. " +
-          "Returns ok/FAILED per order, mineral spent and remaining, and your view. A queued unit gets its id when it spawns; durations and limits are in rules.",
+          "{type:'attack',unit,target} {type:'gather',unit,deposit?} {type:'stop',unit} {type:'upgrade',upgrade:'<id from guide>'}. " +
+          "Returns ok/FAILED per order, mineral spent and remaining, and your view. A queued unit gets its id when it spawns; durations and limits are in guide.",
         inputSchema: { orders: z.array(order).min(1).max(50) },
       },
       ({ orders }) => reply(() => aoa.act(c, orders)),
@@ -78,10 +78,10 @@ export function createServer(c: aoa.Client = aoa.client({ connector })): McpServ
     script: tool(
       {
         description:
-          "Read (omit code) or replace the script every unit of `kind` (worker, king, knight, archer, tower, castle; see rules) runs each tick. " +
-          "code = JS function body with `self` in scope, max 4 KB; current rules support callbacks and explicit order suspension (see rules for this match's precedence). Only while running. Uploading returns the result and your view.",
+          "Read (omit code) or replace the script every unit of `kind` (worker, king, knight, archer, tower, castle; see guide) runs each tick. " +
+          "code = JS function body with `self` in scope, max 4 KB; callbacks and explicit order suspension are available (see guide for this match's precedence). Only while running. Uploading returns the result and your view.",
         inputSchema: {
-          kind: z.string().describe("worker | king | knight | archer | tower | castle (availability depends on rules)"),
+          kind: z.string().describe("worker | king | knight | archer | tower | castle (availability depends on the room; see guide)"),
           code: z.string().optional(),
           lang: z.enum(["js", "ts"]).optional().describe("default js; ts types are stripped"),
         },
@@ -99,7 +99,7 @@ export function createServer(c: aoa.Client = aoa.client({ connector })): McpServ
         description:
           "Run a one-shot player script on the server, once, right now. `code` is a JS function body with these in scope: " +
           "`view` = your full state as JSON (players, mine, allies, enemy, deposits, grid, visibility, events since your last call, chat, underAttack, lastSeen, projectiles, timeMs, matchMs...; " +
-          "entities carry id, kind, owner, x, y, hp, maxHp, stats, order, doing, training), `rules` = the full ruleset JSON (kinds with costs and stats, upgrades, map), " +
+          "entities carry id, kind, owner, x, y, hp, maxHp, stats, order, doing, training), `game` = the room's settings as JSON (kinds with costs and stats, upgrades, map), " +
           "`act(order)` = queue one order (same shapes as act; move/attack/gather/build/train/upgrade/stop; max 50) and `log(...)`. " +
           "All queued orders are applied together when it returns; if it throws, none are. Its return value (JSON) and logs come back with each order's result. " +
           "Deterministic CPU/memory limits (heavy loops fail with out of gas); no network or timers. It reads your view like state does.",

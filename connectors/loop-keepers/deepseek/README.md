@@ -58,7 +58,7 @@ AOA_TOKEN=<series-participant-token> pnpm aoa run-series -- \
 
 Use `agent.mjs` directly here: `run-series` already provides the recovery loop
 and passes a fresh game token per game. Model and effort stay the same; each
-attempt gets a separate workspace and dsh home. `rules`, `state` and `history`
+attempt gets a separate workspace and dsh home. `guide`, `state` and `history`
 expose the series history through the game API.
 
 `AOA_DIRECTIVE` appends one extra instruction to that player's prompt (see the
@@ -74,7 +74,7 @@ budgets across vendors.
 
 ## Tools and isolation
 
-The model sees exactly `mcp__aoa__rules`, `state`, `act`, `run`, `script`, `wait`, `chat`
+The model sees exactly `mcp__aoa__guide`, `state`, `act`, `run`, `script`, `wait`, `chat`
 and `history` under that namespace. Built-in shell, filesystem, web, delegation,
 plugin-management and generic MCP-resource tools are disabled. A plugin also
 restricts the visible catalog and denies every non-AoA tool at execution.

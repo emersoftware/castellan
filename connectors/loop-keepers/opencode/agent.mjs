@@ -8,6 +8,7 @@ import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 import { connectorVersion, launchConfiguration, reportConfiguration, reportActivity } from "../metadata.mjs";
 import { observedSeat, seat, seatOver, seatPlaying, serverUrl } from "../game.mjs";
+import { loadKey as loadDeepSeekKey } from "../deepseek/key.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_MODEL = "openrouter/~deepseek/deepseek-flash-latest";
@@ -52,9 +53,13 @@ export async function preparePlayer({ root, token, server = serverUrl(), key, mo
   };
   // OpenCode's built-in OpenRouter variants stop at "low"; "none" turns reasoning off.
   const [provider, ...rest] = model.split("/");
-  if (variant === "none" && provider === "openrouter") {
-    config.provider = { openrouter: { models: { [rest.join("/")]: { variants: { none: { reasoning: { effort: "none" } } } } } } };
-  }
+  const modelConfig = {};
+  if (variant === "none" && provider === "openrouter") modelConfig.variants = { none: { reasoning: { effort: "none" } } };
+  // AOA_OPENROUTER_PROVIDER pins OpenRouter to the listed upstream providers, without fallback (e.g. "deepseek").
+  if (env.AOA_OPENROUTER_PROVIDER && provider === "openrouter") modelConfig.options = { provider: { order: env.AOA_OPENROUTER_PROVIDER.split(","), allow_fallbacks: false } };
+  // OpenCode's DeepSeek catalog has no effort variants; the API takes reasoning_effort.
+  if (variant && provider === "deepseek") modelConfig.variants = { [variant]: { reasoningEffort: variant } };
+  if (Object.keys(modelConfig).length) config.provider = { [provider]: { models: { [rest.join("/")]: modelConfig } } };
   const configPath = join(root, "opencode.json");
   await writeFile(configPath, JSON.stringify(config, null, 2), { mode: 0o600 });
   // Private HOME: no personal OpenCode config, sessions, AGENTS.md or ~/.claude skills. Provider packages are cached.
@@ -64,7 +69,7 @@ export async function preparePlayer({ root, token, server = serverUrl(), key, mo
     XDG_CACHE_HOME: join(homedir(), ".cache", "aoa", "opencode"),
     OPENCODE_CONFIG: configPath, OPENCODE_PURE: "1", OPENCODE_DISABLE_PROJECT_CONFIG: "1", OPENCODE_DISABLE_CLAUDE_CODE: "1",
     OPENCODE_DISABLE_EXTERNAL_SKILLS: "1", OPENCODE_DISABLE_AUTOUPDATE: "1", OPENCODE_DISABLE_SHARE: "1", OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
-    OPENROUTER_API_KEY: key ?? "",
+    ...(provider === "deepseek" ? { DEEPSEEK_API_KEY: key ?? "" } : { OPENROUTER_API_KEY: key ?? "" }),
   });
   const metadata = { harness: "opencode", model, variant: variant ?? null, workspace, home };
   await writeFile(join(root, "run.json"), JSON.stringify(metadata, null, 2), { mode: 0o600 });
@@ -116,13 +121,16 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   minIntervalMs = 1500, pollMs = 2000 } = {}) {
   const opts = options(args);
   if (!env.AOA_TOKEN) throw new Error("set AOA_TOKEN (see aoa new or aoa run-series)");
-  const key = await loadKey(env);
-  if (!key) throw new Error("set OPENROUTER_API_KEY, save it in ~/.config/aoa/openrouter-api-key, or log in with `opencode auth login`");
+  // deepseek/<model> goes straight to DeepSeek's API with the DeepSeek player's key; everything else through OpenRouter.
+  const direct = opts.model.startsWith("deepseek/");
+  const key = direct ? await loadDeepSeekKey(env) : await loadKey(env);
+  if (!key) throw new Error(direct ? "set DEEPSEEK_API_KEY or run node connectors/loop-keepers/deepseek/key.mjs"
+    : "set OPENROUTER_API_KEY, save it in ~/.config/aoa/openrouter-api-key, or log in with `opencode auth login`");
   const runs = join(homedir(), ".local", "state", "aoa", "opencode");
   await mkdir(runs, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(join(runs, "run-"));
   const player = await preparePlayer({ root, token: env.AOA_TOKEN, server: serverUrl(env.AOA_SERVER), key, ...opts, env });
-  let base = await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
+  let base = env.AOA_PROMPT ?? await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
   if (env.AOA_RESUME) base = `You were restarted in the middle of the match; your earlier conversation is gone.\n\n${base}`;
   // Optional experiment instruction for this player only; kept across relaunches.
   if (env.AOA_DIRECTIVE) {

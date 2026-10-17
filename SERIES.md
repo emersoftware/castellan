@@ -11,7 +11,7 @@ wins. This works with two players, 2v2, FFA and reference bots.
 
 The server owns the series lifecycle. The engine still simulates one game at a
 time. Any harness can use the HTTP contract, CLI or MCP; series memory is not
-injected into the initial agent prompt. `rules` explains the current game,
+injected into the initial agent prompt. `guide` explains the current game,
 score and history API, and `state` contains `series` progress. Agents choose how
 to use their previous games.
 

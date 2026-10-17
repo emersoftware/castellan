@@ -13,7 +13,7 @@ import { startToolBridge } from "./tool.mjs";
 /** @import { Effort } from "../../../packages/shared/src/replayMetadata.ts" */
 
 // The diagnostic reads these routes; each one answers as the game tool of the same name.
-const probedRoutes = [routes.rules, routes.state];
+const probedRoutes = [routes.guide, routes.state];
 const probedTools = probedRoutes.map((route) => route.slice(1));
 
 /**
@@ -87,7 +87,7 @@ export async function runPreflight({ model, effort = "low", transport = "cli", a
     const path = new URL(req.url || "/", "http://localhost").pathname;
     if (req.headers.authorization !== `Bearer ${token}` || req.method !== "GET" || !probedRoutes.includes(path)) {
       res.writeHead(403, { "content-type": "text/plain" });
-      res.end("Preflight permits only authenticated rules and state reads.");
+      res.end("Preflight permits only authenticated guide and state reads.");
       return;
     }
     const tool = path.slice(1), nonce = randomUUID();
@@ -110,8 +110,8 @@ export async function runPreflight({ model, effort = "low", transport = "cli", a
     await writeFile(projectPath, JSON.stringify(project, null, 2), { flag: "wx", mode: 0o600 });
     const tool = join(workspace, "bin/aoa-tool");
     const instructions = transport === "cli"
-      ? `Use run_command twice, calling ${tool} rules '{}' and then ${tool} state '{}'.`
-      : "Call the aoa MCP rules tool once, then the aoa MCP state tool once.";
+      ? `Use run_command twice, calling ${tool} guide '{}' and then ${tool} state '{}'.`
+      : "Call the aoa MCP guide tool once, then the aoa MCP state tool once.";
     const prompt = `This is a connection diagnostic, not a game. ${instructions} Return both tool names and the exact nonce from each response. You may read the aoa tool schemas if necessary. Do not guess values, delegate, read unrelated files, or send any other actions. If either tool is unavailable, say so and stop.`;
     const childEnv = { ...env };
     delete childEnv.AOA_TOKEN;

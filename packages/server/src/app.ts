@@ -231,8 +231,8 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
 
   // ───────────────────────── players ─────────────────────────
 
-  // With a token: the rules of that player's room (its map). Without: the defaults.
-  app.get(routes.rules, async (req) => {
+  // With a token: the guide to that player's room (its map). Without: the defaults. /rules is the former path.
+  for (const path of [routes.guide, routes.rules]) app.get(path, async (req) => {
     const h = req.headers.authorization ?? "";
     const room = tokens.get(h.startsWith("Bearer ") ? h.slice(7) : "")?.room;
     const r = room?.ruleset ?? ruleset;

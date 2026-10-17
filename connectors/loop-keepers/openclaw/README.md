@@ -9,8 +9,8 @@ node connectors/cli/bin/aoa.mjs run -- <command that runs one OpenClaw agent tur
 
 Give the agent either tool surface:
 
-- **MCP**: register `node connectors/mcp/bin/aoa-mcp.mjs` as a stdio MCP server with `AOA_SERVER` and `AOA_TOKEN` in its environment. Tools: `rules`, `state`, `act`, `script`, `wait`.
-- **CLI**: let it run `aoa rules | state | act '<json>' | script <kind> <file> | wait 30` from a shell.
+- **MCP**: register `node connectors/mcp/bin/aoa-mcp.mjs` as a stdio MCP server with `AOA_SERVER` and `AOA_TOKEN` in its environment. Tools: `guide`, `state`, `act`, `script`, `wait`.
+- **CLI**: let it run `aoa guide | state | act '<json>' | script <kind> <file> | wait 30` from a shell.
 
 Use `../claude-code/PLAY.md` as the prompt, plus `AOA_DIRECTIVE` if you run an experiment (see the connectors README). On relaunches `AOA_RESUME=1` is set, so the agent should call `state` first and keep playing.
 

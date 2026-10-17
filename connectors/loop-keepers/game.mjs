@@ -21,7 +21,7 @@ export function seat({ env = process.env, fetchImpl = fetch, signal, redirect } 
   return {
     status: async () => (await get(routes.status)).json(),
     observation: async since => (await get(`${routes.state}?format=text${since === undefined ? "" : `&since=${since}`}`)).text(),
-    rules: async () => (await get(`${routes.rules}?format=text`)).text(),
+    guide: async () => (await get(`${routes.guide}?format=text`)).text(),
     report: (path, body) => request(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(3000) }),
   };
 }

@@ -34,7 +34,7 @@ export class Runtime {
     const echo = this.opts.echo ?? ((l: string) => console.error(l));
     const started = Date.now();
     const status = await this.client.get<{ room: string; player: string; status: MatchStatus }>(routes.status);
-    const { ruleset } = await this.client.get<{ ruleset: Ruleset }>(routes.rules);
+    const { ruleset } = await this.client.get<{ ruleset: Ruleset }>(routes.guide);
     this.journal = new Journal(this.opts.logDir, this.opts.name ?? `${status.room}-${status.player}`, echo);
     this.core = new Castellan({ rules: ruleset, log: (e) => this.journal.write(e) });
     this.journal.write({ t: Date.now(), tick: 0, type: "runtime", room: status.room, player: status.player, map: ruleset.map.name, server: this.client.server });

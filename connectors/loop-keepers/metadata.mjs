@@ -41,6 +41,7 @@ const policies = {
   opencode: ["isolated-home; no-cross-match-session", "fresh-context-on-relaunch; aoa-launch-prompt-sha256"],
   "deepseek-harness": ["isolated-session-store; no-cross-match-session", "fresh-context-on-relaunch; aoa-launch-prompt-sha256"],
   antigravity: ["fresh-player-conversation; own-tool-output-reads", "bootstrap-ready-then-aoa-launch-prompt-sha256"],
+  jev: ["stateless-decisions; no-cross-match-memory", "fresh-state-summary-each-decision; last-5-decisions-in-state; goal-sha256"],
 };
 
 /** @param {{ connector: string, args?: string[], prompt?: string, model?: string, effort?: string, connectorVersion?: string | null, env?: NodeJS.ProcessEnv }} launch */

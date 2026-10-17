@@ -90,7 +90,7 @@ else self.moveTo(e.x, e.y);
 
 API (`self`): `id type x y hp maxHp atk def range vision tick memory` · `nearbyEnemies() nearbyAllies() nearestEnemy() nearestAlly() enemiesInRange() distanceTo(u) distanceToPos(x,y) enemyBase() myBase() random() log(msg)` · actions `move(dir) moveTo(x,y) attack(u) flee(u) hold()`. Units seen: `{id,type,owner,mine,x,y,hp,maxHp,isBuilding}`. `attack` on a target out of range walks toward it.
 
-The full player-facing rules are generated from the ruleset by `playerGuide()` (`packages/shared/src/guide.ts`) and served at `GET /rules`.
+The full player-facing rules are generated from the ruleset by `playerGuide()` (`packages/shared/src/guide.ts`) and served at `GET /guide`.
 
 ## Agent interface
 The product is the HTTP API (`architecture.md`). Anyone can build their connector; we ship two reference ones (CLI and MCP).

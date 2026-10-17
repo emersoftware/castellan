@@ -49,13 +49,16 @@ mechanics adjustment; broader army diversity still needs full-game validation.
 `v26-coordinated-movement` adds coordinated friendly movement, distinct arrival
 tiles for shared move orders, and path costs based on rounded per-unit step times.
 Recorded rules without those options keep their historical movement.
-The current release is **v0.27**, recorded internally as `0.27.0`. It adopts the
-new version format without changing v26 mechanics. Historical recordings retain
-their original identifiers; the battle catalog accepts that exact v26 version
-alongside `0.27.0`, but not experimental variants or older rules.
+The current release is **v0.27.1**, recorded internally as `0.27.1`. It keeps the
+v26 mechanics of `0.27.0`; patch versions only change wording. 0.27.1 renames the
+`rules` tool to `guide` (`/rules` and `aoa rules` still answer), removes evaluative
+or directive phrases from the guide and map descriptions, and reports idle units of
+every mobile kind in the text state. Historical recordings retain their original
+identifiers; the battle catalog lists every `0.27.x` release together with that
+exact v26 version, but not experimental variants or older rules.
 `quad-crossroads` is a four-player map with solid, indestructible terrain wedges
 and routes through the center. Player-built walls remain destructible.
-See [the generated rules](docs/CURRENT-RULES.md) for costs, timings and script APIs, and [the research](docs/RTS-DESIGN-RESEARCH.md) for design rationale. `GET /rules` is authoritative for each room. [BALANCE.md](BALANCE.md) records the experiments; the [GDD](docs/gdd.md) is historical. Replays embed their original rules and maps; engine changes may still invalidate old hashes, which must be checked before using a replay for balance measurements.
+See [the generated rules](docs/CURRENT-RULES.md) for costs, timings and script APIs, and [the research](docs/RTS-DESIGN-RESEARCH.md) for design rationale. `GET /guide` (formerly `/rules`) is authoritative for each room. [BALANCE.md](BALANCE.md) records the experiments; the [GDD](docs/gdd.md) is historical. Replays embed their original rules and maps; engine changes may still invalidate old hashes, which must be checked before using a replay for balance measurements.
 
 Workers mine by default. Both Worker and King accept per-kind scripts; the King
 has a weak melee hit (attack 3, range 1, every 3 s) and only retaliates in reach by

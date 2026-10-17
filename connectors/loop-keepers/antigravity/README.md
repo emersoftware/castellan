@@ -60,7 +60,7 @@ do not sum every decision's cumulative usage.
 player session. A private Unix socket connects the temporary `bin/aoa-tool`
 wrapper to that process. The wrapper accepts exactly a tool name and one JSON
 object. It exposes the same eight tools, schemas, validation and responses:
-`rules`, `state`, `act`, `script`, `run`, `chat`, `history` and `script_test`.
+`guide`, `state`, `act`, `script`, `run`, `chat`, `history` and `script_test`.
 
 The bridge binds the server and player token at startup. Wrapper arguments and
 environment overrides cannot redirect it. Scripts are inline JSON strings for
@@ -96,7 +96,7 @@ AGY_ADC_AUTH=true node connectors/loop-keepers/antigravity/preflight.mjs \
 ```
 
 It spends one model prompt against a disposable local server, never a game.
-Success requires actual `rules` and `state` requests plus the fresh nonces from
+Success requires actual `guide` and `state` requests plus the fresh nonces from
 both responses. CLI exit zero or `SUCCESS` alone is insufficient. A 60-second
 host deadline stops the process and its children; temporary resources are
 removed. Regression tests use fake model processes and never call paid models.

@@ -49,7 +49,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   const states: { tick: number; since: string | null; status: string }[] = [];
   const http = createServer(async (req, res) => {
     const url = new URL(req.url!, "http://localhost");
-    if (url.pathname === "/rules") {
+    if (url.pathname === "/guide") {
       res.setHeader("content-type", "text/plain"); res.end("Test room mechanics: losing your King eliminates you.");
     } else if (url.pathname === "/state") {
       if (status === "running") tick++;

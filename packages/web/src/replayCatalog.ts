@@ -10,8 +10,12 @@ interface Listed { id: string; players: readonly { name: string; bot?: string }[
 const listedAt = (replay: { savedAt?: string; createdAt: string }) => replay.savedAt ?? replay.createdAt;
 
 /** 0.27.0 only renamed v26; keep its recordings visible without rewriting their rules. Unknown and experimental versions stay excluded. */
+/** A release's mechanics: "0.27" for 0.27.0 and 0.27.1. Experimental variants ("0.27.0+…") have none. */
+const release = (version: string | undefined) => /^\d+\.\d+\.\d+$/.test(version ?? "") ? version!.split(".").slice(0, 2).join(".") : null;
+// Patch versions change wording, not mechanics, so their battles share a catalog; v26 coordinated movement is 0.27's mechanics.
 const onRules = (recorded: string | undefined, version: string) =>
-  recorded === version || (version === "0.27.0" && recorded === "v26-coordinated-movement");
+  recorded === version || (release(recorded) !== null && release(recorded) === release(version))
+  || (release(version) === "0.27" && recorded === "v26-coordinated-movement");
 
 /** The battles a catalog lists: agents only, on `version`'s rules, the newest recording first. */
 export function catalogBattles<T extends Listed>(entries: readonly T[], version: string): T[] {

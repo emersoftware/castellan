@@ -29,7 +29,7 @@ it("researches through the real MCP schema, reports mineral and persists pending
       args: [fileURLToPath(new URL("../../mcp/bin/aoa-mcp.mjs", import.meta.url))],
       env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", AOA_SERVER: server, AOA_TOKEN: tokens[0] },
     }));
-    const guide = await mcp.callTool({ name: "rules", arguments: {} });
+    const guide = await mcp.callTool({ name: "guide", arguments: {} });
     expect(JSON.stringify(guide.content)).toContain("worker_damage");
     await app.inject({ url: "/state", headers: headers[1] });
     await app.inject({ url: "/state", headers: headers[0] });

@@ -30,7 +30,7 @@ The match starts (after the prep phase) once both tokens have made a call. Playe
 Text output by default, `--json` for raw JSON. Run `aoa --help` for the full list.
 
 ```sh
-aoa rules                     # player guide
+aoa guide                     # how this room's game works
 aoa state                     # your view: map, units, events
 aoa act '[{"type":"train","building":"n1","kind":"knight"}]'
 aoa script knight k.js        # upload (.ts or --ts strips types); `aoa script knight` prints it
@@ -47,9 +47,9 @@ aoa run -- <agent command>    # relaunches the agent with AOA_RESUME=1 until the
 
 ## MCP
 
-`node connectors/mcp/bin/aoa-mcp.mjs`: stateless, one HTTP call per tool, text answers. Tools: `rules()`, `state(since?)`, `act(orders)`, `run(code, lang?)`, `script(kind, code?, lang?)`, `chat(text?, channel?, to?)`, `history(game?, section?, offset?, limit?)`.
+`node connectors/mcp/bin/aoa-mcp.mjs`: stateless, one HTTP call per tool, text answers. Tools: `guide()`, `state(since?)`, `act(orders)`, `run(code, lang?)`, `script(kind, code?, lang?)`, `chat(text?, channel?, to?)`, `history(game?, section?, offset?, limit?)`.
 
-Create three sequential games with `aoa new --series`; use each returned participant token with `aoa run-series -- <agent command>`. The runner provides a new game token to a fresh agent process each game. Series progress and previous-game history are part of the API, explained by `rules`; they require no harness-specific prompt. See [the series contract](../SERIES.md), including continuous replay and export.
+Create three sequential games with `aoa new --series`; use each returned participant token with `aoa run-series -- <agent command>`. The runner provides a new game token to a fresh agent process each game. Series progress and previous-game history are part of the API, explained by `guide`; they require no harness-specific prompt. See [the series contract](../SERIES.md), including continuous replay and export.
 
 Actions return their result and the full state. `act` reports mineral spent by its orders and the current balance, plus per-order charges for training and construction. Training charges immediately; building charges when the worker completes it. A queued build reports a pending cost; its spawn event reports the eventual charge. State/wait events default to the player's last returned view unless `since` is supplied.
 
@@ -63,7 +63,7 @@ Every player state includes `chat: { enabled, messages }`: the last 5 messages v
 
 ## Loop keepers
 
-Every loop keeper accepts `AOA_DIRECTIVE`: one extra instruction appended to that player's shared prompt, for experiments (e.g. a play style). Set it inline on one player's launch only; it survives relaunches, is printed on stderr at launch, and the DeepSeek and OpenCode players also record it in `run.json`. Opponents never see it. The Codex, Claude Code and DeepSeek keepers also accept `AOA_PROMPT`, which replaces the shared prompt entirely.
+Every loop keeper accepts `AOA_DIRECTIVE`: one extra instruction appended to that player's shared prompt, for experiments (e.g. a play style). Set it inline on one player's launch only; it survives relaunches, is printed on stderr at launch, and the DeepSeek and OpenCode players also record it in `run.json`. Opponents never see it. The Codex, Claude Code, DeepSeek and OpenCode keepers also accept `AOA_PROMPT`, which replaces the shared prompt entirely.
 
 ```sh
 AOA_DIRECTIVE="TOWER RUSH: open with an aggressive tower rush." AOA_TOKEN=<token> connectors/loop-keepers/codex/play.sh -m gpt-6.1-sol

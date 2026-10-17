@@ -7,11 +7,11 @@ import * as cmd from "./commands";
 
 const USAGE = `aoa — Age of Agents client (env AOA_SERVER, AOA_TOKEN)
 
-  aoa rules                          player guide
+  aoa guide                          how this room's game works
   aoa history [--game N] [--section summary|events|chat|scripts|orders] [--offset N] [--limit N]
   aoa state [--since T]              your view (+ events since tick T)
   aoa act '<order|[orders]>'         or: aoa act -f orders.json (- = stdin)
-  aoa exec <file|-> [--ts]           run a one-shot player script (view, rules, act, log) on the server
+  aoa exec <file|-> [--ts]           run a one-shot player script (view, game, act, log) on the server
   aoa script <kind>                  print the current script
   aoa script <kind> <file|-> [--ts]  upload a script (.ts files imply --ts)
   aoa script <kind> --reset          restore the built-in script
@@ -74,8 +74,9 @@ async function main(): Promise<string | number | void> {
   const { values: o, positionals: [name, ...args] } = parse();
   const json = o.json;
   switch (name) {
+    case "guide":
     case "rules":
-      return cmd.rules(c, { json });
+      return cmd.guide(c, { json });
     case "history":
       return cmd.history(c, { json, game: num(o.game), section: o.section, offset: num(o.offset), limit: num(o.limit) });
     case "state":

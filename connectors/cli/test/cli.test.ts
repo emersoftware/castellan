@@ -3,7 +3,7 @@ import type { PlayerView } from "@aoa/shared";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-import { ApiError, act, chat, client, getScript, newRoom, putScript, rooms, rules, run, state, status, wait, watch } from "../src/index";
+import { ApiError, act, chat, client, getScript, guide, newRoom, putScript, rooms, run, state, status, wait, watch } from "../src/index";
 import { startServer } from "./server";
 import { waitForReplay } from "../../../packages/server/test/support/readiness";
 
@@ -28,10 +28,10 @@ describe("aoa commands", () => {
     expect(room.mode).toBe("ffa");
     expect(new Set(room.players.map((p: { team: number }) => p.team)).size).toBe(4);
     const clients = room.players.map((p: { token: string }) => client({ server: srv.url, token: p.token }));
-    const guide = await rules(clients[0]);
-    expect(guide).toContain("Four-player free-for-all");
-    expect(guide).toContain('"to":"p2"');
-    expect(guide).not.toContain("allied AI");
+    const text = await guide(clients[0]);
+    expect(text).toContain("Four-player free-for-all");
+    expect(text).toContain('"to":"p2"');
+    expect(text).not.toContain("allied AI");
     for (const c of clients) await state(c);
     await wait(clients[0], { seconds: 2 });
     const { stdout } = await promisify(execFile)(process.execPath, [bin, "chat", "just for you", "--to", "p2"], {

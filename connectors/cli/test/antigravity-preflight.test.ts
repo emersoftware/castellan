@@ -33,7 +33,7 @@ if(mode==='hang') {
 } else {
   const results=[];
   if(mode!=='status-only') {
-    const tools=mode==='one-tool'?['rules']:['rules','state'];
+    const tools=mode==='one-tool'?['guide']:['guide','state'];
     const project=JSON.parse(readFileSync(projectPath,'utf8'));
     if(project.permissionGrants.permissionGrants.allow.some(x=>x.startsWith('command('))) {
       for(const tool of tools) results.push(execFileSync(join(process.cwd(),'bin/aoa-tool'),[tool,'{}'],{encoding:'utf8'}));
@@ -63,9 +63,9 @@ async function checkCleanup(capture: string) {
   return context;
 }
 
-it.each(["cli", "mcp"])("%s: confirms real authenticated rules and state responses through the prepared transport, then removes its resources", async (transport) => {
+it.each(["cli", "mcp"])("%s: confirms real authenticated guide and state responses through the prepared transport, then removes its resources", async (transport) => {
   const { options, capture } = await setup();
-  await expect(runPreflight({ ...options, transport })).resolves.toMatchObject({ ok: true, model: "test-argon-low", effort: "low", transport, calls: { rules: 1, state: 1 } });
+  await expect(runPreflight({ ...options, transport })).resolves.toMatchObject({ ok: true, model: "test-argon-low", effort: "low", transport, calls: { guide: 1, state: 1 } });
   const context = await checkCleanup(capture);
   expect(context.adc).toBe("true");
   expect(context.token).toBeUndefined();
@@ -75,9 +75,9 @@ it.each(["cli", "mcp"])("%s: confirms real authenticated rules and state respons
 });
 
 it.each([
-  ["status-only", "no real calls to rules, state"],
+  ["status-only", "no real calls to guide, state"],
   ["one-tool", "no real calls to state"],
-  ["wrong-nonces", "did not confirm the actual rules, state nonce"],
+  ["wrong-nonces", "did not confirm the actual guide, state nonce"],
 ])("rejects %s even when agy reports SUCCESS and cleans up", async (mode, message) => {
   const { options, capture } = await setup(mode);
   await expect(runPreflight(options)).rejects.toThrow(message);

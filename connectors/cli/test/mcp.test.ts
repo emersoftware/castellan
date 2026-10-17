@@ -23,7 +23,7 @@ afterAll(async () => {
 });
 
 describe("aoa-mcp", () => {
-  it("forwards a direct recipient and exposes direct-message rules in FFA", async () => {
+  it("forwards a direct recipient and exposes direct-message guide in FFA", async () => {
     const room = JSON.parse(await newRoom(client({ server: srv.url }), { json: true, map: "quad", mode: "ffa", chat: true }));
     const clients = room.players.map((p: { token: string }) => client({ server: srv.url, token: p.token }));
     const dmMcp = new Client({ name: "dm-test", version: "0" });
@@ -31,7 +31,7 @@ describe("aoa-mcp", () => {
       await dmMcp.connect(new StdioClientTransport({ command: process.execPath, args: [bin], env: {
         PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", AOA_SERVER: srv.url, AOA_TOKEN: room.players[0].token,
       } }));
-      expect(text(await dmMcp.callTool({ name: "rules", arguments: {} }))).toContain("Four-player free-for-all");
+      expect(text(await dmMcp.callTool({ name: "guide", arguments: {} }))).toContain("Four-player free-for-all");
       for (const c of clients) await state(c);
       await wait(clients[0], { seconds: 2 });
       const sent = await dmMcp.callTool({ name: "chat", arguments: { text: "MCP direct plan", to: "p3" } });
@@ -89,7 +89,7 @@ describe("aoa-mcp", () => {
 
   it("serves the game over stdio", async () => {
     const { tools } = await mcp.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(["act", "chat", "history", "rules", "run", "script", "script_test", "state"]);
+    expect(tools.map((t) => t.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "script_test", "state"]);
     expect(JSON.parse(text(await mcp.callTool({ name: "history", arguments: {} })))).toEqual({ series: null, games: [] });
 
     const s = await mcp.callTool({ name: "state", arguments: {} });

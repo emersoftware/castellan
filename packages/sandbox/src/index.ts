@@ -254,7 +254,7 @@ export interface RunResult { orders: unknown[]; logs: string[]; value: unknown; 
 
 /**
  * Runs a player's one-shot script in a fresh VM: `code` is a function body with
- * `view`, `rules`, `act(order)` and `log(...)` in scope; its return value is sent
+ * `view`, `game` (the room's settings; `rules` is its former name), `act(order)` and `log(...)` in scope; its return value is sent
  * back. Gas is counted in interpreter cycles, so the cap is deterministic.
  */
 export function runOnce(code: string, input: { view: unknown; rules: unknown }, limits: RunLimits = RUN_LIMITS): RunResult {
@@ -271,9 +271,9 @@ export function runOnce(code: string, input: { view: unknown; rules: unknown }, 
   const data = JSON.parse(input), orders = [], logs = [];
   const act = function (order) { if (orders.length >= ${limits.maxOrders}) throw new Error("more than ${limits.maxOrders} orders"); orders.push(JSON.parse(JSON.stringify(order))); };
   const log = function () { if (logs.length < 50) logs.push(Array.prototype.map.call(arguments, function (x) { return typeof x === "string" ? x : JSON.stringify(x); }).join(" ").slice(0, 500)); };
-  const value = (function (view, rules, act, log) {"use strict";
+  const value = (function (view, game, rules, act, log) {"use strict";
 ${code}
-})(data.view, data.rules, act, log);
+})(data.view, data.rules, data.rules, act, log);
   return JSON.stringify({ orders: orders, logs: logs, value: value === undefined ? null : value });
 })`;
     const fn = ctx.evalCode(wrapper, "run.js");

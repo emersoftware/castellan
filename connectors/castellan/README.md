@@ -2,7 +2,7 @@
 
 Castellan plays a whole match on its own, from the first worker to victory or defeat
 (including the time limit under v24), using only what a player is allowed to see and do (the HTTP API with
-its own token: `/rules`, `/wait`, `/state`, `/act`, scripts and chat). It exists to study
+its own token: `/guide`, `/wait`, `/state`, `/act`, scripts and chat). It exists to study
 concrete strategic decisions in complete games: everything is decided by rules in code, and
 every plan, choice and outcome is written to a journal. It never calls a model.
 
@@ -51,7 +51,7 @@ journal.ts    JSONL journal + Markdown summary: observed, decided, attempted, wh
 ```
 
 Only `@aoa/shared` types and the `@aoa/cli` HTTP client are imported; the engine is used by
-tests alone. Rules come from `GET /rules` of the room, so other rulesets or maps work as long
+tests alone. Rules come from `GET /guide` of the room, so other rulesets or maps work as long
 as the kinds keep their names.
 
 **Routine (always on).** Workers are assigned per deposit (home clusters, then the expansion),

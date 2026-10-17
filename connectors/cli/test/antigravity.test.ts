@@ -40,7 +40,7 @@ describe("Antigravity connector", () => {
       const client = new Client({ name: "agy-config-test", version: "0" });
       try {
         await client.connect(new StdioClientTransport({ ...mcp.mcpServers.aoa, cwd: workspace }));
-        expect((await client.listTools()).tools.map(t => t.name).sort()).toEqual(["act", "chat", "history", "rules", "run", "script", "script_test", "state"]);
+        expect((await client.listTools()).tools.map(t => t.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "script_test", "state"]);
       } finally { await client.close(); }
     }
   });
@@ -51,7 +51,7 @@ describe("Antigravity connector", () => {
     let finished = false;
     const metadata: { model?: string; effort?: string; contextPolicy?: string }[] = [];
     const http = createServer(async (req, res) => {
-      if (req.url?.startsWith("/rules")) { res.end("Room mechanics for this player."); return; }
+      if (req.url?.startsWith("/guide")) { res.end("Room mechanics for this player."); return; }
       if (req.url?.startsWith("/state")) { res.end("tick 5 · 0.5s/60s · running · you are p1\nYOU   p1: mineral 200"); return; }
       res.setHeader("content-type", "application/json");
       if (req.url === "/status") { res.end(JSON.stringify({ status: finished ? "finished" : "running", alive: true })); return; }
@@ -119,7 +119,7 @@ readline.createInterface({input:process.stdin}).on('line',async line=>{
       let body = ""; for await (const chunk of req) body += chunk;
       requests.push({ url: req.url!, authorization: req.headers.authorization, body });
       res.setHeader("content-type", "text/plain");
-      res.end(req.url?.startsWith("/rules") ? longRules : "Game result");
+      res.end(req.url?.startsWith("/guide") ? longRules : "Game result");
     });
     await new Promise<void>(resolve => http.listen(0, "127.0.0.1", resolve));
     let bridge;
@@ -128,17 +128,17 @@ readline.createInterface({input:process.stdin}).on('line',async line=>{
       bridge = await startToolBridge({ socketPath: join(root, "tools.sock"), server, token: "bound-player" });
       await preparePlayer({ workspace: root, projectId: "bridge", server, token: "bound-player", transport: "cli", bridge });
       const schemas = JSON.parse(await readFile(join(root, ".agents/tool-schemas.json"), "utf8"));
-      expect(schemas.map((t: { name: string }) => t.name).sort()).toEqual(["act", "chat", "history", "rules", "run", "script", "script_test", "state"]);
+      expect(schemas.map((t: { name: string }) => t.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "script_test", "state"]);
       expect(requests).toEqual([]);
       const tool = join(root, "bin/aoa-tool");
       expect(await readFile(tool, "utf8")).not.toContain("bound-player");
       const env = { ...process.env, AOA_SERVER: "http://127.0.0.1:1", AOA_TOKEN: "other-player", AOA_AGY_TOOL_OUTPUT_DIR: "/does-not-exist" };
-      const result = await exec(tool, ["rules", "{}"], { cwd: root, env });
+      const result = await exec(tool, ["guide", "{}"], { cwd: root, env });
       const saved = result.stdout.match(/saved to (.+)\. Read it with view_file\./)?.[1];
       expect(saved).toBeDefined();
       expect(dirname(saved!)).toBe(join(root, "tool-output"));
       expect(await readFile(saved!, "utf8")).toBe(longRules);
-      expect(requests).toEqual([{ url: "/rules?format=text", authorization: "Bearer bound-player", body: "" }]);
+      expect(requests).toEqual([{ url: "/guide?format=text", authorization: "Bearer bound-player", body: "" }]);
       const code = 'return "$(echo shell-substitution-is-literal)";';
       expect((await exec(tool, ["run", JSON.stringify({ code })], { cwd: root, env })).stdout).toBe("Game result\n");
       expect(JSON.parse(requests[1].body)).toEqual({ code, lang: "js" });

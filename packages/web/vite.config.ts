@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { defaultServer as api, routes } from "../shared/src/http.ts";
 
-const proxied = [routes.rooms, routes.replays, routes.series, routes.rules, routes.state, routes.act, routes.scripts, routes.wait, routes.health];
+const proxied = [routes.rooms, routes.replays, routes.series, routes.guide, routes.rules, routes.state, routes.act, routes.scripts, routes.wait, routes.health];
 
 export default defineConfig({
   plugins: [react()],

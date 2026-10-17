@@ -12,7 +12,7 @@ function tokenClass(m: RegExpExecArray, prev: string, code: string): string {
   if (number) return "tk-num";
   if (!word) return "";
   if (KEYWORDS.has(word)) return "tk-kw";
-  if (word === "self" || word === "view" || word === "rules") return "tk-self";
+  if (word === "self" || word === "view" || word === "game" || word === "rules") return "tk-self";
   if (prev !== ".") return "";
   return /^\s*\(/.test(code.slice(m.index + text.length)) ? "tk-fn" : "tk-prop";
 }

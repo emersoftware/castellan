@@ -67,3 +67,7 @@ isolation, not an OS sandbox.
 (with the game token), `events.jsonl` (OpenCode JSON events of every decision) and `usage.json`:
 tokens and the USD cost reported by OpenCode per step, summed over the match. Do not publish the
 directory: it contains credentials and private game conversations.
+
+`AOA_OPENROUTER_PROVIDER=deepseek` pins OpenRouter to those upstream providers (comma-separated), with no fallback.
+
+`--model deepseek/deepseek-flash` uses DeepSeek's API directly, with the DeepSeek player's key (`DEEPSEEK_API_KEY` or `~/.config/aoa/deepseek-api-key`); `--variant low|high|max` sets its `reasoning_effort`.

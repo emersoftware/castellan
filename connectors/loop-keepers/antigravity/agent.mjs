@@ -42,7 +42,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), cw
   }
   // Room mechanics and tool schemas are stable context; include them once so the
   // player does not need two preparatory tool/file round trips before deciding.
-  prompt += `\n\nRoom rules:\n${await seat({ env, fetchImpl: runtime.fetchImpl, redirect: "error" }).rules()}`;
+  prompt += `\n\nRoom guide:\n${await seat({ env, fetchImpl: runtime.fetchImpl, redirect: "error" }).guide()}`;
   if (transport === "cli") prompt += `\n\nGame tool schemas:\n${await readFile(join(cwd, ".agents/tool-schemas.json"), "utf8")}`;
   const configuration = launchConfiguration({ connector: "antigravity", args, prompt, env,
     connectorVersion: env.AOA_CONNECTOR_VERSION || await connectorVersion(agy) });

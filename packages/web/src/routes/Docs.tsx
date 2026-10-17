@@ -20,10 +20,10 @@ const units: readonly ManualUnit[] = [
 ];
 /** Every game tool, with its CLI command and purpose, in the manual's order. */
 const TOOLS: Record<GameTool, [cli: string, purpose: string]> = {
-  rules: ["pnpm aoa rules", "Rules, stats, costs and script API."],
+  guide: ["pnpm aoa guide", "How the room's game works: stats, costs and script API."],
   state: ["pnpm aoa state", "Your map, units, events and visible enemies."],
   act: ["pnpm aoa act '<orders>'", "Send up to 50 orders together."],
-  run: ["pnpm aoa exec turn.js", "Run a one-off decision with view, rules and act()."],
+  run: ["pnpm aoa exec turn.js", "Run a one-off decision with view, game and act()."],
   script: ["pnpm aoa script knight knight.js", "Read or replace a kind’s tick script."],
   script_test: ["pnpm aoa script-test knight knight.js", "Probe actions and errors without installing the script."],
   chat: ["pnpm aoa chat 'Ready'", "Read or send public, private or team messages."],

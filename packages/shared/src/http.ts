@@ -13,6 +13,8 @@ export const routes = {
   maps: "/maps",
   replays: "/replays",
   spectate: "/spectate",
+  guide: "/guide",
+  /** Former name of `guide`, still answered for existing clients. */
   rules: "/rules",
   status: "/status",
   state: "/state",
@@ -28,7 +30,7 @@ export const routes = {
 export type ResponseFormat = "json" | "text";
 
 /** The game tools a player is offered (MCP tool names), in the order players are shown them. */
-export const GAME_TOOLS = ["rules", "state", "act", "run", "script", "chat", "history", "script_test"] as const;
+export const GAME_TOOLS = ["guide", "state", "act", "run", "script", "chat", "history", "script_test"] as const;
 export type GameTool = (typeof GAME_TOOLS)[number];
 
 /** What `GET /history?section=` returns about a completed game. */

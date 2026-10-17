@@ -38,7 +38,7 @@ export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean;
   const built = Object.entries(k).filter(([, s]) => s.buildMs).map(([name, s]) => `${name} ${s.cost} mineral, ${secs(s.buildMs!)}`).join("; ");
   const ruins = "An eliminated player's buildings stay as RUINS: inert and blind, still blocking, their doors passing only the owner's teammates; anyone can destroy them, for no kills or score.";
 
-  return `# Age of Agents — rules (${r.version})
+  return `# Age of Agents — guide (${r.version})
 ${series ? `
 ## Series
 Game ${series.gameNumber} of 3 in series ${series.id}; all three are played. Units, resources and scripts reset each game; player ids stay, positions can change.
@@ -61,9 +61,9 @@ Mineral is the only resource; you start with ${r.startMineral}. Workers gather i
 Max ${r.popCap} units, including workers and the King; Castles don't raise it. Only the King is vital: Castles can be lost or added.
 Training: each Castle has a queue of up to ${r.trainingQueueLimit} units, and Castles train in parallel. Times: ${Object.entries(k).filter(([, s]) => s.trainMs).map(([name, s]) => `${name} ${secs(s.trainMs!)}`).join(", ")}.
 Mineral is charged and population reserved when an order is accepted; the unit id comes with its spawn (reported in subsequent observations). A ready unit with no free exit waits. Queues can't be cancelled; a destroyed Castle loses its queue without refund.
-Construction: the worker works from a free adjacent tile for the listed time, busy and exposed; the site is reserved. Mineral is charged on completion, and a build stops without charge if you have less. Changing the worker's order or killing it cancels; reissuing the same build keeps progress.
+Construction: the worker works from a free adjacent tile for the listed time and can't do anything else; the site is reserved. Mineral is charged on completion, and a build stops without charge if you have less. Changing the worker's order or killing it cancels; reissuing the same build keeps progress.
 Costs and times: ${built}.
-${r.buildExclusion > 0 ? `No building within ${r.buildExclusion} tiles of an enemy building.` : "Buildings may be placed next to enemy buildings."}
+${r.buildExclusion > 0 ? `No building within ${r.buildExclusion} tiles of an enemy building.` : ""}
 
 ## Entities
 ${unitRows}
@@ -137,7 +137,7 @@ self.order: a read-only {type:"move",x,y}, {type:"attack",target}, {type:"gather
 Without an explicit control, an active order continues and a suspended order stays suspended. Simply calling attack() or moveTo() does not override an active order. An interrupted build releases its reservation and unfinished progress; resuming restarts work. Changing or stopping an order also releases unfinished work.
 self.events is a read-only list of:
 - {type:"attacked",tick,damage,attacker}: actual damage since the preceding decision, grouped by attacker/tick. attacker is a currently visible hostile entity or null; hidden identities and positions are not revealed. Melee/impact damage is delivered on the next tick, only to surviving units; launching a projectile is not damage.
-- {type:"enemy_seen",tick,enemy}: an enemy first enters this unit's script perception (shared player vision under these rules). Delivered once per sighting; leaving and re-entering vision produces a new event. Existing visible enemies are reported on the unit's first tick.
+- {type:"enemy_seen",tick,enemy}: an enemy first enters this unit's script perception (shared player vision in this room). Delivered once per sighting; leaving and re-entering vision produces a new event. Existing visible enemies are reported on the unit's first tick.
 - {type:"order_ended",tick,order,reason}: arrival, target lost, unreachable path, completed construction, cancellation, replacement or stop. An end produced by this decision is delivered next tick. Events are consumed once even if a script fails; no history is replayed when replacing a script.
 Order suspension is private to you and marked in state. A continuing order's actionResult has source "order"; lastActionResult retains the preceding script action's feedback.
 Callback syntax (you choose the reactions):
@@ -156,7 +156,7 @@ ${r.defaultScripts.knight.trim()}
 \`\`\`
 
 ## Player scripts (POST /run, MCP \`run\`, aoa exec)
-A one-shot function body run once on the server, with \`view\` (your state as JSON, including underAttack and lastSeen), \`rules\` (these rules as JSON), \`act(order)\` (the /act shapes except script and chat; max 50) and \`log(...)\` in scope.
+A one-shot function body run once on the server, with \`view\` (your state as JSON, including underAttack and lastSeen), \`game\` (this room's settings as JSON: kinds, costs, stats, upgrades, map), \`act(order)\` (the /act shapes except script and chat; max 50) and \`log(...)\` in scope.
 Queued orders apply together when it returns, none if it throws. The response has each order's result, the return value (JSON) and the logs. CPU and memory are metered; no network, timers or I/O.
 \`\`\`js
 return {
@@ -175,7 +175,8 @@ State shows the last 5 messages you can see; GET /chat (chat without text) retur
 ## Phases
 waiting and prep: the clock is stopped and nothing can be sent. running: the clock runs, and orders can be sent at any time; no state call is required between them. The match is over at status finished.
 The connector returns control automatically after each decision. End your response when your current decision is complete; issuing no orders is valid. Scripts and orders keep running during inference. There is no wait tool.
-State includes actual action results, current costs and blockers, and two minutes of fog-safe combat history. Availability is a snapshot, not a reservation. Enemy unit sightings are historical and carry their age.
+State includes actual action results, current costs and blockers, and two minutes of fog-safe combat history.
+Each of your units shows doing (what it does now: hold, → x,y while moving toward a point, or the action under way), heading (direction of its last step) and result [tick] source: status (its last action's outcome, with the statuses listed for scripts). The idle line lists your workers, knights and archers that hold with no order. Availability is a snapshot, not a reservation. Enemy unit sightings are historical and carry their age.
 Your units' orderProgress summarizes the current manual order: ageMs, cumulative suspendedMs, currentSuspensionMs, number of suspensions, movement, successful scriptActions while suspended, and blockedMs. Counters reset on every accepted manual unit order (including reissuing the same order), persist through script changes and resume, and disappear when the order ends. Rejected orders do not reset them; reading state does not consume them.
 Movement reports successful tile steps, net Chebyshev displacement from the starting position, and stationaryMs since the last step (or the order's start). For move orders, towardDestination is initial minus current Chebyshev distance to the commanded point: positive means closer, negative farther; it is not path length. Script attack counts are launches/strikes, not hits. Cooldown and aiming ticks count neither as successful actions nor as blocked time. These counters are private state context, not self fields or automatic reactions.
 POST /scripts/:kind/test (MCP script_test, aoa script-test kind file.js) probes a script on owned units in your current visible context with fresh memory. It returns proposed actions, errors, logs and gas without installing code or consuming your event cursor. It does not simulate whether those actions succeed.
