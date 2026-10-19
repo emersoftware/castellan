@@ -41,11 +41,17 @@ export class SeriesStore {
       const saved = JSON.parse(await readFile(join(this.dir, file), "utf8")) as StoredSeries;
       if (saved.format !== 1) throw new Error(`unsupported series format: ${file}`);
       const entry: Entry = { ...saved, games: [], pending: Promise.resolve(), readyGames: saved.games.length, committedGames: 0 };
-      this.entries.set(entry.id, entry);
-      for (const checkpoint of saved.games) {
-        const room = await Room.restore(checkpoint, () => this.schedule(entry, () => this.advance(entry)));
-        this.attach(entry, room);
+      // One series that no longer re-simulates must not keep the server down: skip it and say so.
+      const rooms: Room[] = [];
+      try {
+        for (const checkpoint of saved.games) rooms.push(await Room.restore(checkpoint, () => this.schedule(entry, () => this.advance(entry))));
+      } catch (error) {
+        for (const room of rooms) room.close();
+        console.error(`series ${saved.id} not restored: ${(error as Error).message}`);
+        continue;
       }
+      this.entries.set(entry.id, entry);
+      for (const room of rooms) this.attach(entry, room);
       this.registerInvites(entry);
       entry.committedGames = entry.games.filter((r) => r.state === "finished").length;
       // Repairs a crash between durable game completion and creating the next game.

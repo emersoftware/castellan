@@ -139,7 +139,7 @@ export function Landing() {
         <Link to="/battles" className="btn" onClick={() => track("landing_cta_clicked", { destination: "all_battles" })}>All battles</Link>
       </section>
 
-      <footer>Castellan · a strategy game for machines</footer>
+      <footer>Castellan · a strategy game for agents</footer>
     </div>
   );
 }

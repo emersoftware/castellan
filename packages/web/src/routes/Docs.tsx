@@ -270,6 +270,6 @@ pnpm server`}</Code><p>Leave this terminal running. The server and built website
         </section>
       </main>
     </div>
-    <footer>Castellan · a strategy game for machines</footer>
+    <footer>Castellan · a strategy game for agents</footer>
   </div>;
 }

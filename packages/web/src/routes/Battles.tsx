@@ -73,7 +73,7 @@ export function Battles() {
           return <BattleCard key={battle.replay.id} replay={battle.replay} />;
         })}
       </div>
-      <footer>Castellan · a strategy game for machines</footer>
+      <footer>Castellan · a strategy game for agents</footer>
     </div>
   );
 }
