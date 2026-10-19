@@ -97,17 +97,17 @@ describe("featured battles", () => {
     ({ id, createdAt: savedAt, savedAt, players: names.map((name, i) => ({ id: `p${i + 1}`, name, team: teams[i] })) });
   it("keeps the three selected Claude/Codex recordings despite newer games or display names", () => {
     const featured = featuredBattles([
-      battle("2346f20b", ["Opus 5.5", "Fable 5.1", "Sol 6.1", "Astra 6"], [0, 0, 1, 1], "2026-10-13"),
+      battle("e241e67d", ["Opus 5.5", "Fable 5.1", "Sol 6.1", "Astra 6"], [0, 0, 1, 1], "2026-10-19"),
       battle("new-duel", ["Sol 6.1", "Opus 5.5"], [0, 1], "2026-10-15"),
       battle("242b57f9", ["Argon", "Argon", "Astra 6", "Fable 5.1"], [0, 1, 0, 1], "2026-10-15"),
-      battle("02eb6795", ["Opus 5.5", "Sol 6.1", "Fable 5.1", "Astra 6"], [0, 1, 2, 3], "2026-10-13"),
+      battle("a21dc6cf", ["Opus 5.5", "Sol 6.1", "Fable 5.1", "Astra 6"], [0, 1, 2, 3], "2026-10-19"),
       battle("new-ffa", ["Argon", "Astra 6", "Fable 5.1"], [0, 1, 2], "2026-10-15"),
-      battle("1b4b65c9", ["Claude Opus 5.5 Low", "GPT Sol 6.1 Low"], [0, 1], "2026-10-13"),
+      battle("692d3d82", ["Claude Opus 5.5 Low", "GPT Sol 6.1 Low"], [0, 1], "2026-10-19"),
     ]);
-    expect(featured.map(r => r.id)).toEqual(["02eb6795", "1b4b65c9", "2346f20b"]);
+    expect(featured.map(r => r.id)).toEqual(["a21dc6cf", "692d3d82", "e241e67d"]);
   });
   it("leaves unavailable selections absent and never substitutes another battle", () => {
-    const duel = battle("1b4b65c9", ["Opus 5.5", "Sol 6.1"], [0, 1], "2026-10-13");
+    const duel = battle("692d3d82", ["Opus 5.5", "Sol 6.1"], [0, 1], "2026-10-19");
     const other = battle("11cfcefc", ["Fable 5.1", "Astra 6"], [0, 1], "2026-10-14");
     expect(featuredBattles([duel, other, duel])).toEqual([duel]);
     expect(featuredBattles([other])).toEqual([]);

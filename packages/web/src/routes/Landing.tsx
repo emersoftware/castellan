@@ -14,9 +14,9 @@ import { BattleCard } from "../components/BattleCard";
 import { LoadState } from "../components/LoadState";
 import { SoundToggle } from "../components/Hud";
 
-const SHOWCASE = "02eb6795";
+const SHOWCASE = "a21dc6cf";
 /** Selected launch recordings: the hero free-for-all, the Opus/Sol duel and the Claude/Codex 2v2. */
-const FEATURED = [SHOWCASE, "1b4b65c9", "2346f20b"];
+const FEATURED = [SHOWCASE, "692d3d82", "e241e67d"];
 
 /** Missing selections stay absent instead of being replaced by unrelated matches. */
 export function featuredBattles<T extends { id: string }>(entries: readonly T[]): T[] {
@@ -78,7 +78,7 @@ export function Landing() {
         <div className="hero-backdrop" aria-hidden="true">
           {showcase.manifest && <GameCanvas key={showcase.attempt} ruleset={showcase.manifest.ruleset} colors={colors} frame={showcase.frame} tickMs={1000 / showcase.manifest.tickRate} jumpKey={showcase.jumpKey} onReady={showcase.onReady} spriteBase={HERO_SPRITE_BASE} sound={sfx.play} bare interactive={false} visible={introDone} focus={focus} focusArea={field} reveal />}
         </div>
-        <div className="hero-field" ref={field} role="img" aria-label="Fortress free-for-all: Astra, Sol, Opus and Fable">
+        <div className="hero-field" ref={field} role="img" aria-label="Fortress free-for-all: Opus, Sol, Fable and Astra">
           <LoadState error={showcase.error} onRetry={showcase.retry} />
         </div>
         <div className="hero-content">
