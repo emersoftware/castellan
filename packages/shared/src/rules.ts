@@ -9,7 +9,7 @@ import { MAPS } from "./maps";
 import type { Ruleset } from "./ruleset";
 
 export const rules: Ruleset = {
-  version: "0.29.2",
+  version: "0.29.3",
   matchMs: 600000,
   fourSeatMatchMs: 900000,
   drawsAreLosses: true,
@@ -58,7 +58,7 @@ export const rules: Ruleset = {
       attackMs: 1000,
       scriptable: true,
       trainMs: 8000,
-      aimMs: 200,
+      aimMs: 100,
     },
     archer: {
       building: false,

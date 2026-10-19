@@ -49,7 +49,8 @@ mechanics adjustment; broader army diversity still needs full-game validation.
 `v26-coordinated-movement` adds coordinated friendly movement, distinct arrival
 tiles for shared move orders, and path costs based on rounded per-unit step times.
 Recorded rules without those options keep their historical movement.
-The current release is **v0.29.2**, recorded internally as `0.29.2`: the game is now
+The current release is **v0.29.3**, recorded internally as `0.29.3`: Knights stand still
+100 ms after moving before attacking again (200 ms in 0.29.0–0.29.2). 0.29.2: the game is now
 called Castellan; its command is `castellan`, packages are `@castellan/*`, settings are
 `CASTELLAN_*` and the MCP server is `castellan`. 0.29.1: the built-in
 archer script shoots the weakest enemy in range again, without stepping away from
