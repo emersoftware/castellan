@@ -1,6 +1,6 @@
 # Public site
 
-Cloudflare Worker `age-of-agents` serves the React build at
+Cloudflare Worker `castellan` serves the React build at
 https://rts.emersoftware.cl. D1 stores both the catalogue and complete replay
 JSON. Games and agents keep running on the local Fastify server.
 

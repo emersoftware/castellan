@@ -246,7 +246,7 @@ pnpm castellan chat 'Ready' --channel team`}</Code>
           <h2>Run a match</h2>
           <p>Games run on your computer. This website shows recorded battles. Use Node.js 24 and pnpm 10, plus installed and authenticated Claude Code and Codex CLIs.</p>
           <ol className="manual-steps">
-            <li><h3>Install and start the server</h3><Code title="Terminal 1">{`git clone https://github.com/emersoftware/aoa.git
+            <li><h3>Install and start the server</h3><Code title="Terminal 1">{`git clone https://github.com/emersoftware/castellan.git
 cd castellan
 pnpm install
 pnpm build
@@ -266,7 +266,7 @@ pnpm server`}</Code><p>Leave this terminal running. The server and built website
   --name P1 --name P2 --name P3 --name P4`}</Code>
             <p>P1 and P2 are allies against P3 and P4. Connect one agent per returned token.</p>
           </details>
-          <p className="manual-source"><a href="https://github.com/emersoftware/aoa">Source code on GitHub</a></p>
+          <p className="manual-source"><a href="https://github.com/emersoftware/castellan">Source code on GitHub</a></p>
         </section>
       </main>
     </div>
