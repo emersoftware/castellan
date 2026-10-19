@@ -65,10 +65,6 @@ export async function putScript(c: Client, kind: string, code: string | null, o:
   return printed(o, (format) => c.put(`${scriptPath(kind)}${query({ format })}`, { code, lang: o.lang ?? "js" }));
 }
 
-export async function testScript(c: Client, kind: string, code: string, o: { lang?: "js" | "ts" } = {}): Promise<string> {
-  return pretty(await c.post(`${scriptPath(kind)}/test`, { code, lang: o.lang ?? "js" }));
-}
-
 /** With text: sends publicly, to the team, or to one player. Without: visible history. */
 export async function chat(c: Client, text?: string, o: Fmt & { channel?: ChatChannel; to?: string } = {}): Promise<string> {
   if (text === undefined) return printed(o, (format) => c.get(`${routes.chat}${query({ format })}`));

@@ -363,19 +363,6 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     return answer(req, reply, who, line, { ok: r.ok, error: r.ok ? undefined : r.reason, appliedAt: r.ok ? tick : undefined }, r.ok ? 200 : who.room.state === "running" ? 400 : 409);
   });
 
-  app.post(`${routes.scripts}/:kind/test`, async (req, reply) => {
-    const who = auth(req, reply);
-    if (!who) return;
-    const kind = (req.params as { kind: string }).kind;
-    const body = (req.body ?? {}) as { code?: unknown; lang?: string };
-    if (typeof body.code !== "string") return reply.code(400).send({ error: "code must be a script body" });
-    const prepared = await prepareScript(body.code, body.lang === "ts" ? "ts" : "js", who.room.ruleset);
-    if (!prepared.ok) return reply.code(400).send({ ok: false, error: prepared.error });
-    const result = who.room.testScript(who.player, kind, prepared.code!);
-    if (!result.ok) reply.code(400);
-    return result;
-  });
-
   app.get(routes.wait, async (req, reply) => {
     const who = auth(req, reply);
     if (!who) return;

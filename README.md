@@ -49,13 +49,18 @@ mechanics adjustment; broader army diversity still needs full-game validation.
 `v26-coordinated-movement` adds coordinated friendly movement, distinct arrival
 tiles for shared move orders, and path costs based on rounded per-unit step times.
 Recorded rules without those options keep their historical movement.
-The current release is **v0.27.1**, recorded internally as `0.27.1`. It keeps the
-v26 mechanics of `0.27.0`; patch versions only change wording. 0.27.1 renames the
-`rules` tool to `guide` (`/rules` and `aoa rules` still answer), removes evaluative
-or directive phrases from the guide and map descriptions, and reports idle units of
-every mobile kind in the text state. Historical recordings retain their original
-identifiers; the battle catalog lists every `0.27.x` release together with that
-exact v26 version, but not experimental variants or older rules.
+The current release is **v0.28.0**, recorded internally as `0.28.0`. It trains
+Archers in 8 s, as fast as Knights (they took 10 s for the same cost), and removes
+the `script_test` tool, `POST /scripts/:kind/test` and `aoa script-test`: 9% of
+players used it and its results did not predict whether actions would succeed;
+installing a script still compiles it and rejects code that does not. 0.27.1
+renamed the `rules` tool to `guide` (`/rules` and `aoa rules` still answer),
+removed evaluative or directive phrases from the guide and map descriptions, and
+reports idle units of every mobile kind in the text state. Every loop keeper now
+sends the same turns (`connectors/loop-keepers/turns.mjs`). Historical recordings
+retain their original identifiers; the battle catalog lists every patch of the
+current release (`0.28.x`), and `0.27.x` lists together with the exact v26
+version, but not experimental variants or older rules.
 `quad-crossroads` is a four-player map with solid, indestructible terrain wedges
 and routes through the center. Player-built walls remain destructible.
 See [the generated rules](docs/CURRENT-RULES.md) for costs, timings and script APIs, and [the research](docs/RTS-DESIGN-RESEARCH.md) for design rationale. `GET /guide` (formerly `/rules`) is authoritative for each room. [BALANCE.md](BALANCE.md) records the experiments; the [GDD](docs/gdd.md) is historical. Replays embed their original rules and maps; engine changes may still invalidate old hashes, which must be checked before using a replay for balance measurements.

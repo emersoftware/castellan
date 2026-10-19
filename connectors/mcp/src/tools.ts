@@ -111,11 +111,6 @@ export function createServer(c: aoa.Client = aoa.client({ connector })): McpServ
       ({ code, lang }) => reply(() => aoa.runScript(c, code, { lang })),
     ),
 
-    script_test: tool({
-      description: "Probe a unit script on your current owned units in a separate VM with fresh memory. Returns proposed actions, logs, errors and gas. Does not install code, simulate action success, consume observations or advance the game.",
-      inputSchema: { kind: z.string(), code: z.string().min(1).max(4096), lang: z.enum(["js", "ts"]).optional() },
-    }, ({ kind, code, lang }) => reply(() => aoa.testScript(c, kind, code, { lang }))),
-
     chat: tool(
       {
         description:

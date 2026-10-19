@@ -40,7 +40,7 @@ describe("Antigravity connector", () => {
       const client = new Client({ name: "agy-config-test", version: "0" });
       try {
         await client.connect(new StdioClientTransport({ ...mcp.mcpServers.aoa, cwd: workspace }));
-        expect((await client.listTools()).tools.map(t => t.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "script_test", "state"]);
+        expect((await client.listTools()).tools.map(t => t.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "state"]);
       } finally { await client.close(); }
     }
   });
@@ -128,7 +128,7 @@ readline.createInterface({input:process.stdin}).on('line',async line=>{
       bridge = await startToolBridge({ socketPath: join(root, "tools.sock"), server, token: "bound-player" });
       await preparePlayer({ workspace: root, projectId: "bridge", server, token: "bound-player", transport: "cli", bridge });
       const schemas = JSON.parse(await readFile(join(root, ".agents/tool-schemas.json"), "utf8"));
-      expect(schemas.map((t: { name: string }) => t.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "script_test", "state"]);
+      expect(schemas.map((t: { name: string }) => t.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "state"]);
       expect(requests).toEqual([]);
       const tool = join(root, "bin/aoa-tool");
       expect(await readFile(tool, "utf8")).not.toContain("bound-player");

@@ -59,8 +59,8 @@ do not sum every decision's cumulative usage.
 `cli` is the default transport. One MCP process remains connected for the whole
 player session. A private Unix socket connects the temporary `bin/aoa-tool`
 wrapper to that process. The wrapper accepts exactly a tool name and one JSON
-object. It exposes the same eight tools, schemas, validation and responses:
-`guide`, `state`, `act`, `script`, `run`, `chat`, `history` and `script_test`.
+object. It exposes the same seven tools, schemas, validation and responses:
+`guide`, `state`, `act`, `script`, `run`, `chat` and `history`.
 
 The bridge binds the server and player token at startup. Wrapper arguments and
 environment overrides cannot redirect it. Scripts are inline JSON strings for

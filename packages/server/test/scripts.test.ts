@@ -22,11 +22,5 @@ it("lists the script every player's scriptable kinds run in a live room", async 
     expect(scripts.p2.knight).toEqual({ code: rules.defaultScripts.knight, custom: false });
     expect(scripts.p2.wall).toBeUndefined();
     expect((await app.inject({ url: "/rooms/nope/scripts" })).statusCode).toBe(404);
-    const probe = await app.inject({ method: "POST", url: "/scripts/king/test", headers: { authorization: `Bearer ${a.token}` },
-      payload: { lang: "ts", code: "return {onTick(): void {self.suspendOrder();self.hold();self.log(typeof self.order);}};" } });
-    expect(probe.statusCode).toBe(200);
-    const result = probe.json();
-    expect(result).toMatchObject({ ok: true, actionsApplied: false, freshMemory: true });
-    expect(Object.values(result.frames[0].runs)[0]).toMatchObject({ action: { a: "hold" }, orderControl: "suspend", log: "object" });
   } finally { await app.close(); await rm(replayDir, { recursive: true, force: true }); }
 });

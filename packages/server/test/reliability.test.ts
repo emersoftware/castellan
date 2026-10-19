@@ -74,9 +74,6 @@ it("records reproducible manifests and errors without credentials, and probes wi
     expect((await app.inject({ method: "POST", url: "/agent-status", headers, payload: { state: "provider_wait", retryAt: "2026-10-08T17:00:00Z" } })).statusCode).toBe(200);
     expect((await app.inject(`/rooms/${created.id}`)).json().status).toBe("waiting");
     expect((await app.inject({ method: "POST", url: "/agent-status", headers, payload: { state: "strategizing", retryAt: "bad" } })).statusCode).toBe(400);
-    const probe = (await app.inject({ method: "POST", url: "/scripts/king/test", headers, payload: { code: "self.log(self.attackReadyInTicks); self.hold();" } })).json();
-    expect(probe).toMatchObject({ ok: true, actionsApplied: false, freshMemory: true });
-    expect(probe.frames[0].runs).not.toEqual({});
     expect((await app.inject({ url: "/scripts/king", headers })).json().custom).toBe(false);
     await app.inject({ method: "POST", url: "/run", headers, payload: { code: "throw new Error('test')" } });
     await app.inject({ url: "/state", headers: { authorization: `Bearer ${created.players[1].token}` } });

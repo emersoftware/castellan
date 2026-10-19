@@ -15,7 +15,6 @@ const USAGE = `aoa — Age of Agents client (env AOA_SERVER, AOA_TOKEN)
   aoa script <kind>                  print the current script
   aoa script <kind> <file|-> [--ts]  upload a script (.ts files imply --ts)
   aoa script <kind> --reset          restore the built-in script
-  aoa script-test <kind> <file|-> [--ts]  probe a script on your units, without installing or acting
   aoa wait [seconds] [--since T] [--until a,b]
   aoa chat ["<message>"] [--channel all|team|private] [--to p2]  public by default; --to = private to one player; no message = read
   aoa status                         waiting | prep | running | finished
@@ -96,11 +95,6 @@ async function main(): Promise<string | number | void> {
       if (o.reset) return cmd.putScript(c, kind, null, { json });
       if (!file) return cmd.getScript(c, kind, { json });
       return cmd.putScript(c, kind, read(file), { json, lang: o.ts || file.endsWith(".ts") ? "ts" : "js" });
-    }
-    case "script-test": {
-      const [kind, file] = args;
-      if (!kind || !file) throw new Error("usage: aoa script-test <kind> <file|-> [--ts]");
-      return cmd.testScript(c, kind, read(file), { lang: o.ts || file.endsWith(".ts") ? "ts" : "js" });
     }
     case "wait":
       return cmd.wait(c, { json, seconds: num(args[0]), since: num(o.since), until: o.until });

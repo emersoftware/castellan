@@ -256,9 +256,8 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         recent.push({ action: `message to ${next.message.to ?? "all"}: ${next.message.text}`, result: sent });
       }
       for (const [kind, code] of Object.entries(next.scripts)) {
-        const test = new TextEncoder().encode(code).length > 4096 ? { ok: false, error: "over 4096 bytes" } : await api("POST", `/scripts/${kind}/test`, { code, lang: "js" }).catch(e => ({ ok: false, error: e.message }));
-        const error = test.ok === false ? String(test.error) : JSON.stringify(test.frames ?? []).match(/"error":"([^"]*)"/)?.[1];
-        const result = error ? `rejected: ${error.slice(0, 200)}` : await api("PUT", `/scripts/${kind}`, { code, lang: "js" }).then(() => "installed", e => `failed: ${e.message}`);
+        // Installing compiles the script first; a script that does not compile is rejected with the reason.
+        const result = await api("PUT", `/scripts/${kind}`, { code, lang: "js" }).then(() => "installed", e => `rejected: ${e.message.slice(0, 200)}`);
         recent.push({ action: `planner's ${kind} script`, result });
       }
     })().catch(e => { console.error(`aoa jev: plan failed: ${e.message}`); lastPlanAt = Date.now() - REPLAN_MS + 3000; })

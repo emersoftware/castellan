@@ -48,11 +48,10 @@ No se cambió la mecánica de reservar construcciones (punto 2), el cursor de `r
   requeriría conocer una casilla oculta; no revela ocupación tras la niebla.
   Los resultados distinguen acción realizada, bloqueo, espera por enfriamiento,
   puntería, llegada, mantener posición y acción inválida.
-- `script_test` en MCP, `aoa script-test king prueba.js` en CLI y
-  `POST /scripts/:kind/test` prueban código sobre las unidades propias actuales
-  en una VM separada con memoria nueva. Devuelven acción propuesta, errores,
-  logs y consumo del contador. No instalan el script ni consumen el cursor de
-  eventos; no predicen el éxito de acciones frente a movimientos simultáneos.
+- La herramienta `script_test` (y `POST /scripts/:kind/test`, `aoa script-test`)
+  se retiró: la usaba el 9% de los jugadores y sus resultados no predecían el
+  éxito de las acciones. Instalar un script compila el código y rechaza el que
+  no compila; `Match.testScript` queda solo para los tests del motor.
 - [CURRENT-RULES.md](CURRENT-RULES.md) se genera desde reglas y guía mediante
   `pnpm docs:rules`. `pnpm docs:check` detecta divergencias y se ejecuta al iniciar
   `pnpm test`. BALANCE y GDD quedaron

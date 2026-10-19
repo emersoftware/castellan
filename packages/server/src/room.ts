@@ -410,12 +410,6 @@ export class Room {
     return Object.fromEntries(Object.entries(this.ruleset.kinds).filter(([, k]) => k.scriptable).map(([kind]) => [kind, this.match.scriptSource(player, kind)]));
   }
 
-  /** Probes compiled `code` on the player's units of `kind` in their visible context; installs nothing. */
-  testScript(player: PlayerId, kind: string, code: string) {
-    return { ...this.match.testScript(player, kind, code), freshMemory: true, actionsApplied: false,
-      note: "Probe of owned units in the current visible context with fresh memory; proposed actions only. Does not advance the game or install the script." };
-  }
-
   /**
    * Resolves when `player` has new events (optionally of the given types) with
    * tick ≥ since, the status changes, or `maxMs` passes.

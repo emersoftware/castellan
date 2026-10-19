@@ -52,7 +52,7 @@ export const acknowledged: Record<string, Record<string, string>> = {
     '"models" @ connectors/loop-keepers,packages/sim': "`agy models` vs a probe CLI flag.",
     '"block" @ connectors/loop-keepers,packages/web': "Claude Code's Stop-hook decision vs a CSS display value.",
     '"native" @ connectors/loop-keepers,packages/web': "A dsh tool mode vs the Web Share method label.",
-    '"sandbox" @ packages/server,packages/web': "Repo path segment in two unrelated fingerprints (experiment provenance vs showcase cache).",
+    '"sandbox" @ connectors/loop-keepers,packages/server,packages/web': "Repo path segment in two unrelated fingerprints (experiment provenance vs showcase cache) and a dsh plugin id the DeepSeek keeper disables.",
     '"shared" @ packages/server,packages/web': "Repo path segment in two unrelated fingerprints (experiment provenance vs showcase cache).",
     '"packages" @ packages/server,packages/web': "Repo path segment in two unrelated fingerprints (experiment provenance vs showcase cache).",
     '"src" @ packages/server,packages/web': "Repo path segment in two unrelated fingerprints (experiment provenance vs showcase cache).",

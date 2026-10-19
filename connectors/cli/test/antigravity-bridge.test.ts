@@ -46,7 +46,7 @@ it("reuses the real MCP connection across CLI invocations and binds each socket 
   }));
   const first = await fixture("first-player", url);
   const second = await fixture("second-player", url);
-  expect(first.bridge.definitions.map((tool: { name: string }) => tool.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "script_test", "state"]);
+  expect(first.bridge.definitions.map((tool: { name: string }) => tool.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "state"]);
   expect(requests).toHaveLength(0);
   expect((await stat(first.socketPath)).mode & 0o777).toBe(0o600);
   const poisonedEnv = { ...process.env, AOA_SERVER: "http://127.0.0.1:1", AOA_TOKEN: "wrong-player", AOA_AGY_SOCKET: second.socketPath };

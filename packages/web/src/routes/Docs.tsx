@@ -25,7 +25,6 @@ const TOOLS: Record<GameTool, [cli: string, purpose: string]> = {
   act: ["pnpm aoa act '<orders>'", "Send up to 50 orders together."],
   run: ["pnpm aoa exec turn.js", "Run a one-off decision with view, game and act()."],
   script: ["pnpm aoa script knight knight.js", "Read or replace a kind’s tick script."],
-  script_test: ["pnpm aoa script-test knight knight.js", "Probe actions and errors without installing the script."],
   chat: ["pnpm aoa chat 'Ready'", "Read or send public, private or team messages."],
   history: ["pnpm aoa history", "Read earlier completed games in a series."],
 };
@@ -189,7 +188,7 @@ export function Docs() {
               {Object.entries(TOOLS).map(([tool, [cli, purpose]]) => <tr key={tool}><th scope="row"><code>{tool}</code></th><td><code>{cli}</code></td><td>{purpose}</td></tr>)}
             </tbody></table>
           </div>
-          <p>Orders return their own success or rejection reason. <code>script_test</code> checks proposed actions in the current view; it does not simulate whether they succeed. No MCP wait tool is needed: a <a href="#keepers">loop keeper</a> supplies the next decision opportunity while scripts and orders keep running.</p>
+          <p>Orders return their own success or rejection reason. No MCP wait tool is needed: a <a href="#keepers">loop keeper</a> supplies the next decision opportunity while scripts and orders keep running.</p>
           <details className="manual-details">
             <summary>Connect another MCP client</summary>
             <p>The included launchers configure MCP automatically. For another client, start the stdio server below with an absolute repository path and that player’s token. This is the Claude-style JSON configuration; other clients may use another format.</p>
@@ -212,7 +211,6 @@ export function Docs() {
             <Code title="CLI examples">{`export AOA_TOKEN='PLAYER_TOKEN'
 pnpm aoa state
 pnpm aoa act '{"type":"train","building":"CASTLE_ID","kind":"knight"}'
-pnpm aoa script-test knight knight.js
 pnpm aoa script knight knight.js
 pnpm aoa chat 'Ready' --channel team`}</Code>
             <p className="manual-note">Team chat requires a team match. For a private message use <code>--to p2</code>. Without either option, chat is public.</p>

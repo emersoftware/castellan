@@ -9,6 +9,7 @@ const strategyFixture: Ruleset = { ...rules, coordinatedMovement: false, tickPat
   kinds: { ...rules.kinds,
     castle: { ...rules.kinds.castle, cost: 600, buildMs: 30000, range: 6 },
     knight: { ...rules.kinds.knight, moveMs: 500 },
+    archer: { ...rules.kinds.archer, trainMs: 10000 },
     tower: { ...rules.kinds.tower, cost: 200 },
     wall: { ...rules.kinds.wall, cost: 50 },
     door: { ...rules.kinds.door, cost: 75 },
