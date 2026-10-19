@@ -12,7 +12,7 @@ vi.mock("@tanstack/react-router", () => ({ Link: ({ children, to, params, ...pro
 vi.mock("@tanstack/react-query", () => ({ useQuery: ({ queryKey }: { queryKey: string[] }) =>
   ({ data: queryKey[0] === "replays" ? replays : [], isPending: false, isError: false, isSuccess: true }) }));
 vi.mock("../src/audio/sfx", () => ({ sfx: { holdMusic: () => () => {} } }));
-vi.mock("../src/components/Hud", () => ({ SoundToggle: () => null }));
+vi.mock("../src/components/Hud", () => ({ ViewerTop: () => null, SoundToggle: () => null }));
 
 let root: Root, host: HTMLDivElement;
 const battle = (id: string, teams: number[], efforts: (string | null)[]): ReplaySummary => ({

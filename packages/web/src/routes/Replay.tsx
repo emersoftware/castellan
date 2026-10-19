@@ -8,7 +8,7 @@ import { api, playerColors, fmtTime } from "../api";
 import { playerPerspective } from "../perspective";
 import { sfx } from "../audio/sfx";
 import { GameCanvas } from "../components/GameCanvas";
-import { DepositPanel, OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, UnitPanel, notableEvents } from "../components/Hud";
+import { ViewerTop, DepositPanel, OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, UnitPanel, notableEvents } from "../components/Hud";
 import { useUnitSelection } from "../useSelection";
 import { scriptAt } from "../scripts";
 import type { HoverInfo, SoundSink } from "../render/renderer";
@@ -222,9 +222,7 @@ export function ReplayPlayer({ id, onEnded, initialPlaying = true, series }: {
         {unit.deposit ? <DepositPanel deposit={unit.deposit} onClose={() => unit.setSelected(null)} />
           : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} tickMs={tickMs} names={names} colors={colors} reactiveOrders={ruleset?.reactiveOrders} onClose={() => unit.setSelected(null)} />
           : <Tooltip hover={hover} names={names} colors={colors} />}
-        <div className="corner">
-          <Link to="/battles"><Arrow dir="left" /> Battles</Link>
-        </div>
+        <ViewerTop view={display ?? null} />
         {frame && atEnd && <OutcomeBanner view={frame} names={names} colors={colors} dismissible />}
       </div>
 

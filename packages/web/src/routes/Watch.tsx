@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { currentFrame, currentRuleset, pages, readMoment, type GameEvent, type Ruleset, type SpectatorMessage, type SpectatorView } from "@castellan/shared";
 import { api, fmtTime, playerColors, spectateUrl } from "../api";
 import { GameCanvas } from "../components/GameCanvas";
-import { DepositPanel, OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, UnitPanel, notableEvents } from "../components/Hud";
+import { ViewerTop, DepositPanel, OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, UnitPanel, notableEvents } from "../components/Hud";
 import { useUnitSelection } from "../useSelection";
 import { defaultScript } from "../scripts";
 import { ReplayPlayer, writeUrl } from "./Replay";
@@ -107,9 +107,7 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series 
         {unit.deposit ? <DepositPanel deposit={unit.deposit} onClose={() => unit.setSelected(null)} />
           : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} tickMs={tickMs} names={names} colors={colors} reactiveOrders={ruleset?.reactiveOrders} onClose={() => unit.setSelected(null)} />
           : <Tooltip hover={hover} names={names} colors={colors} />}
-        <div className="corner">
-          <Link to="/battles"><Arrow dir="left" /> Battles</Link>
-        </div>
+        <ViewerTop view={display ?? null} />
         {!denied && status === "waiting" && (
           <div className="banner small">
             <div className="big">Waiting for the agents</div>

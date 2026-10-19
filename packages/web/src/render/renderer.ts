@@ -1275,13 +1275,20 @@ export class GameRenderer {
     return ctx.getImageData(tex.frame.x + u, tex.frame.y + v, 1, 1).data[3] > 40;
   }
 
+  private hoverShown = true;
   private refreshHover() {
     this.hoverMark.clear();
     // The sprite under the pointer first (bodies stand above their tile), else the tile itself.
     const picked = this.pointer ? this.pickAt(this.pointer.x, this.pointer.y) : null;
     this.hoverId = picked ? picked.view.id : null;
     const h = picked ? { x: picked.kind === "entity" ? this.drawn.get(picked.view.id)!.to.x : picked.view.x, y: picked.kind === "entity" ? this.drawn.get(picked.view.id)!.to.y : picked.view.y } : this.hovered;
-    if (!h || (!picked && this.visibility && this.visibility[h.y]?.[h.x] !== "2")) return this.hoverCb(null);
+    if (!h || (!picked && this.visibility && this.visibility[h.y]?.[h.x] !== "2")) {
+      // Every frame refreshes the hover; telling the page "nothing" again would re-render it per frame.
+      if (this.hoverShown) this.hoverCb(null);
+      this.hoverShown = false;
+      return;
+    }
+    this.hoverShown = true;
     const { sx, sy } = iso(h.x, h.y);
     // A picked sprite gets a ring under its drawn position (see drawSelection); a bare tile gets a diamond.
     if (!picked) this.hoverMark.poly([sx, sy - TILE_H / 2, sx + TILE_W / 2, sy, sx, sy + TILE_H / 2, sx - TILE_W / 2, sy]).stroke({ width: 1, color: 0xffffff, alpha: 0.7 });
