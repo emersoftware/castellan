@@ -52,6 +52,9 @@ class Sfx {
 
   /** Browsers only allow audio after a user gesture: call this from one. */
   unlock() {
+    // iOS files Web Audio as "ambient" and the silent switch mutes it; a game's sound is playback.
+    const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+    if (session && session.type !== "playback") session.type = "playback";
     if (!this.ctx) {
       this.ctx = new AudioContext();
       this.master = this.ctx.createGain();
@@ -221,4 +224,5 @@ class Sfx {
 export const sfx = new Sfx();
 
 // Browsers start audio only after a gesture: the first click or key anywhere starts the music.
-for (const event of ["pointerdown", "keydown"]) addEventListener(event, () => !sfx.muted && sfx.unlock());
+// iOS accepts only the end of a touch (touchend, click) as that gesture, not pointerdown.
+for (const event of ["pointerdown", "touchend", "click", "keydown"]) addEventListener(event, () => !sfx.muted && sfx.unlock());
