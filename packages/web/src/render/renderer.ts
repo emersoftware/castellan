@@ -260,11 +260,9 @@ export class GameRenderer {
   private presentationNow() { return (this.pausedAt ?? this.now()) - this.pauseOffset; }
   private animationMs(now: number) { return this.gameMs + this.alpha(now) * this.gameTickMs; }
 
-  /** Zoom by a factor around the screen center (0.35×–3×). */
-  zoom(factor: number) {
+  /** Zoom by a factor around a point in renderer pixels, the screen center by default (0.35×–3×). */
+  zoom(factor: number, cx = this.app.renderer.width / 2, cy = this.app.renderer.height / 2) {
     const next = Math.min(3, Math.max(0.35, this.zoomLevel * factor));
-    const cx = this.app.renderer.width / 2;
-    const cy = this.app.renderer.height / 2;
     const wx = (cx - this.world.x) / this.zoomLevel;
     const wy = (cy - this.world.y) / this.zoomLevel;
     this.zoomLevel = next;
@@ -1193,20 +1191,39 @@ export class GameRenderer {
 
   private bindInput() {
     const cv = this.app.canvas;
+    // The map takes every touch: one finger pans, two pinch to zoom; the page must not zoom or scroll instead.
+    cv.style.touchAction = "none";
     let drag: { x: number; y: number; wx: number; wy: number } | null = null;
+    const touches = new Map<number, { x: number; y: number }>();
+    let pinch: { distance: number; x: number; y: number } | null = null;
+    const pinchOf = () => {
+      const [a, b] = [...touches.values()];
+      return { distance: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    };
     cv.addEventListener("pointerdown", (e) => {
-      drag = { x: e.clientX, y: e.clientY, wx: this.world.x, wy: this.world.y };
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
       cv.setPointerCapture(e.pointerId);
+      if (touches.size === 2) { drag = null; pinch = pinchOf(); }
+      else if (touches.size === 1) drag = { x: e.clientX, y: e.clientY, wx: this.world.x, wy: this.world.y };
     });
+    const release = (e: PointerEvent) => {
+      if (!touches.delete(e.pointerId)) return;
+      pinch = null;
+      // The finger left on the glass after a pinch keeps panning from where it is.
+      const [rest] = touches.values();
+      if (rest) drag = { x: rest.x, y: rest.y, wx: this.world.x, wy: this.world.y };
+    };
     cv.addEventListener("pointerup", (e) => {
       // A click (not a drag) selects the visible entity on that tile, or clears the selection.
-      if (drag && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5) {
+      if (touches.size === 1 && drag && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5) {
         const picked = this.pointer && this.pickAt(this.pointer.x, this.pointer.y);
         this.selectedId = picked ? picked.view.id : null;
         this.selectCb(this.selectedId);
       }
-      drag = null;
+      release(e);
+      if (!touches.size) drag = null;
     });
+    cv.addEventListener("pointercancel", (e) => { release(e); if (!touches.size) drag = null; });
     cv.addEventListener("pointerleave", () => {
       this.hovered = null;
       this.pointer = null;
@@ -1216,6 +1233,14 @@ export class GameRenderer {
     cv.addEventListener("pointermove", (e) => {
       const rect = cv.getBoundingClientRect();
       const k = rect.width / this.app.renderer.width;
+      if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && touches.size === 2) {
+        const now = pinchOf();
+        this.world.position.set(Math.round(this.world.x + (now.x - pinch.x) / k), Math.round(this.world.y + (now.y - pinch.y) / k));
+        if (pinch.distance > 0) this.zoom(now.distance / pinch.distance, (now.x - rect.left) / k, (now.y - rect.top) / k);
+        pinch = now;
+        return;
+      }
       if (drag) this.world.position.set(Math.round(drag.wx + (e.clientX - drag.x) / k), Math.round(drag.wy + (e.clientY - drag.y) / k));
       const px = ((e.clientX - rect.left) / k - this.world.x) / this.zoomLevel;
       const py = ((e.clientY - rect.top) / k - this.world.y) / this.zoomLevel;

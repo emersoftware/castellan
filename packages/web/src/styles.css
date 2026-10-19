@@ -482,7 +482,7 @@ button.on { background: linear-gradient(to bottom, #ffffff, #8c8c8c); }
   .side .scores .clock .time { font-size: 20px; }
   .side .scores { padding: 8px 10px; }
   .log-body { font-size: 13px; }
-  .viewer .viewer-top { left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 10px; padding: 6px 8px; }
+  .viewer .viewer-top { left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 10px; padding: 6px 8px; background: rgba(0, 0, 0, 0.8); }
   .viewer-top-title { display: flex; flex: 1; justify-content: center; align-items: baseline; gap: 8px; min-width: 0; white-space: nowrap; }
   .viewer-top .brand-head { font-family: var(--title); font-size: 18px; color: var(--white); letter-spacing: 0.02em; }
   .viewer-top .time { font-family: var(--serif); font-size: 18px; color: var(--white); }
