@@ -35,9 +35,9 @@ uv run --with gradio_client==2.7.1 python assets/animations/generate-building-co
 # Review the generated contact sheets before exporting.
 node packages/web/scripts/building-collapse.mjs
 pnpm exec vitest run packages/web/test/BuildingCollapse.test.ts packages/web/test/BuildingCollapseAssets.test.ts packages/web/test/BuildingAnimation.test.ts
-AOA_WEB_URL=http://127.0.0.1:5174 node packages/web/scripts/check-building-collapse.mjs
+CASTELLAN_WEB_URL=http://127.0.0.1:5174 node packages/web/scripts/check-building-collapse.mjs
 # Save the renderer preview as MP4 and GIF too:
-AOA_WEB_URL=http://127.0.0.1:5174 node packages/web/scripts/check-building-collapse.mjs --record
+CASTELLAN_WEB_URL=http://127.0.0.1:5174 node packages/web/scripts/check-building-collapse.mjs --record
 ```
 
 Use `--kind turret` with the preparation/export script to work on one source,

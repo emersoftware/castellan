@@ -5,8 +5,8 @@
 import { McpServer, type ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { z } from "zod";
-import * as aoa from "@aoa/cli";
-import { CHAT_CHANNELS, HISTORY_SECTIONS, scriptOrigin, type GameTool, type GenericConnector } from "@aoa/shared";
+import * as castellan from "@castellan/cli";
+import { CHAT_CHANNELS, HISTORY_SECTIONS, scriptOrigin, type GameTool, type GenericConnector } from "@castellan/shared";
 
 type Result = { content: { type: "text"; text: string }[]; isError?: boolean };
 
@@ -30,11 +30,11 @@ const order = z.object({
   y: z.number().int().optional(),
 });
 
-/** Calls through this server declare the generic MCP connector unless AOA_CONNECTOR names the harness. */
+/** Calls through this server declare the generic MCP connector unless CASTELLAN_CONNECTOR names the harness. */
 const connector: GenericConnector = "mcp";
 
-export function createServer(c: aoa.Client = aoa.client({ connector })): McpServer {
-  const server = new McpServer({ name: "aoa", version: "0.1.0" });
+export function createServer(c: castellan.Client = castellan.client({ connector })): McpServer {
+  const server = new McpServer({ name: "castellan", version: "0.1.0" });
   const tool = <A extends undefined | ZodRawShapeCompat = undefined>(config: { description: string; inputSchema?: A }, run: ToolCallback<A>) =>
     (name: string) => server.registerTool(name, config, run);
 
@@ -48,11 +48,11 @@ export function createServer(c: aoa.Client = aoa.client({ connector })): McpServ
         offset: z.number().int().min(0).optional(),
         limit: z.number().int().min(1).max(100).optional(),
       },
-    }, (args) => reply(() => aoa.history(c, args))),
+    }, (args) => reply(() => castellan.history(c, args))),
 
     guide: tool(
       { description: "How this room's game works: victory conditions, unit stats and costs, research, order shapes and the script APIs." },
-      () => reply(() => aoa.guide(c)),
+      () => reply(() => castellan.guide(c)),
     ),
 
     state: tool(
@@ -60,7 +60,7 @@ export function createServer(c: aoa.Client = aoa.client({ connector })): McpServ
         description: "Your view under fog of war: tick, status (waiting|prep|running|finished), time left, mineral, ASCII map, your entities, visible enemies with owner ids, deposits, script errors, the last 5 visible chat messages, damage your entities took (under attack) and events since your last call (or since tick `since`).",
         inputSchema: { since: z.number().int().optional().describe("events from this tick (default: since your last call)") },
       },
-      ({ since }) => reply(() => aoa.state(c, { since })),
+      ({ since }) => reply(() => castellan.state(c, { since })),
     ),
 
     act: tool(
@@ -72,7 +72,7 @@ export function createServer(c: aoa.Client = aoa.client({ connector })): McpServ
           "Returns ok/FAILED per order, mineral spent and remaining, and your view. A queued unit gets its id when it spawns; durations and limits are in guide.",
         inputSchema: { orders: z.array(order).min(1).max(50) },
       },
-      ({ orders }) => reply(() => aoa.act(c, orders)),
+      ({ orders }) => reply(() => castellan.act(c, orders)),
     ),
 
     script: tool(
@@ -88,8 +88,8 @@ export function createServer(c: aoa.Client = aoa.client({ connector })): McpServ
       },
       ({ kind, code, lang }) =>
         reply(async () => {
-          if (code !== undefined) return aoa.putScript(c, kind, code, { lang });
-          const s = await aoa.script(c, kind);
+          if (code !== undefined) return castellan.putScript(c, kind, code, { lang });
+          const s = await castellan.script(c, kind);
           return `// ${kind}: ${scriptOrigin(s)}\n${s.code}`;
         }),
     ),
@@ -108,7 +108,7 @@ export function createServer(c: aoa.Client = aoa.client({ connector })): McpServ
           lang: z.enum(["js", "ts"]).optional().describe("default js; ts types are stripped"),
         },
       },
-      ({ code, lang }) => reply(() => aoa.runScript(c, code, { lang })),
+      ({ code, lang }) => reply(() => castellan.runScript(c, code, { lang })),
     ),
 
     chat: tool(
@@ -123,7 +123,7 @@ export function createServer(c: aoa.Client = aoa.client({ connector })): McpServ
           to: z.string().min(1).max(63).optional().describe("Recipient player id from state, e.g. p2. Makes the message private; omit channel or use private. Ignored when reading"),
         },
       },
-      ({ text, channel, to }) => reply(() => aoa.chat(c, text, { channel, to })),
+      ({ text, channel, to }) => reply(() => castellan.chat(c, text, { channel, to })),
     ),
   };
   for (const [name, register] of Object.entries(tools)) register(name);

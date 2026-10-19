@@ -1,13 +1,13 @@
 import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
+import { configFile } from "../game.mjs";
 import { Writable } from "node:stream";
 
 export function keyFile(env = process.env) {
-  return env.AOA_DEEPSEEK_KEY_FILE || join(homedir(), ".config", "aoa", "deepseek-api-key");
+  return env.CASTELLAN_DEEPSEEK_KEY_FILE || configFile("deepseek-api-key");
 }
 export async function loadKey(env = process.env) {
   if (env.DEEPSEEK_API_KEY?.trim()) return env.DEEPSEEK_API_KEY.trim();

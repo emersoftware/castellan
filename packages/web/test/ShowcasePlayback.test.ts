@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { rules, type SpectatorView } from "@aoa/shared";
+import { rules, type SpectatorView } from "@castellan/shared";
 import { encodeShowcaseChunk, type ShowcaseManifest } from "../src/showcaseRecording";
 import { useShowcase } from "../src/useShowcase";
 

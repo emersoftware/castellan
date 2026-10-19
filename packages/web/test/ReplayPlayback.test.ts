@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { expect, it } from "vitest";
-import { runReplay } from "@aoa/engine";
-import type { ReplayFile, SpectatorView } from "@aoa/shared";
+import { runReplay } from "@castellan/engine";
+import type { ReplayFile, SpectatorView } from "@castellan/shared";
 import { playRecordedReplay } from "../src/replayPlayback";
 
 // Actual four-model FFA: player VMs stopped at ticks 5167 and 5692.

@@ -14,9 +14,9 @@ export interface PlayerTransport {
 /** Deliberately no spectator, room-inspection, replay or arbitrary request method. */
 export function httpTransport(server:string,token:string,timeoutMs=10000):PlayerTransport {
   const base=new URL(server);
-  if(!['http:','https:'].includes(base.protocol))throw new Error('AOA_SERVER must be HTTP(S)');
+  if(!['http:','https:'].includes(base.protocol))throw new Error('CASTELLAN_SERVER must be HTTP(S)');
   async function request<T>(path:string,body?:unknown):Promise<T> {
-    const response=await fetch(new URL(path,base),{method:body?'POST':'GET',headers:{authorization:`Bearer ${token}`,'content-type':'application/json','x-aoa-agent':encodeURIComponent(JSON.stringify({connector:'autonomous',model:'heuristic',memoryPolicy:'local-checkpoint',contextPolicy:'player-view-only'}))},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(timeoutMs)});
+    const response=await fetch(new URL(path,base),{method:body?'POST':'GET',headers:{authorization:`Bearer ${token}`,'content-type':'application/json','x-castellan-agent':encodeURIComponent(JSON.stringify({connector:'autonomous',model:'heuristic',memoryPolicy:'local-checkpoint',contextPolicy:'player-view-only'}))},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(timeoutMs)});
     if(!response.ok)throw new Error(`player API ${response.status} at ${path.split('?')[0]}`);
     return await response.json() as T;
   }

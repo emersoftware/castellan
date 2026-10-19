@@ -1,4 +1,4 @@
-import { currentKind, type RecordedKind, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { currentKind, type RecordedKind, type ReplayFile, type Ruleset } from "@castellan/shared";
 
 /** The script a unit of `kind` owned by `owner` runs at `tick`, or null if the kind has none. */
 export interface LoadedScript { code: string; custom: boolean; sinceTick?: number }

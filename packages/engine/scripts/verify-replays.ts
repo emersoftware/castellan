@@ -4,7 +4,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
-import { replayArchive, type Outcome, type ReplayFile } from "@aoa/shared";
+import { replayArchive, type Outcome, type ReplayFile } from "@castellan/shared";
 import { runReplay } from "../src";
 
 const root = resolve(import.meta.dirname, "../../..");

@@ -1,5 +1,5 @@
 {
-  "name": "@aoa/server",
+  "name": "@castellan/server",
   "version": "0.1.0",
   "type": "module",
   "exports": {
@@ -11,10 +11,10 @@
     "seed-replays": "tsx src/seed-replays.ts"
   },
   "dependencies": {
-    "@aoa/engine": "workspace:*",
-    "@aoa/sandbox": "workspace:*",
-    "@aoa/shared": "workspace:*",
-    "@aoa/sim": "workspace:*",
+    "@castellan/engine": "workspace:*",
+    "@castellan/sandbox": "workspace:*",
+    "@castellan/shared": "workspace:*",
+    "@castellan/sim": "workspace:*",
     "@fastify/cors": "^11.0.0",
     "@fastify/static": "^8.2.0",
     "@fastify/websocket": "^11.2.0",

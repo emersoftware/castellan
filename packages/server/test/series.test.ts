@@ -3,8 +3,8 @@ import { mkdir, mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { rules, type SeriesSummary } from "@aoa/shared";
-import { runReplay } from "@aoa/engine";
+import { rules, type SeriesSummary } from "@castellan/shared";
+import { runReplay } from "@castellan/engine";
 import { buildServer } from "../src/app";
 import { waitForStatus } from "./support/readiness";
 
@@ -16,7 +16,7 @@ afterEach(async () => {
   directories.clear();
 });
 async function start(dir?: string, matchMs = 800) {
-  const replayDir = dir ?? await mkdtemp(join(tmpdir(), "aoa-series-test-"));
+  const replayDir = dir ?? await mkdtemp(join(tmpdir(), "castellan-series-test-"));
   directories.add(replayDir);
   const webDir = join(replayDir, "web");
   await mkdir(webDir, { recursive: true });

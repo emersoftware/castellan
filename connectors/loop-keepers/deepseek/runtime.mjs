@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 
 export const VERSION = "0.1.7-rc.2";
-export const runtimeDir = join(homedir(), ".cache", "aoa", "dsh", VERSION);
+export const runtimeDir = join(homedir(), ".cache", "castellan", "dsh", VERSION);
 export const cli = join(runtimeDir, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js");
 export async function verifyRuntime() {
   let pkg;

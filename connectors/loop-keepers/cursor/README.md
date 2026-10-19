@@ -1,6 +1,6 @@
 # Cursor terminal player
 
-Runs Cursor CLI (`agent`) against the AoA MCP, one decision per fresh observation,
+Runs Cursor CLI (`agent`) against the Castellan MCP, one decision per fresh observation,
 resuming the same private conversation until elimination or match end. The
 connector supplies the shared turns (`../turns.mjs`) and observations, never a strategy.
 
@@ -9,15 +9,15 @@ agent login
 agent models
 agent about --format json                  # reports the actual subscription tier
 pnpm server
-pnpm aoa new --name grok --bot eco
-AOA_TOKEN=<player-token> connectors/loop-keepers/cursor/play.sh --model grok-4.7 --effort low
+pnpm castellan new --name grok --bot eco
+CASTELLAN_TOKEN=<player-token> connectors/loop-keepers/cursor/play.sh --model grok-4.7 --effort low
 ```
 
 The default is `grok-4.7-low`. As of October 2026, **Plus only permits Grok at
 medium effort, standard speed**. Select it explicitly if desired:
 
 ```sh
-AOA_TOKEN=<player-token> connectors/loop-keepers/cursor/play.sh --model grok-4.7 --effort medium
+CASTELLAN_TOKEN=<player-token> connectors/loop-keepers/cursor/play.sh --model grok-4.7 --effort medium
 ```
 
 Exact model IDs also work (`--model grok-4.7-low`); conflicting effort flags,
@@ -27,15 +27,15 @@ can use it. A short tool-free request checks access **before joining the seat**;
 this request counts toward provider usage. Plan/auth errors fail clearly before
 starting the game. This is not a subscription purchase or upgrade.
 
-Supports `AOA_SERVER`, `AOA_DIRECTIVE`, and `aoa run-series` with a fresh session
-per game. `AOA_CURSOR_BIN` can select another Cursor CLI executable.
+Supports `CASTELLAN_SERVER`, `CASTELLAN_DIRECTIVE`, and `castellan run-series` with a fresh session
+per game. `CASTELLAN_CURSOR_BIN` can select another Cursor CLI executable.
 
 ## Isolation and authentication
 
 Each launch gets a temporary HOME, config, data store and empty workspace, so
 personal rules, MCP servers, plugins and previous sessions are not loaded.
 Shell commands, file reads/writes and web fetches are denied by Cursor permission
-rules. Only the `aoa` MCP is configured and allowlisted. No `--force`/`--yolo` is
+rules. Only the `castellan` MCP is configured and allowlisted. No `--force`/`--yolo` is
 used. Cursor may still display built-in tools: this uses permission enforcement,
 not a claim that the CLI removes every built-in tool from the model's schema.
 

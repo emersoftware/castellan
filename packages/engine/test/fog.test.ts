@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rules, viewToText, type Order, type Ruleset, type ReplayFile, type SpectatorView } from "@aoa/shared";
+import { rules, viewToText, type Order, type Ruleset, type ReplayFile, type SpectatorView } from "@castellan/shared";
 import { createMatch, runReplay, type Match, type MatchConfig } from "../src";
 const players = [{ id: "p1", name: "one" }, { id: "p2", name: "two" }];
 const setupRules = (): Ruleset => ({ ...rules, startMineral: 2000,

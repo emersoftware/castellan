@@ -3,7 +3,7 @@
  * with its own process (real time, own token only), waits for the end and
  * records the outcome, timings and journal summaries.
  *
- *   pnpm --filter @aoa/castellan evidence --name A1 --seats castellan,rush [--map open] [--mode ffa|teams] [--chat]
+ *   pnpm --filter @castellan/castellan-bot evidence --name A1 --seats castellan,rush [--map open] [--mode ffa|teams] [--chat]
  *        [--server http://localhost:4400] [--out evidence]
  */
 import { spawn } from "node:child_process";
@@ -11,8 +11,8 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { client } from "@aoa/cli";
-import { routes, type RoomMode } from "@aoa/shared";
+import { client } from "@castellan/cli";
+import { routes, type RoomMode } from "@castellan/shared";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const { values } = parseArgs({ args: process.argv.slice(2), options: {
@@ -32,9 +32,9 @@ mkdirSync(outDir, { recursive: true });
 console.error(`evidence ${name}: room ${room.id} · watch ${api.server}${room.watch}`);
 const started = Date.now();
 const children = room.players.filter((p) => p.token).map((p) => {
-  const args = [resolve(here, "../bin/castellan.mjs"), "--log", outDir, "--name", `${room.id}-${p.id}`];
+  const args = [resolve(here, "../bin/castellan-bot.mjs"), "--log", outDir, "--name", `${room.id}-${p.id}`];
   const log = join(outDir, `${p.id}.log`);
-  const child = spawn(process.execPath, args, { env: { ...process.env, AOA_SERVER: api.server, AOA_TOKEN: p.token!, AOA_DIRECTIVE: values.directive ?? "" }, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, args, { env: { ...process.env, CASTELLAN_SERVER: api.server, CASTELLAN_TOKEN: p.token!, CASTELLAN_DIRECTIVE: values.directive ?? "" }, stdio: ["ignore", "pipe", "pipe"] });
   const chunks: string[] = [];
   child.stdout.on("data", (c) => chunks.push(String(c)));
   child.stderr.on("data", (c) => chunks.push(String(c)));

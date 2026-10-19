@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { expect, it, vi } from "vitest";
 import { Container, FilterSystem, Graphics, Rectangle, RenderTexture, Sprite, Texture } from "pixi.js";
-import { rules, MAPS, type EntityView, type SpectatorView } from "@aoa/shared";
+import { rules, MAPS, type EntityView, type SpectatorView } from "@castellan/shared";
 import { GameRenderer } from "../src/render/renderer";
 import { TILE_H, TILE_W, type SpriteSet } from "../src/render/sprites";
 import { initialDepositAmount } from "../src/render/deposits";

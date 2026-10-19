@@ -1,10 +1,10 @@
 /**
  * The real-time loop over the HTTP API: wait for a fresh view, decide, act, repeat.
  */
-import { client, query, type Client } from "@aoa/cli";
-import type { MatchStatus, Order, OrderResult, Outcome, PlayerView, Ruleset } from "@aoa/shared";
-import { outcomeText, routes } from "@aoa/shared";
-import { Castellan } from "./core";
+import { client, query, type Client } from "@castellan/cli";
+import type { MatchStatus, Order, OrderResult, Outcome, PlayerView, Ruleset } from "@castellan/shared";
+import { outcomeText, routes } from "@castellan/shared";
+import { CastellanBot } from "./core";
 import { Journal } from "./journal";
 
 export interface RuntimeOptions {
@@ -21,13 +21,13 @@ export interface RuntimeOptions {
 
 export class Runtime {
   readonly client: Client;
-  core!: Castellan;
+  core!: CastellanBot;
   journal!: Journal;
   private lastOrders: Order[] = [];
   private cycleStats = { waits: 0, acts: 0, errors: 0, maxComputeMs: 0, computeMs: 0, maxCycleMs: 0 };
 
   constructor(readonly opts: RuntimeOptions) {
-    this.client = client({ server: opts.server, token: opts.token, connector: "castellan" });
+    this.client = client({ server: opts.server, token: opts.token, connector: "castellan-bot" });
   }
 
   async run(): Promise<Outcome | undefined> {
@@ -36,7 +36,7 @@ export class Runtime {
     const status = await this.client.get<{ room: string; player: string; status: MatchStatus }>(routes.status);
     const { ruleset } = await this.client.get<{ ruleset: Ruleset }>(routes.guide);
     this.journal = new Journal(this.opts.logDir, this.opts.name ?? `${status.room}-${status.player}`, echo);
-    this.core = new Castellan({ rules: ruleset, log: (e) => this.journal.write(e) });
+    this.core = new CastellanBot({ rules: ruleset, log: (e) => this.journal.write(e) });
     this.journal.write({ t: Date.now(), tick: 0, type: "runtime", room: status.room, player: status.player, map: ruleset.map.name, server: this.client.server });
     let view: PlayerView | null = null;
     let backoff = 500;
@@ -82,7 +82,7 @@ export class Runtime {
     const outcome = view?.outcome;
     this.journal.write({ t: Date.now(), tick: view?.tick ?? 0, type: "match_end", outcome, cycles: this.cycleStats });
     const file = this.journal.save(this.core, { room: status.room, loop: this.cycleStats });
-    echo(`castellan: ${outcome ? `${outcomeText(outcome)} (${outcome.reason})` : "stopped"}; summary ${file}`);
+    echo(`castellan-bot: ${outcome ? `${outcomeText(outcome)} (${outcome.reason})` : "stopped"}; summary ${file}`);
     return outcome;
   }
 }

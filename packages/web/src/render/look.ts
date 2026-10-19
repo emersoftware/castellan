@@ -16,7 +16,7 @@ import leftWall from '../../public/sprites/wall-door-left/manifest.json';
 import rightWall from '../../public/sprites/wall-door-right/manifest.json';
 import bothWall from '../../public/sprites/wall-door-both/manifest.json';
 import fireSites from '../../public/sprites/castle/fire-pixels.json';
-import { currentKind, type KindSpec, type RecordedKind } from '@aoa/shared';
+import { currentKind, type KindSpec, type RecordedKind } from '@castellan/shared';
 import { screenDir, type AnimationFrame } from './sprites';
 import type { ClipArt } from './clips';
 import { corpseFade } from './corpseFade';

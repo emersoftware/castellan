@@ -28,7 +28,7 @@ function openSession({ binary, args, env, cwd, conversation, onConversation, sig
     if (args[i].startsWith("--output-format=")) continue;
     managedArgs.push(args[i]);
   }
-  const child = spawnImpl(binary, ["--project", env.AOA_AGY_PROJECT, "--print-timeout", "15m", ...managedArgs,
+  const child = spawnImpl(binary, ["--project", env.CASTELLAN_AGY_PROJECT, "--print-timeout", "15m", ...managedArgs,
     ...(conversation ? ["--conversation", conversation] : []), "--input-format", "stream-json", "--output-format", "stream-json"],
   { cwd, env, stdio: ["pipe", "pipe", "inherit"], detached: process.platform !== "win32" });
   const kill = type => {
@@ -120,7 +120,7 @@ function openSession({ binary, args, env, cwd, conversation, onConversation, sig
 export async function drivePlayer({ env = process.env, args = [], prompt, onConversation,
   fetchImpl = fetch, spawnImpl = spawn, cwd = process.cwd(), output = chunk => process.stdout.write(chunk),
   pollMs = 1000, minIntervalMs = MIN_INTERVAL_MS, retryMs = 2000, maxFailures = 3, initTimeoutMs = 30_000, killAfterMs = 2000 }) {
-  if (!env.AOA_TOKEN) throw new Error("set AOA_TOKEN");
+  if (!env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN");
   const abort = new AbortController(), game = seat({ env, fetchImpl, signal: abort.signal, redirect: "error" });
   let session, conversation, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0,
     instructionsDelivered = false, watcher;
@@ -146,7 +146,7 @@ export async function drivePlayer({ env = process.env, args = [], prompt, onConv
         if (status.status !== "prep" && !seatPlaying(status)) { await delay(pollMs); continue; }
         if (instructionsDelivered && !seatPlaying(status)) { await delay(pollMs); continue; }
         if (!session) {
-          session = openSession({ binary: env.AOA_AGY_BIN || "agy", args, env, cwd, conversation, signal: abort.signal,
+          session = openSession({ binary: env.CASTELLAN_AGY_BIN || "agy", args, env, cwd, conversation, signal: abort.signal,
             spawnImpl, output, initTimeoutMs, killAfterMs, onConversation: async id => {
               conversation = id;
               await onConversation(id);
@@ -171,7 +171,7 @@ export async function drivePlayer({ env = process.env, args = [], prompt, onConv
         await session?.stop(); session = undefined;
         if (stopped) break;
         if (++failures >= maxFailures) throw new Error(`Antigravity stopped after ${failures} failures: ${/** @type {Error} */ (error).message}`);
-        console.error(`aoa antigravity: ${/** @type {Error} */ (error).message}; retrying with the same conversation and observation cursor`);
+        console.error(`castellan antigravity: ${/** @type {Error} */ (error).message}; retrying with the same conversation and observation cursor`);
         const wait = retryMs * failures;
         await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + wait).toISOString() });
         await delay(wait).catch(() => {});

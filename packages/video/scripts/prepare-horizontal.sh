@@ -5,7 +5,7 @@ set -euo pipefail
 # existing recordings; this script never starts agents or creates matches.
 task_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 video_public="$task_root/packages/video/public"
-video_server="${AOA_VIDEO_SERVER:-http://localhost:5173}"
+video_server="${CASTELLAN_VIDEO_SERVER:-http://localhost:5173}"
 mkdir -p "$video_public/horizontal"
 for replay_id in 53bed717 eb3ebd01 3829ed85 c46c237a d0e598c5; do
   if [[ ! -f "$task_root/replays/$replay_id.json.gz" ]]; then

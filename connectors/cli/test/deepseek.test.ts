@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createServer } from "node:http";
-import { buildServer } from "@aoa/server";
-import { rules } from "@aoa/shared";
+import { buildServer } from "@castellan/server";
+import { rules } from "@castellan/shared";
 import { waitForReplay } from "../../../packages/server/test/support/readiness";
 // @ts-expect-error Plain Node launcher shared with external harnesses.
 import { options, preparePlayer, usage } from "../../loop-keepers/deepseek/agent.mjs";
@@ -19,7 +19,7 @@ import { loadKey, saveKey } from "../../loop-keepers/deepseek/key.mjs";
 const exec = promisify(execFile);
 const dirs: string[] = [];
 const available = existsSync(cli);
-async function temp() { const p = await mkdtemp(join(tmpdir(), "aoa-dsh-test-")); dirs.push(p); return p; }
+async function temp() { const p = await mkdtemp(join(tmpdir(), "castellan-dsh-test-")); dirs.push(p); return p; }
 afterEach(async () => { await Promise.all(dirs.splice(0).map((p) => rm(p, { recursive: true, force: true }))); });
 
 describe("DeepSeek connector", () => {
@@ -31,13 +31,13 @@ describe("DeepSeek connector", () => {
   it("fails before joining when either credential is missing", async () => {
     const keyPath = join(await temp(), "missing-key");
     const agent = new URL("../../loop-keepers/deepseek/agent.mjs", import.meta.url).pathname;
-    await expect(exec(process.execPath, [agent], { env: { ...process.env, AOA_TOKEN: "", DEEPSEEK_API_KEY: "" } })).rejects.toMatchObject({ stderr: expect.stringContaining("set AOA_TOKEN") });
-    await expect(exec(process.execPath, [agent], { env: { ...process.env, AOA_TOKEN: "game-only", DEEPSEEK_API_KEY: "", AOA_DEEPSEEK_KEY_FILE: keyPath } })).rejects.toMatchObject({ stderr: expect.stringContaining("set DEEPSEEK_API_KEY") });
+    await expect(exec(process.execPath, [agent], { env: { ...process.env, CASTELLAN_TOKEN: "", DEEPSEEK_API_KEY: "" } })).rejects.toMatchObject({ stderr: expect.stringContaining("set CASTELLAN_TOKEN") });
+    await expect(exec(process.execPath, [agent], { env: { ...process.env, CASTELLAN_TOKEN: "game-only", DEEPSEEK_API_KEY: "", CASTELLAN_DEEPSEEK_KEY_FILE: keyPath } })).rejects.toMatchObject({ stderr: expect.stringContaining("set DEEPSEEK_API_KEY") });
   });
 
   it("loads a private local key across processes and rejects exposed files", async () => {
     const path = join(await temp(), "config", "key");
-    const env = { AOA_DEEPSEEK_KEY_FILE: path };
+    const env = { CASTELLAN_DEEPSEEK_KEY_FILE: path };
     expect(await loadKey(env)).toBe("");
     await saveKey("fake-test-key", path);
     expect((await stat(path)).mode & 0o777).toBe(0o600);
@@ -77,14 +77,14 @@ describe("DeepSeek connector", () => {
       const body = JSON.parse(raw); requests.push(body);
       const turn = requests.length;
       let content: any[];
-      if (turn === 1) content = ["guide", "state"].map((name, i) => ({ type: "tool_use", id: `t${turn}-${i}`, name: `mcp__aoa__${name}`, input: {} }));
+      if (turn === 1) content = ["guide", "state"].map((name, i) => ({ type: "tool_use", id: `t${turn}-${i}`, name: `mcp__castellan__${name}`, input: {} }));
       else if (turn === 2) {
         const view = (await game.inject({ url: "/state", headers: { authorization: `Bearer ${token}` } })).json();
         content = [
-          { type: "tool_use", id: "act-1", name: "mcp__aoa__act", input: { orders: [{ type: "train", building: view.mine.find((e: any) => e.kind === "castle").id, kind: "worker" }] } },
-          { type: "tool_use", id: "history-1", name: "mcp__aoa__history", input: {} },
+          { type: "tool_use", id: "act-1", name: "mcp__castellan__act", input: { orders: [{ type: "train", building: view.mine.find((e: any) => e.kind === "castle").id, kind: "worker" }] } },
+          { type: "tool_use", id: "history-1", name: "mcp__castellan__history", input: {} },
         ];
-      } else if (turn === 3) content = [{ type: "tool_use", id: "state-2", name: "mcp__aoa__state", input: {} }];
+      } else if (turn === 3) content = [{ type: "tool_use", id: "state-2", name: "mcp__castellan__state", input: {} }];
       else content = [{ type: "text", text: "Finished." }];
       res.writeHead(200, { "content-type": "text/event-stream" });
       const send = (type: string, data: any) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
@@ -101,14 +101,14 @@ describe("DeepSeek connector", () => {
     try {
       const baseURL = `http://127.0.0.1:${(provider.address() as { port: number }).port}`;
       const player = await preparePlayer({ root: join(root, "player"), token, server, key: "test-key", baseURL, effort });
-      const result = await exec(process.execPath, [...player.args, "--json", "Make one decision using AoA tools, then end your response."], { cwd: player.workspace, env: player.env, timeout: 25000, maxBuffer: 2_000_000 });
+      const result = await exec(process.execPath, [...player.args, "--json", "Make one decision using Castellan tools, then end your response."], { cwd: player.workspace, env: player.env, timeout: 25000, maxBuffer: 2_000_000 });
       expect(result.stdout).toContain('"type":"final"');
       expect(requests.length).toBe(4);
       for (const req of requests) {
         expect(req.model).toBe("deepseek-flash");
         if (effort === "off") expect(req.thinking).toEqual({ type: "disabled" });
         else expect(req.output_config.effort).toBe("low");
-        expect(req.tools.map((t: any) => t.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "state"].map((t) => `mcp__aoa__${t}`));
+        expect(req.tools.map((t: any) => t.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "state"].map((t) => `mcp__castellan__${t}`));
       }
       await game.inject({ url: "/wait?max=3&until=match_end", headers: { authorization: `Bearer ${token}` } }); // operator waits; no LLM wait tool
       const final = (await game.inject({ url: "/state", headers: { authorization: `Bearer ${token}` } })).json();

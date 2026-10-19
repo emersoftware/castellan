@@ -3,7 +3,7 @@
  * feeds views (from the HTTP API) and sends back the orders; tests feed views
  * from a headless match. Nothing here reads anything a player cannot see.
  */
-import type { Order, OrderResult, PlayerView, Ruleset } from "@aoa/shared";
+import type { Order, OrderResult, PlayerView, Ruleset } from "@castellan/shared";
 import { Diplomacy } from "./diplomacy";
 import { Executor } from "./executor";
 import { newMemory, perceive, type Memory, type World } from "./perception";
@@ -16,7 +16,7 @@ export interface CoreOptions {
   now?: () => number;
 }
 
-export class Castellan {
+export class CastellanBot {
   readonly mem: Memory = newMemory();
   readonly plan: Plan = newPlan();
   readonly episodes: Episode[] = [];

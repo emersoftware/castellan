@@ -12,7 +12,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   vi.stubEnv("POSTHOG_PROJECT_TOKEN", "phc_test");
   vi.stubEnv("POSTHOG_HOST", "https://eu.i.posthog.com");
-  dir = await mkdtemp(join(tmpdir(), "aoa-analytics-"));
+  dir = await mkdtemp(join(tmpdir(), "castellan-analytics-"));
   app = await buildServer({ replayDir: dir });
 });
 afterEach(async () => {

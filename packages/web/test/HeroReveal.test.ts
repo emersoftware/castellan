@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
 import { Container, Texture, type Sprite, type Filter } from "pixi.js";
-import { rules, type EntityView, type SpectatorView } from "@aoa/shared";
+import { rules, type EntityView, type SpectatorView } from "@castellan/shared";
 import { GameRenderer } from "../src/render/renderer";
 import type { SpriteSet } from "../src/render/sprites";
 

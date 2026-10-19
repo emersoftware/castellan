@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { track, trackError } from "../analytics";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import type { ChatMessage, GameEvent, MomentChange, SoundName, SpectatorView } from "@aoa/shared";
-import { NEUTRAL_OWNER, pagePath, pages, readMoment, writeMoment } from "@aoa/shared";
+import type { ChatMessage, GameEvent, MomentChange, SoundName, SpectatorView } from "@castellan/shared";
+import { NEUTRAL_OWNER, pagePath, pages, readMoment, writeMoment } from "@castellan/shared";
 import { api, playerColors, fmtTime } from "../api";
 import { playerPerspective } from "../perspective";
 import { sfx } from "../audio/sfx";

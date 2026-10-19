@@ -2,7 +2,7 @@
 import { expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { Outcome, SpectatorView } from "@aoa/shared";
+import type { Outcome, SpectatorView } from "@castellan/shared";
 import { OutcomeBanner } from "../src/components/Hud";
 import { wonText } from "../src/components/Versus";
 

@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 import { Texture, type Sprite } from "pixi.js";
-import { NEUTRAL_OWNER, rules, type EntityView, type SpectatorView } from "@aoa/shared";
+import { NEUTRAL_OWNER, rules, type EntityView, type SpectatorView } from "@castellan/shared";
 import { Agent } from "../src/components/Agent";
 import { UnitPanel } from "../src/components/Hud";
 import { GameRenderer } from "../src/render/renderer";

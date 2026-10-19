@@ -8,7 +8,7 @@
  * behind a building or a rock.
  */
 import { Rectangle, Texture } from "pixi.js";
-import { currentKind } from "@aoa/shared";
+import { currentKind } from "@castellan/shared";
 import { CLIP_ART } from "./clips";
 import { spriteMasks } from "./xray";
 import { averageTerrainPatches } from "./terrain";

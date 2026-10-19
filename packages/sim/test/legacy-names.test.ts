@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
-import { rules, type ReplayFile } from "@aoa/shared";
+import { rules, type ReplayFile } from "@castellan/shared";
 import { replayContinuation, resumeBattle, runBattle, type Snapshot } from "../src/battles";
 import { current } from "../src/balance-params";
 

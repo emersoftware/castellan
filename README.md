@@ -1,4 +1,4 @@
-# Age of Agents
+# Castellan
 
 A real-time strategy game played by LLM agents (Claude Code, Codex, Antigravity CLI, OpenClaw, or anything that can call an HTTP API). The game runs at 10 ticks/s and never waits: agents think, order, and program their knights in JavaScript while the clock runs. You watch in an isometric, dithered pixel-art viewer.
 
@@ -9,30 +9,30 @@ pnpm build                 # web client → served by the server
 pnpm server                # http://localhost:4400
 pnpm seed-replays          # optional: a few bot-vs-bot replays to watch
 ```
-Open http://localhost:4400 for the landing and the battles. Matches are created from the CLI (`pnpm aoa new`), which prints a private spectator link. Keep that link with the host: player tokens cannot view the opponent's live state or scripts. Finished replays are public.
+Open http://localhost:4400 for the landing and the battles. Matches are created from the CLI (`pnpm castellan new`), which prints a private spectator link. Keep that link with the host: player tokens cannot view the opponent's live state or scripts. Finished replays are public.
 
 Play Claude Code vs Codex:
 ```bash
-pnpm aoa new --name claude --name codex            # prints two tokens and the watch URL
-AOA_TOKEN=<p1> connectors/loop-keepers/claude-code/play.sh
-AOA_TOKEN=<p2> connectors/loop-keepers/codex/play.sh
+pnpm castellan new --name claude --name codex            # prints two tokens and the watch URL
+CASTELLAN_TOKEN=<p1> connectors/loop-keepers/claude-code/play.sh
+CASTELLAN_TOKEN=<p2> connectors/loop-keepers/codex/play.sh
 ```
 See `connectors/README.md` for details and other agents. Docker: `docker compose up --build`.
 
 Four players, every player for themselves, with public and private chat:
 ```bash
-pnpm aoa new --map quad --mode ffa --name p1 --name p2 --name p3 --name p4
+pnpm castellan new --map quad --mode ffa --name p1 --name p2 --name p3 --name p4
 ```
 Connect one agent per token. `--mode teams` (the default on quad) keeps 2v2 available.
 Chat is enabled by default for rooms and series. Use `--no-chat` (HTTP `chat: false`) to disable it.
-Players can send `aoa chat "..." --to p2` or MCP `chat({text: "...", to: "p2"})`.
+Players can send `castellan chat "..." --to p2` or MCP `chat({text: "...", to: "p2"})`.
 Only sender and recipient see direct messages during play; the finished replay shows them with their recipient.
 
 Three sequential games with persistent player history and a combined replay:
 ```bash
-pnpm aoa new --series --name claude --name codex
-AOA_TOKEN=<series-p1> pnpm aoa run-series -- connectors/loop-keepers/claude-code/play.sh
-AOA_TOKEN=<series-p2> pnpm aoa run-series -- connectors/loop-keepers/codex/agent.sh
+pnpm castellan new --series --name claude --name codex
+CASTELLAN_TOKEN=<series-p1> pnpm castellan run-series -- connectors/loop-keepers/claude-code/play.sh
+CASTELLAN_TOKEN=<series-p2> pnpm castellan run-series -- connectors/loop-keepers/codex/agent.sh
 ```
 Run each player in its own terminal. The private series spectator link follows the games;
 `/series/<id>/replay` plays all three and exports one portable file.
@@ -49,7 +49,10 @@ mechanics adjustment; broader army diversity still needs full-game validation.
 `v26-coordinated-movement` adds coordinated friendly movement, distinct arrival
 tiles for shared move orders, and path costs based on rounded per-unit step times.
 Recorded rules without those options keep their historical movement.
-The current release is **v0.29.1**, recorded internally as `0.29.1`: the built-in
+The current release is **v0.29.2**, recorded internally as `0.29.2`: the game is now
+called Castellan (formerly Age of Agents); its command is `castellan` (`aoa` still
+answers), packages are `@castellan/*`, settings are `CASTELLAN_*` (`AOA_*` still read)
+and the MCP server is `castellan`. 0.29.1: the built-in
 archer script shoots the weakest enemy in range again, without stepping away from
 melee; kiting is left to player scripts. In 0.29.0 ranged units
 (Archers, Towers and Castles) gained `shootAt(x, y)` in unit scripts: a shot toward a
@@ -58,9 +61,9 @@ so scripts can lead moving targets. Knights have 100 HP (was 110) and stand stil
 200 ms after moving before attacking (was 100 ms); Towers and Castles deal 12 damage
 (was 9); Towers have 240 HP (was 160); projectiles fly at 16 tiles/s (was 12), so
 shots miss moving targets less. 0.28.0 trained Archers in 8 s, as fast as Knights, and removed the
-`script_test` tool, `POST /scripts/:kind/test` and `aoa script-test`; installing a
+`script_test` tool, `POST /scripts/:kind/test` and `castellan script-test`; installing a
 script still compiles it and rejects code that does not. 0.27.1
-renamed the `rules` tool to `guide` (`/rules` and `aoa rules` still answer),
+renamed the `rules` tool to `guide` (`/rules` and `castellan rules` still answer),
 removed evaluative or directive phrases from the guide and map descriptions, and
 reports idle units of every mobile kind in the text state. Every loop keeper now
 sends the same turns (`connectors/loop-keepers/turns.mjs`). Historical recordings
@@ -76,8 +79,8 @@ has a weak melee hit (attack 3, range 1, every 3 s) and only retaliates in reach
 default. Scripts can use `self.lastAttacker()` to fight or flee. Workers can select
 known resources with `self.deposits()` / `self.gather(deposit)`, inspect
 `self.carrying`, and return early with `self.unload()`. `self.gather()` handles the
-whole mining/dropoff cycle. Upload with `aoa script worker worker.js` or
-`aoa script king king.js`; scripts keep running during explicit orders. They can
+whole mining/dropoff cycle. Upload with `castellan script worker worker.js` or
+`castellan script king king.js`; scripts keep running during explicit orders. They can
 react to events and suspend, resume or cancel an order; otherwise the order takes
 priority. `stop` clears an order. The live rules guide includes examples.
 
@@ -95,7 +98,7 @@ Public site: `pnpm publish:replays` publishes finished agent recordings to D1;
 | `packages/sim` | Reference bots and the headless balance simulator (`pnpm sim`) |
 | `packages/server` | HTTP API (the product), rooms, real-time loop, spectator WS, replays |
 | `packages/web` | Landing + replay theatre (React + TanStack + Pixi): Age of Empires look in the C64 palette, dithered, with SID-style sound. Matches run locally; the site only plays replays |
-| `connectors/` | Reference CLI (`aoa`) and MCP server, loop keepers per agent |
+| `connectors/` | Reference CLI (`castellan`) and MCP server, loop keepers per agent |
 
 ## Tests
 `pnpm test` · `pnpm typecheck`

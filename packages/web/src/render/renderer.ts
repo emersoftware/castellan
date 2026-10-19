@@ -6,7 +6,7 @@
  * corpses on the field.
  */
 import { Application, Container, Graphics, RenderTexture, Sprite, Text, type Filter } from "pixi.js";
-import type { DepositView, EntityView, GameEvent, KindSpec, ProjectileView, Ruleset, SoundName, SpectatorView } from "@aoa/shared";
+import type { DepositView, EntityView, GameEvent, KindSpec, ProjectileView, Ruleset, SoundName, SpectatorView } from "@castellan/shared";
 import type { CameraBox } from "../showcaseCamera";
 import { TILE_H, TILE_W, loadSprites, screenDir, terrainTexture, type SpriteArt, type SpriteSet } from "./sprites";
 import type { ClipArt } from "./clips";
@@ -16,7 +16,7 @@ import { createDissolveFilter } from "./dissolve";
 import { RAMPS, PLAYER_RAMPS, dim } from "./palette";
 import { depositSprite, initialDepositAmount } from "./deposits";
 
-import { barrierAxes, currentKind, NEUTRAL_OWNER } from "@aoa/shared";
+import { barrierAxes, currentKind, NEUTRAL_OWNER } from "@castellan/shared";
 
 import { animatedUnit, buildingLook, fall, strikeMs, unitLook, type FireLook, type Strike } from "./look";
 import { corpseFade } from "./corpseFade";

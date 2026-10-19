@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { rules, MAPS, viewToText, type GameEvent, type ReplayFile, type SpectatorMessage } from "@aoa/shared";
-import { runReplay } from "@aoa/engine";
+import { rules, MAPS, viewToText, type GameEvent, type ReplayFile, type SpectatorMessage } from "@castellan/shared";
+import { runReplay } from "@castellan/engine";
 import { Room } from "../src/room";
 
 let room: Room;

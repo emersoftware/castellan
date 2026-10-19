@@ -2,7 +2,7 @@
  * Chat: coordination with a teammate and negotiation in free-for-all rooms,
  * with short templates written by rules.
  */
-import type { ChatChannel, ChatMessage, Order, PlayerId } from "@aoa/shared";
+import type { ChatChannel, ChatMessage, Order, PlayerId } from "@castellan/shared";
 import type { World } from "./perception";
 import { TRUCE_UNTIL_MS } from "./strategy";
 import type { JournalEntry, Plan } from "./types";

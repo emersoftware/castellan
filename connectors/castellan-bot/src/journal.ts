@@ -1,8 +1,8 @@
 /** JSONL journal per match plus a readable summary: what was observed, decided, attempted and what happened. */
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { outcomeText } from "@aoa/shared";
-import type { Castellan } from "./core";
+import { outcomeText } from "@castellan/shared";
+import type { CastellanBot } from "./core";
 import type { JournalEntry } from "./types";
 
 export class Journal {
@@ -21,11 +21,11 @@ export class Journal {
   }
 
   /** Markdown summary from the core's bookkeeping. */
-  summary(core: Castellan, extra: Record<string, unknown> = {}): string {
+  summary(core: CastellanBot, extra: Record<string, unknown> = {}): string {
     const s = core.summary();
     const t = (tick: number) => `${(tick / 10).toFixed(0)}s`;
     const out: string[] = [];
-    out.push(`# Castellan ${this.name}`, "");
+    out.push(`# Castellan Bot ${this.name}`, "");
     const o = s.outcome;
     out.push(`- Outcome: ${o ? `${outcomeText(o)} (${o.reason}) at ${t(s.tick)}` : "unfinished"}; I am ${s.you}`);
     for (const [k, v] of Object.entries(extra)) out.push(`- ${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`);
@@ -44,7 +44,7 @@ export class Journal {
     return out.join("\n");
   }
 
-  save(core: Castellan, extra: Record<string, unknown> = {}): string {
+  save(core: CastellanBot, extra: Record<string, unknown> = {}): string {
     const text = this.summary(core, extra);
     const file = join(this.dir, `${this.name}.md`);
     writeFileSync(file, text);

@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useParams } from "@tanstack/react-router";
-import { currentRuleset, pages, readMoment, type GameEvent, type RecordedKind, type ReplayFile, type SpectatorView } from "@aoa/shared";
+import { currentRuleset, pages, readMoment, type GameEvent, type RecordedKind, type ReplayFile, type SpectatorView } from "@castellan/shared";
 import { api, playerColors } from "../api";
 import { EventFeed, OutcomeBanner, PlayerList } from "../components/Hud";
 import { playerPerspective } from "../perspective";
@@ -163,7 +163,7 @@ export function Record() {
       {view && <PlayerList colors={colors} view={view} names={names} />}
       <EventFeed events={events} names={names} colors={colors} tickMs={replay ? 1000 / replay.tickRate : 100} />
       {view && last && <OutcomeBanner view={view} names={names} colors={colors} />}
-      <div className="corner brandmark">Age of Agents</div>
+      <div className="corner brandmark">Castellan</div>
       </>}
     </div>
   );

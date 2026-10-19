@@ -2,8 +2,8 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
-import { BOTS, simulate, type BotName } from "@aoa/sim";
-import { replayArchive, rules, outcomeText } from "@aoa/shared";
+import { BOTS, simulate, type BotName } from "@castellan/sim";
+import { replayArchive, rules, outcomeText } from "@castellan/shared";
 import { saveReplay } from "./app";
 
 const root = resolve(fileURLToPath(import.meta.url), "../../../..");

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { PostHog } from "posthog-node";
-import { analyticsHeaders, analyticsTags } from "@aoa/shared";
+import { analyticsHeaders, analyticsTags } from "@castellan/shared";
 
 type Properties = Record<string, string | number | boolean | undefined>;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

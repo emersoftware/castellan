@@ -1,11 +1,11 @@
 {
-  "name": "@aoa/sim",
+  "name": "@castellan/sim",
   "version": "0.1.0",
   "type": "module",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "sim": "tsx src/cli.ts" },
   "dependencies": {
-    "@aoa/shared": "workspace:*",
-    "@aoa/engine": "workspace:*"
+    "@castellan/shared": "workspace:*",
+    "@castellan/engine": "workspace:*"
   }
 }

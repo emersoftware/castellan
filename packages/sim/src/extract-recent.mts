@@ -1,10 +1,10 @@
 // Snapshots every fight (a hit after 20 s without hits, 1–2 s before it) of the replays in the catalogue
 // that the current engine reproduces, for the balance optimizer's recorded battles.
-//   npx tsx src/extract-recent.mts > /tmp/aoa-opt/battles-recent.json
+//   npx tsx src/extract-recent.mts > /tmp/castellan-opt/battles-recent.json
 import { readFileSync, readdirSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
-import { createMatch } from "@aoa/engine";
-import type { ReplayFile } from "@aoa/shared";
+import { createMatch } from "@castellan/engine";
+import type { ReplayFile } from "@castellan/shared";
 import { assertBalanceReplay, replayContinuation, type Snapshot } from "./battles";
 const dir = process.env.REPLAYS ?? "/Users/emersoftware/Documents/projects/aoa/replays";
 const out: Snapshot[] = [];

@@ -4,7 +4,7 @@ import { QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-qu
 import { PostHogProvider } from "@posthog/react";
 import { initAnalytics, trackError, trackPageview } from "./analytics";
 import { Outlet, RouterProvider, createRootRoute, createRoute, createRouter, lazyRouteComponent } from "@tanstack/react-router";
-import { pages } from "@aoa/shared";
+import { pages } from "@castellan/shared";
 import "./styles.css";
 import { DitherDefs } from "./components/DitherDefs";
 import { Landing } from "./routes/Landing";

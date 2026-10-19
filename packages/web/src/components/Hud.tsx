@@ -1,6 +1,6 @@
 import { useSyncExternalStore, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { ChatChannel, ChatMessage, DepositView, EntityView, GameEvent, Outcome, PlayerStats, RecordedKind, SpectatorView } from "@aoa/shared";
-import { eventKind, eventOwner, NEUTRAL_OWNER, scriptOrigin } from "@aoa/shared";
+import type { ChatChannel, ChatMessage, DepositView, EntityView, GameEvent, Outcome, PlayerStats, RecordedKind, SpectatorView } from "@castellan/shared";
+import { eventKind, eventOwner, NEUTRAL_OWNER, scriptOrigin } from "@castellan/shared";
 import type { HoverInfo } from "../render/renderer";
 import { fmtTime, winnersOf } from "../api";
 import { Agent, Agents, agentText } from "./Agent";
@@ -27,7 +27,7 @@ export function PlayerList({ view, names, colors, selectedPlayer, onSelectPlayer
   return (
     <div className="scores">
       <div className="clock">
-        {onSelectPlayer && <span className="brand-head">Age of Agents</span>}
+        {onSelectPlayer && <span className="brand-head">Castellan</span>}
         <span><span className="time">{fmtTime(view.timeMs)}</span> <span className="sub">/ {fmtTime(view.matchMs)}</span></span>
       </div>
       {subtitle && <div className="scores-subtitle">{subtitle}</div>}

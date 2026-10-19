@@ -128,7 +128,7 @@ it("counts a shared loss in addition to each side's one win and one defeat", () 
 });
 
 it.each([["low", "low"], ["PRIVATE-INVALID-EFFORT", null]])("reads fresh payloads and publishes only safe catalogue metadata (effort %s)", async (declaredEffort, expectedEffort) => {
-  const root = await mkdtemp(join(tmpdir(), "aoa-catalog-test-")); directories.push(root);
+  const root = await mkdtemp(join(tmpdir(), "castellan-catalog-test-")); directories.push(root);
   const featured = join(root, replayArchive.featured), local = join(root, replayArchive.local);
   await mkdir(featured, { recursive: true }); await mkdir(local);
   const old = entry(fixture).summary;

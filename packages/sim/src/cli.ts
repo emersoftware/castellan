@@ -5,7 +5,7 @@
  *   pnpm sim --latency-curve     the same bot with different decision delays
  */
 import { BOTS, simulate, type BotName } from "./index";
-import { MAPS, rules, playerResult } from "@aoa/shared";
+import { MAPS, rules, playerResult } from "@castellan/shared";
 
 const args = new Map<string, string>();
 for (let i = 2; i < process.argv.length; i++) {

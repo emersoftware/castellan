@@ -4,7 +4,7 @@ import { PassThrough } from "node:stream";
 import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AGENT_ACTIVITY_STATES } from "@aoa/shared";
+import { AGENT_ACTIVITY_STATES } from "@castellan/shared";
 // @ts-expect-error Build-free external CLI connector.
 import { connectTools, cursorArgs, failureKind, options, play, preparePlayer } from "../../loop-keepers/cursor/agent.mjs";
 
@@ -55,7 +55,7 @@ function harness(turns: { events?: object[]; stderr?: string; code?: number; han
     return child;
   };
   return { launches, states, paths, messages, kills, activities, params: {
-    env: { AOA_TOKEN: "seat-secret", AOA_SERVER: "http://game", AOA_CONNECTOR_VERSION: "2026.10.12-test" }, args: [],
+    env: { CASTELLAN_TOKEN: "seat-secret", CASTELLAN_SERVER: "http://game", CASTELLAN_CONNECTOR_VERSION: "2026.10.12-test" }, args: [],
     credentialImpl: async () => ({ CURSOR_AUTH_TOKEN: "login-secret" }), fetchImpl, spawnImpl,
     output: (s: string) => messages.push(s), warn: (s: string) => messages.push(s), minIntervalMs: 0, retryMs: 1,
   } };
@@ -88,10 +88,10 @@ describe("Cursor player", () => {
     await expect(access(join(player.workspace, ".cursor/mcp.json"))).rejects.toThrow();
     await connectTools(player, { token: "only-p1", server: "http://game" });
     const text = await readFile(join(player.workspace, ".cursor/mcp.json"), "utf8");
-    expect(JSON.parse(text).mcpServers.aoa.env).toEqual({ AOA_TOKEN: "only-p1", AOA_SERVER: "http://game" });
+    expect(JSON.parse(text).mcpServers.castellan.env).toEqual({ CASTELLAN_TOKEN: "only-p1", CASTELLAN_SERVER: "http://game" });
     expect(text).not.toContain("login-secret");
     const cfg = JSON.parse(await readFile(join(player.env.CURSOR_CONFIG_DIR, "cli-config.json"), "utf8"));
-    expect(cfg.permissions).toEqual({ allow: ["Mcp(aoa:*)"], deny: ["Shell(*)", "Read(**)", "Write(**)", "WebFetch(*)"] });
+    expect(cfg.permissions).toEqual({ allow: ["Mcp(castellan:*)"], deny: ["Shell(*)", "Read(**)", "Write(**)", "WebFetch(*)"] });
   });
 
   it("warms up before joining, starts a fresh match session and resumes after no-order decisions", async () => {

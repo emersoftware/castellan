@@ -7,7 +7,7 @@ const at = (status: string, tick = 0) => `tick ${tick} · 0.0s/600.0s · 600.0s 
 it("sends the same words at the same moments to every keeper's model", () => {
   expect(DEFAULT_PROMPT).toBe("PLAY");
   expect(promptOf({})).toBe("PLAY");
-  expect(promptOf({ AOA_PROMPT: "Just Play", AOA_DIRECTIVE: "Hold the north." })).toBe("Just Play\n\nHold the north.");
+  expect(promptOf({ CASTELLAN_PROMPT: "Just Play", CASTELLAN_DIRECTIVE: "Hold the north." })).toBe("Just Play\n\nHold the north.");
   // Nothing while seats are still joining; the first turn once prep starts; later turns only while running.
   expect(turnFor(at("waiting"), { delivered: false, prompt: "PLAY" })).toBeNull();
   expect(turnFor(at("prep"), { delivered: false, prompt: "PLAY" })).toBe(`PLAY\n\n${at("prep")}`);

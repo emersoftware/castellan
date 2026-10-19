@@ -7,7 +7,7 @@
  * view asks for it, and music loops in the background: the theme in the menus,
  * the battle theme in matches (see assets/music).
  */
-import type { SoundName } from "@aoa/shared";
+import type { SoundName } from "@castellan/shared";
 import { AMBIENT_GAIN, Mix } from "./mix";
 
 const MUSIC_GAIN: Record<Track, number> = { theme: 0.3, battle: 0.09 };

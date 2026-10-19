@@ -4,7 +4,7 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
-import { replayArchive, replayPlayerSummaries, rules, type ReplayFile } from "@aoa/shared";
+import { replayArchive, replayPlayerSummaries, rules, type ReplayFile } from "@castellan/shared";
 import type { ReplaySummary } from "../src/api";
 import { catalogBattles, hasScriptedBot } from "../src/replayCatalog";
 

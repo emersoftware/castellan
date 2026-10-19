@@ -1,6 +1,6 @@
-# Castellan — an autonomous Age of Agents player
+# Castellan Bot — an autonomous Castellan player
 
-Castellan plays a whole match on its own, from the first worker to victory or defeat
+Castellan Bot plays a whole match on its own, from the first worker to victory or defeat
 (including the time limit under v24), using only what a player is allowed to see and do (the HTTP API with
 its own token: `/guide`, `/wait`, `/state`, `/act`, scripts and chat). It exists to study
 concrete strategic decisions in complete games: everything is decided by rules in code, and
@@ -9,32 +9,32 @@ every plan, choice and outcome is written to a journal. It never calls a model.
 ## Run it
 
 ```sh
-pnpm server                                   # http://localhost:4400 (or any AOA_SERVER)
-pnpm aoa new --name castellan --bot eco       # a room; prints AOA_TOKEN for the player seat
-AOA_TOKEN=<token> pnpm castellan
+pnpm server                                   # http://localhost:4400 (or any CASTELLAN_SERVER)
+pnpm castellan new --name castellan --bot eco       # a room; prints CASTELLAN_TOKEN for the player seat
+CASTELLAN_TOKEN=<token> pnpm castellan-bot
 ```
 
-Flags: `--log <dir>` (default `runs/castellan`), `--name`, `--wait <s>` (long-poll per cycle,
-default 1). The player works with `aoa run`, `aoa run-series`, teams and free-for-all rooms,
+Flags: `--log <dir>` (default `runs/castellan-bot`), `--name`, `--wait <s>` (long-poll per cycle,
+default 1). The player works with `castellan run`, `castellan run-series`, teams and free-for-all rooms,
 with or without chat. It never reads the spectator link.
 
 Headless (no server, no real time), against the reference bots:
 
 ```sh
-pnpm --filter @aoa/castellan bench --bots rush,eco,turtle,kite,archers --maps open,fortress --n 2
-pnpm --filter @aoa/castellan bench --seats castellan,castellan,eco,rush --maps quad --mode teams   # 2v2 with chat
-pnpm --filter @aoa/castellan bench --seats castellan,castellan,castellan,castellan --maps quad --mode ffa
+pnpm --filter @castellan/castellan-bot bench --bots rush,eco,turtle,kite,archers --maps open,fortress --n 2
+pnpm --filter @castellan/castellan-bot bench --seats castellan,castellan,eco,rush --maps quad --mode teams   # 2v2 with chat
+pnpm --filter @castellan/castellan-bot bench --seats castellan,castellan,castellan,castellan --maps quad --mode ffa
 ```
 
 Real-time evidence runs on a live server (one process per castellan seat, a `result.json`
 and a journal per player under `evidence/<name>/`):
 
 ```sh
-pnpm --filter @aoa/castellan evidence --name A1 --seats castellan,rush --map open
-pnpm --filter @aoa/castellan evidence --name C2 --seats castellan,castellan,castellan,castellan --map quad --mode ffa --chat
+pnpm --filter @castellan/castellan-bot evidence --name A1 --seats castellan,rush --map open
+pnpm --filter @castellan/castellan-bot evidence --name C2 --seats castellan,castellan,castellan,castellan --map quad --mode ffa --chat
 ```
 
-Tests: `npx vitest run connectors/castellan/test` (unit tests, headless matches and a short
+Tests: `npx vitest run connectors/castellan-bot/test` (unit tests, headless matches and a short
 real-time match against an in-process server).
 
 ## How it is built
@@ -50,7 +50,7 @@ diplomacy.ts  team coordination and free-for-all truces
 journal.ts    JSONL journal + Markdown summary: observed, decided, attempted, what happened
 ```
 
-Only `@aoa/shared` types and the `@aoa/cli` HTTP client are imported; the engine is used by
+Only `@castellan/shared` types and the `@castellan/cli` HTTP client are imported; the engine is used by
 tests alone. Rules come from `GET /guide` of the room, so other rulesets or maps work as long
 as the kinds keep their names.
 

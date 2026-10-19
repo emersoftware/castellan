@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { MAPS, rules, type MapSpec, type ReplayFile, type SpectatorView } from "@aoa/shared";
+import { MAPS, rules, type MapSpec, type ReplayFile, type SpectatorView } from "@castellan/shared";
 import { createMatch, findPath, runReplay } from "../src";
 import { SEAT_DIRS, seatToMap, type Grid } from "../src/grid";
 

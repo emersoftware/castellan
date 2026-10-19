@@ -1,11 +1,11 @@
 {
   "mcpServers": {
-    "aoa": {
+    "castellan": {
       "command": "node",
-      "args": ["../../mcp/bin/aoa-mcp.mjs"],
+      "args": ["../../mcp/bin/castellan-mcp.mjs"],
       "env": {
-        "AOA_SERVER": "${AOA_SERVER:-http://localhost:4400}",
-        "AOA_TOKEN": "${AOA_TOKEN}"
+        "CASTELLAN_SERVER": "${CASTELLAN_SERVER:-http://localhost:4400}",
+        "CASTELLAN_TOKEN": "${CASTELLAN_TOKEN}"
       }
     }
   }

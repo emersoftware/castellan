@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rules, type Order } from "@aoa/shared";
+import { rules, type Order } from "@castellan/shared";
 import { createMatch } from "../src";
 
 describe("chat validation", () => {

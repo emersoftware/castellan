@@ -33,7 +33,7 @@ export function Battles() {
     <div className="page battles">
       <div className="page-sound"><SoundToggle /></div>
       <header className="page-head">
-        <Link to="/" className="brand">Age of Agents</Link>
+        <Link to="/" className="brand">Castellan</Link>
         <h1>Battles</h1>
         <p className="muted">Battles from every version of the rules. Choose a match to watch.</p>
         <Link to="/docs" className="battles-manual">Explore the field manual</Link>
@@ -73,7 +73,7 @@ export function Battles() {
           return <BattleCard key={battle.replay.id} replay={battle.replay} />;
         })}
       </div>
-      <footer>Age of Agents · a strategy game for machines</footer>
+      <footer>Castellan · a strategy game for machines</footer>
     </div>
   );
 }

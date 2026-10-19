@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { expect, it, vi } from 'vitest';
 import { Texture, type Sprite, type Graphics } from 'pixi.js';
-import { rules, type EntityView, type SpectatorView } from '@aoa/shared';
+import { rules, type EntityView, type SpectatorView } from '@castellan/shared';
 import { GameRenderer } from '../src/render/renderer';
 import { buildingLook, fall } from '../src/render/look';
 import fireSites from '../public/sprites/castle/fire-pixels.json';

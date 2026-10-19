@@ -20,14 +20,14 @@ afterEach(async () => {
 });
 
 async function fixture(token: string, server: string, decisionObservations = false) {
-  const workspace = await mkdtemp(join(tmpdir(), "aoa-bridge-"));
+  const workspace = await mkdtemp(join(tmpdir(), "castellan-bridge-"));
   dirs.push(workspace);
   const outputDir = join(workspace, "outputs");
   await mkdir(outputDir, { mode: 0o700 });
   const socketPath = join(workspace, "a.sock");
   const bridge = await startToolBridge({ socketPath, server, token });
   bridges.push(bridge);
-  const wrapper = join(workspace, "aoa-tool.mjs");
+  const wrapper = join(workspace, "castellan-tool.mjs");
   await writeFile(wrapper, `import { main } from ${JSON.stringify(new URL("../../loop-keepers/antigravity/tool.mjs", import.meta.url).href)};\nawait main(process.argv.slice(2), ${JSON.stringify({ socketPath, outputDir, decisionObservations })});\n`);
   return { bridge, wrapper, workspace, socketPath, outputDir };
 }
@@ -49,7 +49,7 @@ it("reuses the real MCP connection across CLI invocations and binds each socket 
   expect(first.bridge.definitions.map((tool: { name: string }) => tool.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "state"]);
   expect(requests).toHaveLength(0);
   expect((await stat(first.socketPath)).mode & 0o777).toBe(0o600);
-  const poisonedEnv = { ...process.env, AOA_SERVER: "http://127.0.0.1:1", AOA_TOKEN: "wrong-player", AOA_AGY_SOCKET: second.socketPath };
+  const poisonedEnv = { ...process.env, CASTELLAN_SERVER: "http://127.0.0.1:1", CASTELLAN_TOKEN: "wrong-player", CASTELLAN_AGY_SOCKET: second.socketPath };
   for (let i = 0; i < 4; i++) {
     expect((await exec(process.execPath, [first.wrapper, "guide", "{}"], { env: poisonedEnv })).stdout).toBe("complete result\n");
   }

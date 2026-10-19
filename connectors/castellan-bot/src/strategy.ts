@@ -2,7 +2,7 @@
  * The strategic layer: posture, expansion, defence, attack, research and scouting.
  * Every choice is made by rules and logged with the option taken and why.
  */
-import type { EntityKind, PlayerId } from "@aoa/shared";
+import type { EntityKind, PlayerId } from "@castellan/shared";
 import { dist, ring, type DepositCluster, type Pt } from "./geometry";
 import { ARMY_KINDS, entityValue, type Memory, type World } from "./perception";
 import type { BuildTask, DecisionSource, Episode, Expansion, ExpansionDefense, HomeThreatChoice, JournalEntry, Plan, ThreatGroup } from "./types";

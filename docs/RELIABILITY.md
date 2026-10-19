@@ -48,7 +48,7 @@ No se cambió la mecánica de reservar construcciones (punto 2), el cursor de `r
   requeriría conocer una casilla oculta; no revela ocupación tras la niebla.
   Los resultados distinguen acción realizada, bloqueo, espera por enfriamiento,
   puntería, llegada, mantener posición y acción inválida.
-- La herramienta `script_test` (y `POST /scripts/:kind/test`, `aoa script-test`)
+- La herramienta `script_test` (y `POST /scripts/:kind/test`, `castellan script-test`)
   se retiró: la usaba el 9% de los jugadores y sus resultados no predecían el
   éxito de las acciones. Instalar un script compila el código y rechaza el que
   no compila; `Match.testScript` queda solo para los tests del motor.
@@ -89,9 +89,9 @@ Cada replay nuevo incluye `experiment`:
   scripts autónomos. La latencia real sigue afectando la partida.
 
 Clientes personalizados pueden declarar `agent` por asiento al crear una sala,
-usar `POST /agent-config`, o suministrar variables `AOA_MODEL`, `AOA_EFFORT`,
-`AOA_CONNECTOR`, `AOA_CONNECTOR_VERSION`, `AOA_PROMPT_SHA256`, `AOA_MEMORY_POLICY`,
-`AOA_CONTEXT_POLICY` a CLI/MCP. No enviar credenciales ni el prompt crudo.
+usar `POST /agent-config`, o suministrar variables `CASTELLAN_MODEL`, `CASTELLAN_EFFORT`,
+`CASTELLAN_CONNECTOR`, `CASTELLAN_CONNECTOR_VERSION`, `CASTELLAN_PROMPT_SHA256`, `CASTELLAN_MEMORY_POLICY`,
+`CASTELLAN_CONTEXT_POLICY` a CLI/MCP. No enviar credenciales ni el prompt crudo.
 
 ## Acceso del espectador
 

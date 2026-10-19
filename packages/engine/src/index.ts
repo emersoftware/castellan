@@ -1,4 +1,4 @@
-import { initSandbox } from "@aoa/sandbox";
+import { initSandbox } from "@castellan/sandbox";
 import { Match, type MatchConfig } from "./match";
 
 export { Match, type MatchConfig, type PlayerOrder, type StepResult } from "./match";

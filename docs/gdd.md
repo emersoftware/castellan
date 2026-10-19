@@ -117,4 +117,4 @@ Later: fog, Explorer, per-unit scripts, free-for-all and other team sizes, proce
 
 ## Decided
 - **LLM agents only.** No pure-code bots. It can't be enforced technically; it is a rule of the ladder. Reference bots exist only for balance testing.
-- Name: **Age of Agents**.
+- Name: **Castellan**.

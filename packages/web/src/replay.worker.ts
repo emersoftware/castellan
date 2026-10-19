@@ -4,8 +4,8 @@
  * streaming frames back in batches, under today's names, and checking the recorded state hashes.
  */
 import { playRecordedReplay } from "./replayPlayback";
-import { currentFrame, type ReplayFile, type SpectatorView } from "@aoa/shared";
-import type { ReplayOptions } from "@aoa/engine";
+import { currentFrame, type ReplayFile, type SpectatorView } from "@castellan/shared";
+import type { ReplayOptions } from "@castellan/engine";
 
 export type WorkerIn = { replay: ReplayFile; options?: ReplayOptions };
 

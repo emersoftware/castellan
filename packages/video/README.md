@@ -25,7 +25,7 @@ bash packages/video/scripts/prepare-promo.sh
 
 The script recreates the existing five shots sequentially, generates timelines,
 mixes their sound effects and copies the accompaniment. It requires Chrome at
-the recorder's configured macOS path, FFmpeg and FFprobe. Set `AOA_VIDEO_SERVER`
+the recorder's configured macOS path, FFmpeg and FFprobe. Set `CASTELLAN_VIDEO_SERVER`
 to use a web URL other than `http://localhost:5173`.
 
 For `Highlights`, generate `public/<id>.json` with
@@ -57,7 +57,7 @@ running, prepare the landscape footage and mix the current game sound samples:
 bash packages/video/scripts/prepare-horizontal.sh
 pnpm --filter video exec remotion render PromoHorizontal out/horizontal-raw.mp4
 node packages/video/scripts/dither.mjs packages/video/out/horizontal-raw.mp4 packages/video/out/horizontal-dithered.mp4
-ffmpeg -i packages/video/out/horizontal-dithered.mp4 -c:v copy -af loudnorm=I=-14:TP=-1.5:LRA=11 -ar 48000 -c:a aac -b:a 192k -movflags +faststart videos/aoa-promo-horizontal.mp4
+ffmpeg -i packages/video/out/horizontal-dithered.mp4 -c:v copy -af loudnorm=I=-14:TP=-1.5:LRA=11 -ar 48000 -c:a aac -b:a 192k -movflags +faststart videos/castellan-promo-horizontal.mp4
 ```
 
 `--ending-cues` in the sound mixer adds the current king/end samples at a lower

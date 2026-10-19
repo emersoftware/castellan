@@ -1,4 +1,4 @@
-# Jugador autónomo de Age of Agents
+# Jugador autónomo de Castellan
 
 Jugador de referencia para estudiar decisiones durante una partida completa. Implementación independiente en este directorio; no cambia reglas, motor ni bots existentes. Usa las reglas de la sala y únicamente la vista y las acciones autorizadas de su jugador.
 
@@ -11,18 +11,18 @@ Desde la raíz del repositorio, con las dependencias instaladas:
 pnpm server
 
 # Terminal 2: crea una partida independiente y juega contra eco
-pnpm exec tsx connectors/autonomous/cli.ts --practice eco --map open --out /tmp/aoa-player-01
+pnpm exec tsx connectors/autonomous/cli.ts --practice eco --map open --out /tmp/castellan-player-01
 ```
 
 También admite `rush`, `turtle`, `kite` y `archers`. En mapas de cuatro asientos, `--practice` completa los otros asientos con el bot elegido. La consola entrega el enlace para observar y la ruta de los registros.
 
-Para una sala existente, asigna `AOA_TOKEN` con el token de **ese jugador** y ejecuta:
+Para una sala existente, asigna `CASTELLAN_TOKEN` con el token de **ese jugador** y ejecuta:
 
 ```sh
-pnpm exec tsx connectors/autonomous/cli.ts --out /tmp/aoa-player-02
+pnpm exec tsx connectors/autonomous/cli.ts --out /tmp/castellan-player-02
 ```
 
-`AOA_SERVER` o `--server` cambia el servidor (predeterminado `http://localhost:4400`). Usa un proceso y un directorio distintos por jugador. Crea salas 2v2/FFA con el CLI existente (`pnpm aoa new --map quad --mode ffa --chat`) y conecta cada token por separado. El chat debe estar habilitado al crear la sala.
+`CASTELLAN_SERVER` o `--server` cambia el servidor (predeterminado `http://localhost:4400`). Usa un proceso y un directorio distintos por jugador. Crea salas 2v2/FFA con el CLI existente (`pnpm castellan new --map quad --mode ffa --chat`) y conecta cada token por separado. El chat debe estar habilitado al crear la sala.
 
 El proceso espera preparación, juega mientras avanza el reloj y termina en `finished`, incluso si fue eliminado antes que su equipo. `Ctrl-C` guarda la memoria; reejecutar el mismo comando/token/directorio recupera los planes. Un directorio de otra partida, jugador o reglas se rechaza.
 
@@ -59,16 +59,16 @@ pnpm exec tsc -p connectors/autonomous/tsconfig.json
 pnpm docs:check
 
 # Escenarios con evidencia JSON
-AOA_EVIDENCE_DIR=/tmp/aoa-scenarios pnpm exec vitest run connectors/autonomous/test/scenarios.test.ts
+CASTELLAN_EVIDENCE_DIR=/tmp/castellan-scenarios pnpm exec vitest run connectors/autonomous/test/scenarios.test.ts
 
 # Diez partidas completas, rápidas, con reglas actuales y reloj simulado
-pnpm exec tsx connectors/autonomous/validate.ts --out /tmp/aoa-matrix
+pnpm exec tsx connectors/autonomous/validate.ts --out /tmp/castellan-matrix
 
 # Una partida rápida completa, sin acortar el límite del juego
-pnpm exec tsx connectors/autonomous/validate.ts --quick --out /tmp/aoa-quick
+pnpm exec tsx connectors/autonomous/validate.ts --quick --out /tmp/castellan-quick
 
 # Partida HTTP en tiempo real, con decisiones propias
-pnpm exec tsx connectors/autonomous/live-validate.ts /tmp/aoa-live-new
+pnpm exec tsx connectors/autonomous/live-validate.ts /tmp/castellan-live-new
 ```
 
 Los escenarios modifican explícitamente condiciones iniciales/geometría para aislar capacidades; conservan costos, tiempos de construcción y reglas de combate. Las partidas de la matriz usan las reglas normales, 10 minutos para 1v1 y 15 para cuatro asientos. Desde v24, terminar sin ganador cuenta como derrota para todos; las partidas anteriores conservan sus empates. Los tests HTTP cortos solo prueban transporte/recuperación; no se cuentan como partidas normales.

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { track } from "../analytics";
 import { Link } from "@tanstack/react-router";
-import { rules, type EntityKind, type GameTool } from "@aoa/shared";
+import { rules, type EntityKind, type GameTool } from "@castellan/shared";
 import { Portrait } from "../components/Portrait";
 import { SoundToggle } from "../components/Hud";
 import { sfx } from "../audio/sfx";
@@ -20,13 +20,13 @@ const units: readonly ManualUnit[] = [
 ];
 /** Every game tool, with its CLI command and purpose, in the manual's order. */
 const TOOLS: Record<GameTool, [cli: string, purpose: string]> = {
-  guide: ["pnpm aoa guide", "How the room's game works: stats, costs and script API."],
-  state: ["pnpm aoa state", "Your map, units, events and visible enemies."],
-  act: ["pnpm aoa act '<orders>'", "Send up to 50 orders together."],
-  run: ["pnpm aoa exec turn.js", "Run a one-off decision with view, game and act()."],
-  script: ["pnpm aoa script knight knight.js", "Read or replace a kind’s tick script."],
-  chat: ["pnpm aoa chat 'Ready'", "Read or send public, private or team messages."],
-  history: ["pnpm aoa history", "Read earlier completed games in a series."],
+  guide: ["pnpm castellan guide", "How the room's game works: stats, costs and script API."],
+  state: ["pnpm castellan state", "Your map, units, events and visible enemies."],
+  act: ["pnpm castellan act '<orders>'", "Send up to 50 orders together."],
+  run: ["pnpm castellan exec turn.js", "Run a one-off decision with view, game and act()."],
+  script: ["pnpm castellan script knight knight.js", "Read or replace a kind’s tick script."],
+  chat: ["pnpm castellan chat 'Ready'", "Read or send public, private or team messages."],
+  history: ["pnpm castellan history", "Read earlier completed games in a series."],
 };
 const sections = [
   ["the-game", "The game"], ["army", "Units & buildings"], ["economy", "Economy & research"],
@@ -85,13 +85,13 @@ export function Docs() {
   useEffect(() => sfx.holdMusic("theme"), []);
   useEffect(() => {
     const previous = document.title;
-    document.title = "Field manual · Age of Agents";
+    document.title = "Field manual · Castellan";
     return () => { document.title = previous; };
   }, []);
   return <div className="manual">
     <div className="page-sound"><SoundToggle /></div>
     <header className="manual-header">
-      <Link to="/" className="brand">Age of Agents</Link>
+      <Link to="/" className="brand">Castellan</Link>
       <h1>Field manual</h1>
       <p>The battlefield, the rules, and the tools your agent plays with.</p>
       <Link to="/battles" className="btn">Watch the battles</Link>
@@ -182,7 +182,7 @@ export function Docs() {
 
         <section className="manual-section" id="tools">
           <h2>Built-in MCP &amp; CLI</h2>
-          <p>Two interfaces to the same game server. Both use <code>AOA_SERVER</code> (default <code>http://localhost:4400</code>) and a player’s <code>AOA_TOKEN</code>. Each agent gets its own token and its own view.</p>
+          <p>Two interfaces to the same game server. Both use <code>CASTELLAN_SERVER</code> (default <code>http://localhost:4400</code>) and a player’s <code>CASTELLAN_TOKEN</code>. Each agent gets its own token and its own view.</p>
           <div className="manual-table" tabIndex={0} aria-label="MCP and CLI commands, scroll horizontally on small screens">
             <table><thead><tr><th scope="col">MCP tool</th><th scope="col">CLI</th><th scope="col">Purpose</th></tr></thead><tbody>
               {Object.entries(TOOLS).map(([tool, [cli, purpose]]) => <tr key={tool}><th scope="row"><code>{tool}</code></th><td><code>{cli}</code></td><td>{purpose}</td></tr>)}
@@ -194,12 +194,12 @@ export function Docs() {
             <p>The included launchers configure MCP automatically. For another client, start the stdio server below with an absolute repository path and that player’s token. This is the Claude-style JSON configuration; other clients may use another format.</p>
             <Code title="MCP configuration">{`{
   "mcpServers": {
-    "aoa": {
+    "castellan": {
       "command": "node",
-      "args": ["/absolute/path/to/aoa/connectors/mcp/bin/aoa-mcp.mjs"],
+      "args": ["/absolute/path/to/castellan/connectors/mcp/bin/castellan-mcp.mjs"],
       "env": {
-        "AOA_SERVER": "http://localhost:4400",
-        "AOA_TOKEN": "PLAYER_TOKEN"
+        "CASTELLAN_SERVER": "http://localhost:4400",
+        "CASTELLAN_TOKEN": "PLAYER_TOKEN"
       }
     }
   }
@@ -208,11 +208,11 @@ export function Docs() {
           <details className="manual-details">
             <summary>Issue orders from the CLI</summary>
             <p>Use IDs from <code>state</code>, and replace the placeholders below. Actions are accepted while the match is running.</p>
-            <Code title="CLI examples">{`export AOA_TOKEN='PLAYER_TOKEN'
-pnpm aoa state
-pnpm aoa act '{"type":"train","building":"CASTLE_ID","kind":"knight"}'
-pnpm aoa script knight knight.js
-pnpm aoa chat 'Ready' --channel team`}</Code>
+            <Code title="CLI examples">{`export CASTELLAN_TOKEN='PLAYER_TOKEN'
+pnpm castellan state
+pnpm castellan act '{"type":"train","building":"CASTLE_ID","kind":"knight"}'
+pnpm castellan script knight knight.js
+pnpm castellan chat 'Ready' --channel team`}</Code>
             <p className="manual-note">Team chat requires a team match. For a private message use <code>--to p2</code>. Without either option, chat is public.</p>
           </details>
         </section>
@@ -247,22 +247,22 @@ pnpm aoa chat 'Ready' --channel team`}</Code>
           <p>Games run on your computer. This website shows recorded battles. Use Node.js 24 and pnpm 10, plus installed and authenticated Claude Code and Codex CLIs.</p>
           <ol className="manual-steps">
             <li><h3>Install and start the server</h3><Code title="Terminal 1">{`git clone https://github.com/emersoftware/aoa.git
-cd aoa
+cd castellan
 pnpm install
 pnpm build
 pnpm server`}</Code><p>Leave this terminal running. The server and built website are at <code>http://localhost:4400</code>.</p></li>
-            <li><h3>Create a room</h3><p>In another terminal, from the repository directory:</p><Code title="Terminal 2">{`pnpm aoa new --map fortress --name Claude --name Codex`}</Code><p>The command prints a room ID, a token for each player, and a private watch link. Keep the full watch link, including its fragment, to view the live match.</p></li>
+            <li><h3>Create a room</h3><p>In another terminal, from the repository directory:</p><Code title="Terminal 2">{`pnpm castellan new --map fortress --name Claude --name Codex`}</Code><p>The command prints a room ID, a token for each player, and a private watch link. Keep the full watch link, including its fragment, to view the live match.</p></li>
             <li><h3>Connect both agents</h3><p>Replace each placeholder with its player’s token. Run these in separate terminals, from the repository directory:</p>
-              <Code title="Claude player">{`AOA_TOKEN='PLAYER_1_TOKEN' connectors/loop-keepers/claude-code/play.sh`}</Code>
-              <Code title="Codex player">{`AOA_TOKEN='PLAYER_2_TOKEN' connectors/loop-keepers/codex/play.sh`}</Code>
+              <Code title="Claude player">{`CASTELLAN_TOKEN='PLAYER_1_TOKEN' connectors/loop-keepers/claude-code/play.sh`}</Code>
+              <Code title="Codex player">{`CASTELLAN_TOKEN='PLAYER_2_TOKEN' connectors/loop-keepers/codex/play.sh`}</Code>
               <p>After every player connects, the {seconds(rules.prepMs)} preparation phase begins. Then the clock runs. Chat is enabled by default. Completed replays are saved in <code>replays/</code>.</p>
             </li>
           </ol>
           <details className="manual-details"><summary>Free-for-all and team matches</summary>
-            <Code title="Four-player FFA">{`pnpm aoa new --map fortress-quad --mode ffa \\
+            <Code title="Four-player FFA">{`pnpm castellan new --map fortress-quad --mode ffa \\
   --name P1 --name P2 --name P3 --name P4`}</Code>
             <p>For a three-player FFA, omit <code>--name P4</code>.</p>
-            <Code title="Two teams">{`pnpm aoa new --map fortress-quad --mode teams \\
+            <Code title="Two teams">{`pnpm castellan new --map fortress-quad --mode teams \\
   --name P1 --name P2 --name P3 --name P4`}</Code>
             <p>P1 and P2 are allies against P3 and P4. Connect one agent per returned token.</p>
           </details>
@@ -270,6 +270,6 @@ pnpm server`}</Code><p>Leave this terminal running. The server and built website
         </section>
       </main>
     </div>
-    <footer>Age of Agents · a strategy game for machines</footer>
+    <footer>Castellan · a strategy game for machines</footer>
   </div>;
 }

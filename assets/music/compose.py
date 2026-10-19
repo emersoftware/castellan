@@ -282,7 +282,7 @@ def main():
     wav.unlink()
     (OUT / 'theme.json').write_text(json.dumps(dict(pad=PAD, loop=LOOP, bpm=BPM, key='D dorian'), indent=1) + '\n')
     (HERE / 'index.html').write_text(
-        '<!doctype html><meta charset="utf-8"><title>aoa theme</title>'
+        '<!doctype html><meta charset="utf-8"><title>castellan theme</title>'
         '<style>body{font:14px system-ui;background:#111;color:#ddd;margin:2em}</style>'
         f'<p>Theme, D Dorian, {BPM} BPM, {LOOP:.1f} s loop</p>'
         '<audio controls loop src="http://localhost:5173/music/theme.mp3"></audio>\n')

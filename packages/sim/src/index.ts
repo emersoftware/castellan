@@ -1,5 +1,5 @@
-import { createMatch, type PlayerOrder } from "@aoa/engine";
-import { MAPS, rules, type OrderResult, type Outcome, type Ruleset } from "@aoa/shared";
+import { createMatch, type PlayerOrder } from "@castellan/engine";
+import { MAPS, rules, type OrderResult, type Outcome, type Ruleset } from "@castellan/shared";
 import type { Bot } from "./bots";
 
 export * from "./bots";

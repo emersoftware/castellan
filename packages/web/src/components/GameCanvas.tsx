@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import type { Ruleset, SpectatorView } from "@aoa/shared";
+import type { Ruleset, SpectatorView } from "@castellan/shared";
 import { GameRenderer, type HoverInfo, type SoundSink } from "../render/renderer";
 import type { CameraBox } from "../showcaseCamera";
 

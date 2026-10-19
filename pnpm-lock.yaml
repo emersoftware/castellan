@@ -13,10 +13,10 @@ importers:
 
   .:
     devDependencies:
-      '@aoa/cli':
+      '@castellan/cli':
         specifier: workspace:*
         version: link:connectors/cli
-      '@aoa/mcp':
+      '@castellan/mcp':
         specifier: workspace:*
         version: link:connectors/mcp
       '@cloudflare/workers-types':
@@ -41,38 +41,38 @@ importers:
         specifier: ^4.145.0
         version: 4.145.0(@cloudflare/workers-types@5.20261001.1)(@types/node@24.19.0)
 
-  connectors/castellan:
+  connectors/castellan-bot:
     dependencies:
-      '@aoa/cli':
+      '@castellan/cli':
         specifier: workspace:*
         version: link:../cli
-      '@aoa/shared':
+      '@castellan/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       tsx:
         specifier: ^4.20.0
         version: 4.23.15
     devDependencies:
-      '@aoa/engine':
+      '@castellan/engine':
         specifier: workspace:*
         version: link:../../packages/engine
-      '@aoa/server':
+      '@castellan/server':
         specifier: workspace:*
         version: link:../../packages/server
-      '@aoa/sim':
+      '@castellan/sim':
         specifier: workspace:*
         version: link:../../packages/sim
 
   connectors/cli:
     dependencies:
-      '@aoa/shared':
+      '@castellan/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       tsx:
         specifier: ^4.20.0
         version: 4.23.15
     devDependencies:
-      '@aoa/server':
+      '@castellan/server':
         specifier: workspace:*
         version: link:../../packages/server
       '@modelcontextprotocol/sdk':
@@ -81,10 +81,10 @@ importers:
 
   connectors/mcp:
     dependencies:
-      '@aoa/cli':
+      '@castellan/cli':
         specifier: workspace:*
         version: link:../cli
-      '@aoa/shared':
+      '@castellan/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@modelcontextprotocol/sdk':
@@ -99,20 +99,20 @@ importers:
 
   packages/engine:
     dependencies:
-      '@aoa/sandbox':
+      '@castellan/sandbox':
         specifier: workspace:*
         version: link:../sandbox
-      '@aoa/shared':
+      '@castellan/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
-      '@aoa/sim':
+      '@castellan/sim':
         specifier: workspace:*
         version: link:../sim
 
   packages/sandbox:
     dependencies:
-      '@aoa/shared':
+      '@castellan/shared':
         specifier: workspace:*
         version: link:../shared
       '@jitl/quickjs-singlefile-mjs-release-sync':
@@ -124,16 +124,16 @@ importers:
 
   packages/server:
     dependencies:
-      '@aoa/engine':
+      '@castellan/engine':
         specifier: workspace:*
         version: link:../engine
-      '@aoa/sandbox':
+      '@castellan/sandbox':
         specifier: workspace:*
         version: link:../sandbox
-      '@aoa/shared':
+      '@castellan/shared':
         specifier: workspace:*
         version: link:../shared
-      '@aoa/sim':
+      '@castellan/sim':
         specifier: workspace:*
         version: link:../sim
       '@fastify/cors':
@@ -159,16 +159,16 @@ importers:
 
   packages/sim:
     dependencies:
-      '@aoa/engine':
+      '@castellan/engine':
         specifier: workspace:*
         version: link:../engine
-      '@aoa/shared':
+      '@castellan/shared':
         specifier: workspace:*
         version: link:../shared
 
   packages/video:
     dependencies:
-      '@aoa/shared':
+      '@castellan/shared':
         specifier: workspace:*
         version: link:../shared
       '@remotion/cli':
@@ -208,13 +208,13 @@ importers:
 
   packages/web:
     dependencies:
-      '@aoa/engine':
+      '@castellan/engine':
         specifier: workspace:*
         version: link:../engine
-      '@aoa/sandbox':
+      '@castellan/sandbox':
         specifier: workspace:*
         version: link:../sandbox
-      '@aoa/shared':
+      '@castellan/shared':
         specifier: workspace:*
         version: link:../shared
       '@posthog/react':

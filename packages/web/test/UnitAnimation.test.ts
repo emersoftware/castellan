@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { expect, it, vi } from 'vitest';
 import { Texture, type Sprite } from 'pixi.js';
-import { rules, type EntityView, type SpectatorView } from '@aoa/shared';
+import { rules, type EntityView, type SpectatorView } from '@castellan/shared';
 import { GameRenderer } from '../src/render/renderer';
 import { fall, strikeMs, unitLook, type Strike } from '../src/render/look';
-import { currentKind } from '@aoa/shared';
+import { currentKind } from '@castellan/shared';
 import { TILE_H, TILE_W, type SpriteSet } from '../src/render/sprites';
 import workerAtlas from '../public/sprites/worker/manifest.json';
 import kingAtlas from '../public/sprites/king/manifest.json';

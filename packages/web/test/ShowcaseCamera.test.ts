@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { followUnits, planShowcaseCamera, shotAt, type CameraActivity, type CameraBox } from "../src/showcaseCamera";
-import type { SpectatorView } from "@aoa/shared";
+import type { SpectatorView } from "@castellan/shared";
 
 const RATE = 10;
 /** Two sides trading blows around (x, y) every tick in [from, to). */

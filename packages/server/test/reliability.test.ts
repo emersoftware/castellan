@@ -5,9 +5,9 @@ import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-import { rules, type Ruleset } from "@aoa/shared";
+import { rules, type Ruleset } from "@castellan/shared";
 import { Room } from "../src/room";
-import { runReplay } from "@aoa/engine";
+import { runReplay } from "@castellan/engine";
 import { buildServer } from "../src/app";
 import { waitForReplay, waitForStatus } from "./support/readiness";
 
@@ -37,7 +37,7 @@ it.each([1, 5])("damage (range %i) interrupts wait even while filtering for spaw
 });
 
 it("separates host spectators, player tokens and other-room capabilities; releases finished games", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "aoa-access-"));
+  const dir = await mkdtemp(join(tmpdir(), "castellan-access-"));
   const app = await buildServer({ replayDir: dir, prepMs: 0, ruleset: { ...rules, matchMs: 300 } });
   try {
     const make = async () => (await app.inject({ method: "POST", url: "/rooms", payload: {} })).json();
@@ -62,7 +62,7 @@ it("separates host spectators, player tokens and other-room capabilities; releas
 });
 
 it("records reproducible manifests and errors without credentials, and probes without installing code", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "aoa-manifest-"));
+  const dir = await mkdtemp(join(tmpdir(), "castellan-manifest-"));
   const app = await buildServer({ replayDir: dir, prepMs: 0, ruleset: { ...rules, matchMs: 500 } });
   try {
     const created = (await app.inject({ method: "POST", url: "/rooms", payload: { players: [{ name: "model-looking-name" }, { name: "Model Low" }] } })).json();
@@ -124,7 +124,7 @@ it("persists a pending trace after the bounded finish deadline instead of blocki
 });
 
 it("omits player and spectator capabilities from enabled access logs", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "aoa-logs-"));
+  const dir = await mkdtemp(join(tmpdir(), "castellan-logs-"));
   try {
     const source = `import { buildServer } from ${JSON.stringify(fileURLToPath(new URL("../src/app.ts", import.meta.url)))};
       process.env.LOG = "1";

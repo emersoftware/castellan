@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { AGENT_ACTIVITY_STATES } from "@aoa/shared";
+import { AGENT_ACTIVITY_STATES } from "@castellan/shared";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -12,7 +12,7 @@ import { DEFAULT_MODEL, loadKey, options, play, preparePlayer, providerRetryAfte
 
 const exec = promisify(execFile);
 const dirs: string[] = [];
-async function temp() { const p = await mkdtemp(join(tmpdir(), "aoa-opencode-test-")); dirs.push(p); return p; }
+async function temp() { const p = await mkdtemp(join(tmpdir(), "castellan-opencode-test-")); dirs.push(p); return p; }
 afterEach(async () => { vi.unstubAllEnvs(); vi.restoreAllMocks(); await Promise.all(dirs.splice(0).map((p) => rm(p, { recursive: true, force: true }))); });
 
 describe("OpenCode connector", () => {
@@ -25,15 +25,15 @@ describe("OpenCode connector", () => {
   it("fails before joining when either credential is missing", async () => {
     const agent = new URL("../../loop-keepers/opencode/agent.mjs", import.meta.url).pathname;
     const empty = await temp();
-    await expect(exec(process.execPath, [agent], { env: { ...process.env, AOA_TOKEN: "" } })).rejects.toMatchObject({ stderr: expect.stringContaining("set AOA_TOKEN") });
-    const env = { ...process.env, AOA_TOKEN: "game-only", OPENROUTER_API_KEY: "", AOA_OPENROUTER_KEY_FILE: join(empty, "none"), XDG_DATA_HOME: empty };
+    await expect(exec(process.execPath, [agent], { env: { ...process.env, CASTELLAN_TOKEN: "" } })).rejects.toMatchObject({ stderr: expect.stringContaining("set CASTELLAN_TOKEN") });
+    const env = { ...process.env, CASTELLAN_TOKEN: "game-only", OPENROUTER_API_KEY: "", CASTELLAN_OPENROUTER_KEY_FILE: join(empty, "none"), XDG_DATA_HOME: empty };
     await expect(exec(process.execPath, [agent], { env })).rejects.toMatchObject({ stderr: expect.stringContaining("set OPENROUTER_API_KEY") });
   });
 
   it("loads the key from env, a private file, or OpenCode's auth store", async () => {
     const dir = await temp();
     const file = join(dir, "key"), data = join(dir, "data");
-    const base = { AOA_OPENROUTER_KEY_FILE: file, XDG_DATA_HOME: data };
+    const base = { CASTELLAN_OPENROUTER_KEY_FILE: file, XDG_DATA_HOME: data };
     expect(await loadKey(base)).toBe("");
     await mkdir(join(data, "opencode"), { recursive: true });
     await writeFile(join(data, "opencode", "auth.json"), JSON.stringify({ openrouter: { type: "api", key: "from-opencode" } }));
@@ -45,7 +45,7 @@ describe("OpenCode connector", () => {
     await expect(loadKey(base)).rejects.toThrow("must be private");
   });
 
-  it("isolates each player and exposes only the aoa MCP tools", async () => {
+  it("isolates each player and exposes only the castellan MCP tools", async () => {
     const root = await temp();
     const a = await preparePlayer({ root: join(root, "one"), token: "p1-token", key: "secret-test", model: "openrouter/x/y", variant: "high",
       env: { PATH: process.env.PATH, OPENAI_API_KEY: "other-secret", OPENCODE_CONFIG_DIR: "/wrong", NODE_OPTIONS: "--require other" } });
@@ -60,9 +60,9 @@ describe("OpenCode connector", () => {
     expect(text).not.toContain("secret-test");
     expect(text).not.toContain("p2-token");
     const config = JSON.parse(text);
-    expect(config.mcp.aoa.environment).toEqual({ AOA_SERVER: "http://localhost:4400", AOA_TOKEN: "p1-token" });
-    expect(config.tools).toEqual({ "*": false, "aoa_*": true });
-    expect(config.permission).toEqual({ "*": "deny", "aoa_*": "allow" });
+    expect(config.mcp.castellan.environment).toEqual({ CASTELLAN_SERVER: "http://localhost:4400", CASTELLAN_TOKEN: "p1-token" });
+    expect(config.tools).toEqual({ "*": false, "castellan_*": true });
+    expect(config.permission).toEqual({ "*": "deny", "castellan_*": "allow" });
     expect(config.enabled_providers).toEqual(["openrouter"]);
     expect(config).not.toHaveProperty("provider");
     const off = await preparePlayer({ root: join(root, "three"), token: "p3-token", key: "k", model: "openrouter/xiaomi/mimo-v2.6-pro", variant: "none" });
@@ -124,7 +124,7 @@ describe("OpenCode connector", () => {
     vi.stubEnv("HOME", home);
     vi.spyOn(process.stdout, "write").mockReturnValue(true);
     vi.spyOn(console, "error").mockImplementation(() => {});
-    return { AOA_TOKEN: "test", AOA_SERVER: "http://game", AOA_CONNECTOR_VERSION: "test", OPENROUTER_API_KEY: "k", PATH: process.env.PATH };
+    return { CASTELLAN_TOKEN: "test", CASTELLAN_SERVER: "http://game", CASTELLAN_CONNECTOR_VERSION: "test", OPENROUTER_API_KEY: "k", PATH: process.env.PATH };
   };
 
   it("continues the same isolated session with fresh observations and exits cleanly", async () => {
@@ -141,8 +141,8 @@ describe("OpenCode connector", () => {
     expect(states).toEqual(["0", "1", "2"]);
     expect(activities).toEqual(["deciding", "between_decisions", "deciding", "between_decisions", "stopped"]);
     expect(AGENT_ACTIVITY_STATES).toEqual(expect.arrayContaining(activities));
-    const [run] = await readdir(join(home, ".local", "state", "aoa", "opencode"));
-    expect(JSON.parse(await readFile(join(home, ".local", "state", "aoa", "opencode", run, "usage.json"), "utf8"))).toMatchObject({ steps: 2, input: 20, cost: 0.02 });
+    const [run] = await readdir(join(home, ".local", "state", "castellan", "opencode"));
+    expect(JSON.parse(await readFile(join(home, ".local", "state", "castellan", "opencode", run, "usage.json"), "utf8"))).toMatchObject({ steps: 2, input: 20, cost: 0.02 });
   });
 
   it("waits out a provider cooldown, then decides again without losing the observation cursor", async () => {

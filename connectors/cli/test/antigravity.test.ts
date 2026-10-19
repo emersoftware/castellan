@@ -19,7 +19,7 @@ const exec = promisify(execFile);
 const play = fileURLToPath(new URL("../../loop-keepers/antigravity/play.mjs", import.meta.url));
 const dirs: string[] = [];
 async function temp() {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), "aoa-agy-test-")));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "castellan-agy-test-")));
   dirs.push(dir);
   return dir;
 }
@@ -32,14 +32,14 @@ describe("Antigravity connector", () => {
       const workspace = join(root, id);
       const project = await preparePlayer({ workspace, projectId: id, server: "http://localhost:4400", token: `token-${id}`, transport: "mcp" });
       const mcp = JSON.parse(await readFile(join(workspace, ".agents/mcp_config.json"), "utf8"));
-      expect(Object.keys(mcp.mcpServers)).toEqual(["aoa"]);
-      expect(mcp.mcpServers.aoa.env).toEqual({ AOA_SERVER: "http://localhost:4400", AOA_TOKEN: `token-${id}` });
+      expect(Object.keys(mcp.mcpServers)).toEqual(["castellan"]);
+      expect(mcp.mcpServers.castellan.env).toEqual({ CASTELLAN_SERVER: "http://localhost:4400", CASTELLAN_TOKEN: `token-${id}` });
       expect(project.projectResources.resources[0].folderUri).toContain(`/${id}`);
-      expect(project.permissionGrants.permissionGrants.allow).toEqual(["mcp(aoa/*)"]);
+      expect(project.permissionGrants.permissionGrants.allow).toEqual(["mcp(castellan/*)"]);
       expect(project.permissionGrants.permissionGrants.deny).toContain("command(*)");
       const client = new Client({ name: "agy-config-test", version: "0" });
       try {
-        await client.connect(new StdioClientTransport({ ...mcp.mcpServers.aoa, cwd: workspace }));
+        await client.connect(new StdioClientTransport({ ...mcp.mcpServers.castellan, cwd: workspace }));
         expect((await client.listTools()).tools.map(t => t.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "state"]);
       } finally { await client.close(); }
     }
@@ -72,15 +72,15 @@ const projectFile=path.join(os.homedir(),'.gemini/config/projects',args[args.ind
 console.log(JSON.stringify({event:'init',conversation_id:'${conversation}',init:{model:'gemini-4-argon-low'}}));
 readline.createInterface({input:process.stdin}).on('line',async line=>{
   const prompt=JSON.parse(line).message.content;
-  fs.writeFileSync(process.env.CAPTURE,JSON.stringify({args,prompt,cwd:process.cwd(),projectFile,token:process.env.AOA_TOKEN,adc:process.env.AGY_ADC_AUTH,grants:JSON.parse(fs.readFileSync(projectFile)).permissionGrants.permissionGrants}));
+  fs.writeFileSync(process.env.CAPTURE,JSON.stringify({args,prompt,cwd:process.cwd(),projectFile,token:process.env.CASTELLAN_TOKEN,adc:process.env.AGY_ADC_AUTH,grants:JSON.parse(fs.readFileSync(projectFile)).permissionGrants.permissionGrants}));
   console.log(JSON.stringify({event:'result',result:{status:'SUCCESS',conversation_id:'${conversation}',num_turns:1}}));
-  await fetch(process.env.AOA_SERVER+'/done');
+  await fetch(process.env.CASTELLAN_SERVER+'/done');
 }).on('close',()=>process.exit(0));
 `, { mode: 0o700 });
     try {
       await exec(process.execPath, [play, "--model", "gemini-4-argon-low", "--effort", "low", "--output-format", "stream-json"], {
-        cwd: root, env: { ...process.env, AOA_AGY_BIN: bin, AOA_AGY_TRANSPORT: transport, AOA_SERVER: server,
-          AOA_TOKEN: "player-only", AGY_ADC_AUTH: "true", CAPTURE: capture }, timeout: 12_000,
+        cwd: root, env: { ...process.env, CASTELLAN_AGY_BIN: bin, CASTELLAN_AGY_TRANSPORT: transport, CASTELLAN_SERVER: server,
+          CASTELLAN_TOKEN: "player-only", AGY_ADC_AUTH: "true", CAPTURE: capture }, timeout: 12_000,
       });
       const called = JSON.parse(await readFile(capture, "utf8"));
       expect(called.token).toBe("player-only");
@@ -94,13 +94,13 @@ readline.createInterface({input:process.stdin}).on('line',async line=>{
       expect(called.prompt).toContain("tick 5");
       const ownOutputs = `read_file(${join(homedir(), ".gemini/antigravity-cli/brain", conversation, ".system_generated/steps")})`;
       if (transport === "cli") {
-        expect(called.grants.allow).toEqual([`command(${join(called.cwd, "bin/aoa-tool")})`, `read_file(${join(called.cwd, "tool-output")})`, `read_file(${join(called.cwd, ".agents/tool-schemas.json")})`, ownOutputs]);
+        expect(called.grants.allow).toEqual([`command(${join(called.cwd, "bin/castellan-tool")})`, `read_file(${join(called.cwd, "tool-output")})`, `read_file(${join(called.cwd, ".agents/tool-schemas.json")})`, ownOutputs]);
         expect(called.grants.deny).toEqual(["write_file(*)", "read_url(*)", "execute_url(*)"]);
-        expect(called.prompt).toContain(`${join(called.cwd, "bin/aoa-tool")} state '{}'`);
+        expect(called.prompt).toContain(`${join(called.cwd, "bin/castellan-tool")} state '{}'`);
         expect(called.prompt).toContain("explicit order-result preview");
         expect(called.prompt).toContain("Game tool schemas:");
       } else {
-        expect(called.grants.allow).toEqual(["mcp(aoa/*)", `read_file(${join(homedir(), ".gemini/antigravity-cli/mcp/aoa")})`, ownOutputs]);
+        expect(called.grants.allow).toEqual(["mcp(castellan/*)", `read_file(${join(homedir(), ".gemini/antigravity-cli/mcp/castellan")})`, ownOutputs]);
         expect(called.grants.deny).toContain("command(*)");
       }
       expect(called.grants.deny).not.toContain("read_file(*)");
@@ -130,9 +130,9 @@ readline.createInterface({input:process.stdin}).on('line',async line=>{
       const schemas = JSON.parse(await readFile(join(root, ".agents/tool-schemas.json"), "utf8"));
       expect(schemas.map((t: { name: string }) => t.name).sort()).toEqual(["act", "chat", "guide", "history", "run", "script", "state"]);
       expect(requests).toEqual([]);
-      const tool = join(root, "bin/aoa-tool");
+      const tool = join(root, "bin/castellan-tool");
       expect(await readFile(tool, "utf8")).not.toContain("bound-player");
-      const env = { ...process.env, AOA_SERVER: "http://127.0.0.1:1", AOA_TOKEN: "other-player", AOA_AGY_TOOL_OUTPUT_DIR: "/does-not-exist" };
+      const env = { ...process.env, CASTELLAN_SERVER: "http://127.0.0.1:1", CASTELLAN_TOKEN: "other-player", CASTELLAN_AGY_TOOL_OUTPUT_DIR: "/does-not-exist" };
       const result = await exec(tool, ["guide", "{}"], { cwd: root, env });
       const saved = result.stdout.match(/saved to (.+)\. Read it with view_file\./)?.[1];
       expect(saved).toBeDefined();
@@ -155,8 +155,8 @@ readline.createInterface({input:process.stdin}).on('line',async line=>{
   });
 
   it("fails before joining a room when credentials or the executable are missing", async () => {
-    const env = { ...process.env, AOA_TOKEN: "" };
-    await expect(exec(process.execPath, [play], { env })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("set AOA_TOKEN") });
-    await expect(exec(process.execPath, [play], { env: { ...env, AOA_TOKEN: "test", AOA_AGY_BIN: "/does-not-exist/agy" } })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("Antigravity CLI not found") });
+    const env = { ...process.env, CASTELLAN_TOKEN: "" };
+    await expect(exec(process.execPath, [play], { env })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("set CASTELLAN_TOKEN") });
+    await expect(exec(process.execPath, [play], { env: { ...env, CASTELLAN_TOKEN: "test", CASTELLAN_AGY_BIN: "/does-not-exist/agy" } })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("Antigravity CLI not found") });
   });
 });

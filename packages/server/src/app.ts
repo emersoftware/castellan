@@ -12,8 +12,8 @@ import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { transform } from "esbuild";
 import { HISTORY_SECTIONS, MAPS, declaredAgent, isChatChannel, isRoomMode, playerGuide, publishedApi, replayArchive, replayPlayerSummaries, routes, rules, viewToText,
-  type ExperimentManifest, type HistorySection, type KindSpec, type Order, type ReplayFile, type ReplayPlayerSummary, type ResponseFormat, type RoomMode, type Ruleset } from "@aoa/shared";
-import { BOTS } from "@aoa/sim";
+  type ExperimentManifest, type HistorySection, type KindSpec, type Order, type ReplayFile, type ReplayPlayerSummary, type ResponseFormat, type RoomMode, type Ruleset } from "@castellan/shared";
+import { BOTS } from "@castellan/sim";
 import { Room, type RoomOptions } from "./room";
 import { SeriesStore } from "./series";
 import { serverAnalytics } from "./analytics";
@@ -63,12 +63,12 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     } catch (error) { reply.code(400).send({ error: (error as Error).message }); return null; }
     who.room.touch(who.player);
     who.room.beginCall(who.player);
-    Object.assign(req, { aoa: who, aoaCall: { entry: who.room.openCall(who.player, `${req.method} ${req.routeOptions.url}`), startedAt: Date.now() } });
+    Object.assign(req, { castellan: who, aoaCall: { entry: who.room.openCall(who.player, `${req.method} ${req.routeOptions.url}`), startedAt: Date.now() } });
     return who;
   };
   // Every answered call closes the player's timing window (see Room.beginCall).
   app.addHook("onResponse", async (req, reply) => {
-    const who = (req as FastifyRequest & { aoa?: { room: Room; player: string }; waitedMs?: number }).aoa;
+    const who = (req as FastifyRequest & { castellan?: { room: Room; player: string }; waitedMs?: number }).castellan;
     if (who) {
       who.room.endCall(who.player, (req as FastifyRequest & { waitedMs?: number }).waitedMs ?? 0);
       const call = (req as FastifyRequest & { aoaCall: { entry: ExperimentManifest["calls"][number]; startedAt: number } }).aoaCall;
@@ -111,8 +111,8 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
       map?: string; sides?: "random" | "fixed"; chat?: boolean; mode?: RoomMode;
       stats?: { label: string; kinds: Record<string, Record<string, unknown>>; upgrades: Ruleset["upgrades"] };
     };
-    // Experiments only (server started with AOA_CUSTOM_STATS=1): play today's engine with another version's stats.
-    if (body.stats && process.env.AOA_CUSTOM_STATS !== "1") return reply.code(400).send({ error: "custom stats are disabled on this server" });
+    // Experiments only (server started with CASTELLAN_CUSTOM_STATS=1): play today's engine with another version's stats.
+    if (body.stats && process.env.CASTELLAN_CUSTOM_STATS !== "1") return reply.code(400).send({ error: "custom stats are disabled on this server" });
     const map = maps[body.map ?? "open"];
     if (!map) return reply.code(400).send({ error: `unknown map ${body.map}; available: ${Object.keys(maps).join(", ")}` });
     if (body.mode !== undefined && !isRoomMode(body.mode)) return reply.code(400).send({ error: 'mode must be "teams" or "ffa"' });

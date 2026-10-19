@@ -1,4 +1,4 @@
-import type { SpectatorView } from "@aoa/shared";
+import type { SpectatorView } from "@castellan/shared";
 
 /** Observer-only presentation. The actual player API is filtered by the engine. */
 export function playerPerspective(frame: SpectatorView | null, player: string | null): SpectatorView | null {

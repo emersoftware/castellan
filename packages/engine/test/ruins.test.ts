@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { rules, MAPS, viewToText, type Ruleset } from "@aoa/shared";
+import { rules, MAPS, viewToText, type Ruleset } from "@castellan/shared";
 import { createMatch, type Match } from "../src";
 
 const live: Match[] = [];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rules, playerGuide, viewToText, type Order, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { rules, playerGuide, viewToText, type Order, type ReplayFile, type Ruleset } from "@castellan/shared";
 import { createMatch, runReplay, type Match } from "../src";
 
 const players = [{ id: "p1", name: "one" }, { id: "p2", name: "two" }];

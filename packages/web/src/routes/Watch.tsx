@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { currentFrame, currentRuleset, pages, readMoment, type GameEvent, type Ruleset, type SpectatorMessage, type SpectatorView } from "@aoa/shared";
+import { currentFrame, currentRuleset, pages, readMoment, type GameEvent, type Ruleset, type SpectatorMessage, type SpectatorView } from "@castellan/shared";
 import { api, fmtTime, playerColors, spectateUrl } from "../api";
 import { GameCanvas } from "../components/GameCanvas";
 import { DepositPanel, OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, UnitPanel, notableEvents } from "../components/Hud";

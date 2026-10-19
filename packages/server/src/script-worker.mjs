@@ -1,7 +1,7 @@
 // Node-only worker entry, bundled to plain JS before spawning. Loading TS via
 // parent transform hooks while the parent waits synchronously can deadlock.
 import { parentPort, workerData } from "node:worker_threads";
-import * as sandbox from "@aoa/sandbox";
+import * as sandbox from "@castellan/sandbox";
 
 const STARTING = 0, IDLE = 1, REQUEST = 2, RESPONSE = 3, FAILED = 4, RUNNING = 5;
 const header = workerData.shared ? new Int32Array(workerData.shared, 0, 4) : null;

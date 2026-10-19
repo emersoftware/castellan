@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { rules, MAPS, playerGuide, playerResult, outcomeText, viewToText, type Ruleset, type Outcome } from "@aoa/shared";
+import { rules, MAPS, playerGuide, playerResult, outcomeText, viewToText, type Ruleset, type Outcome } from "@castellan/shared";
 import { createMatch, runReplay } from "../src";
 
 it.each(["duel", "ffa", "teams"])("everyone loses at the limit despite unequal scores in %s", async (mode) => {

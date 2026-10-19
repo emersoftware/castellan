@@ -7,7 +7,7 @@
 // third of the battles and only fights the rest if it is not clearly worse than the best there.
 // Designed equal-cost battles (synthetic.ts) count half: fighters trade evenly there too (default), or, with
 // OBJECTIVE=rps, each scenario's result (ln of A's loss ÷ B's loss) hits its rock-paper-scissors target.
-//   npx tsx src/balance-optimize.mts [generations] [hours]   → /tmp/aoa-opt/opt.log, /tmp/aoa-opt/best.json
+//   npx tsx src/balance-optimize.mts [generations] [hours]   → /tmp/castellan-opt/opt.log, /tmp/castellan-opt/best.json
 //   BATTLES=file, VARIANTS=n (first n stagings: as recorded, open, jittered), FROM=values.json (search start),
 //   STARTS=a.json,b.json,… (fight each, start from the most balanced; distance is then measured from it)
 import { spawn } from "node:child_process";
@@ -16,26 +16,26 @@ import { createInterface } from "node:readline";
 import { PARAMS, legal, start as snapped, type Values } from "./balance-params";
 import { SCENARIOS, SYNTHETIC_COUNT, scenarioOf } from "./synthetic";
 import { splitReplays } from "./experiment-split";
-import type { EntityKind } from "@aoa/shared";
+import type { EntityKind } from "@castellan/shared";
 import type { Snapshot } from "./battles";
 
 const WORKERS = 8, LAMBDA = 6, GENERATIONS = Number(process.argv[2] ?? 25), DEADLINE = Date.now() + Number(process.argv[3] ?? 1000) * 3_600_000,
   STAGINGS = Number(process.env.VARIANTS ?? 3), REG = 0.01;
-const OUT_DIR = process.env.OUT_DIR ?? "/tmp/aoa-opt";
+const OUT_DIR = process.env.OUT_DIR ?? "/tmp/castellan-opt";
 if (!Number.isInteger(STAGINGS) || STAGINGS < 1 || STAGINGS > 3) throw new Error("VARIANTS must be 1, 2, or 3");
 const KINDS: [EntityKind, number][] = [["knight", 1], ["archer", 1], ["tower", 0.5]];
 /** The castle must trade below the weakest fighter (by CASTLE_MARGIN, log scale) but not under CASTLE_FLOOR of their
  *  average (v16: ~0.55), so the search can't meet it by weakening a fighter. */
 const OBJECTIVE = process.env.OBJECTIVE ?? "parity";
 const CASTLE_MARGIN = 0.05, CASTLE_FLOOR = 0.5, CASTLE_WEIGHT = 1;
-const recorded: Snapshot[] = JSON.parse(readFileSync(process.env.BATTLES ?? "/tmp/aoa-opt/battles.json", "utf8"));
+const recorded: Snapshot[] = JSON.parse(readFileSync(process.env.BATTLES ?? "/tmp/castellan-opt/battles.json", "utf8"));
 for (const s of recorded) if (s.format !== "aoa-battle-v2" || !s.continuation) throw new Error(`Battle ${s.id} is a lossy legacy snapshot; re-extract with extract-recent.mts`);
 const recordedIds = recorded.map((b) => b.id);
 const battles = recordedIds.length;
 const partitions = splitReplays(recordedIds);
 const partition = (b: number) => partitions.get(recordedIds[b].split("#")[0]);
 mkdirSync(OUT_DIR, { recursive: true });
-writeFileSync(`${OUT_DIR}/split.json`, JSON.stringify({ format: "aoa-balance-split-v1", replays: Object.fromEntries(partitions) }, null, 2));
+writeFileSync(`${OUT_DIR}/split.json`, JSON.stringify({ format: "castellan-balance-split-v1", replays: Object.fromEntries(partitions) }, null, 2));
 let jobs: [number, number][] = [];
 for (let b = 0; b < battles; b++) for (let v = 0; v < STAGINGS; v++) jobs.push([b, v]);
 const SYNTH = process.env.SYNTHETIC !== "0";

@@ -1,4 +1,4 @@
-import type { SpectatorView } from '@aoa/shared';
+import type { SpectatorView } from '@castellan/shared';
 
 /** Begin eight seconds before the first casualty, using the recording's own tick rate. */
 export function showcaseStart(frames: readonly SpectatorView[], tickRate: number): number | null {

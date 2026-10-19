@@ -2,13 +2,16 @@
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
 import { client } from '../cli/src/client';
+import { adoptLegacyEnv } from '@castellan/shared';
 import { httpTransport, runPlayer } from './src/runtime';
+
+adoptLegacyEnv(process.env);
 
 const {values}=parseArgs({options:{server:{type:'string'},out:{type:'string'},practice:{type:'string'},map:{type:'string'},poll:{type:'string'},help:{type:'boolean'}}});
 if(values.help){
-  console.log(`Autonomous Age of Agents player
-AOA_TOKEN=... pnpm exec tsx connectors/autonomous/cli.ts --out /tmp/aoa-player
-pnpm exec tsx connectors/autonomous/cli.ts --practice eco --map open --out /tmp/aoa-practice
+  console.log(`Autonomous Castellan player
+CASTELLAN_TOKEN=... pnpm exec tsx connectors/autonomous/cli.ts --out /tmp/castellan-player
+pnpm exec tsx connectors/autonomous/cli.ts --practice eco --map open --out /tmp/castellan-practice
 Options: --server URL --practice BOT --map MAP --poll 1000
 All decisions run locally inside the player. No model login is required.
 Use a different --out per match/player. Reusing it resumes that player's checkpoint.`);
@@ -16,8 +19,8 @@ Use a different --out per match/player. Reusing it resumes that player's checkpo
 }
 const poll=Number(values.poll??1000);
 if(!Number.isFinite(poll)||poll<200||poll>10000)throw new Error('--poll must be 200..10000 milliseconds');
-const server=values.server??process.env.AOA_SERVER??'http://localhost:4400';
-let token=process.env.AOA_TOKEN;
+const server=values.server??process.env.CASTELLAN_SERVER??'http://localhost:4400';
+let token=process.env.CASTELLAN_TOKEN;
 if(values.practice){
   // Lobby setup only. Only the selected player's capability reaches the runtime.
   const lobby=client({server}),map=values.map??'open';
@@ -29,10 +32,10 @@ if(values.practice){
   token=room.players[0].token;
   console.log(`Match ${room.id}\nWatch: ${server}${room.watch}\nReplay after completion: ${server}/replay/${room.id}`);
 }
-if(!token)throw new Error('Set AOA_TOKEN or use --practice eco');
+if(!token)throw new Error('Set CASTELLAN_TOKEN or use --practice eco');
 const controller=new AbortController();
 process.once('SIGINT',()=>controller.abort());process.once('SIGTERM',()=>controller.abort());
-const outDir=resolve(values.out??`/tmp/aoa-autonomous-${Date.now()}`);
+const outDir=resolve(values.out??`/tmp/castellan-autonomous-${Date.now()}`);
 console.log(`Trace and checkpoint: ${outDir}`);
 const result=await runPlayer(httpTransport(server,token),{pollMs:poll,outDir,signal:controller.signal,onLog:entry=>{if(['plan','plan-completed','plan-abandoned','outcome'].includes(String(entry.type)))console.log(JSON.stringify(entry));}});
 console.log(JSON.stringify(result));

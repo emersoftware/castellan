@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { EntityKind } from "@aoa/shared";
+import type { EntityKind } from "@castellan/shared";
 import { PLAYER_RAMPS } from "../render/palette";
 import { ditherPixels } from "../render/cpuDither";
 import { isCharacter, normalizeCharacterContrast } from "../render/characterContrast";

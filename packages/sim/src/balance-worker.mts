@@ -5,7 +5,7 @@ import { createInterface } from "node:readline";
 import { fighterLoss, runBattle, type Snapshot, type Variant } from "./battles";
 import { rulesWith, type Values } from "./balance-params";
 import { scenario } from "./synthetic";
-const battles: Snapshot[] = JSON.parse(readFileSync(process.env.BATTLES ?? "/tmp/aoa-opt/battles.json", "utf8"));
+const battles: Snapshot[] = JSON.parse(readFileSync(process.env.BATTLES ?? "/tmp/castellan-opt/battles.json", "utf8"));
 export const VARIANTS: Variant[] = [{}, { open: true }, { jitter: 2, seed: 7 }];
 const add = (into: Record<string, number>, from: Record<string, number>, w = 1) => { for (const [k, v] of Object.entries(from)) into[k] = (into[k] ?? 0) + w * v; };
 for await (const line of createInterface({ input: process.stdin })) {

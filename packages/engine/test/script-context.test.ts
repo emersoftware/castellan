@@ -1,7 +1,7 @@
 import { afterEach, expect, it } from "vitest";
-import { rules, type Ruleset } from "@aoa/shared";
+import { rules, type Ruleset } from "@castellan/shared";
 import { createMatch, type Match } from "../src";
-import { createScriptHost, type UnitRun } from "@aoa/sandbox";
+import { createScriptHost, type UnitRun } from "@castellan/sandbox";
 
 const live: Match[] = [];
 afterEach(() => live.splice(0).forEach(m => m.dispose()));

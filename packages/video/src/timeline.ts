@@ -1,5 +1,5 @@
 import { staticFile } from "remotion";
-import { currentFrame, currentKind, type GameEvent, type Outcome, type PlayerStats, type RecordedKind } from "@aoa/shared";
+import { currentFrame, currentKind, type GameEvent, type Outcome, type PlayerStats, type RecordedKind } from "@castellan/shared";
 
 /** What packages/sim/src/video-timeline.mts writes for a replay (game milliseconds). */
 export interface Timeline {

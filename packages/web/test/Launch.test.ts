@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { SpectatorView } from '@aoa/shared';
+import type { SpectatorView } from '@castellan/shared';
 import { Landing, featuredBattles } from '../src/routes/Landing';
 import { ReplayPlayer } from '../src/routes/Replay';
 import { ShareMoment, momentUrl } from '../src/components/ShareMoment';

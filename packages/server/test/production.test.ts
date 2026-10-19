@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { rules } from "@aoa/shared";
+import { rules } from "@castellan/shared";
 import { Room } from "../src/room";
 
 it("restores queued production, reserved population and explored terrain without a second charge", async () => {

@@ -1,10 +1,10 @@
-# Castellan — evidence
+# Castellan Bot — evidence
 
-All matches below were played by the player in `connectors/castellan` with its own token only.
+All matches below were played by the player in `connectors/castellan-bot` with its own token only.
 Real-time rooms ran on the local server (`http://localhost:4400`, rules `v21d-no-unlocks`,
 10 ticks/s); each has a public replay at `http://localhost:5173/replay/<room>` once finished and
 a journal + summary under `evidence/<name>/`. Headless benchmarks run the same core against the
-reference bots through the engine (no server, no real time; `pnpm --filter @aoa/castellan bench`).
+reference bots through the engine (no server, no real time; `pnpm --filter @castellan/castellan-bot bench`).
 
 ## Real-time rooms
 
@@ -29,7 +29,7 @@ are not evidence for the delivered player.
 ## Headless benchmarks (engine, one decision per second, final code)
 
 Seed 100, castellan on seat 0. The bots are deterministic, so one game per pairing is
-representative; `pnpm --filter @aoa/castellan bench --n 2` flips sides.
+representative; `pnpm --filter @castellan/castellan-bot bench --n 2` flips sides.
 
 | map | opponent | result | time | what happened |
 |---|---|---|---|---|

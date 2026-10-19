@@ -5,7 +5,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { observedSeat, seat, seatOver } from "../game.mjs";
 import { MIN_INTERVAL_MS, turnFor } from "../turns.mjs";
 
-const stamp = ".aoa-last-turn"; // in the player's private working directory
+const stamp = ".castellan-last-turn"; // in the player's private working directory
 try {
   const since = Date.now() - (Number(await readFile(stamp, "utf8").catch(() => "0")) || 0);
   if (since < MIN_INTERVAL_MS) await sleep(MIN_INTERVAL_MS - since);

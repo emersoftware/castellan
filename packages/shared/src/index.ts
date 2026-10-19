@@ -2,6 +2,7 @@ export * from "./ruleset";
 export * from "./protocol";
 export * from "./outcome";
 export * from "./legacy";
+export * from "./legacyEnv";
 export * from "./replayMetadata";
 export * from "./replayArchive";
 export * from "./moment";

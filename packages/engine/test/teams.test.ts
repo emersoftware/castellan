@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rules, MAPS, type GameEvent, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { rules, MAPS, type GameEvent, type ReplayFile, type Ruleset } from "@castellan/shared";
 import { createMatch, runReplay } from "../src";
 
 /** 2v2: p1 and p2 (team 0) against p3 and p4 (team 1), one per seat. */

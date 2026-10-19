@@ -1,15 +1,15 @@
 {
-  "name": "@aoa/engine",
+  "name": "@castellan/engine",
   "version": "0.1.0",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@aoa/shared": "workspace:*",
-    "@aoa/sandbox": "workspace:*"
+    "@castellan/shared": "workspace:*",
+    "@castellan/sandbox": "workspace:*"
   },
   "devDependencies": {
-    "@aoa/sim": "workspace:*"
+    "@castellan/sim": "workspace:*"
   }
 }

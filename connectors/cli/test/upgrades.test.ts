@@ -5,12 +5,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildServer } from "@aoa/server";
-import { rules } from "@aoa/shared";
+import { buildServer } from "@castellan/server";
+import { rules } from "@castellan/shared";
 import { waitForStatus } from "../../../packages/server/test/support/readiness";
 
 it("researches through the real MCP schema, reports mineral and persists pending research across a server restart", async () => {
-  const replayDir = await mkdtemp(join(tmpdir(), "aoa-upgrade-api-"));
+  const replayDir = await mkdtemp(join(tmpdir(), "castellan-upgrade-api-"));
   const ruleset = { ...rules, matchMs: 15_000, upgrades: {
     worker_damage: { ...rules.upgrades!.worker_damage, levels: [{ cost: 150, researchMs: 3000, value: 5 }] },
   } };
@@ -26,8 +26,8 @@ it("researches through the real MCP schema, reports mineral and persists pending
     const tokens = current.map((c) => c.game.token);
     const headers = tokens.map((token: string) => ({ authorization: `Bearer ${token}` }));
     await mcp.connect(new StdioClientTransport({ command: process.execPath,
-      args: [fileURLToPath(new URL("../../mcp/bin/aoa-mcp.mjs", import.meta.url))],
-      env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", AOA_SERVER: server, AOA_TOKEN: tokens[0] },
+      args: [fileURLToPath(new URL("../../mcp/bin/castellan-mcp.mjs", import.meta.url))],
+      env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", CASTELLAN_SERVER: server, CASTELLAN_TOKEN: tokens[0] },
     }));
     const guide = await mcp.callTool({ name: "guide", arguments: {} });
     expect(JSON.stringify(guide.content)).toContain("worker_damage");

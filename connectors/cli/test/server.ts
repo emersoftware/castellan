@@ -1,12 +1,12 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildServer } from "@aoa/server";
-import { rules } from "@aoa/shared";
+import { buildServer } from "@castellan/server";
+import { rules } from "@castellan/shared";
 
 /** A real game server on a random port with a short match. */
 export async function startServer() {
-  const replayDir = await mkdtemp(join(tmpdir(), "aoa-cli-"));
+  const replayDir = await mkdtemp(join(tmpdir(), "castellan-cli-"));
   let app: Awaited<ReturnType<typeof buildServer>> | undefined;
   const close = async () => {
     await app?.close();

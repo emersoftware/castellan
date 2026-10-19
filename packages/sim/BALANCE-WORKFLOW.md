@@ -17,9 +17,9 @@ The October 7 local check, on `v21d-no-unlocks` with the redistributed map depos
 ## Recorded battles
 
 ```sh
-mkdir -p /tmp/aoa-balance-run
-REPLAYS="$PWD/replays" pnpm exec tsx packages/sim/src/extract-recent.mts > /tmp/aoa-balance-run/battles.json
-BATTLES=/tmp/aoa-balance-run/battles.json OUT_DIR=/tmp/aoa-balance-run/results pnpm exec tsx packages/sim/src/balance-optimize.mts 25 1
+mkdir -p /tmp/castellan-balance-run
+REPLAYS="$PWD/replays" pnpm exec tsx packages/sim/src/extract-recent.mts > /tmp/castellan-balance-run/battles.json
+BATTLES=/tmp/castellan-balance-run/battles.json OUT_DIR=/tmp/castellan-balance-run/results pnpm exec tsx packages/sim/src/balance-optimize.mts 25 1
 ```
 
 The optimizer arguments are maximum generations and maximum search hours. `VARIANTS=1` restricts evaluation to the original staging; the default includes open and jittered variants. `SYNTHETIC=0` omits designed scenarios. Use a new `OUT_DIR` for each experiment. `BATTLES` must contain at least three independent replay IDs, with usable combat in the search partition.

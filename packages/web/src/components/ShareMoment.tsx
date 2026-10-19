@@ -1,6 +1,6 @@
 import { track, trackError } from "../analytics";
 import { useState } from 'react';
-import { writeMoment } from "@aoa/shared";
+import { writeMoment } from "@castellan/shared";
 
 /** Share only public replay coordinates, never a spectator capability or other query data. */
 export function momentUrl(base: string, id: string, seconds: number, pov: string | null) {
@@ -18,7 +18,7 @@ export function ShareMoment({ id, seconds, pov }: { id: string; seconds: number;
     setMessage(''); setFallback('');
     const method = typeof navigator.share === "function" ? "native" : "clipboard";
     try {
-      if (method === "native") await navigator.share({ title: 'Age of Agents', text: 'Watch this moment', url });
+      if (method === "native") await navigator.share({ title: 'Castellan', text: 'Watch this moment', url });
       else { await navigator.clipboard.writeText(url); setMessage('Link copied'); }
       track('replay_moment_shared', { replay_id: id, seconds: Math.floor(seconds), perspective: pov ?? 'all', method });
     } catch (error) {

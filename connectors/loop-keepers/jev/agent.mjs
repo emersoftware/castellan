@@ -180,7 +180,7 @@ export function jevClient({ key, model, fetchImpl = fetch }) {
 
 /** The planner keeps one conversation per match (its last exchanges) and answers with a JSON plan. */
 export function plannerSession({ key, model, effort, rules, you, goal, fetchImpl = fetch }) {
-  const system = { role: "system", content: `You are the planner for player ${you} in Age of Agents. ${goal}
+  const system = { role: "system", content: `You are the planner for player ${you} in Castellan. ${goal}
 Another model chooses each order from bounded actions built from your plan: it trains or builds only toward your targets, attacks visible enemies, moves the army to your waypoint, sends idle workers to mine, and scouts.
 Reply with a JSON object: objective (string); targets (object: unit or building kind → total wanted, counting alive, queued and under construction; upgrade id → level); waypoint ({x,y} where the army goes when told, or null); notes (string); optionally message ({to: a player id or "all", text: at most 200 characters}); optionally scripts (object: unit kind → JavaScript function body, at most 4096 bytes, installed as that kind's per-tick script).
 
@@ -213,22 +213,22 @@ export function parsePlan(text) {
 }
 
 export async function play({ env = process.env, args = process.argv.slice(2), fetchImpl = fetch } = {}) {
-  if (!env.AOA_TOKEN) throw new Error("set AOA_TOKEN");
+  if (!env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN");
   const opts = options(args);
   const key = await loadKey(env);
-  if (!key) throw new Error("set OPENROUTER_API_KEY, save it in ~/.config/aoa/openrouter-api-key, or log in with `opencode auth login`");
-  const runs = join(homedir(), ".local", "state", "aoa", "jev");
+  if (!key) throw new Error("set OPENROUTER_API_KEY, save it in ~/.config/castellan/openrouter-api-key, or log in with `opencode auth login`");
+  const runs = join(homedir(), ".local", "state", "castellan", "jev");
   await mkdir(runs, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(join(runs, "run-"));
-  const goal = env.AOA_PROMPT || "Win the match.";
-  console.error(`aoa jev: ${opts.planner} (${opts.effort}) plans, ${opts.jev} chooses; logs ${root}`);
+  const goal = env.CASTELLAN_PROMPT || "Win the match.";
+  console.error(`castellan jev: ${opts.planner} (${opts.effort}) plans, ${opts.jev} chooses; logs ${root}`);
   await reportConfiguration(launchConfiguration({ connector: "jev", model: `${opts.planner}+${opts.jev}`, effort: opts.effort, prompt: goal, env }), { env, fetchImpl });
 
-  const server = serverUrl(env.AOA_SERVER);
+  const server = serverUrl(env.CASTELLAN_SERVER);
   const abort = new AbortController();
   const api = async (method, path, body) => {
     const res = await fetchImpl(server + path, { method, signal: AbortSignal.any([abort.signal, AbortSignal.timeout(10_000)]),
-      headers: { authorization: `Bearer ${env.AOA_TOKEN}`, ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
+      headers: { authorization: `Bearer ${env.CASTELLAN_TOKEN}`, ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
     const text = await res.text();
     let json; try { json = JSON.parse(text); } catch { json = text; }
     if (!res.ok) throw new Error(`game HTTP ${res.status}: ${typeof json === "string" ? json : json.error ?? ""}`);
@@ -263,7 +263,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         const result = await api("PUT", `/scripts/${kind}`, { code, lang: "js" }).then(() => "installed", e => `rejected: ${e.message.slice(0, 200)}`);
         recent.push({ action: `planner's ${kind} script`, result });
       }
-    })().catch(e => { console.error(`aoa jev: plan failed: ${e.message}`); lastPlanAt = Date.now() - REPLAN_MS + 3000; })
+    })().catch(e => { console.error(`castellan jev: plan failed: ${e.message}`); lastPlanAt = Date.now() - REPLAN_MS + 3000; })
       .finally(() => { planning = null; });
   };
 
@@ -300,7 +300,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         if (stopped) break;
         failures++;
         const ms = Math.min(30_000, 1000 * failures);
-        console.error(`aoa jev: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s`);
+        console.error(`castellan jev: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s`);
         await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + ms).toISOString() });
         await sleep(ms, undefined, { signal: abort.signal }).catch(() => {});
       }
@@ -309,7 +309,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   } finally {
     stop();
     process.off("SIGINT", stop); process.off("SIGTERM", stop);
-    console.error(`aoa jev usage: ${JSON.stringify({ decisions, plans, jevUsd: +jevCost.toFixed(4), plannerUsd: +(planner?.cost ?? 0).toFixed(4) })}`);
+    console.error(`castellan jev usage: ${JSON.stringify({ decisions, plans, jevUsd: +jevCost.toFixed(4), plannerUsd: +(planner?.cost ?? 0).toFixed(4) })}`);
     await reportActivity("stopped", { env, fetchImpl });
   }
 }

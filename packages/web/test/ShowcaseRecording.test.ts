@@ -1,6 +1,6 @@
 import { gzipSync } from "node:zlib";
 import { expect, it } from "vitest";
-import { rules, type SpectatorView } from "@aoa/shared";
+import { rules, type SpectatorView } from "@castellan/shared";
 import { decodeShowcaseChunk, encodeShowcaseChunk, parseShowcaseManifest, readShowcaseChunk } from "../src/showcaseRecording";
 
 const initial = (): SpectatorView => ({

@@ -3,7 +3,7 @@
  * ladder. A bot sees exactly what an LLM player sees (a PlayerView) and answers
  * with the same orders, so a bot with a decision delay models an LLM.
  */
-import { currentKind, rules, type EntityKind, type Order, type PlayerView, type Ruleset } from "@aoa/shared";
+import { currentKind, rules, type EntityKind, type Order, type PlayerView, type Ruleset } from "@castellan/shared";
 
 export type Bot = (view: PlayerView) => Order[];
 

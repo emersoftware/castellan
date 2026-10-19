@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { rules, type ReplayFile } from "@aoa/shared";
+import { rules, type ReplayFile } from "@castellan/shared";
 import { scriptAt } from "../src/scripts";
 
 it("finds the script a unit runs at a given moment of a replay", () => {

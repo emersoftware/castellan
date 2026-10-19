@@ -4,7 +4,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { ReactNode } from "react";
 import { SeriesViewer } from "../src/routes/Series";
-import type { SeriesSummary } from "@aoa/shared";
+import type { SeriesSummary } from "@castellan/shared";
 
 const mock = vi.hoisted(() => ({ series: {} as SeriesSummary, replay: {} as { id: string; onEnded?: () => void; series?: ReactNode }, watch: "" }));
 vi.mock("@tanstack/react-router", () => ({ Link: () => null }));

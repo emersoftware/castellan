@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { currentRuleset, type ReplayFile, type SpectatorView } from "@aoa/shared";
+import { currentRuleset, type ReplayFile, type SpectatorView } from "@castellan/shared";
 import type { WorkerIn, WorkerOut } from "./replay.worker";
-import type { ReplayOptions } from "@aoa/engine";
+import type { ReplayOptions } from "@castellan/engine";
 import { frameCompactor } from "./compactFrames";
 
 /**

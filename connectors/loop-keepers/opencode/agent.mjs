@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 import { connectorVersion, launchConfiguration, reportConfiguration, reportActivity } from "../metadata.mjs";
-import { observedSeat, seat, seatOver, serverUrl } from "../game.mjs";
+import { configFile, observedSeat, seat, seatOver, serverUrl } from "../game.mjs";
 import { loadKey as loadDeepSeekKey } from "../deepseek/key.mjs";
 import { MIN_INTERVAL_MS, promptOf, turnFor } from "../turns.mjs";
 
@@ -24,10 +24,10 @@ export function options(args) {
   return values;
 }
 
-// OpenRouter key: env, then a private aoa key file, then OpenCode's own stored credential.
+// OpenRouter key: env, then a private castellan key file, then OpenCode's own stored credential.
 export async function loadKey(env = process.env) {
   if (env.OPENROUTER_API_KEY?.trim()) return env.OPENROUTER_API_KEY.trim();
-  const file = env.AOA_OPENROUTER_KEY_FILE || join(homedir(), ".config", "aoa", "openrouter-api-key");
+  const file = env.CASTELLAN_OPENROUTER_KEY_FILE || configFile("openrouter-api-key");
   try {
     if ((await stat(file)).mode & 0o077) throw new Error(`OpenRouter key file must be private: chmod 600 ${file}`);
     return (await readFile(file, "utf8")).trim();
@@ -42,22 +42,22 @@ export async function preparePlayer({ root, token, server = serverUrl(), key, mo
   const workspace = join(root, "workspace"), home = join(root, "home");
   await mkdir(workspace, { recursive: true, mode: 0o700 });
   await mkdir(home, { recursive: true, mode: 0o700 });
-  // Only the aoa MCP tools; every built-in (shell, files, web, subagents, skills) is off and denied.
+  // Only the castellan MCP tools; every built-in (shell, files, web, subagents, skills) is off and denied.
   const config = {
     $schema: "https://opencode.ai/config.json",
     autoupdate: false, share: "disabled", snapshot: false, formatter: false, lsp: false,
     enabled_providers: [model.split("/")[0]],
-    mcp: { aoa: { type: "local", command: [process.execPath, resolve(here, "../../mcp/bin/aoa-mcp.mjs")],
-      environment: { AOA_SERVER: server, AOA_TOKEN: token }, timeout: 60000 } },
-    tools: { "*": false, "aoa_*": true },
-    permission: { "*": "deny", "aoa_*": "allow" },
+    mcp: { castellan: { type: "local", command: [process.execPath, resolve(here, "../../mcp/bin/castellan-mcp.mjs")],
+      environment: { CASTELLAN_SERVER: server, CASTELLAN_TOKEN: token }, timeout: 60000 } },
+    tools: { "*": false, "castellan_*": true },
+    permission: { "*": "deny", "castellan_*": "allow" },
   };
   // OpenCode's built-in OpenRouter variants stop at "low"; "none" turns reasoning off.
   const [provider, ...rest] = model.split("/");
   const modelConfig = {};
   if (variant === "none" && provider === "openrouter") modelConfig.variants = { none: { reasoning: { effort: "none" } } };
-  // AOA_OPENROUTER_PROVIDER pins OpenRouter to the listed upstream providers, without fallback (e.g. "deepseek").
-  if (env.AOA_OPENROUTER_PROVIDER && provider === "openrouter") modelConfig.options = { provider: { order: env.AOA_OPENROUTER_PROVIDER.split(","), allow_fallbacks: false } };
+  // CASTELLAN_OPENROUTER_PROVIDER pins OpenRouter to the listed upstream providers, without fallback (e.g. "deepseek").
+  if (env.CASTELLAN_OPENROUTER_PROVIDER && provider === "openrouter") modelConfig.options = { provider: { order: env.CASTELLAN_OPENROUTER_PROVIDER.split(","), allow_fallbacks: false } };
   // OpenCode's DeepSeek catalog has no effort variants; the API takes reasoning_effort.
   if (variant && provider === "deepseek") modelConfig.variants = { [variant]: { reasoningEffort: variant } };
   if (Object.keys(modelConfig).length) config.provider = { [provider]: { models: { [rest.join("/")]: modelConfig } } };
@@ -67,7 +67,7 @@ export async function preparePlayer({ root, token, server = serverUrl(), key, mo
   const childEnv = Object.fromEntries(["PATH", "TMPDIR", "LANG", "LC_ALL", "SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS"].filter((k) => env[k]).map((k) => [k, env[k]]));
   Object.assign(childEnv, {
     HOME: home, XDG_CONFIG_HOME: join(home, ".config"), XDG_DATA_HOME: join(home, ".local", "share"), XDG_STATE_HOME: join(home, ".local", "state"),
-    XDG_CACHE_HOME: join(homedir(), ".cache", "aoa", "opencode"),
+    XDG_CACHE_HOME: join(homedir(), ".cache", "castellan", "opencode"),
     OPENCODE_CONFIG: configPath, OPENCODE_PURE: "1", OPENCODE_DISABLE_PROJECT_CONFIG: "1", OPENCODE_DISABLE_CLAUDE_CODE: "1",
     OPENCODE_DISABLE_EXTERNAL_SKILLS: "1", OPENCODE_DISABLE_AUTOUPDATE: "1", OPENCODE_DISABLE_SHARE: "1", OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
     ...(provider === "deepseek" ? { DEEPSEEK_API_KEY: key ?? "" } : { OPENROUTER_API_KEY: key ?? "" }),
@@ -94,7 +94,7 @@ export function usage(lines) {
 }
 
 // OpenCode labels even OpenRouter's temporary in-flight budget error as
-// non-retryable. Preserve its Retry-After instead of spending aoa run's fast
+// non-retryable. Preserve its Retry-After instead of spending castellan run's fast
 // failure allowance on requests the provider has already asked us to defer.
 export function providerRetryAfter(lines, now = Date.now()) {
   for (const line of [...lines].reverse()) {
@@ -121,24 +121,24 @@ export function providerRetryAfter(lines, now = Date.now()) {
 export async function play({ env = process.env, args = process.argv.slice(2), fetchImpl = fetch, spawnImpl = spawn,
   minIntervalMs = MIN_INTERVAL_MS, pollMs = 2000 } = {}) {
   const opts = options(args);
-  if (!env.AOA_TOKEN) throw new Error("set AOA_TOKEN (see aoa new or aoa run-series)");
+  if (!env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN (see castellan new or castellan run-series)");
   // deepseek/<model> goes straight to DeepSeek's API with the DeepSeek player's key; everything else through OpenRouter.
   const direct = opts.model.startsWith("deepseek/");
   const key = direct ? await loadDeepSeekKey(env) : await loadKey(env);
   if (!key) throw new Error(direct ? "set DEEPSEEK_API_KEY or run node connectors/loop-keepers/deepseek/key.mjs"
-    : "set OPENROUTER_API_KEY, save it in ~/.config/aoa/openrouter-api-key, or log in with `opencode auth login`");
-  const runs = join(homedir(), ".local", "state", "aoa", "opencode");
+    : "set OPENROUTER_API_KEY, save it in ~/.config/castellan/openrouter-api-key, or log in with `opencode auth login`");
+  const runs = join(homedir(), ".local", "state", "castellan", "opencode");
   await mkdir(runs, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(join(runs, "run-"));
-  const player = await preparePlayer({ root, token: env.AOA_TOKEN, server: serverUrl(env.AOA_SERVER), key, ...opts, env });
+  const player = await preparePlayer({ root, token: env.CASTELLAN_TOKEN, server: serverUrl(env.CASTELLAN_SERVER), key, ...opts, env });
   const base = promptOf(env);
   // Optional experiment instruction for this player only; kept across relaunches.
-  if (env.AOA_DIRECTIVE) {
-    await writeFile(join(root, "run.json"), JSON.stringify({ ...player.metadata, directive: env.AOA_DIRECTIVE }, null, 2), { mode: 0o600 });
+  if (env.CASTELLAN_DIRECTIVE) {
+    await writeFile(join(root, "run.json"), JSON.stringify({ ...player.metadata, directive: env.CASTELLAN_DIRECTIVE }, null, 2), { mode: 0o600 });
   }
-  console.error(`aoa opencode: ${opts.model}${opts.variant ? ` (${opts.variant})` : ""}; logs ${root}${env.AOA_DIRECTIVE ? `; directive: ${env.AOA_DIRECTIVE}` : ""}`);
+  console.error(`castellan opencode: ${opts.model}${opts.variant ? ` (${opts.variant})` : ""}; logs ${root}${env.CASTELLAN_DIRECTIVE ? `; directive: ${env.CASTELLAN_DIRECTIVE}` : ""}`);
   await reportConfiguration(launchConfiguration({ connector: "opencode", model: opts.model, effort: opts.variant,
-    connectorVersion: env.AOA_CONNECTOR_VERSION || await connectorVersion(env.AOA_OPENCODE_BIN || "opencode"), prompt: base, env }), { env, fetchImpl });
+    connectorVersion: env.CASTELLAN_CONNECTOR_VERSION || await connectorVersion(env.CASTELLAN_OPENCODE_BIN || "opencode"), prompt: base, env }), { env, fetchImpl });
   let child, session, watcher, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0;
   const lines = [];
   const abort = new AbortController();
@@ -162,11 +162,11 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         const observation = await game.observation(lastDeliveredTick);
         const seen = observedSeat(observation);
         if (seatOver(seen)) { finished = true; break; }
-        const prompt = turnFor(observation, { delivered: Boolean(session), prompt: base, resumed: Boolean(env.AOA_RESUME) });
+        const prompt = turnFor(observation, { delivered: Boolean(session), prompt: base, resumed: Boolean(env.CASTELLAN_RESUME) });
         if (!prompt) { await delay(1000); continue; }
         const observedTick = seen.tick;
         await reportActivity("deciding", { env, fetchImpl });
-        child = spawnImpl(env.AOA_OPENCODE_BIN || "opencode", [...player.args, ...(session ? ["--session", session] : []), prompt],
+        child = spawnImpl(env.CASTELLAN_OPENCODE_BIN || "opencode", [...player.args, ...(session ? ["--session", session] : []), prompt],
           { cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "inherit"] });
         const turn = [];
         let pending = "";
@@ -181,7 +181,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         const retry = code !== 0 ? providerRetryAfter(turn) : null;
         if (retry) {
           await reportActivity("provider_wait", { env, fetchImpl, retryAt: new Date(Date.now() + retry.delayMs).toISOString() });
-          console.error(`aoa opencode: ${retry.reason}; waiting ${retry.delayMs / 1000}s (Retry-After); the match keeps running`);
+          console.error(`castellan opencode: ${retry.reason}; waiting ${retry.delayMs / 1000}s (Retry-After); the match keeps running`);
           await delay(retry.delayMs);
           continue;
         }
@@ -196,7 +196,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         if (stopped) break;
         failures++;
         const ms = Math.min(30_000, 2000 * failures);
-        console.error(`aoa opencode: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
+        console.error(`castellan opencode: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
         await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + ms).toISOString() });
         await delay(ms).catch(() => {});
       }
@@ -208,7 +208,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
     const totals = usage(lines);
     await writeFile(join(root, "events.jsonl"), lines.join("\n"), { mode: 0o600 });
     await writeFile(join(root, "usage.json"), JSON.stringify(totals, null, 2), { mode: 0o600 });
-    console.error(`aoa opencode usage: ${JSON.stringify(totals)}`);
+    console.error(`castellan opencode usage: ${JSON.stringify(totals)}`);
     await reportActivity("stopped", { env, fetchImpl });
   }
 }

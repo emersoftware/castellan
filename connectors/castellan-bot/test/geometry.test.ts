@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAPS } from "@aoa/shared";
+import { MAPS } from "@castellan/shared";
 import { Frame, dist } from "../src/geometry";
 
 describe("geometry", () => {

@@ -1,4 +1,4 @@
-import { publishedRoutes, replayArchive, routes, type MatchStatus, type Outcome, type PlayerTiming, type ReplayFile, type ReplayPlayerSummary, type RoomMode, type SeriesReplay, type SeriesSummary } from "@aoa/shared";
+import { publishedRoutes, replayArchive, routes, type MatchStatus, type Outcome, type PlayerTiming, type ReplayFile, type ReplayPlayerSummary, type RoomMode, type SeriesReplay, type SeriesSummary } from "@castellan/shared";
 import { analyticsHeaders } from "./analytics";
 import { catalogBattles } from "./replayCatalog";
 
@@ -116,7 +116,7 @@ export async function readReplayFile(file: File): Promise<ReplayFile | SeriesRep
     if (r.series?.totalGames !== 3 || r.series.status !== "finished" || !Array.isArray(r.games) || r.games.length !== 3 || r.games.some((g) => g.format !== 1 || !Array.isArray(g.orders))) throw new Error("not a complete three-game series replay");
     return r;
   }
-  if (r.format !== 1 || !Array.isArray(r.orders)) throw new Error("not an Age of Agents replay");
+  if (r.format !== 1 || !Array.isArray(r.orders)) throw new Error("not an Castellan replay");
   return r;
 }
 

@@ -1,7 +1,7 @@
 # DeepSeek Harness player
 
 Runs the official **DeepSeek Harness (`dsh`) 0.1.7-rc.2**, headless, against
-the existing AoA MCP. Default model: `deepseek-flash`; effort: `low`.
+the existing Castellan MCP. Default model: `deepseek-flash`; effort: `low`.
 The game engine, tool responses, initial gameplay prompt and series history
 remain shared with the other connectors. `dsh` owns the agent loop.
 
@@ -14,7 +14,7 @@ node connectors/loop-keepers/deepseek/setup.mjs
 node connectors/loop-keepers/deepseek/agent.mjs --check
 ```
 
-Installation lives under `~/.cache/aoa/dsh/0.1.7-rc.2`, separate from the game's
+Installation lives under `~/.cache/castellan/dsh/0.1.7-rc.2`, separate from the game's
 dependencies and any personal dsh installation. The top-level harness version
 is pinned and verified before launch. npm retains its resolved dependency lock
 there. `--check` composes the real CLI profile without calling a model or joining
@@ -26,10 +26,10 @@ Save the key locally using hidden terminal input:
 node connectors/loop-keepers/deepseek/key.mjs
 ```
 
-This stores it outside the repository at `~/.config/aoa/deepseek-api-key` with
+This stores it outside the repository at `~/.config/castellan/deepseek-api-key` with
 mode 0600. The launcher reads it automatically across terminal sessions.
 Alternatively set `DEEPSEEK_API_KEY` in the shell that launches the player;
-the environment takes precedence. `AOA_DEEPSEEK_KEY_FILE` selects another
+the environment takes precedence. `CASTELLAN_DEEPSEEK_KEY_FILE` selects another
 private key file. Use your personal
 DeepSeek API account. The connector does not read Google ADC, Vertex billing,
 Claude/Codex credentials or a personal dsh login. Do not commit or paste the key
@@ -39,11 +39,11 @@ into game chat, source or launch commands saved in logs.
 
 ```sh
 # After saving the key, or with DEEPSEEK_API_KEY set:
-AOA_TOKEN=<game-token> connectors/loop-keepers/deepseek/play.sh \
+CASTELLAN_TOKEN=<game-token> connectors/loop-keepers/deepseek/play.sh \
   --model deepseek-flash --effort low
 ```
 
-`play.sh` uses `aoa run` to relaunch a process that exits before the game ends.
+`play.sh` uses `castellan run` to relaunch a process that exits before the game ends.
 The existing fast-failure budget still applies. A restarted attempt starts a
 fresh dsh session and receives the common recovery instruction to read `state`.
 It never resumes a different player's conversation.
@@ -51,7 +51,7 @@ It never resumes a different player's conversation.
 ## Three-game series
 
 ```sh
-AOA_TOKEN=<series-participant-token> pnpm aoa run-series -- \
+CASTELLAN_TOKEN=<series-participant-token> pnpm castellan run-series -- \
   node connectors/loop-keepers/deepseek/agent.mjs \
   --model deepseek-flash --effort low
 ```
@@ -61,7 +61,7 @@ and passes a fresh game token per game. Model and effort stay the same; each
 attempt gets a separate workspace and dsh home. `guide`, `state` and `history`
 expose the series history through the game API.
 
-`AOA_DIRECTIVE` appends one extra instruction to that player's prompt (see the
+`CASTELLAN_DIRECTIVE` appends one extra instruction to that player's prompt (see the
 connectors README); it is recorded in `run.json`.
 
 Accepted player flags: `--model <id>`, `--effort off|low|high|max`, `--check`.
@@ -74,10 +74,10 @@ budgets across vendors.
 
 ## Tools and isolation
 
-The model sees exactly `mcp__aoa__guide`, `state`, `act`, `run`, `script`, `wait`, `chat`
+The model sees exactly `mcp__castellan__guide`, `state`, `act`, `run`, `script`, `wait`, `chat`
 and `history` under that namespace. Built-in shell, filesystem, web, delegation,
 plugin-management and generic MCP-resource tools are disabled. A plugin also
-restricts the visible catalog and denies every non-AoA tool at execution.
+restricts the visible catalog and denies every non-Castellan tool at execution.
 If the expected eight-tool catalog is missing, the player fails before its first
 model request. Tool timeouts allow the game's 30-second long polling.
 
@@ -98,12 +98,12 @@ permissions. The shared game MCP reads its own implementation files normally.
 ## Logs and usage
 
 The launcher prints the attempt's directory under
-`~/.local/state/aoa/deepseek/run-*`. It contains:
+`~/.local/state/castellan/deepseek/run-*`. It contains:
 
 - `run.json`: requested model, effort, harness version and paths, without keys.
 - `dsh/sessions/`: the harness's durable JSONL session and tool records.
 - `usage.json`: provider-reported input/output/cache tokens after the process exits.
-- `aoa.patch.json`: private generated profile, including the game token.
+- `castellan.patch.json`: private generated profile, including the game token.
 
 The CLI streams dsh JSON events on stdout; diagnostics and a usage summary go
 to stderr. Token totals sum committed assistant responses; they are not a

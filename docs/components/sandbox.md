@@ -1,4 +1,4 @@
-# @aoa/sandbox
+# @castellan/sandbox
 Runs bot scripts with `quickjs-emscripten` (QuickJS in WASM). Chosen over isolated-vm for isolation (WASM + interpreter), determinism and browser support. isolated-vm is in maintenance mode.
 
 - One QuickJS runtime per player: `setMemoryLimit(8MB)`, `setMaxStackSize`.

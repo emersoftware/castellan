@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { rules, MAPS, playerGuide, viewToText, type ReplayFile, type Ruleset } from '@aoa/shared';
+import { rules, MAPS, playerGuide, viewToText, type ReplayFile, type Ruleset } from '@castellan/shared';
 import { createMatch, runReplay } from '../src/index';
 
 it('uses king in every map, the rules and state', async () => {

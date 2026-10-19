@@ -3,7 +3,7 @@
  * each sound is rate-limited, capped in simultaneous voices and quieter the more often it just played; blows of
  * the same tick are spread over a few milliseconds, and only noises get a slight pitch jitter.
  */
-import type { SoundName } from "@aoa/shared";
+import type { SoundName } from "@castellan/shared";
 
 const MIN_GAP_MS: Partial<Record<SoundName, number>> = { sword: 90, hit: 160, arrow: 200, tower: 250, death: 90, spawn: 120, pick: 110, footstep: 180 };
 const MAX_PER_SOUND: Partial<Record<SoundName, number>> = { sword: 3, hit: 2, arrow: 2, tower: 2, death: 3, pick: 2, footstep: 2 };

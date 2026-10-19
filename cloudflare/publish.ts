@@ -39,7 +39,7 @@ const changed = publication.replays.filter(({ replay }) => sql.includes(`VALUES(
 console.log(`${publication.replays.length} agent battles (${changed} new or changed), ${publication.series.length} complete series; ${publication.excluded} bot/demo recordings excluded.`);
 if (!sql) console.log("Nothing to publish.");
 else if (!args.includes("--dry-run")) {
-  const dir = await mkdtemp(join(tmpdir(), "aoa-publish-"));
+  const dir = await mkdtemp(join(tmpdir(), "castellan-publish-"));
   try {
     const file = join(dir, "replays.sql");
     await writeFile(file, sql, { mode: 0o600 });

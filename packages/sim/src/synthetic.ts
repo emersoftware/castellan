@@ -5,7 +5,7 @@
  * both sides and with several script sets: standard, the built-in defaults, group tactics and scripts players wrote.
  */
 import { existsSync, readFileSync } from "node:fs";
-import { HOLD_SCRIPT, type EntityKind, type Ruleset } from "@aoa/shared";
+import { HOLD_SCRIPT, type EntityKind, type Ruleset } from "@castellan/shared";
 import type { Snapshot } from "./battles";
 
 type Kind = Extract<EntityKind, "knight" | "archer" | "tower">;
@@ -51,7 +51,7 @@ export const SCENARIOS: Scenario[] = [
  *  first the knight and archer scripts from the v18–v19 games, then older ones). */
 type ScriptSet = Record<string, string>;
 const recorded: ScriptSet[] = (() => {
-  const file = process.env.SCRIPTS ?? "/tmp/aoa-opt/script-sets.json";
+  const file = process.env.SCRIPTS ?? "/tmp/castellan-opt/script-sets.json";
   return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : [];
 })();
 /** Pairs of script sets (side A, side B) every scenario is fought with. */

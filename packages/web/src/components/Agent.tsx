@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from "react";
-import { effortText, NEUTRAL_OWNER, NEUTRAL_OWNER_NAME } from "@aoa/shared";
+import { effortText, NEUTRAL_OWNER, NEUTRAL_OWNER_NAME } from "@castellan/shared";
 
 /** An agent wherever it is named: name and id in its player's colour, "Opus (p1)", so chat mentions of p1 read clearly. */
 export function Agent({ id, name, color, effort }: { id: string; name?: string; color?: number; effort?: string | null }) {

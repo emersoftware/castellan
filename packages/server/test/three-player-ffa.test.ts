@@ -4,8 +4,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { MAPS, rules, type PlayerView, type ReplayFile } from "@aoa/shared";
-import { runReplay } from "@aoa/engine";
+import { MAPS, rules, type PlayerView, type ReplayFile } from "@castellan/shared";
+import { runReplay } from "@castellan/engine";
 import { buildServer } from "../src/app";
 import { Room, type RoomCheckpoint } from "../src/room";
 import { waitForReplay, waitForStatus } from "./support/readiness";
@@ -24,7 +24,7 @@ afterEach(async () => {
 const players = ["One", "Two", "Three"].map(name => ({ name }));
 
 it.each(["fixed", "random"] as const)("starts exactly three opponents in distinct %s corners and publishes their verified replay", async sides => {
-  dir = await mkdtemp(join(tmpdir(), "aoa-three-player-"));
+  dir = await mkdtemp(join(tmpdir(), "castellan-three-player-"));
   app = await buildServer({ replayDir: dir, ruleset: { ...rules, fourSeatMatchMs: 800 }, prepMs: 0 });
   const created = await app.inject({ method: "POST", url: "/rooms", payload: {
     map: "fortress-quad", mode: "ffa", sides, seed: 419, players,

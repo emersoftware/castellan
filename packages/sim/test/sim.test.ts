@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createMatch, type MatchConfig, type PlayerOrder } from "@aoa/engine";
-import { MAPS, rules, type ExperimentManifest, type Ruleset } from "@aoa/shared";
+import { createMatch, type MatchConfig, type PlayerOrder } from "@castellan/engine";
+import { MAPS, rules, type ExperimentManifest, type Ruleset } from "@castellan/shared";
 import { BOTS, simulate } from "../src";
 import { assertBalanceReplay, replayContinuation, resumeBattle, runBattle, type Snapshot } from "../src/battles";
 import { splitReplays } from "../src/experiment-split";

@@ -1,0 +1,27 @@
+{
+  "name": "@castellan/castellan-bot",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Castellan Bot: an autonomous Castellan player with local strategic decisions.",
+  "bin": {
+    "castellan-bot": "./bin/castellan-bot.mjs"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "play": "tsx src/main.ts",
+    "evidence": "tsx src/evidence.ts",
+    "bench": "tsx src/bench.ts"
+  },
+  "dependencies": {
+    "@castellan/cli": "workspace:*",
+    "@castellan/shared": "workspace:*",
+    "tsx": "^4.20.0"
+  },
+  "devDependencies": {
+    "@castellan/engine": "workspace:*",
+    "@castellan/sim": "workspace:*",
+    "@castellan/server": "workspace:*"
+  }
+}

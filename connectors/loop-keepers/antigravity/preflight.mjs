@@ -78,7 +78,7 @@ export async function runPreflight({ model, effort = "low", transport = "cli", a
   if (!["cli", "mcp"].includes(transport)) throw new Error("--transport must be cli or mcp.");
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 60_000) throw new Error("Preflight timeout must be between 1 and 60000 ms.");
   const workspace = await realpath(await mkdtemp(join(tmpdir(), "aap-")));
-  const projectId = `aoa-preflight-${randomUUID()}`;
+  const projectId = `castellan-preflight-${randomUUID()}`;
   const projectDir = join(homedir(), ".gemini/config/projects");
   const projectPath = join(projectDir, `${projectId}.json`);
   const token = randomUUID(); // Disposable diagnostic capability, never a player's.
@@ -105,19 +105,19 @@ export async function runPreflight({ model, effort = "low", transport = "cli", a
     const endpoint = `http://127.0.0.1:${/** @type {import("node:net").AddressInfo} */ (server.address()).port}`;
     if (transport === "cli") bridge = await startToolBridge({ socketPath: join(workspace, "tools.sock"), server: endpoint, token });
     const project = await preparePlayer({ workspace, projectId, server: endpoint, token, transport, bridge });
-    if (transport === "mcp") project.permissionGrants.permissionGrants.allow.push(`read_file(${join(homedir(), ".gemini/antigravity-cli/mcp/aoa")})`);
+    if (transport === "mcp") project.permissionGrants.permissionGrants.allow.push(`read_file(${join(homedir(), ".gemini/antigravity-cli/mcp/castellan")})`);
     await mkdir(projectDir, { recursive: true });
     await writeFile(projectPath, JSON.stringify(project, null, 2), { flag: "wx", mode: 0o600 });
-    const tool = join(workspace, "bin/aoa-tool");
+    const tool = join(workspace, "bin/castellan-tool");
     const instructions = transport === "cli"
       ? `Use run_command twice, calling ${tool} guide '{}' and then ${tool} state '{}'.`
-      : "Call the aoa MCP guide tool once, then the aoa MCP state tool once.";
-    const prompt = `This is a connection diagnostic, not a game. ${instructions} Return both tool names and the exact nonce from each response. You may read the aoa tool schemas if necessary. Do not guess values, delegate, read unrelated files, or send any other actions. If either tool is unavailable, say so and stop.`;
+      : "Call the castellan MCP guide tool once, then the castellan MCP state tool once.";
+    const prompt = `This is a connection diagnostic, not a game. ${instructions} Return both tool names and the exact nonce from each response. You may read the castellan tool schemas if necessary. Do not guess values, delegate, read unrelated files, or send any other actions. If either tool is unavailable, say so and stop.`;
     const childEnv = { ...env };
-    delete childEnv.AOA_TOKEN;
-    delete childEnv.AOA_SERVER;
-    delete childEnv.AOA_RESUME;
-    const result = await invoke(agy || env.AOA_AGY_BIN || "agy", [
+    delete childEnv.CASTELLAN_TOKEN;
+    delete childEnv.CASTELLAN_SERVER;
+    delete childEnv.CASTELLAN_RESUME;
+    const result = await invoke(agy || env.CASTELLAN_AGY_BIN || "agy", [
       "--project", projectId, "--model", model, "--effort", effort,
       "--output-format", "json", "--print-timeout", `${timeoutMs}ms`, "-p", prompt,
     ], { cwd: workspace, env: childEnv, timeoutMs });
@@ -138,9 +138,9 @@ export async function runPreflight({ model, effort = "low", transport = "cli", a
 }
 
 async function main() {
-  const args = process.argv.slice(2), options = { transport: process.env.AOA_AGY_TRANSPORT || "cli" };
+  const args = process.argv.slice(2), options = { transport: process.env.CASTELLAN_AGY_TRANSPORT || "cli" };
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) {
-    console.log("Usage: node preflight.mjs --model <id> [--effort low] [--transport cli|mcp]\nRuns one paid model prompt against a disposable diagnostic server. Does not join a game. Inherits AGY_ADC_AUTH and AOA_AGY_BIN. Deadline: 60 seconds.");
+    console.log("Usage: node preflight.mjs --model <id> [--effort low] [--transport cli|mcp]\nRuns one paid model prompt against a disposable diagnostic server. Does not join a game. Inherits AGY_ADC_AUTH and CASTELLAN_AGY_BIN. Deadline: 60 seconds.");
     return;
   }
   for (let i = 0; i < args.length; i += 2) {

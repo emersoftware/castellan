@@ -4,13 +4,13 @@
 // prompts; everything a keeper sends is built here.
 import { observedSeat } from "./game.mjs";
 
-/** The whole initial instruction unless AOA_PROMPT replaces it. The game tools and `guide` explain the rest. */
+/** The whole initial instruction unless CASTELLAN_PROMPT replaces it. The game tools and `guide` explain the rest. */
 export const DEFAULT_PROMPT = "PLAY";
 
-/** The player's instruction: AOA_PROMPT or the default, plus an optional per-player AOA_DIRECTIVE. */
+/** The player's instruction: CASTELLAN_PROMPT or the default, plus an optional per-player CASTELLAN_DIRECTIVE. */
 export function promptOf(env = process.env) {
-  const prompt = env.AOA_PROMPT ?? DEFAULT_PROMPT;
-  return env.AOA_DIRECTIVE ? `${prompt}\n\n${env.AOA_DIRECTIVE}` : prompt;
+  const prompt = env.CASTELLAN_PROMPT ?? DEFAULT_PROMPT;
+  return env.CASTELLAN_DIRECTIVE ? `${prompt}\n\n${env.CASTELLAN_DIRECTIVE}` : prompt;
 }
 
 const firstTurn = (prompt, observation) => `${prompt}\n\n${observation}`;

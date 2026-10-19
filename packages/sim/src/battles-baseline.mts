@@ -1,8 +1,8 @@
 // Baseline: every recorded battle under the current rules, as recorded and without walls.
 import { readFileSync } from "node:fs";
-import type { EntityKind } from "@aoa/shared";
+import type { EntityKind } from "@castellan/shared";
 import { runBattle, type Snapshot } from "./battles";
-const battles: Snapshot[] = JSON.parse(readFileSync(process.argv[2] ?? "/tmp/aoa-opt/battles.json", "utf8"));
+const battles: Snapshot[] = JSON.parse(readFileSync(process.argv[2] ?? "/tmp/castellan-opt/battles.json", "utf8"));
 const t0 = Date.now();
 const sum = (into: Record<string, number>, from: Record<string, number>) => { for (const [k, v] of Object.entries(from)) into[k] = (into[k] ?? 0) + v; };
 const destroyed: Record<string, number> = {}, lost: Record<string, number> = {}, engaged: Record<string, number> = {};

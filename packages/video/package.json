@@ -1,12 +1,12 @@
 {
   "name": "video",
   "version": "1.0.0",
-  "description": "Replay highlights and promo compositions for Age of Agents",
+  "description": "Replay highlights and promo compositions for Castellan",
   "repository": {},
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
-    "@aoa/shared": "workspace:*",
+    "@castellan/shared": "workspace:*",
     "@remotion/cli": "4.0.533",
     "@remotion/media": "4.0.533",
     "@remotion/transitions": "4.0.533",

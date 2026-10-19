@@ -1,6 +1,6 @@
-import { createMatch, runReplay, type PlayerOrder, type ReplayCheck, type ReplayOptions } from "@aoa/engine";
-import { createScriptHost } from "@aoa/sandbox";
-import type { ReplayFile, SpectatorView } from "@aoa/shared";
+import { createMatch, runReplay, type PlayerOrder, type ReplayCheck, type ReplayOptions } from "@castellan/engine";
+import { createScriptHost } from "@castellan/sandbox";
+import type { ReplayFile, SpectatorView } from "@castellan/shared";
 
 /** Viewer-only recovery: reproduce recorded VM shutdowns without treating an
  * interrupted match as a clean balance experiment. The original replay and the

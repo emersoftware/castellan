@@ -30,6 +30,6 @@ void main(void) {
 
 export function createDissolveFilter(): Filter & { shown: number } {
   const uniforms = new UniformGroup({ uShown: { value: 1, type: "f32" } });
-  const filter = new Filter({ glProgram: GlProgram.from({ vertex, fragment, name: "aoa-dissolve" }), resources: { dissolveUniforms: uniforms } });
+  const filter = new Filter({ glProgram: GlProgram.from({ vertex, fragment, name: "castellan-dissolve" }), resources: { dissolveUniforms: uniforms } });
   return Object.defineProperty(filter, "shown", { get: () => uniforms.uniforms.uShown, set: (v: number) => { uniforms.uniforms.uShown = v; } }) as Filter & { shown: number };
 }

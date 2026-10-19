@@ -20,7 +20,7 @@ export const Intro: React.FC<{ timeline: Timeline }> = ({ timeline }) => {
             two LLMs play a real-time strategy game
           </div>
         </div>
-        <div className="corner brandmark">Age of Agents</div>
+        <div className="corner brandmark">Castellan</div>
       </Hud>
     </AbsoluteFill>
   );

@@ -1,17 +1,17 @@
 // What would a model train under these rules? Shows the real player guide and a short situation, asks for the
 // spending decision as JSON, no game played. Measures the composition models lean to before they play.
 //   npx tsx src/choice-probe.mts label=replayId|rules.json … [--reps 4] [--models gpt-6.1-sol,gpt-6-astra]
-//   → /tmp/aoa-probe/<label>.json and a summary
+//   → /tmp/castellan-probe/<label>.json and a summary
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
-import { playerGuide, type EntityKind, type Ruleset } from "@aoa/shared";
+import { playerGuide, type EntityKind, type Ruleset } from "@castellan/shared";
 // @ts-expect-error Plain Node launcher shared with external harnesses.
 import { codexBin, isolatedExec, isolatedHome } from "../../../connectors/loop-keepers/codex/agent.mjs";
 
-const OUT = "/tmp/aoa-probe";
+const OUT = "/tmp/castellan-probe";
 const arg = (name: string, fallback: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : fallback; };
 const REPS = Number(arg("reps", "4")), MODELS = arg("models", "gpt-6.1-sol,gpt-6-astra").split(","), PARALLEL = Number(arg("parallel", "6"));
 const targets = process.argv.slice(2).filter((a) => a.includes("="));
@@ -33,11 +33,11 @@ function rulesOf(source: string): Ruleset {
 
 /** One isolated, tool-less Codex call (same isolation as the player connector, without the game tools). */
 async function ask(model: string, prompt: string): Promise<string> {
-  const run = mkdtempSync(join(tmpdir(), "aoa-probe-"));
+  const run = mkdtempSync(join(tmpdir(), "castellan-probe-"));
   const { home, workspace } = await isolatedHome(run);
   const out = join(run, "answer.txt");
   const env: NodeJS.ProcessEnv = { ...process.env, CODEX_HOME: home };
-  for (const k of ["OPENAI_API_KEY", "CODEX_API_KEY", "AOA_TOKEN", "AOA_DIRECTIVE"]) delete env[k];
+  for (const k of ["OPENAI_API_KEY", "CODEX_API_KEY", "CASTELLAN_TOKEN", "CASTELLAN_DIRECTIVE"]) delete env[k];
   return new Promise((resolve) => {
     const child = spawn(codexBin(env), [...isolatedExec({ workspace }), "--ephemeral",
       "-m", model, "-c", 'model_reasoning_effort="low"', "-o", out, "-"], { env, stdio: ["pipe", "ignore", "ignore"] });
@@ -59,7 +59,7 @@ for (const target of targets) {
   const queue = [...jobs];
   await Promise.all(Array.from({ length: PARALLEL }, async () => {
     for (let job = queue.shift(); job; job = queue.shift()) {
-      const text = await ask(job.model, `You play Age of Agents, a real-time strategy game. The rules:\n\n${guide}\n\n${job.situation}\n\n${ASK}`);
+      const text = await ask(job.model, `You play Castellan, a real-time strategy game. The rules:\n\n${guide}\n\n${job.situation}\n\n${ASK}`);
       results.push({ ...job, answer: parse(text) });
     }
   }));

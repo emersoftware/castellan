@@ -32,7 +32,7 @@ import compose as menu
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parents[1] / 'packages/web/public/music/dos-voces-v2'
-SOUNDFONT = Path.home() / '.cache/aoa-soundfonts/MuseScore_General.sf3'
+SOUNDFONT = Path.home() / '.cache/castellan-soundfonts/MuseScore_General.sf3'
 RATE = 44100
 BPM = 84
 BEAT = 60 / BPM

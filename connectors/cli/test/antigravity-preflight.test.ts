@@ -10,7 +10,7 @@ const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
 
 async function setup(mode = "success") {
-  const root = await mkdtemp(join(tmpdir(), "aoa-preflight-test-"));
+  const root = await mkdtemp(join(tmpdir(), "castellan-preflight-test-"));
   roots.push(root);
   const agy = join(root, "fake-agy.mjs"), capture = join(root, "capture.json");
   const mcpPackage = fileURLToPath(new URL("../../mcp/package.json", import.meta.url));
@@ -22,7 +22,7 @@ import { createRequire } from 'node:module';
 import { execFileSync, spawn } from 'node:child_process';
 const args=process.argv.slice(2), projectId=args[args.indexOf('--project')+1];
 const projectPath=join(homedir(),'.gemini/config/projects',projectId+'.json');
-const context={args,workspace:process.cwd(),projectPath,adc:process.env.AGY_ADC_AUTH,token:process.env.AOA_TOKEN};
+const context={args,workspace:process.cwd(),projectPath,adc:process.env.AGY_ADC_AUTH,token:process.env.CASTELLAN_TOKEN};
 writeFileSync(process.env.PREFLIGHT_CAPTURE,JSON.stringify(context));
 const mode=process.env.PREFLIGHT_MODE;
 if(mode==='hang') {
@@ -36,13 +36,13 @@ if(mode==='hang') {
     const tools=mode==='one-tool'?['guide']:['guide','state'];
     const project=JSON.parse(readFileSync(projectPath,'utf8'));
     if(project.permissionGrants.permissionGrants.allow.some(x=>x.startsWith('command('))) {
-      for(const tool of tools) results.push(execFileSync(join(process.cwd(),'bin/aoa-tool'),[tool,'{}'],{encoding:'utf8'}));
+      for(const tool of tools) results.push(execFileSync(join(process.cwd(),'bin/castellan-tool'),[tool,'{}'],{encoding:'utf8'}));
     } else {
       const require=createRequire(${JSON.stringify(mcpPackage)});
       const {Client}=await import(require.resolve('@modelcontextprotocol/sdk/client/index.js'));
       const {StdioClientTransport}=await import(require.resolve('@modelcontextprotocol/sdk/client/stdio.js'));
-      const config=JSON.parse(readFileSync(join(process.cwd(),'.agents/mcp_config.json'),'utf8')).mcpServers.aoa;
-      context.endpoint=config.env.AOA_SERVER;writeFileSync(process.env.PREFLIGHT_CAPTURE,JSON.stringify(context));
+      const config=JSON.parse(readFileSync(join(process.cwd(),'.agents/mcp_config.json'),'utf8')).mcpServers.castellan;
+      context.endpoint=config.env.CASTELLAN_SERVER;writeFileSync(process.env.PREFLIGHT_CAPTURE,JSON.stringify(context));
       const client=new Client({name:'fake-agy-preflight',version:'1'});
       try { await client.connect(new StdioClientTransport(config));
         for(const tool of tools) results.push(JSON.stringify(await client.callTool({name:tool,arguments:{}})));
@@ -52,7 +52,7 @@ if(mode==='hang') {
   console.log(JSON.stringify({status:'SUCCESS',response:mode==='wrong-nonces'?'READY':results.join('\\n')}));
 }
 `, { mode: 0o700 });
-  return { agy, capture, options: { agy, model: "test-argon-low", effort: "low", env: { ...process.env, AGY_ADC_AUTH: "true", AOA_TOKEN: "must-not-reach-diagnostic", AOA_SERVER: "http://127.0.0.1:1", PREFLIGHT_MODE: mode, PREFLIGHT_CAPTURE: capture } } };
+  return { agy, capture, options: { agy, model: "test-argon-low", effort: "low", env: { ...process.env, AGY_ADC_AUTH: "true", CASTELLAN_TOKEN: "must-not-reach-diagnostic", CASTELLAN_SERVER: "http://127.0.0.1:1", PREFLIGHT_MODE: mode, PREFLIGHT_CAPTURE: capture } } };
 }
 
 async function checkCleanup(capture: string) {

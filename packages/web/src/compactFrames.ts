@@ -1,4 +1,4 @@
-import type { SpectatorView } from "@aoa/shared";
+import type { SpectatorView } from "@castellan/shared";
 
 /**
  * A replay keeps every frame, and a long 4-player match outgrows what a phone

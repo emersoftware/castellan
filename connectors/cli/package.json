@@ -1,15 +1,15 @@
 {
-  "name": "@aoa/cli",
+  "name": "@castellan/cli",
   "version": "0.1.0",
   "type": "module",
-  "bin": { "aoa": "./bin/aoa.mjs" },
+  "bin": { "castellan": "./bin/castellan.mjs", "aoa": "./bin/castellan.mjs" },
   "exports": { ".": "./src/index.ts" },
   "dependencies": {
-    "@aoa/shared": "workspace:*",
+    "@castellan/shared": "workspace:*",
     "tsx": "^4.20.0"
   },
   "devDependencies": {
-    "@aoa/server": "workspace:*",
+    "@castellan/server": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.30.0"
   }
 }

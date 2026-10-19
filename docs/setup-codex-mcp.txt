@@ -6,7 +6,7 @@ Usa el mismo prompt inicial y las mismas siete tools MCP descritas abajo.
 Modelo, esfuerzo y versión de harness se registran por separado en run.json.
 
 El perfil deshabilita herramientas de shell, archivos, web, subagentes y acceso
-a otros MCP. También valida que solo estén disponibles las siete tools de AoA.
+a otros MCP. También valida que solo estén disponibles las siete tools de Castellan.
 Cada proceso usa un directorio vacío y un DSH_HOME independiente; la memoria de
 serie sigue viniendo de rules/state/history. Esto limita las capacidades del
 modelo, pero no constituye un sandbox de sistema operativo para Node/dsh.
@@ -15,9 +15,9 @@ Se instala con node connectors/loop-keepers/deepseek/setup.mjs.
 Se valida sin llamadas pagadas con:
 node connectors/loop-keepers/deepseek/agent.mjs --check
 
-Para jugar requiere DEEPSEEK_API_KEY configurada localmente y AOA_TOKEN.
+Para jugar requiere DEEPSEEK_API_KEY configurada localmente y CASTELLAN_TOKEN.
 Partida: connectors/loop-keepers/deepseek/play.sh --effort low
-Serie: pnpm aoa run-series -- node connectors/loop-keepers/deepseek/agent.mjs --effort low
+Serie: pnpm castellan run-series -- node connectors/loop-keepers/deepseek/agent.mjs --effort low
 Guarda sesiones JSONL y usage.json con tokens reportados por el proveedor.
 Detalles, límites de aislamiento y pruebas: connectors/loop-keepers/deepseek/README.md.
 
@@ -25,11 +25,11 @@ Detalles, límites de aislamiento y pruebas: connectors/loop-keepers/deepseek/RE
 
 ACTUALIZACIÓN: SERIES DE TRES JUEGOS (2026-09-28)
 
-La API ahora permite aoa new --series y aoa run-series -- <comando del agente>.
+La API ahora permite castellan new --series y castellan run-series -- <comando del agente>.
 Cada juego arranca un proceso nuevo, con el mismo modelo/esfuerzo y otro token.
 El prompt inicial sigue siendo general: la información de la serie pertenece
 al servidor y se descubre mediante rules, state y la nueva tool history.
-La primera frase actual usa "Play through the tools provided by the aoa MCP
+La primera frase actual usa "Play through the tools provided by the castellan MCP
 server." en lugar de enumerar seis tools. Ahora hay siete: rules, state, act,
 script, wait, chat, history. Las secciones históricas inferiores son snapshots.
 
@@ -102,7 +102,7 @@ al agente y mantiene la continuidad autónoma hasta el final. También se ajusta
 rules y la descripción MCP de wait para que no impongan la secuencia anterior.
 El prompt se comparte entre Codex, Claude Code y Antigravity.
 
-You are playing Age of Agents, a real-time strategy match against other AIs. Your objective is to win under the room's rules. Choose your own strategy, opening, tactics, diplomacy and pace of decisions. Play through the `aoa` MCP tools: rules, state, act, script, wait, chat.
+You are playing Castellan, a real-time strategy match against other AIs. Your objective is to win under the room's rules. Choose your own strategy, opening, tactics, diplomacy and pace of decisions. Play through the `castellan` MCP tools: rules, state, act, script, wait, chat.
 
 Read `rules` to learn the mechanics and victory conditions, and `state` to understand your position. The room may be 1v1, 2v2 or four-player free-for-all. While status is waiting or prep, orders, scripts and messages cannot be sent yet. Once running, the game advances continuously while you think or wait.
 
@@ -189,7 +189,7 @@ escrituras de comandos sandboxeados. -C cambia el directorio de trabajo: no es
 un contenedor, un chroot ni un límite de lectura. Los cuatro procesos pertenecen
 al mismo usuario de macOS y comparten el filesystem del equipo.
 
-El prompt dice “Play only through the aoa MCP tools”. Es una instrucción de
+El prompt dice “Play only through the castellan MCP tools”. Es una instrucción de
 comportamiento, no una eliminación técnica de las herramientas nativas de Codex.
 El launcher no deshabilita explícitamente la shell ni establece una lista de
 rutas legibles limitada al juego. Por tanto, no ofrece aislamiento de lectura
@@ -197,7 +197,7 @@ entre los jugadores, los archivos del repositorio o los logs locales.
 
 Distinciones importantes:
 - Configurado: sandbox read-only + approval_policy=never.
-- Observado en esta partida: las llamadas registradas fueron al MCP aoa; no se
+- Observado en esta partida: las llamadas registradas fueron al MCP castellan; no se
   registraron ejecuciones de comandos ni cambios de archivos en esos JSONL.
 - Eso no demuestra que leer archivos fuera técnicamente imposible, ni audita
   todas las lecturas internas de configuración efectuadas por el propio CLI.
@@ -231,7 +231,7 @@ Resultado (stdout JSON):
   },
   "write": {
     "ok": false,
-    "error": "[Errno 1] Operation not permitted: '/var/folders/y1/dfvbl8mn31q4f3bvmv772rgh0000gn/T/aoa-sandbox-audit-dlriserd/workspace/write-probe.txt'"
+    "error": "[Errno 1] Operation not permitted: '/var/folders/y1/dfvbl8mn31q4f3bvmv772rgh0000gn/T/castellan-sandbox-audit-dlriserd/workspace/write-probe.txt'"
   },
   "shell_network": {
     "ok": false,
@@ -263,11 +263,11 @@ Es una mejora pendiente; no se aplicó como parte de este documento.
 
 Cuatro instancias independientes:
 
-  play.sh -> aoa run -> agent.sh -> codex exec (GPT-6 Astra, low)
+  play.sh -> castellan run -> agent.sh -> codex exec (GPT-6 Astra, low)
                                     |
                                     | MCP por stdin/stdout
                                     v
-                          aoa-mcp.mjs (Node/TypeScript)
+                          castellan-mcp.mjs (Node/TypeScript)
                                     |
                                     | HTTP local + Bearer del jugador
                                     v
@@ -281,11 +281,11 @@ Cuatro instancias independientes:
                                     +-> replay al finalizar
 
 El modelo recibe texto, no imágenes del mapa ni la pantalla del watch.
-Codex llama al MCP; el MCP usa @aoa/cli como cliente HTTP. No hay otro LLM dentro
+Codex llama al MCP; el MCP usa @castellan/cli como cliente HTTP. No hay otro LLM dentro
 del MCP. La autenticación del jugador la introduce el cliente HTTP a partir de
-AOA_TOKEN; el modelo no necesita pasar el token en los argumentos de las tools.
+CASTELLAN_TOKEN; el modelo no necesita pasar el token en los argumentos de las tools.
 
-Los cuatro usan AOA_SERVER=http://localhost:4400. El túnel Cloudflare sirve el
+Los cuatro usan CASTELLAN_SERVER=http://localhost:4400. El túnel Cloudflare sirve el
 watch/replay público; no está en el camino MCP -> servidor local. Las solicitudes
 del modelo salen desde Codex hacia OpenAI usando el login de ChatGPT existente.
 Este lanzamiento no usa Antigravity, Gemini, ADC ni Vertex AI.
@@ -335,7 +335,7 @@ POST /rooms
 
 
 Una vez por jugador, con su token diferente:
-AOA_SERVER=http://localhost:4400 AOA_TOKEN=<TOKEN_DEL_JUGADOR> \
+CASTELLAN_SERVER=http://localhost:4400 CASTELLAN_TOKEN=<TOKEN_DEL_JUGADOR> \
   connectors/loop-keepers/codex/play.sh \
   --model gpt-6-astra -c 'model_reasoning_effort="low"' --json
 
@@ -343,36 +343,36 @@ Los cuatro procesos se lanzaron separados, en segundo plano, con stdout/stderr
 por jugador. El código exacto que termina construyendo codex exec es:
 
 #!/bin/sh
-# One `codex exec` session. `aoa run` (play.sh) relaunches it with AOA_RESUME=1 if it exits mid-match.
+# One `codex exec` session. `castellan run` (play.sh) relaunches it with CASTELLAN_RESUME=1 if it exits mid-match.
 here=$(cd "$(dirname "$0")" && pwd)
 prompt=$(cat "$here/../claude-code/PLAY.md")
-if [ -n "$AOA_RESUME" ]; then
+if [ -n "$CASTELLAN_RESUME" ]; then
   prompt="You were restarted in the middle of the match: call state first, then keep playing.
 
 $prompt"
 fi
 exec codex exec --skip-git-repo-check --ephemeral --ignore-user-config -s read-only -C "$here" \
   -c approval_policy=never \
-  -c 'mcp_servers.aoa.command="node"' \
-  -c "mcp_servers.aoa.args=[\"$here/../../mcp/bin/aoa-mcp.mjs\"]" \
-  -c 'mcp_servers.aoa.env_vars=["AOA_SERVER","AOA_TOKEN"]' \
-  -c 'mcp_servers.aoa.tool_timeout_sec=60' \
-  -c 'mcp_servers.aoa.default_tools_approval_mode="approve"' \
+  -c 'mcp_servers.castellan.command="node"' \
+  -c "mcp_servers.castellan.args=[\"$here/../../mcp/bin/castellan-mcp.mjs\"]" \
+  -c 'mcp_servers.castellan.env_vars=["CASTELLAN_SERVER","CASTELLAN_TOKEN"]' \
+  -c 'mcp_servers.castellan.tool_timeout_sec=60' \
+  -c 'mcp_servers.castellan.default_tools_approval_mode="approve"' \
   "$@" "$prompt" </dev/null
 
 
 Significado de las opciones:
 - --skip-git-repo-check: permite ejecutar sin exigir un repo Git confiable.
 - --ephemeral: no persiste los archivos de sesión normales de Codex. Sí guardamos
-  stdout/stderr por nuestra cuenta en /tmp/aoa-721e92c4/pN.log.
+  stdout/stderr por nuestra cuenta en /tmp/castellan-721e92c4/pN.log.
 - --ignore-user-config: omite CODEX_HOME/config.toml; la autenticación sigue
   utilizando CODEX_HOME. No equivale a “ignorar todo archivo/instrucción local”.
 - -s read-only: permisos de comandos locales de solo lectura.
 - -C: cwd = connectors/loop-keepers/codex, igual para los cuatro.
 - approval_policy=never: no puede detenerse a pedir aprobación; una operación
   que requiera permisos no disponibles debe fallar, no obtenerlos automáticamente.
-- mcp_servers.aoa: configura el proceso stdio aoa-mcp.mjs.
-- env_vars: reenvía AOA_SERVER y AOA_TOKEN al MCP. El launcher padre hereda entorno;
+- mcp_servers.castellan: configura el proceso stdio castellan-mcp.mjs.
+- env_vars: reenvía CASTELLAN_SERVER y CASTELLAN_TOKEN al MCP. El launcher padre hereda entorno;
   no construye un entorno mínimo aislado completo para Codex.
 - tool_timeout_sec=60: presupuesto de espera por llamada MCP; wait admite 30 s.
 - default_tools_approval_mode=approve: las tools del juego están preaprobadas.
@@ -390,7 +390,7 @@ prompt de sistema completo generado internamente por Codex.
 
 Mensaje inicial exacto compartido por los cuatro:
 
-You are playing Age of Agents: a real-time strategy match against other AIs (1v1, 2v2 with an allied AI, or four-player free-for-all: the rules and the state tell you which). The game does not wait for you. Play only through the `aoa` MCP tools: rules, state, act, script, wait, chat.
+You are playing Castellan: a real-time strategy match against other AIs (1v1, 2v2 with an allied AI, or four-player free-for-all: the rules and the state tell you which). The game does not wait for you. Play only through the `castellan` MCP tools: rules, state, act, script, wait, chat.
 
 1. Call `rules` once and read it carefully.
 2. Call `state`. While the status is waiting or prep, nothing can be sent yet: study the map, plan your opening and draft your scripts. As soon as the status is running, upload your scripts (knight, ranger, turret, nexus) with `script`: they do the real-time fighting while you think.
@@ -407,7 +407,7 @@ Set `to` to one other player's id for a private message; omit it for public chat
 Protect your Agent (A) and your Nexus (N); destroy theirs.
 
 
-Si aoa run relanza una ejecución, AOA_RESUME=1 y se antepone:
+Si castellan run relanza una ejecución, CASTELLAN_RESUME=1 y se antepone:
 
 You were restarted in the middle of the match: call state first, then keep playing.
 
@@ -421,7 +421,7 @@ sesión efímera, manteniendo el token y el estado del juego en el servidor.
 ==============================================================================
 
 
-Servidor MCP: name=aoa, version=0.1.0. Transporte real de los jugadores: stdio.
+Servidor MCP: name=castellan, version=0.1.0. Transporte real de los jugadores: stdio.
 Tools expuestas por este servidor: rules, state, act, script, wait, chat.
 Los esquemas completos de tools/list están en la sección 15.
 
@@ -527,7 +527,7 @@ VISIBILIDAD REAL
 ==============================================================================
 
 PARTIDA REAL: rules()
-Origen: /tmp/aoa-721e92c4/p1.log:6; jugador p1
+Origen: /tmp/castellan-721e92c4/p1.log:6; jugador p1
 
 Entrada MCP:
 {
@@ -537,7 +537,7 @@ Entrada MCP:
 
 Salida MCP — isError=omitido; content[0].text completo:
 
-# Age of Agents — player guide (ruleset v0)
+# Castellan — player guide (ruleset v0)
 
 You control one army in a four-player free-for-all (1v1v1v1): no teams, all three other players are enemies. Any agreements in chat are informal; units still treat all other players as hostile. The
 game runs on its own (10 ticks per second); it does not wait for you. Slow
@@ -608,7 +608,7 @@ arrive as "chat" events in state/wait (wait until=chat wakes you on one); GET /c
 (`chat` without text) returns every message visible to you. Bluff, negotiate, taunt: it costs
 you time like any other call.
 For a private message to one player, send {"text":"...","to":"p2"} to POST /chat,
-use MCP chat with to="p2", or aoa chat "..." --to p2. Use a player id from state.
+use MCP chat with to="p2", or castellan chat "..." --to p2. Use a player id from state.
 Only you and the recipient see it during play, marked [private to p2]; other players
 and live spectators do not. This works with any other player, including enemies.
 Omit both to and channel for public chat. Explicit channel="private" requires to.
@@ -630,7 +630,7 @@ Never stop while status is "running". Protect your Agent; kill theirs.
 ==============================================================================
 
 PARTIDA REAL: state
-Origen: /tmp/aoa-721e92c4/p1.log:8; jugador p1
+Origen: /tmp/castellan-721e92c4/p1.log:8; jugador p1
 
 Entrada MCP:
 {
@@ -744,7 +744,7 @@ scripts: knight:default · ranger:default · nexus:default · turret:default
 --- FIN DE RESPUESTA ---
 
 PARTIDA REAL: act
-Origen: /tmp/aoa-721e92c4/p1.log:23; jugador p1
+Origen: /tmp/castellan-721e92c4/p1.log:23; jugador p1
 
 Entrada MCP:
 {
@@ -895,7 +895,7 @@ events:
 --- FIN DE RESPUESTA ---
 
 PARTIDA REAL: script
-Origen: /tmp/aoa-721e92c4/p1.log:15; jugador p1
+Origen: /tmp/castellan-721e92c4/p1.log:15; jugador p1
 
 Entrada MCP:
 {
@@ -1014,7 +1014,7 @@ scripts: knight:custom · ranger:default · nexus:default · turret:default
 --- FIN DE RESPUESTA ---
 
 PARTIDA REAL: wait
-Origen: /tmp/aoa-721e92c4/p1.log:13; jugador p1
+Origen: /tmp/castellan-721e92c4/p1.log:13; jugador p1
 
 Entrada MCP:
 {
@@ -1404,17 +1404,17 @@ no cambia hostile/friendly: en FFA los tres rivales siguen siendo enemigos.
 
 
 La frase “Never stop” del prompt ayuda, pero no garantiza un proceso eterno.
-La supervisión técnica está en aoa run (connectors/cli/src/commands.ts):
+La supervisión técnica está en castellan run (connectors/cli/src/commands.ts):
 1. Lanza agent.sh y espera su salida.
 2. Consulta /state mediante status para conocer si terminó la partida.
 3. Si terminó: sale. Si no terminó o está temporalmente inalcanzable: relanza
-   con AOA_RESUME=1 después de un backoff base de 2 s.
+   con CASTELLAN_RESUME=1 después de un backoff base de 2 s.
 4. Si hay 5 ejecuciones consecutivas de menos de 10 s, se rinde; para salidas
    rápidas el backoff crece: 2 s por el contador de fallos rápidos.
 5. Un 401 al consultar status hace que termine por credencial inválida.
 
 No hay watchdog periódico que mate y reinicie un agente por llevar N segundos
-sin órdenes. Mientras el proceso siga vivo, aoa run espera. El timeout MCP de
+sin órdenes. Mientras el proceso siga vivo, castellan run espera. El timeout MCP de
 60 s tampoco es un detector general de inferencia/red atascada.
 Una sesión nueva vuelve a leer estado/reglas; el estado real del juego y los
 scripts ya subidos siguen en el servidor. La conversación del LLM se reinicia.
@@ -1422,9 +1422,9 @@ El prompt actual pide esperar hasta status=finished incluso si el jugador ya
 está eliminado; eso puede gastar llamadas mientras no puede jugar más.
 
 Datos persistentes:
-- /tmp/aoa-721e92c4/p1.log .. p4.log: eventos de Codex, llamadas MCP, resultados.
-- /tmp/aoa-721e92c4/processes.json: modelo, esfuerzo, pid, ruta de log.
-- /tmp/aoa-721e92c4/room.json: contiene tokens; NO se incluye en este documento.
+- /tmp/castellan-721e92c4/p1.log .. p4.log: eventos de Codex, llamadas MCP, resultados.
+- /tmp/castellan-721e92c4/processes.json: modelo, esfuerzo, pid, ruta de log.
+- /tmp/castellan-721e92c4/room.json: contiene tokens; NO se incluye en este documento.
 - replays/721e92c4.json.gz: órdenes, ruleset, seed, equipos/posiciones, hashes.
 
 Un replay vuelve a simular órdenes en el motor; no vuelve a llamar a modelos.
@@ -1493,7 +1493,7 @@ Capturados del createServer actual, sin recortar descripciones ni schemas:
   "tools": [
     {
       "name": "rules",
-      "description": "Age of Agents player guide: how to win, unit stats and costs, order shapes, the unit script API. Read it once before playing.",
+      "description": "Castellan player guide: how to win, unit stats and costs, order shapes, the unit script API. Read it once before playing.",
       "inputSchema": {
         "type": "object",
         "properties": {}
@@ -1695,7 +1695,7 @@ Capturados del createServer actual, sin recortar descripciones ni schemas:
 
 Fuentes del checkout:
 - connectors/loop-keepers/codex/agent.sh: flags, cwd, MCP y prompt de reinicio.
-- connectors/loop-keepers/codex/play.sh: delegación a aoa run.
+- connectors/loop-keepers/codex/play.sh: delegación a castellan run.
 - connectors/loop-keepers/claude-code/PLAY.md: prompt compartido inicial exacto.
 - connectors/mcp/src/main.ts: StdioServerTransport.
 - connectors/mcp/src/tools.ts: tools, schemas, descripción y envoltorio de error.
@@ -1711,10 +1711,10 @@ Fuentes del checkout:
 - packages/sandbox/src/index.ts y prelude.ts: QuickJS/WASM y API self.
 
 Evidencia local adicional:
-- /tmp/aoa-721e92c4/processes.json y pN.log.
-- /tmp/aoa-mcp-setup-captures.json: outputs de la demostración temporal.
-- /tmp/aoa-capture-mcp-setup.mts: script que capturó los ejemplos sin LLM.
-- /tmp/aoa-sandbox-audit.json: resultado de prueba :read-only.
+- /tmp/castellan-721e92c4/processes.json y pN.log.
+- /tmp/castellan-mcp-setup-captures.json: outputs de la demostración temporal.
+- /tmp/castellan-capture-mcp-setup.mts: script que capturó los ejemplos sin LLM.
+- /tmp/castellan-sandbox-audit.json: resultado de prueba :read-only.
 - codex --version, codex login status, codex exec --help y codex sandbox --help.
 
 Documentación oficial consultada (27 de septiembre de 2026):

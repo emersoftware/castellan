@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { rules } from "@aoa/shared";
-import { RUN_LIMITS, type ScriptWorld } from "@aoa/sandbox";
-import { createMatch, type MatchConfig } from "@aoa/engine";
+import { rules } from "@castellan/shared";
+import { RUN_LIMITS, type ScriptWorld } from "@castellan/sandbox";
+import { createMatch, type MatchConfig } from "@castellan/engine";
 import { createIsolatedScriptHost, runOnceIsolated, validateScriptIsolated, waitForStateChange } from "../src/script-isolation";
 
 it("accepts a completed response when the parent resumes after a timed-out wait", () => {

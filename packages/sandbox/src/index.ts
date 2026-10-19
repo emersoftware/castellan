@@ -9,7 +9,7 @@
  */
 import { newQuickJSWASMModuleFromVariant, type QuickJSContext, type QuickJSHandle, type QuickJSRuntime, type QuickJSWASMModule } from "quickjs-emscripten-core";
 import variant from "@jitl/quickjs-singlefile-mjs-release-sync";
-import type { ProjectileView, ScriptLimits, UnitOrder } from "@aoa/shared";
+import type { ProjectileView, ScriptLimits, UnitOrder } from "@castellan/shared";
 import { PRELUDE } from "./prelude";
 
 let quickjs: QuickJSWASMModule | null = null;

@@ -3,7 +3,7 @@
  * rotations, distances and the layout of a seat's corner. Nothing here reads
  * hidden state; every player can compute the same from the map description.
  */
-import type { MapSpec } from "@aoa/shared";
+import type { MapSpec } from "@castellan/shared";
 
 export interface Pt { x: number; y: number }
 

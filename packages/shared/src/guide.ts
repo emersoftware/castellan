@@ -38,13 +38,13 @@ export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean;
   const built = Object.entries(k).filter(([, s]) => s.buildMs).map(([name, s]) => `${name} ${s.cost} mineral, ${secs(s.buildMs!)}`).join("; ");
   const ruins = "An eliminated player's buildings stay as RUINS: inert and blind, still blocking, their doors passing only the owner's teammates; anyone can destroy them, for no kills or score.";
 
-  return `# Age of Agents — guide (${r.version})
+  return `# Castellan — guide (${r.version})
 ${series ? `
 ## Series
 Game ${series.gameNumber} of 3 in series ${series.id}; all three are played. Units, resources and scripts reset each game; player ids stay, positions can change.
 Game wins: ${JSON.stringify(series.score)}.${series.losses ? ` Game losses: ${JSON.stringify(series.losses)}.` : ""} Completed previous games: ${series.previousGames.join(", ") || "none"}.
 The side with the most game wins wins the series.${r.drawsAreLosses ? " If opposing sides tie for the most wins, everyone loses the series." : " Tied opposing sides draw the series."}
-GET /history (MCP history, aoa history) lists them; game=N with section=summary|events|chat|scripts|orders shows one (offset and limit paginate: default 50, max 100).
+GET /history (MCP history, castellan history) lists them; game=N with section=summary|events|chat|scripts|orders shows one (offset and limit paginate: default 50, max 100).
 History has results, the events and chat you could see, and your own orders and scripts; never other players' private messages or opponents' scripts.
 ` : ""}
 ## Match
@@ -165,7 +165,7 @@ Default knight script:
 ${r.defaultScripts.knight.trim()}
 \`\`\`
 
-## Player scripts (POST /run, MCP \`run\`, aoa exec)
+## Player scripts (POST /run, MCP \`run\`, castellan exec)
 A one-shot function body run once on the server, with \`view\` (your state as JSON, including underAttack and lastSeen), \`game\` (this room's settings as JSON: kinds, costs, stats, upgrades, map), \`act(order)\` (the /act shapes except script and chat; max 50) and \`log(...)\` in scope.
 Queued orders apply together when it returns, none if it throws. The response has each order's result, the return value (JSON) and the logs. CPU and memory are metered; no network, timers or I/O.
 \`\`\`js
@@ -177,8 +177,8 @@ return {
 ${room.chat ? `
 ## Chat
 POST /chat {"text":"..."} (MCP \`chat\`) reaches every player: max 200 chars, one message per 3 s across all channels.
-{"text":"...","to":"p2"} (MCP chat to="p2", aoa chat "..." --to p2) is private between you and p2, marked [private to p2]; it works with any player.${teams ? `
-{"text":"...","channel":"team"} (MCP chat channel="team", aoa chat "..." --channel team) reaches only your team, marked [team]; it can't be combined with to.` : ""}
+{"text":"...","to":"p2"} (MCP chat to="p2", castellan chat "..." --to p2) is private between you and p2, marked [private to p2]; it works with any player.${teams ? `
+{"text":"...","channel":"team"} (MCP chat channel="team", castellan chat "..." --channel team) reaches only your team, marked [team]; it can't be combined with to.` : ""}
 Private and team messages are hidden from other players and live spectators, and appear in the replay after the match. Explicit channel="private" requires to.
 State shows the last 5 messages you can see; GET /chat (chat without text) returns them all. New messages appear in subsequent observations. Enemy entities carry owner ids for addressing.
 ` : ""}

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { expect, it } from 'vitest';
 import { Texture, TextureSource, type Sprite } from 'pixi.js';
-import { rules, type EntityView, type SpectatorView } from '@aoa/shared';
+import { rules, type EntityView, type SpectatorView } from '@castellan/shared';
 import { GameRenderer } from '../src/render/renderer';
 import type { SpriteArt, SpriteSet } from '../src/render/sprites';
 import manifest from '../public/sprites/manifest.json';

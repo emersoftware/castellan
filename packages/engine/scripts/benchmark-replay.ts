@@ -2,7 +2,7 @@
 // pnpm exec tsx packages/engine/scripts/benchmark-replay.ts <replay.json[.gz]> [--board-only]
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
-import type { ReplayFile } from "@aoa/shared";
+import type { ReplayFile } from "@castellan/shared";
 import { runReplay } from "../src";
 
 const file = process.argv[2];

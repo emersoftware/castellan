@@ -4,14 +4,14 @@
  * The sim bots never find the enemy base under fog, so these march on its
  * mirrored position. "mixed" ends with the king's fall in under 4 minutes;
  * "archers" is a long volley test that never takes the castle.
- *   pnpm --filter @aoa/server exec tsx src/sound-demos.ts [keep]
+ *   pnpm --filter @castellan/server exec tsx src/sound-demos.ts [keep]
  */
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
-import { createMatch, type PlayerOrder } from "@aoa/engine";
-import { hasBuildOrder, type Bot } from "@aoa/sim";
-import { replayArchive, rules, type EntityKind, type GameEvent, type Order, type PlayerView, type RecordedKind, type ReplayFile, type SoundName } from "@aoa/shared";
+import { createMatch, type PlayerOrder } from "@castellan/engine";
+import { hasBuildOrder, type Bot } from "@castellan/sim";
+import { replayArchive, rules, type EntityKind, type GameEvent, type Order, type PlayerView, type RecordedKind, type ReplayFile, type SoundName } from "@castellan/shared";
 import { saveReplay } from "./app";
 
 const root = resolve(fileURLToPath(import.meta.url), "../../../..");

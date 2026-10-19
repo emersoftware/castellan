@@ -7,14 +7,14 @@ import { startServer } from "./server";
 
 let srv: Awaited<ReturnType<typeof startServer>>;
 let mcp: Client;
-const bin = fileURLToPath(new URL("../../mcp/bin/aoa-mcp.mjs", import.meta.url));
+const bin = fileURLToPath(new URL("../../mcp/bin/castellan-mcp.mjs", import.meta.url));
 const text = (r: Awaited<ReturnType<Client["callTool"]>>) => (r.content as { text: string }[])[0].text;
 
 beforeAll(async () => {
   srv = await startServer();
   const room = JSON.parse(await newRoom(client({ server: srv.url }), { json: true, chat: false }));
   mcp = new Client({ name: "test", version: "0" });
-  const env = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", AOA_SERVER: srv.url, AOA_TOKEN: room.players[0].token };
+  const env = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", CASTELLAN_SERVER: srv.url, CASTELLAN_TOKEN: room.players[0].token };
   await mcp.connect(new StdioClientTransport({ command: process.execPath, args: [bin], env }));
 });
 afterAll(async () => {
@@ -22,14 +22,14 @@ afterAll(async () => {
   await srv?.close();
 });
 
-describe("aoa-mcp", () => {
+describe("castellan-mcp", () => {
   it("forwards a direct recipient and exposes direct-message guide in FFA", async () => {
     const room = JSON.parse(await newRoom(client({ server: srv.url }), { json: true, map: "quad", mode: "ffa", chat: true }));
     const clients = room.players.map((p: { token: string }) => client({ server: srv.url, token: p.token }));
     const dmMcp = new Client({ name: "dm-test", version: "0" });
     try {
       await dmMcp.connect(new StdioClientTransport({ command: process.execPath, args: [bin], env: {
-        PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", AOA_SERVER: srv.url, AOA_TOKEN: room.players[0].token,
+        PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", CASTELLAN_SERVER: srv.url, CASTELLAN_TOKEN: room.players[0].token,
       } }));
       expect(text(await dmMcp.callTool({ name: "guide", arguments: {} }))).toContain("Four-player free-for-all");
       for (const c of clients) await state(c);
@@ -67,7 +67,7 @@ describe("aoa-mcp", () => {
     const teamMcp = new Client({ name: "team-test", version: "0" });
     try {
       await teamMcp.connect(new StdioClientTransport({ command: process.execPath, args: [bin], env: {
-        PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", AOA_SERVER: srv.url, AOA_TOKEN: room.players[0].token,
+        PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", CASTELLAN_SERVER: srv.url, CASTELLAN_TOKEN: room.players[0].token,
       } }));
       for (const c of clients) await state(c);
       await wait(clients[0], { seconds: 2 });

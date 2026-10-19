@@ -1,11 +1,11 @@
 /**
  * Headless benchmark against the reference bots (no server, no real time):
- *   pnpm --filter @aoa/castellan bench [--bots rush,eco] [--maps open,fortress] [--n 2] [--json out.json]
+ *   pnpm --filter @castellan/castellan-bot bench [--bots rush,eco] [--maps open,fortress] [--n 2] [--json out.json]
  */
 import { writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { playerResult, type RoomMode } from "@aoa/shared";
-import { BOTS } from "@aoa/sim";
+import { playerResult, type RoomMode } from "@castellan/shared";
+import { BOTS } from "@castellan/sim";
 import { playHeadless } from "../test/harness";
 
 const { values } = parseArgs({ args: process.argv.slice(2), options: {

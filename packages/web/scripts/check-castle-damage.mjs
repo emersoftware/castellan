@@ -13,7 +13,7 @@ const browser=await puppeteer.launch({executablePath:'/Applications/Google Chrom
   args:['--enable-unsafe-swiftshader','--use-angle=swiftshader'],defaultViewport:{width:1440,height:900}});
 try {
   const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(/** @type {Error} */ (e).message));
-  await page.goto(process.env.AOA_WEB_URL??'http://127.0.0.1:5174',{waitUntil:'networkidle0'});
+  await page.goto(process.env.CASTELLAN_WEB_URL??'http://127.0.0.1:5174',{waitUntil:'networkidle0'});
   const rulesModule=`/@fs/${new URL('../../../packages/shared/src/rules.ts',import.meta.url).pathname}`;
   const review=await page.evaluateHandle(async rulesModule=>{
     const rendererModule='/src/render/renderer.ts'; // A Vite URL, not a file path.

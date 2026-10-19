@@ -21,7 +21,7 @@ try {
  assert.equal(new Set(before).size,4);
  await page.hover('.unit');await new Promise(r=>setTimeout(r,200));
  assert.notEqual((await colors())[0],before[0]);
- await page.screenshot({path:'/tmp/aoa-landing-armies.png'});
+ await page.screenshot({path:'/tmp/castellan-landing-armies.png'});
  await page.click('.sound:first-child');
  assert.deepEqual({...await audio(),gain:undefined},{effects:true,music:false,track:'theme',gain:undefined});
  await page.click('.sound:last-child');await page.click('.sound:first-child');
@@ -34,15 +34,15 @@ try {
  await page.click('.controls .sound:last-child'); // on + gesture unlock
  await new Promise(r=>setTimeout(r,2200));
  const battle=await audio(); assert.equal(battle.track,'battle');assert.ok(Math.abs(battle.gain-0.09)<0.001);
- await page.screenshot({path:'/tmp/aoa-battle-buildings.png'});
+ await page.screenshot({path:'/tmp/castellan-battle-buildings.png'});
  await page.setViewport({width:390,height:844});
- await page.screenshot({path:'/tmp/aoa-battle-mobile.png'});
+ await page.screenshot({path:'/tmp/castellan-battle-mobile.png'});
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  await page.goto('http://localhost:5173',{waitUntil:'networkidle0'});
  await page.evaluate(()=>document.querySelector('.units').scrollIntoView());
  await new Promise(r=>setTimeout(r,1500));
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
- await page.screenshot({path:'/tmp/aoa-landing-mobile.png'});
+ await page.screenshot({path:'/tmp/castellan-landing-mobile.png'});
  assert.deepEqual(errors,[]);
  console.log('Verified: four columns / four colors / hover cycle / fixed audio / independent mute / persistence / theme-to-battle switch / battle gain 0.09 / mobile overflow / no page errors.');
 } finally {await browser.close();}

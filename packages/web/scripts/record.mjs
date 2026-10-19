@@ -19,7 +19,7 @@ const { values: o, positionals } = parseArgs({
     speed: { type: "string", default: "2" },
     fps: { type: "string", default: "30" },
     out: { type: "string" },
-    server: { type: "string", default: process.env.AOA_SERVER ?? defaultServer },
+    server: { type: "string", default: process.env.CASTELLAN_SERVER ?? defaultServer },
     width: { type: "string", default: "1280" },
     height: { type: "string", default: "720" },
     scale: { type: "string", default: "2" },

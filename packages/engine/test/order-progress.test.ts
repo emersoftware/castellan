@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { rules, viewToText, type Ruleset } from "@aoa/shared";
+import { rules, viewToText, type Ruleset } from "@castellan/shared";
 import { createMatch, type Match, type MatchConfig } from "../src";
 
 const matches: Match[] = [];

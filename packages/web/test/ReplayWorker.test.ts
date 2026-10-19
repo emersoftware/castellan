@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import type { ReplayFile, SpectatorView } from "@aoa/shared";
+import type { ReplayFile, SpectatorView } from "@castellan/shared";
 import type { WorkerIn, WorkerOut } from "../src/replay.worker";
 
 vi.mock("../src/replayPlayback", () => ({ playRecordedReplay: vi.fn() }));

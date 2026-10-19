@@ -14,7 +14,7 @@ try {
  const portrait=()=>page.$eval('.unit:nth-child(2) canvas',c=>c.toDataURL());
  const first=await portrait(); await new Promise(r=>setTimeout(r,750));
  assert.notEqual(await portrait(),first,'Worker portrait must animate');
- await page.screenshot({path:'/tmp/aoa-worker-idle-landing.png'});
+ await page.screenshot({path:'/tmp/castellan-worker-idle-landing.png'});
  await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
  await new Promise(r=>setTimeout(r,200));const still=await portrait();
  await new Promise(r=>setTimeout(r,300));assert.equal(await portrait(),still);
@@ -33,7 +33,7 @@ try {
    return {renderer,clock,frame,step(t){clock.setTime(t*100);renderer.setFrame(frame(t),100);clock.draw();}};
  });
  await page.evaluate(preview=>preview.step(6),preview);
- await page.screenshot({path:'/tmp/aoa-worker-idle-directions.png'});
+ await page.screenshot({path:'/tmp/castellan-worker-idle-directions.png'});
  const cells=await page.evaluate(preview=>[...preview.renderer.drawn.values()].map(d=>({frame:d.sprite.texture.frame.x,row:d.sprite.texture.frame.y,flip:d.sprite.scale.x<0})),preview);
  assert.ok(cells.every(c=>c.frame>0)); assert.deepEqual(cells.map(c=>c.row),[0,112,224,336,448,336,224,112]);
  assert.deepEqual(cells.map(c=>c.flip),[false,false,false,false,false,true,true,true]);

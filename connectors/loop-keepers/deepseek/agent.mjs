@@ -61,16 +61,16 @@ export async function preparePlayer({ root, token, server = serverUrl(), key, mo
     { id: "approval", disabled: true },
     { id: "system-prompt", config: { personaPrefix: "", personaSuffix: "" } },
     { insert: [
-      { id: "mcp-aoa", name: "@deepseek-ai/dsh-mcp-client", config: { serverName: "aoa", transport: "stdio", command: process.execPath,
-        args: [resolve(here, "../../mcp/bin/aoa-mcp.mjs")], env: { AOA_SERVER: server, AOA_TOKEN: token }, cwd: workspace, failOnStartupError: true, toolCallTimeoutMs: 60000 } },
-      { id: "aoa-game-tools", name: join(here, "game-tools.mjs") },
+      { id: "mcp-castellan", name: "@deepseek-ai/dsh-mcp-client", config: { serverName: "castellan", transport: "stdio", command: process.execPath,
+        args: [resolve(here, "../../mcp/bin/castellan-mcp.mjs")], env: { CASTELLAN_SERVER: server, CASTELLAN_TOKEN: token }, cwd: workspace, failOnStartupError: true, toolCallTimeoutMs: 60000 } },
+      { id: "castellan-game-tools", name: join(here, "game-tools.mjs") },
     ] },
   );
-  const patchPath = join(root, "aoa.patch.json");
+  const patchPath = join(root, "castellan.patch.json");
   await writeFile(patchPath, JSON.stringify(patch, null, 2), { mode: 0o600 });
   // Do not inherit provider credentials, user profile overrides or instrumentation.
   const childEnv = Object.fromEntries(["PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT", "SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS"].filter((k) => env[k]).map((k) => [k, env[k]]));
-  Object.assign(childEnv, { DSH_HOME: home, DSH_TELEMETRY_DISABLED: "1", DEEPSEEK_API_KEY: key ?? "", AOA_SERVER: server, AOA_TOKEN: token });
+  Object.assign(childEnv, { DSH_HOME: home, DSH_TELEMETRY_DISABLED: "1", DEEPSEEK_API_KEY: key ?? "", CASTELLAN_SERVER: server, CASTELLAN_TOKEN: token });
   const metadata = { harness: "deepseek-harness", version: VERSION, model, effort, workspace, home };
   await writeFile(join(root, "run.json"), JSON.stringify(metadata, null, 2), { mode: 0o600 });
   return { root, workspace, home, patchPath, env: childEnv, metadata, args: [cli, "--profile", "headless", "--patch", patchPath] };
@@ -103,14 +103,14 @@ export async function usage(root) {
 export async function main(args = process.argv.slice(2), env = process.env, { fetchImpl = fetch, spawnImpl = spawn,
   minIntervalMs = MIN_INTERVAL_MS, pollMs = 2000 } = {}) {
   const opts = options(args);
-  if (!opts.check && !env.AOA_TOKEN) throw new Error("set AOA_TOKEN (see aoa new or aoa run-series)");
+  if (!opts.check && !env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN (see castellan new or castellan run-series)");
   const key = opts.check ? undefined : await loadKey(env);
   if (!opts.check && !key) throw new Error("set DEEPSEEK_API_KEY or run node connectors/loop-keepers/deepseek/key.mjs");
   await verifyRuntime();
-  const runs = join(homedir(), ".local", "state", "aoa", "deepseek");
+  const runs = join(homedir(), ".local", "state", "castellan", "deepseek");
   await mkdir(runs, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(join(runs, "run-"));
-  const player = await preparePlayer({ root, token: env.AOA_TOKEN ?? "check-only", server: serverUrl(env.AOA_SERVER), key, ...opts, env });
+  const player = await preparePlayer({ root, token: env.CASTELLAN_TOKEN ?? "check-only", server: serverUrl(env.CASTELLAN_SERVER), key, ...opts, env });
   if (opts.check) {
     const child = spawnImpl(process.execPath, [...player.args, "--dump-config"], { cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "inherit"] });
     child.stdout?.resume(); // Composed config contains a game token; never print it.
@@ -119,8 +119,8 @@ export async function main(args = process.argv.slice(2), env = process.env, { fe
     return code;
   }
   const prompt = promptOf(env);
-  if (env.AOA_DIRECTIVE) await writeFile(join(root, "run.json"), JSON.stringify({ ...player.metadata, directive: env.AOA_DIRECTIVE }, null, 2), { mode: 0o600 });
-  console.error(`aoa deepseek: ${opts.model} (${opts.effort}), dsh ${VERSION}; logs ${root}${env.AOA_DIRECTIVE ? `; directive: ${env.AOA_DIRECTIVE}` : ""}`);
+  if (env.CASTELLAN_DIRECTIVE) await writeFile(join(root, "run.json"), JSON.stringify({ ...player.metadata, directive: env.CASTELLAN_DIRECTIVE }, null, 2), { mode: 0o600 });
+  console.error(`castellan deepseek: ${opts.model} (${opts.effort}), dsh ${VERSION}; logs ${root}${env.CASTELLAN_DIRECTIVE ? `; directive: ${env.CASTELLAN_DIRECTIVE}` : ""}`);
   await reportConfiguration(launchConfiguration({ connector: "deepseek-harness", model: opts.model,
     effort: opts.effort, connectorVersion: VERSION, prompt, env }), { env, fetchImpl });
   let child, session, watcher, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0;
@@ -142,7 +142,7 @@ export async function main(args = process.argv.slice(2), env = process.env, { fe
         const observation = await game.observation(lastDeliveredTick);
         const seen = observedSeat(observation);
         if (seatOver(seen)) { finished = true; break; }
-        const turn = turnFor(observation, { delivered: Boolean(session), prompt, resumed: Boolean(env.AOA_RESUME) });
+        const turn = turnFor(observation, { delivered: Boolean(session), prompt, resumed: Boolean(env.CASTELLAN_RESUME) });
         if (!turn) { await delay(1000); continue; }
         await reportActivity("deciding", { env, fetchImpl });
         child = spawnImpl(process.execPath, [...player.args, "--json", ...(session ? ["--session-id", session] : []), turn],
@@ -171,7 +171,7 @@ export async function main(args = process.argv.slice(2), env = process.env, { fe
         if (stopped) break;
         failures++;
         const ms = Math.min(30_000, 2000 * failures);
-        console.error(`aoa deepseek: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
+        console.error(`castellan deepseek: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
         await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + ms).toISOString() });
         await delay(ms).catch(() => {});
       }
@@ -180,7 +180,7 @@ export async function main(args = process.argv.slice(2), env = process.env, { fe
   } finally {
     stop(); clearTimeout(watcher);
     process.off("SIGINT", stop); process.off("SIGTERM", stop);
-    console.error(`aoa deepseek usage: ${JSON.stringify(await usage(root))}`);
+    console.error(`castellan deepseek usage: ${JSON.stringify(await usage(root))}`);
     await reportActivity("stopped", { env, fetchImpl });
   }
 }

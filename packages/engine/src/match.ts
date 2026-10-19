@@ -1,9 +1,9 @@
 import type {
   DepositView, EntityView, GameEvent, KindSpec, MatchStatus, Order, OrderResult, Outcome, PlayerId, PlayerStats,
   Doing, LastSeen, OrderEndReason, PlayerView, ProjectileView, RecordedKind, Ruleset, SpectatorView, UnderAttack, ActionFeedback, ActionAvailability, CombatSummary, UnitOrder, OrderProgress,
-} from "@aoa/shared";
-import { barrierAxes, blindSpotOnPath, eventOwner, HOLD_SCRIPT, matchLengthMs, NEUTRAL_OWNER, withMineralNames } from "@aoa/shared";
-import { createScriptHost, testScript, type ScriptAction, type ScriptActionResult, type ScriptHost, type ScriptHostFactory, type ScriptWorld, type ScriptEvent, type UnitRun } from "@aoa/sandbox";
+} from "@castellan/shared";
+import { barrierAxes, blindSpotOnPath, eventOwner, HOLD_SCRIPT, matchLengthMs, NEUTRAL_OWNER, withMineralNames } from "@castellan/shared";
+import { createScriptHost, testScript, type ScriptAction, type ScriptActionResult, type ScriptHost, type ScriptHostFactory, type ScriptWorld, type ScriptEvent, type UnitRun } from "@castellan/sandbox";
 import { DIRS, DIR_LIST, SEAT_DIRS, canStep, dist, findPath, hypot, inBounds, mapToSeat, seatToMap, type Grid } from "./grid";
 import { segmentCircleHit } from "./projectiles";
 import { validateOrder } from "./validate";

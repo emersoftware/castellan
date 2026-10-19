@@ -1,11 +1,11 @@
 /** Local visual-review replay. Uses an isolated map and passive defenders, not live balance edits.
- * pnpm --filter @aoa/server exec tsx src/castle-animation-demo.ts
+ * pnpm --filter @castellan/server exec tsx src/castle-animation-demo.ts
  */
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
-import { createMatch, runReplay, type PlayerOrder } from '@aoa/engine';
-import { HOLD_SCRIPT, replayArchive, rules, type ReplayFile, type Ruleset } from '@aoa/shared';
+import { createMatch, runReplay, type PlayerOrder } from '@castellan/engine';
+import { HOLD_SCRIPT, replayArchive, rules, type ReplayFile, type Ruleset } from '@castellan/shared';
 import { saveReplay } from './app';
 
 const root=resolve(fileURLToPath(import.meta.url),'../../../..');

@@ -51,15 +51,15 @@ const policies = {
 export function launchConfiguration({ connector, args = [], prompt, model, effort, connectorVersion, env = process.env }) {
   const [memoryPolicy, contextPolicy] = policies[connector] ?? [];
   return {
-    model: clean(model ?? optionValue(args, ["--model", "-m"]) ?? (connector === "codex" ? codexConfig(args, "model") : undefined) ?? env.AOA_MODEL),
-    effort: clean(effort ?? optionValue(args, ["--effort", "--variant"]) ?? (connector === "codex" ? codexConfig(args, "model_reasoning_effort") : undefined) ?? env.AOA_EFFORT),
-    connector: clean(connector ?? env.AOA_CONNECTOR),
-    connectorVersion: clean(connectorVersion ?? env.AOA_CONNECTOR_VERSION),
+    model: clean(model ?? optionValue(args, ["--model", "-m"]) ?? (connector === "codex" ? codexConfig(args, "model") : undefined) ?? env.CASTELLAN_MODEL),
+    effort: clean(effort ?? optionValue(args, ["--effort", "--variant"]) ?? (connector === "codex" ? codexConfig(args, "model_reasoning_effort") : undefined) ?? env.CASTELLAN_EFFORT),
+    connector: clean(connector ?? env.CASTELLAN_CONNECTOR),
+    connectorVersion: clean(connectorVersion ?? env.CASTELLAN_CONNECTOR_VERSION),
     // This hashes exactly the task string handed to the harness, not a claim to
     // know its hidden/system prompt. contextPolicy makes the scope explicit.
     promptSha256: typeof prompt === "string" ? createHash("sha256").update(prompt).digest("hex") : null,
-    memoryPolicy: clean(memoryPolicy ?? env.AOA_MEMORY_POLICY),
-    contextPolicy: clean(contextPolicy ?? env.AOA_CONTEXT_POLICY),
+    memoryPolicy: clean(memoryPolicy ?? env.CASTELLAN_MEMORY_POLICY),
+    contextPolicy: clean(contextPolicy ?? env.CASTELLAN_CONTEXT_POLICY),
   };
 }
 
@@ -73,15 +73,15 @@ export function connectorVersion(binary) {
 }
 
 export async function reportConfiguration(configuration, { env = process.env, fetchImpl = fetch, warn = console.error } = {}) {
-  if (!env.AOA_TOKEN) return false;
+  if (!env.CASTELLAN_TOKEN) return false;
   try {
     const res = await seat({ env, fetchImpl, redirect: "error" }).report(routes.agentConfig, configuration);
     if (res.ok) return true;
-    warn(`aoa: experiment configuration was not recorded (HTTP ${res.status}).`);
+    warn(`castellan: experiment configuration was not recorded (HTTP ${res.status}).`);
   } catch {
     // Avoid printing an error object: fetch/connection errors can carry URLs or
     // request options. Losing metadata must be explicit but not stop gameplay.
-    warn("aoa: experiment configuration was not recorded (server unavailable).");
+    warn("castellan: experiment configuration was not recorded (server unavailable).");
   }
   return false;
 }
@@ -91,7 +91,7 @@ export async function reportConfiguration(configuration, { env = process.env, fe
  * @param {{ env?: NodeJS.ProcessEnv, fetchImpl?: typeof fetch, retryAt?: string }} [options]
  */
 export async function reportActivity(state, { env = process.env, fetchImpl = fetch, retryAt } = {}) {
-  if (!env.AOA_TOKEN) return;
+  if (!env.CASTELLAN_TOKEN) return;
   try {
     await seat({ env, fetchImpl, redirect: "error" }).report(routes.agentStatus, { state, ...(retryAt ? { retryAt } : {}) });
   } catch { /* telemetry never stops a player */ }
@@ -103,10 +103,10 @@ async function main() {
   process.stdin.setEncoding("utf8");
   for await (const part of process.stdin) prompt += part;
   const binary = connector === "claude-code" ? "claude" : connector === "codex" ? "codex" : undefined;
-  const version = process.env.AOA_CONNECTOR_VERSION || await connectorVersion(binary);
+  const version = process.env.CASTELLAN_CONNECTOR_VERSION || await connectorVersion(binary);
   await reportConfiguration(launchConfiguration({ connector, args, prompt, connectorVersion: version }));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch(() => {
-  console.error("aoa: experiment configuration was not recorded (metadata reporter failed).");
+  console.error("castellan: experiment configuration was not recorded (metadata reporter failed).");
 });

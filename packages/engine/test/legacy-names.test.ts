@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
-import { currentFrame, currentRuleset, type ReplayFile, type SpectatorView } from "@aoa/shared";
+import { currentFrame, currentRuleset, type ReplayFile, type SpectatorView } from "@castellan/shared";
 import { runReplay } from "../src";
 
 it("replays old resource fields, unit orders and research with every original hash", async () => {

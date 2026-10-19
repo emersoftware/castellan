@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { currentFrame, currentRuleset, type SpectatorView } from "@aoa/shared";
+import { currentFrame, currentRuleset, type SpectatorView } from "@castellan/shared";
 import { parseShowcaseManifest, readShowcaseChunk } from "./showcaseRecording";
 
 /** Decorative playback reads verified frames, under today's names. It never executes player code. */
@@ -24,7 +24,7 @@ export function useShowcase(id: string) {
   const [jumpKey, setJumpKey] = useState(0);
   const ready = useRef(false);
   const onReady = useCallback(() => {
-    performance.mark?.("aoa-hero-ready");
+    performance.mark?.("castellan-hero-ready");
     ready.current = true;
   }, []);
 

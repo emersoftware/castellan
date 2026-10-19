@@ -1,9 +1,18 @@
 // @ts-check
 // What every keeper knows about the game: where its server is and how a seat reads it.
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { defaultServer, routes } from "../../packages/shared/src/http.ts";
 export { observedSeat, seatOver, seatPlaying } from "../../packages/shared/src/protocol.ts";
 
-/** AOA_SERVER without its trailing slash, or the local server. */
+/** A private keeper file in ~/.config/castellan, or in ~/.config/aoa where it was kept before the rename. */
+export function configFile(name) {
+  const current = join(homedir(), ".config", "castellan", name), legacy = join(homedir(), ".config", "aoa", name);
+  return !existsSync(current) && existsSync(legacy) ? legacy : current;
+}
+
+/** CASTELLAN_SERVER without its trailing slash, or the local server. */
 export const serverUrl = value => (value || defaultServer).replace(/\/$/, "");
 
 /**
@@ -11,8 +20,8 @@ export const serverUrl = value => (value || defaultServer).replace(/\/$/, "");
  * @param {{ env?: NodeJS.ProcessEnv, fetchImpl?: typeof fetch, signal?: AbortSignal, redirect?: RequestRedirect }} [options]
  */
 export function seat({ env = process.env, fetchImpl = fetch, signal, redirect } = {}) {
-  const server = serverUrl(env.AOA_SERVER);
-  const request = (path, init) => fetchImpl(server + path, { ...init, headers: { authorization: `Bearer ${env.AOA_TOKEN}`, ...init.headers }, redirect });
+  const server = serverUrl(env.CASTELLAN_SERVER);
+  const request = (path, init) => fetchImpl(server + path, { ...init, headers: { authorization: `Bearer ${env.CASTELLAN_TOKEN}`, ...init.headers }, redirect });
   const get = async path => {
     const res = await request(path, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(8000)]) : AbortSignal.timeout(8000) });
     if (!res.ok) throw new Error(`game HTTP ${res.status}`);

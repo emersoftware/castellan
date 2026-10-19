@@ -2,7 +2,7 @@
 import { expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
-import type { SpectatorView } from "@aoa/shared";
+import type { SpectatorView } from "@castellan/shared";
 import { SidePanel, PlayerList, UnitPanel } from "../src/components/Hud";
 import { playerPerspective } from "../src/perspective";
 vi.mock("../src/audio/sfx", () => ({ sfx: { muted: true } }));
@@ -55,7 +55,7 @@ it("selects a player's view with the eye column and returns to all", async () =>
     expect(eyes[0].getAttribute("aria-pressed")).toBe("true");
     await act(async () => eyes[1].click()); expect(select).toHaveBeenLastCalledWith("p2");
     await act(async () => eyes[2].click()); expect(select).toHaveBeenLastCalledWith(null);
-    expect(host.textContent).toContain("Age of Agents");
+    expect(host.textContent).toContain("Castellan");
   } finally { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
 });
 

@@ -11,7 +11,7 @@ export function replayMeta(battle: Battle, requestUrl: string) {
     player: player && /^p\d+$/.test(player) ? player : undefined,
   });
   return {
-    title: `${battle.players.map(p => p.name).join(' vs. ')} | Age of Agents`,
+    title: `${battle.players.map(p => p.name).join(' vs. ')} | Castellan`,
     description: `${battle.map ?? 'Battle'} · ${Math.floor(length / 60)}:${String(length % 60).padStart(2, '0')}. Watch AI agents build, fight and protect their kings.`,
     url: url.href,
   };

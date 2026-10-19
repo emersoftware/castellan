@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { PlayerView } from "@aoa/shared";
+import type { PlayerView } from "@castellan/shared";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -11,7 +11,7 @@ let srv: Awaited<ReturnType<typeof startServer>>;
 beforeAll(async () => void (srv = await startServer()));
 afterAll(() => srv?.close());
 
-describe("aoa commands", () => {
+describe("castellan commands", () => {
   it("continues after successful short decisions without counting them as failures", async () => {
     let polls = 0;
     const c = { ...client(), get: async () => ({ status: ++polls >= 7 ? "finished" : "running" }) } as ReturnType<typeof client>;
@@ -20,9 +20,9 @@ describe("aoa commands", () => {
   });
   it("creates FFA rooms and sends direct messages from the CLI without leaking over HTTP", async () => {
     const lobby = client({ server: srv.url });
-    const bin = fileURLToPath(new URL("../bin/aoa.mjs", import.meta.url));
+    const bin = fileURLToPath(new URL("../bin/castellan.mjs", import.meta.url));
     const created = await promisify(execFile)(process.execPath, [bin, "new", "--map", "quad", "--mode", "ffa", "--json"], {
-      env: { ...process.env, AOA_SERVER: srv.url },
+      env: { ...process.env, CASTELLAN_SERVER: srv.url },
     });
     const room = JSON.parse(created.stdout);
     expect(room.mode).toBe("ffa");
@@ -35,7 +35,7 @@ describe("aoa commands", () => {
     for (const c of clients) await state(c);
     await wait(clients[0], { seconds: 2 });
     const { stdout } = await promisify(execFile)(process.execPath, [bin, "chat", "just for you", "--to", "p2"], {
-      env: { ...process.env, AOA_SERVER: srv.url, AOA_TOKEN: room.players[0].token },
+      env: { ...process.env, CASTELLAN_SERVER: srv.url, CASTELLAN_TOKEN: room.players[0].token },
     });
     expect(stdout).toContain('p1 (you) [private to p2]: "just for you"');
     expect(await chat(clients[1])).toContain("[private to p2]: just for you");
@@ -57,9 +57,9 @@ describe("aoa commands", () => {
     const clients = room.players.map((p: { token: string }) => client({ server: srv.url, token: p.token }));
     for (const c of clients) await state(c);
     await wait(clients[0], { seconds: 2 });
-    const bin = fileURLToPath(new URL("../bin/aoa.mjs", import.meta.url));
+    const bin = fileURLToPath(new URL("../bin/castellan.mjs", import.meta.url));
     const { stdout } = await promisify(execFile)(process.execPath, [bin, "chat", "secret plan", "--channel", "team"], {
-      env: { ...process.env, AOA_SERVER: srv.url, AOA_TOKEN: room.players[0].token },
+      env: { ...process.env, CASTELLAN_SERVER: srv.url, CASTELLAN_TOKEN: room.players[0].token },
     });
     expect(stdout).toContain("message sent");
     expect(stdout).toContain('p1 (you) [team]: "secret plan"');
@@ -80,7 +80,7 @@ describe("aoa commands", () => {
 
   it("plays a match through the command functions", async () => {
     const lobby = client({ server: srv.url });
-    expect(await newRoom(lobby, { names: ["x"], bots: ["eco"] })).toMatch(/^room \w+ \(waiting\) · map open · chat on\n.*corner\].*AOA_TOKEN=\w+\n.*\(bot eco\)\nwatch http/);
+    expect(await newRoom(lobby, { names: ["x"], bots: ["eco"] })).toMatch(/^room \w+ \(waiting\) · map open · chat on\n.*corner\].*CASTELLAN_TOKEN=\w+\n.*\(bot eco\)\nwatch http/);
     const room = JSON.parse(await newRoom(lobby, { json: true, names: ["alice", "bob"], seed: 5 }));
     const [c1, c2] = room.players.map((p: { token: string }) => client({ server: srv.url, token: p.token }));
     expect(await rooms(lobby)).toContain(`${room.id} waiting`);
@@ -105,7 +105,7 @@ describe("aoa commands", () => {
     // Repeated process failures still stop the keeper; successful decisions do not.
     const log: string[] = [];
     expect(await run(c1, [process.execPath, "-e", "process.exit(1)"], { fastMs: 60_000, maxFastFailures: 2, backoffMs: 10, log: (l) => log.push(l) })).toBe(1);
-    expect(log.join("\n")).toContain("relaunching with AOA_RESUME=1");
+    expect(log.join("\n")).toContain("relaunching with CASTELLAN_RESUME=1");
 
     const lines: string[] = [];
     const outcome = await watch(c2, (l) => lines.push(l));
@@ -118,9 +118,9 @@ describe("aoa commands", () => {
   });
 
   it("can explicitly disable chat when creating a room from the CLI", async () => {
-    const bin = fileURLToPath(new URL("../bin/aoa.mjs", import.meta.url));
+    const bin = fileURLToPath(new URL("../bin/castellan.mjs", import.meta.url));
     const { stdout } = await promisify(execFile)(process.execPath, [bin, "new", "--no-chat", "--json"], {
-      env: { ...process.env, AOA_SERVER: srv.url },
+      env: { ...process.env, CASTELLAN_SERVER: srv.url },
     });
     expect(JSON.parse(stdout).chat).toBe(false);
   });

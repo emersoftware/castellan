@@ -4,12 +4,12 @@
  * goes through the few public methods here; the HTTP layer only translates.
  */
 import { randomBytes } from "node:crypto";
-import { createMatch, type Match } from "@aoa/engine";
+import { createMatch, type Match } from "@castellan/engine";
 import type {
   ChatMessage, GameEvent, MatchStatus, Order, OrderResult, PlayerId, PlayerTiming, PlayerView, ReplayFile, RoomMode, Ruleset, SeatStatus, SeriesProgress, SpectatorMessage, SpectatorView,
-} from "@aoa/shared";
-import { BOTS, type Bot } from "@aoa/sim";
-import { AGENT_ACTIVITY_STATES, isGenericConnector, playerGuide, type AgentActivity, type AgentConfiguration, type ExperimentManifest } from "@aoa/shared";
+} from "@castellan/shared";
+import { BOTS, type Bot } from "@castellan/sim";
+import { AGENT_ACTIVITY_STATES, isGenericConnector, playerGuide, type AgentActivity, type AgentConfiguration, type ExperimentManifest } from "@castellan/shared";
 import { engineIdentity, sha256, unknownAgent } from "./experiment";
 import { createIsolatedScriptHost } from "./script-isolation";
 

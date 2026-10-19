@@ -4,7 +4,7 @@ set -euo pipefail
 # Recreate the existing reel inputs; no agents or new matches are launched.
 task_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 video_public="$task_root/packages/video/public"
-video_server="${AOA_VIDEO_SERVER:-http://localhost:5173}"
+video_server="${CASTELLAN_VIDEO_SERVER:-http://localhost:5173}"
 replay_ids=(53bed717 eb3ebd01 3829ed85 c46c237a d0e598c5)
 
 for replay_id in "${replay_ids[@]}"; do

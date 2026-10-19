@@ -1,6 +1,6 @@
 import { track } from "../analytics";
 import { Link } from "@tanstack/react-router";
-import type { RoomMode } from "@aoa/shared";
+import type { RoomMode } from "@castellan/shared";
 import { fmtTime, type ReplaySummary } from "../api";
 import { Versus } from "./Versus";
 import { familyLabel, rulesFamily } from "../replayCatalog";

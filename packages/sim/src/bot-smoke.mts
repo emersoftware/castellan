@@ -1,6 +1,6 @@
 /** Current-rules reference-bot audit; no model calls. JSONL output, one independent match per row. */
-import { createMatch } from "@aoa/engine";
-import { MAPS, rules, type EntityKind } from "@aoa/shared";
+import { createMatch } from "@castellan/engine";
+import { MAPS, rules, type EntityKind } from "@castellan/shared";
 import { BOTS } from "./bots";
 
 const FIGHTERS: EntityKind[] = ["knight", "archer", "tower"];

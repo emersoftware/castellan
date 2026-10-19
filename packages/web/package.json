@@ -1,5 +1,5 @@
 {
-  "name": "@aoa/web",
+  "name": "@castellan/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,9 +13,9 @@
     "showcase:build": "tsx scripts/build-showcase.ts"
   },
   "dependencies": {
-    "@aoa/engine": "workspace:*",
-    "@aoa/sandbox": "workspace:*",
-    "@aoa/shared": "workspace:*",
+    "@castellan/engine": "workspace:*",
+    "@castellan/sandbox": "workspace:*",
+    "@castellan/shared": "workspace:*",
     "@posthog/react": "^1.11.3",
     "@tanstack/react-query": "^5.104.0",
     "@tanstack/react-router": "^1.170.0",

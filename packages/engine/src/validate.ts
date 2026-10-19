@@ -1,4 +1,4 @@
-import { isChatChannel, type Order } from "@aoa/shared";
+import { isChatChannel, type Order } from "@castellan/shared";
 
 const isInt = (n: unknown) => typeof n === "number" && Number.isInteger(n);
 const isStr = (s: unknown) => typeof s === "string" && s.length > 0 && s.length < 64;

@@ -2,7 +2,7 @@
  * The world model: everything the player knows, built only from its own view
  * (PlayerView) and the public rules, plus memory of what it saw before.
  */
-import type { DepositView, EntityView, GameEvent, PlayerId, PlayerStats, PlayerView, RecordedKind, Ruleset } from "@aoa/shared";
+import type { DepositView, EntityView, GameEvent, PlayerId, PlayerStats, PlayerView, RecordedKind, Ruleset } from "@castellan/shared";
 import { Frame, dist, groupNearby, type DepositCluster, type Pt } from "./geometry";
 import type { Sighting, ThreatGroup } from "./types";
 

@@ -1,10 +1,10 @@
 /**
- * The `aoa` commands as plain functions: each takes a client and returns what
+ * The `castellan` commands as plain functions: each takes a client and returns what
  * the CLI prints (text by default, raw JSON with `json`), so tests and other
  * connectors can call them without spawning processes.
  */
 import { spawn } from "node:child_process";
-import { eventLine, outcomeText, routes, type ChatChannel, type MatchStatus, type Outcome, type PlayerView, type RoomMode, type SeriesSummary } from "@aoa/shared";
+import { eventLine, outcomeText, routes, type ChatChannel, type MatchStatus, type Outcome, type PlayerView, type RoomMode, type SeriesSummary } from "@castellan/shared";
 import { ApiError, client, query, type Client } from "./client";
 
 export interface Fmt {
@@ -54,7 +54,7 @@ export function script(c: Client, kind: string): Promise<ScriptInfo> {
   return c.get<ScriptInfo>(scriptPath(kind));
 }
 
-/** Prints only the code, so `aoa script knight > k.js` round-trips. */
+/** Prints only the code, so `castellan script knight > k.js` round-trips. */
 export async function getScript(c: Client, kind: string, o: Fmt = {}): Promise<string> {
   const s = await script(c, kind);
   return o.json ? pretty(s) : s.code;
@@ -120,7 +120,7 @@ export async function newRoom(
   const players = [...(o.names ?? []).map((name) => ({ name })), ...(o.bots ?? []).map((bot) => ({ bot }))];
   if (o.series) {
     const r = await c.post<Omit<SeriesSummary, "players"> & { players: { id: string; name: string; token?: string; bot?: string }[]; watch: string }>(routes.series, { players: players.length ? players : undefined, prepMs: o.prepMs, seed: o.seed, map: o.map, sides: o.sides, chat: o.chat, mode: o.mode });
-    return o.json ? pretty(r) : [`series ${r.id} · 3 games`, ...r.players.map((p) => `${p.id} ${p.name} ${p.bot ? `(bot ${p.bot})` : `AOA_TOKEN=${p.token}`}`), `watch ${c.server}${r.watch}`].join("\n");
+    return o.json ? pretty(r) : [`series ${r.id} · 3 games`, ...r.players.map((p) => `${p.id} ${p.name} ${p.bot ? `(bot ${p.bot})` : `CASTELLAN_TOKEN=${p.token}`}`), `watch ${c.server}${r.watch}`].join("\n");
   }
   const r = await c.post<RoomSummary>(routes.rooms, { players: players.length ? players : undefined, prepMs: o.prepMs, seed: o.seed, map: o.map, sides: o.sides, chat: o.chat, mode: o.mode });
   if (o.json) return pretty(r);
@@ -129,7 +129,7 @@ export async function newRoom(
     ...r.players.map((p) => {
       const corner = p.side === undefined ? "" : ` [${CORNERS[p.side]} corner]`;
       const team = r.players.length > 2 && r.mode !== "ffa" && p.team !== undefined ? ` team ${p.team}` : "";
-      return `${p.id} ${p.name}${corner}${team}  ${p.bot ? `(bot ${p.bot})` : `AOA_TOKEN=${p.token}`}`;
+      return `${p.id} ${p.name}${corner}${team}  ${p.bot ? `(bot ${p.bot})` : `CASTELLAN_TOKEN=${p.token}`}`;
     }),
     `watch ${c.server}${r.watch}`,
   ].join("\n");
@@ -158,8 +158,8 @@ export interface RunOptions {
 }
 
 /**
- * Loop keeper: runs `cmd` and relaunches it (with AOA_RESUME=1) whenever it
- * exits before the match is finished. Returns the exit code for `aoa run`.
+ * Loop keeper: runs `cmd` and relaunches it (with CASTELLAN_RESUME=1) whenever it
+ * exits before the match is finished. Returns the exit code for `castellan run`.
  */
 export async function run(c: Client, cmd: string[], o: RunOptions = {}): Promise<number> {
   const { fastMs = 10_000, maxFastFailures = 5, backoffMs = 2000, log = (l: string) => console.error(l) } = o;
@@ -167,29 +167,29 @@ export async function run(c: Client, cmd: string[], o: RunOptions = {}): Promise
   for (let attempt = 0; ; attempt++) {
     const started = Date.now();
     const env = o.env ?? process.env;
-    const code = await exec(cmd, attempt ? { ...env, AOA_RESUME: "1" } : env);
+    const code = await exec(cmd, attempt ? { ...env, CASTELLAN_RESUME: "1" } : env);
     let s: MatchStatus | "unreachable";
     try {
       const current = await c.get<{ status: MatchStatus; alive?: boolean }>(routes.status);
-      if (current.alive === false) { log("aoa run: player eliminated"); return 0; }
+      if (current.alive === false) { log("castellan run: player eliminated"); return 0; }
       s = current.status;
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        log(`aoa run: ${e.message}`);
+        log(`castellan run: ${e.message}`);
         return 1;
       }
       s = "unreachable";
     }
     if (s === "finished") {
-      log("aoa run: match finished");
+      log("castellan run: match finished");
       return 0;
     }
     fast = code !== 0 && Date.now() - started < fastMs ? fast + 1 : 0;
     if (fast >= maxFastFailures) {
-      log(`aoa run: ${fast} fast exits in a row with the match ${s}; giving up`);
+      log(`castellan run: ${fast} fast exits in a row with the match ${s}; giving up`);
       return 1;
     }
-    log(`aoa run: agent exited (code ${code}) with the match ${s}; relaunching with AOA_RESUME=1`);
+    log(`castellan run: agent exited (code ${code}) with the match ${s}; relaunching with CASTELLAN_RESUME=1`);
     await new Promise((r) => setTimeout(r, backoffMs * Math.max(1, fast)));
   }
 }
@@ -203,17 +203,17 @@ export async function runSeries(c: Client, cmd: string[], o: RunOptions = {}): P
     try { joined = await c.get(routes.currentSeries); }
     catch (error) {
       if (!(error instanceof ApiError) || error.status === 401) throw error;
-      log("aoa run-series: waiting for server");
+      log("castellan run-series: waiting for server");
       await new Promise((r) => setTimeout(r, o.backoffMs ?? 1000)); continue;
     }
-    if (joined.series.status === "finished") { log("aoa run-series: all three games finished"); return 0; }
-    if (joined.series.status === "error") { log("aoa run-series: series persistence failed"); return 1; }
+    if (joined.series.status === "finished") { log("castellan run-series: all three games finished"); return 0; }
+    if (joined.series.status === "error") { log("castellan run-series: series persistence failed"); return 1; }
     if (joined.game.id === last || joined.game.status === "finished") {
       await new Promise((r) => setTimeout(r, o.backoffMs ?? 1000)); continue;
     }
-    const env: NodeJS.ProcessEnv = { ...(o.env ?? process.env), AOA_SERVER: c.server, AOA_TOKEN: joined.game.token };
-    delete env.AOA_RESUME;
-    log(`aoa run-series: game ${joined.game.number}/3 (${joined.game.id})`);
+    const env: NodeJS.ProcessEnv = { ...(o.env ?? process.env), CASTELLAN_SERVER: c.server, CASTELLAN_TOKEN: joined.game.token };
+    delete env.CASTELLAN_RESUME;
+    log(`castellan run-series: game ${joined.game.number}/3 (${joined.game.id})`);
     const code = await run(client({ server: c.server, token: joined.game.token }), cmd, { ...o, env, log });
     if (code !== 0) return code;
     last = joined.game.id;

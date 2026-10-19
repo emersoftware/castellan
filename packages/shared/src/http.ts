@@ -49,7 +49,9 @@ export const pages = {
 /** A page's path for one record. */
 export const pagePath = (page: string, id: string) => page.replace("$id", id);
 
-const AGENT_HEADER = "x-aoa-agent";
+const AGENT_HEADER = "x-castellan-agent";
+/** Connectors from before the rename send the same declaration under this name. */
+const LEGACY_AGENT_HEADER = "x-aoa-agent";
 
 /** Connectors any agent can use; a harness that knows its agent declares a more specific one. */
 export type GenericConnector = "cli" | "mcp";
@@ -61,6 +63,6 @@ export const agentHeader = (declared: object) => ({ [AGENT_HEADER]: encodeURICom
 
 /** What a call declared with `agentHeader`, if anything. Throws on a malformed declaration. */
 export function declaredAgent(headers: Record<string, unknown>): unknown {
-  const value = headers[AGENT_HEADER];
+  const value = headers[AGENT_HEADER] ?? headers[LEGACY_AGENT_HEADER];
   return typeof value === "string" ? JSON.parse(decodeURIComponent(value)) : undefined;
 }

@@ -28,7 +28,7 @@ it("accepts only efforts the replay catalogue knows", () => {
 });
 
 it("records known CLI choices, leaves defaults unknown and never copies prompt or credentials", () => {
-  const env = { AOA_TOKEN: "seat-secret", OPENAI_API_KEY: "provider-secret", AOA_MODEL: "fallback" };
+  const env = { CASTELLAN_TOKEN: "seat-secret", OPENAI_API_KEY: "provider-secret", CASTELLAN_MODEL: "fallback" };
   const cfg = launchConfiguration({ connector: "codex", args: ["-m", "chosen", "-c", 'model_reasoning_effort="high"'],
     prompt: "task with experiment directive", env });
   expect(cfg).toMatchObject({ model: "chosen", effort: "high", connector: "codex", connectorVersion: null });
@@ -44,20 +44,20 @@ it("records known CLI choices, leaves defaults unknown and never copies prompt o
 it("reports metadata failure without leaking request/error details or blocking play", async () => {
   const warnings: string[] = [];
   const ok = await reportConfiguration({ model: null }, {
-    env: { AOA_TOKEN: "secret" }, warn: (s: string) => warnings.push(s),
+    env: { CASTELLAN_TOKEN: "secret" }, warn: (s: string) => warnings.push(s),
     fetchImpl: async () => { throw new Error("https://secret.example secret"); },
   });
   expect(ok).toBe(false);
-  expect(warnings).toEqual(["aoa: experiment configuration was not recorded (server unavailable)."]);
+  expect(warnings).toEqual(["castellan: experiment configuration was not recorded (server unavailable)."]);
 });
 
 for (const connector of ["codex", "claude-code"] as const) {
   it(`${connector}: real launch path registers the instruction prompt before reading the match`, async () => {
-    const root = await mkdtemp(join(tmpdir(), "aoa-metadata-test-")); dirs.push(root);
+    const root = await mkdtemp(join(tmpdir(), "castellan-metadata-test-")); dirs.push(root);
     await mkdir(join(root, "auth"));
     await writeFile(join(root, "auth", "auth.json"), "{}");
     const capture = join(root, "launch.json"), bin = connector === "codex" ? "codex" : "claude";
-    await writeFile(join(root, bin), `#!${process.execPath}\nconst fs=require('node:fs'); const args=process.argv.slice(2); if(args.includes('--version')) console.log('test-cli 1.2.3'); else {fs.writeFileSync(process.env.AOA_TEST_CAPTURE,JSON.stringify(args));console.log(JSON.stringify({type:'thread.started',thread_id:'00000000-0000-4000-8000-000000000001'}));console.log(JSON.stringify({type:'turn.completed'}));}\n`, { mode: 0o700 });
+    await writeFile(join(root, bin), `#!${process.execPath}\nconst fs=require('node:fs'); const args=process.argv.slice(2); if(args.includes('--version')) console.log('test-cli 1.2.3'); else {fs.writeFileSync(process.env.CASTELLAN_TEST_CAPTURE,JSON.stringify(args));console.log(JSON.stringify({type:'thread.started',thread_id:'00000000-0000-4000-8000-000000000001'}));console.log(JSON.stringify({type:'turn.completed'}));}\n`, { mode: 0o700 });
     const requests: { path?: string; authorization?: string; body: string }[] = [];
     let stateCalls = 0;
     const observation = "tick 1 · 0.1s/10s · running · you are p1";
@@ -75,9 +75,9 @@ for (const connector of ["codex", "claude-code"] as const) {
     const script = new URL(connector === "codex" ? "../codex/agent.sh" : "../claude-code/play.sh", import.meta.url).pathname;
     const args = connector === "codex" ? ["-m", "declared-model", "-c", 'model_reasoning_effort="high"'] : ["--model", "declared-model", "--effort", "high"];
     await exec("sh", [script, ...args], { env: { ...process.env,
-      PATH: `${root}:${process.env.PATH}`, CODEX_HOME: join(root, "auth"), AOA_TEST_CAPTURE: capture,
-      AOA_TOKEN: "seat-secret", AOA_SERVER: `http://127.0.0.1:${port}`, AOA_DIRECTIVE: "Protect the eastern mine.", AOA_RESUME: "1",
-      AOA_CONNECTOR_VERSION: "", AOA_MODEL: "", AOA_EFFORT: "",
+      PATH: `${root}:${process.env.PATH}`, CODEX_HOME: join(root, "auth"), CASTELLAN_TEST_CAPTURE: capture,
+      CASTELLAN_TOKEN: "seat-secret", CASTELLAN_SERVER: `http://127.0.0.1:${port}`, CASTELLAN_DIRECTIVE: "Protect the eastern mine.", CASTELLAN_RESUME: "1",
+      CASTELLAN_CONNECTOR_VERSION: "", CASTELLAN_MODEL: "", CASTELLAN_EFFORT: "",
     } });
     const launched: string[] = JSON.parse(await readFile(capture, "utf8"));
     // Both deliver the shared first turn: the instruction, then the observation.

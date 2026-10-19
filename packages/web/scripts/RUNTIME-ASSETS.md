@@ -1,6 +1,6 @@
 # Runtime assets
 
-`pnpm --filter @aoa/web assets:runtime` produces `public/game-assets/` from the
+`pnpm --filter @castellan/web assets:runtime` produces `public/game-assets/` from the
 original `public/sprites/` and the two active tracks in `public/music/`.
 Original art, music and composition archives are never overwritten.
 

@@ -1,5 +1,5 @@
 import posthog, { type PostHogConfig } from "posthog-js";
-import { analyticsTags } from "@aoa/shared";
+import { analyticsTags } from "@castellan/shared";
 
 let enabled = false;
 let lastPath: string | undefined;

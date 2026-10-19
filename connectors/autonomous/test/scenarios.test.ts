@@ -7,9 +7,9 @@ import { attachPlayer, createExperiment, type Experiment } from "../validate";
 
 const recorded: { scenario: string; fixture: string; evidence: unknown }[] = [];
 afterAll(async () => {
-  if (!process.env.AOA_EVIDENCE_DIR) return;
-  await mkdir(process.env.AOA_EVIDENCE_DIR, { recursive: true });
-  await writeFile(resolve(process.env.AOA_EVIDENCE_DIR, "scenarios.json"), JSON.stringify({ generatedAt: new Date().toISOString(), scenarios: recorded }, null, 2) + "\n");
+  if (!process.env.CASTELLAN_EVIDENCE_DIR) return;
+  await mkdir(process.env.CASTELLAN_EVIDENCE_DIR, { recursive: true });
+  await writeFile(resolve(process.env.CASTELLAN_EVIDENCE_DIR, "scenarios.json"), JSON.stringify({ generatedAt: new Date().toISOString(), scenarios: recorded }, null, 2) + "\n");
 });
 
 function constructionRules(): Ruleset {

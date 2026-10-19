@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import type { EntityView, SpectatorView } from '@aoa/shared';
+import type { EntityView, SpectatorView } from '@castellan/shared';
 import { frameCompactor } from '../src/compactFrames';
 
 const unit = (x: number, order?: string): EntityView => ({ id: 'u', kind: 'knight', owner: 'a', x, y: 2, hp: 10, maxHp: 10, stats: { atk: 1, def: 1, range: 1, attackMs: 1000, moveMs: 500 }, ...(order ? { order } : {}) });

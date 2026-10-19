@@ -4,8 +4,8 @@
 //   npx tsx src/video-timeline.mts <replayId> [out.json]
 import { readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
-import { createMatch, type PlayerOrder } from "@aoa/engine";
-import type { RecordedKind, ReplayFile } from "@aoa/shared";
+import { createMatch, type PlayerOrder } from "@castellan/engine";
+import type { RecordedKind, ReplayFile } from "@castellan/shared";
 
 const id = process.argv[2];
 if (!id) throw new Error("usage: video-timeline.mts <replayId> [out.json]");

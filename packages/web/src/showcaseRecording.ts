@@ -1,4 +1,4 @@
-import type { MatchStatus, ReplayFile, SpectatorView } from "@aoa/shared";
+import type { MatchStatus, ReplayFile, SpectatorView } from "@castellan/shared";
 import type { CameraShot } from "./showcaseCamera";
 
 /** Rendered board states, not executable orders. Watch and the full replay keep

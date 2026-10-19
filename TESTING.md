@@ -31,12 +31,12 @@ browser download/render time must be measured separately. Keep other test and
 benchmark processes stopped when comparing timings.
 
 The landing uses a generated, board-only recording instead of running the
-simulation in the browser. `pnpm --filter @aoa/web showcase:build` regenerates it
+simulation in the browser. `pnpm --filter @castellan/web showcase:build` regenerates it
 from `public/showcase/02eb6795.json`, verifies recorded hashes and every decoded
 frame, and caches the result by source/content hashes. `predev` and `prebuild`
 run this automatically; generated chunks and smaller hero sprites are ignored.
 Watch and the full replay viewer retain their existing data paths and full-size
-art. For hero load measurements, `aoa-hero-ready` marks the first presented frame;
+art. For hero load measurements, `castellan-hero-ready` marks the first presented frame;
 measure downloads and this mark with a fresh browser context, including slow
 network runs. The first build computes the recording; unchanged builds reuse it.
 

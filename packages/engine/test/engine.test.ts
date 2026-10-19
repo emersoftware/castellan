@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { rules, type Order, type Ruleset } from "@aoa/shared";
+import { rules, type Order, type Ruleset } from "@castellan/shared";
 import { createMatch, type Match, type PlayerOrder } from "../src";
 
 const players = [{ id: "p1", name: "one" }, { id: "p2", name: "two" }];
@@ -124,7 +124,7 @@ else self.moveTo(${king.x}, ${king.y});`;
 
 describe("replay", () => {
   it("re-simulates a recorded match exactly", async () => {
-    const { simulate, BOTS } = await import("@aoa/sim");
+    const { simulate, BOTS } = await import("@castellan/sim");
     const { runReplay } = await import("../src");
     const r = await simulate({ bot: BOTS.eco(), latencyMs: 2000 }, { bot: BOTS.rush(), latencyMs: 3000 }, { seed: 9, ruleset: rules });
     let frames = 0;
@@ -166,7 +166,7 @@ describe("building rules", () => {
 
 describe("maps and sides", () => {
   it("rock walls block movement and building, and show as ^", async () => {
-    const { MAPS: MAPS } = await import("@aoa/shared");
+    const { MAPS: MAPS } = await import("@castellan/shared");
     const m = await make(seeAll({ ...rules, map: MAPS.ridge }));
     const wall = MAPS.ridge.walls[0];
     expect(m.view("p1").grid[wall.y][wall.x]).toBe("^");

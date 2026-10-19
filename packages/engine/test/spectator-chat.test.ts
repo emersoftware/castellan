@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { rules, MAPS } from "@aoa/shared";
+import { rules, MAPS } from "@castellan/shared";
 import { createMatch } from "../src";
 
 it("keeps full observer chat per player, including own private/team messages but not other conversations", async () => {

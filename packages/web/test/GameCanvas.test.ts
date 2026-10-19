@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { Ruleset, SpectatorView } from "@aoa/shared";
+import type { Ruleset, SpectatorView } from "@castellan/shared";
 import { GameCanvas } from "../src/components/GameCanvas";
 import { GameRenderer } from "../src/render/renderer";
 

@@ -3,10 +3,10 @@
  * the player decides every N ticks from its own PlayerView (what the API would
  * return), and a tiny room layer adds chat the way the server does.
  */
-import { createMatch, type PlayerOrder } from "@aoa/engine";
-import { BOTS, type Bot } from "@aoa/sim";
-import { MAPS, rules as baseRules, type ChatMessage, type GameEvent, type Order, type Outcome, type PlayerView, type RoomMode, type Ruleset } from "@aoa/shared";
-import { Castellan } from "../src/core";
+import { createMatch, type PlayerOrder } from "@castellan/engine";
+import { BOTS, type Bot } from "@castellan/sim";
+import { MAPS, rules as baseRules, type ChatMessage, type GameEvent, type Order, type Outcome, type PlayerView, type RoomMode, type Ruleset } from "@castellan/shared";
+import { CastellanBot } from "../src/core";
 import type { JournalEntry } from "../src/types";
 
 export interface Seat {
@@ -31,7 +31,7 @@ export interface HeadlessOptions {
 export interface HeadlessResult {
   outcome: Outcome;
   ticks: number;
-  players: Record<string, { core?: Castellan; entries: JournalEntry[]; rejected: number; orders: number; chat: ChatMessage[] }>;
+  players: Record<string, { core?: CastellanBot; entries: JournalEntry[]; rejected: number; orders: number; chat: ChatMessage[] }>;
   events: GameEvent[];
 }
 
@@ -43,7 +43,7 @@ export async function playHeadless(o: HeadlessOptions): Promise<HeadlessResult> 
   const m = await createMatch({ ruleset, seed: o.seed ?? 1, tickRate: 10, players });
   const every = o.everyTicks ?? 10, botEvery = o.botEveryTicks ?? 30;
   const result: HeadlessResult = { outcome: { winner: null, winners: [], reason: "timeout", scores: {} }, ticks: 0, players: {}, events: [] };
-  const cores = new Map<string, Castellan>();
+  const cores = new Map<string, CastellanBot>();
   const bots = new Map<string, Bot>();
   const chatLog: ChatMessage[] = [];
   for (const p of players) {
@@ -51,7 +51,7 @@ export async function playHeadless(o: HeadlessOptions): Promise<HeadlessResult> 
     result.players[p.id] = { entries: [], rejected: 0, orders: 0, chat: [] };
     if (seat.kind === "bot") bots.set(p.id, BOTS[seat.bot ?? "eco"](ruleset));
     else {
-      const core = new Castellan({ rules: ruleset, log: (e) => { result.players[p.id].entries.push(e); o.onEntry?.(p.id, e); } });
+      const core = new CastellanBot({ rules: ruleset, log: (e) => { result.players[p.id].entries.push(e); o.onEntry?.(p.id, e); } });
       cores.set(p.id, core);
       result.players[p.id].core = core;
     }
@@ -97,4 +97,4 @@ export async function playHeadless(o: HeadlessOptions): Promise<HeadlessResult> 
   }
 }
 
-export const countKind = (core: Castellan, kind: string) => core.world?.mine.filter((e) => e.kind === kind).length ?? 0;
+export const countKind = (core: CastellanBot, kind: string) => core.world?.mine.filter((e) => e.kind === kind).length ?? 0;

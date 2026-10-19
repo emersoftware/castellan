@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { rules, MAPS } from "@aoa/shared";
+import { rules, MAPS } from "@castellan/shared";
 import { createMatch, findPath } from "../src";
 import type { Grid } from "../src/grid";
 

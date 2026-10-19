@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AgentConfiguration, ExperimentManifest } from "@aoa/shared";
+import type { AgentConfiguration, ExperimentManifest } from "@castellan/shared";
 
 export const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 export const unknownAgent = (): AgentConfiguration => ({ model: null, effort: null, connector: null,

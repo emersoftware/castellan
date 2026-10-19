@@ -2,12 +2,12 @@ import { expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { rules, type PlayerView } from "@aoa/shared";
+import { rules, type PlayerView } from "@castellan/shared";
 import { buildServer } from "../src/app";
 import { waitForStatus } from "./support/readiness";
 
 it("restores an in-progress castle build and charges only once after completion", async () => {
-  const replayDir = await mkdtemp(join(tmpdir(), "aoa-expansion-"));
+  const replayDir = await mkdtemp(join(tmpdir(), "castellan-expansion-"));
   const ruleset = { ...rules, startMineral: 1200, matchMs: 15_000,
     map: { ...rules.map, deposits: [], sharedDeposits: [] },
     kinds: { ...rules.kinds, castle: { ...rules.kinds.castle, buildMs: 1000 } },

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { MAPS, rules, type Ruleset } from "@aoa/shared";
+import { MAPS, rules, type Ruleset } from "@castellan/shared";
 import { playHeadless } from "./harness";
 
 // These are strategy regression fixtures with a known outcome, not a constraint
-// that every future balance must make Castellan beat the same reference bots.
+// that every future balance must make Castellan Bot beat the same reference bots.
 // Pin combat and movement: newer rules intentionally change match trajectories.
 const strategyFixture: Ruleset = { ...rules, coordinatedMovement: false, tickPathCosts: false,
   kinds: { ...rules.kinds,

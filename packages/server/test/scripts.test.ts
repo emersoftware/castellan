@@ -2,12 +2,12 @@ import { expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { rules } from "@aoa/shared";
+import { rules } from "@castellan/shared";
 import { buildServer } from "../src/app";
 import { waitForStatus } from "./support/readiness";
 
 it("lists the script every player's scriptable kinds run in a live room", async () => {
-  const replayDir = await mkdtemp(join(tmpdir(), "aoa-scripts-"));
+  const replayDir = await mkdtemp(join(tmpdir(), "castellan-scripts-"));
   const app = await buildServer({ replayDir, prepMs: 0 });
   try {
     const room = (await app.inject({ method: "POST", url: "/rooms", payload: { players: [{ name: "A" }, { name: "B" }] } })).json();

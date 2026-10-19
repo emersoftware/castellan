@@ -3,7 +3,7 @@
  * It turns the plan into orders every cycle and keeps running whatever the
  * strategic layer is still deciding.
  */
-import type { EntityKind, EntityView, Order, OrderResult } from "@aoa/shared";
+import type { EntityKind, EntityView, Order, OrderResult } from "@castellan/shared";
 import { dist, ring, type DepositCluster, type Pt } from "./geometry";
 import type { Memory, World } from "./perception";
 import { STATIC_SCRIPT, SCRIPT_MAX_BYTES, kingScript, knightScript, archerScript, workerScript, type ArmyParams } from "./scripts";

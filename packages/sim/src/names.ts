@@ -1,4 +1,4 @@
-import { currentKind, type RecordedKind, type Ruleset } from "@aoa/shared";
+import { currentKind, type RecordedKind, type Ruleset } from "@castellan/shared";
 
 /** Compare historical samples under current names without rewriting their scripts. */
 export const currentUpgrade = (id: string): string => id.replace(/^[a-z]+(?=_)/, currentKind);

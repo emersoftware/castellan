@@ -1,5 +1,5 @@
 import { beforeAll, expect, it } from "vitest";
-import { rules } from "@aoa/shared";
+import { rules } from "@castellan/shared";
 import { createScriptHost, initSandbox, type ScriptWorld } from "../src";
 
 beforeAll(initSandbox);

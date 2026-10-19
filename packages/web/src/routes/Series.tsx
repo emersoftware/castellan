@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { pages, type SeriesSummary } from "@aoa/shared";
+import { pages, type SeriesSummary } from "@castellan/shared";
 import { api, playerColors } from "../api";
 import { agentText } from "../components/Agent";
 import { ReplayPlayer } from "./Replay";

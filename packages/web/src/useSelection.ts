@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { DepositView, EntityView } from "@aoa/shared";
+import type { DepositView, EntityView } from "@castellan/shared";
 
 /**
  * What the viewer clicked on the map: an entity or a deposit. `entity`/`deposit` are the

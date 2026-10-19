@@ -7,7 +7,7 @@ import { rules } from '../../../packages/shared/src/index';
 import { httpTransport, runPlayer, type PlayerTransport } from '../src/runtime';
 
 it('runs the HTTP lifecycle, reconciles a lost action reply, and writes a bound checkpoint without the capability', async()=>{
-  const out=await mkdtemp(join(tmpdir(),'aoa-runtime-test-'));
+  const out=await mkdtemp(join(tmpdir(),'castellan-runtime-test-'));
   const app=await buildServer({replayDir:join(out,'replays'),ruleset:{...rules,matchMs:2200},prepMs:0});
   await app.listen({port:0,host:'127.0.0.1'});
   const address=app.server.address();

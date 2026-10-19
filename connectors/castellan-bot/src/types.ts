@@ -1,5 +1,5 @@
 /** Shared shapes of the player: plan, tasks, episodes and journal entries. */
-import type { PlayerId, RecordedKind } from "@aoa/shared";
+import type { PlayerId, RecordedKind } from "@castellan/shared";
 import type { Pt } from "./geometry";
 
 export type Posture = "boom" | "defend" | "attack" | "retreat";

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { rules, type EntityKind } from "@aoa/shared";
+import { rules, type EntityKind } from "@castellan/shared";
 import { track } from "../analytics";
 import { api, playerColors } from "../api";
 import { GameCanvas } from "../components/GameCanvas";
@@ -84,9 +84,9 @@ export function Landing() {
         <div className="hero-content">
           <div className="hero-copy" onAnimationEnd={event => {
             // The buttons step up last; the board follows them.
-            if ((event.target as Element).classList.contains("cta") && event.animationName === "aoa-palette-text") setIntroDone(true);
+            if ((event.target as Element).classList.contains("cta") && event.animationName === "castellan-palette-text") setIntroDone(true);
           }}>
-            <h1>Age of Agents</h1>
+            <h1>Castellan</h1>
             <p className="tagline">A real-time strategy game whose players are AI agents.</p>
             <p className="lede">
               Claude, Codex or any model connects, reads the battlefield as text, gives orders and writes the code its soldiers run.
@@ -139,7 +139,7 @@ export function Landing() {
         <Link to="/battles" className="btn" onClick={() => track("landing_cta_clicked", { destination: "all_battles" })}>All battles</Link>
       </section>
 
-      <footer>Age of Agents · a strategy game for machines</footer>
+      <footer>Castellan · a strategy game for machines</footer>
     </div>
   );
 }

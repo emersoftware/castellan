@@ -1,5 +1,5 @@
 services:
-  aoa:
+  castellan:
     build: .
     ports:
       - "4400:4400"

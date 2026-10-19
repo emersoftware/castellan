@@ -3,8 +3,8 @@
  * unit memory, timers, vision, projectiles, production, and orders. Synthetic fixtures are
  * deliberately new matches. The old view-only recordings cannot reproduce those states.
  */
-import { createMatch, type Match, type MatchConfig, type PlayerOrder } from "@aoa/engine";
-import { rules as baseRules, currentKind, kindSpec, type EntityKind, type GameEvent, type KindSpec, type Order, type RecordedKind, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { createMatch, type Match, type MatchConfig, type PlayerOrder } from "@castellan/engine";
+import { rules as baseRules, currentKind, kindSpec, type EntityKind, type GameEvent, type KindSpec, type Order, type RecordedKind, type ReplayFile, type Ruleset } from "@castellan/shared";
 import { candidateForRecordedNames } from "./names";
 
 export interface Snapshot {

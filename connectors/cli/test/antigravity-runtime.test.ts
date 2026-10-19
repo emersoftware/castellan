@@ -13,8 +13,8 @@ afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) awai
 
 type Call = { kind: string; pid?: number; conversation?: string; prompt?: string; overlap?: boolean; args?: string[]; adc?: string };
 async function fixture(mode = "normal") {
-  const dir = await mkdtemp(join(tmpdir(), "aoa-agy-runtime-"));
-  const project = `aoa-runtime-${randomUUID()}`;
+  const dir = await mkdtemp(join(tmpdir(), "castellan-agy-runtime-"));
+  const project = `castellan-runtime-${randomUUID()}`;
   const projectFile = join(homedir(), ".gemini/config/projects", `${project}.json`);
   await mkdir(dirname(projectFile), { recursive: true });
   await writeFile(projectFile, JSON.stringify({ permissionGrants: { permissionGrants: { allow: [], deny: ["command(*)", "write_file(*)"] } } }));
@@ -66,8 +66,8 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   cleanups.push(() => new Promise<void>(resolve => http.close(() => resolve())));
   const port = (http.address() as { port: number }).port;
   const child = spawn(process.execPath, [agent, "--model", "gemini-4-argon-low", "--effort", "low", "--output-format", "stream-json"], {
-    cwd: dir, env: { ...process.env, AOA_SERVER: `http://127.0.0.1:${port}`, AOA_TOKEN: "test-player", AOA_AGY_PROJECT: project,
-      AOA_AGY_BIN: bin, AOA_AGY_TRANSPORT: "mcp", AOA_CONNECTOR_VERSION: "1.3.4", AGY_ADC_AUTH: "true", FAKE_MODE: mode, FAKE_LOG: log, FAKE_FAILED: failed },
+    cwd: dir, env: { ...process.env, CASTELLAN_SERVER: `http://127.0.0.1:${port}`, CASTELLAN_TOKEN: "test-player", CASTELLAN_AGY_PROJECT: project,
+      CASTELLAN_AGY_BIN: bin, CASTELLAN_AGY_TRANSPORT: "mcp", CASTELLAN_CONNECTOR_VERSION: "1.3.4", AGY_ADC_AUTH: "true", FAKE_MODE: mode, FAKE_LOG: log, FAKE_FAILED: failed },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";

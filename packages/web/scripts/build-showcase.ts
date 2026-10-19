@@ -8,7 +8,7 @@ import { basename, join, relative, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
-import type { ReplayFile, SpectatorView } from "@aoa/shared";
+import type { ReplayFile, SpectatorView } from "@castellan/shared";
 import { playRecordedReplay } from "../src/replayPlayback";
 import { cameraActivity, planShowcaseCamera, type CameraActivity } from "../src/showcaseCamera";
 import { decodeShowcaseChunk, encodeShowcaseChunk, parseShowcaseManifest, type ShowcaseManifest } from "../src/showcaseRecording";
@@ -53,7 +53,7 @@ try {
 if (cached) {
   console.log(`Showcase ${replay.id} up to date`);
 } else {
-  const stage = mkdtempSync(join(tmpdir(), `aoa-showcase-${replay.id}-`));
+  const stage = mkdtempSync(join(tmpdir(), `castellan-showcase-${replay.id}-`));
   const started = performance.now();
   const lookback = replay.tickRate * 8;
   const openingFrames = replay.tickRate * 10;

@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { access } from "node:fs/promises";
-import { AGENT_ACTIVITY_STATES } from "@aoa/shared";
+import { AGENT_ACTIVITY_STATES } from "@castellan/shared";
 // @ts-expect-error Plain Node launcher shared with external harnesses.
 import { play } from "../../loop-keepers/codex/agent.mjs";
 
@@ -32,7 +32,7 @@ it("resumes the same isolated conversation after a no-order decision, supplies f
     });
     return child;
   };
-  const result = await play({ env: { AOA_TOKEN: "test", AOA_SERVER: "http://game", AOA_CONNECTOR_VERSION: "test" },
+  const result = await play({ env: { CASTELLAN_TOKEN: "test", CASTELLAN_SERVER: "http://game", CASTELLAN_CONNECTOR_VERSION: "test" },
     args: ["-m", "gpt-6-luna", "-c", 'model_reasoning_effort="low"'], fetchImpl, spawnImpl, minIntervalMs: 0 });
   expect(result).toBe(0);
   expect(launches).toHaveLength(2);
@@ -57,6 +57,6 @@ it("cancels an in-flight inference when the match finishes", async () => {
     const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), kill: () => { killed(); setImmediate(() => child.emit("close", null)); } });
     return child;
   };
-  expect(await play({ env: { AOA_TOKEN: "test", AOA_CONNECTOR_VERSION: "test" }, args: [], fetchImpl, spawnImpl, pollMs: 20 })).toBe(0);
+  expect(await play({ env: { CASTELLAN_TOKEN: "test", CASTELLAN_CONNECTOR_VERSION: "test" }, args: [], fetchImpl, spawnImpl, pollMs: 20 })).toBe(0);
   expect(killed).toHaveBeenCalled();
 });

@@ -187,7 +187,7 @@ def main():
         if not any(stale.name == row[2] for row in rows):
             stale.unlink()
     (OUT / 'manifest.json').write_text(json.dumps(dict(pad=PAD, loop=loop_seconds, files=manifest), indent=1) + '\n')
-    page = ['<!doctype html><meta charset="utf-8"><title>aoa sounds</title>',
+    page = ['<!doctype html><meta charset="utf-8"><title>castellan sounds</title>',
             '<style>body{font:14px system-ui;background:#111;color:#ddd;margin:2em}td{padding:4px 10px}'
             '.out{opacity:.4}audio{height:28px}</style><table>']
     for name, seed, file, prompt, keep, notes in rows:

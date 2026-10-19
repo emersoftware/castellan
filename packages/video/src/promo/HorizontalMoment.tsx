@@ -15,7 +15,7 @@ const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 const WHITE_BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const WHITE_TONE = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4" shape-rendering="crispEdges"><rect width="4" height="4" fill="#000"/>${WHITE_BAYER.map((v, i) => v < 14 ? `<rect x="${i % 4}" y="${Math.floor(i / 4)}" width="1" height="1" fill="#fff"/>` : "").join("")}</svg>`)}")`;
 export const LANDSCAPE_CSS = `${TITLE_CSS}
-  .landscape-match, .landscape-speed { filter: url(#aoa-dither); }
+  .landscape-match, .landscape-speed { filter: url(#castellan-dither); }
   /* White Times lettering, with the hero's thin black contour and game-sized dots. */
   .landscape-title h1, .landscape-title h3 { color: transparent; background: ${WHITE_TONE}; background-size: 4px 4px; background-clip: text; -webkit-background-clip: text; text-shadow: none;
     filter: drop-shadow(1px 0 #000) drop-shadow(-1px 0 #000) drop-shadow(0 1px #000) drop-shadow(0 -1px #000); }

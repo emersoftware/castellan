@@ -2,11 +2,11 @@ import { expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MAPS } from "@aoa/shared";
+import { MAPS } from "@castellan/shared";
 import { buildServer } from "../src/app";
 
 it("advertises solid terrain and creates only four competing players", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "aoa-neutral-"));
+  const dir = mkdtempSync(join(tmpdir(), "castellan-neutral-"));
   const app = await buildServer({ replayDir: dir, prepMs: 0 });
   try {
     const maps = (await app.inject({ method: "GET", url: "/maps" })).json();

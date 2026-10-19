@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
 import { Application } from "pixi.js";
-import { rules } from "@aoa/shared";
+import { rules } from "@castellan/shared";
 import { GameRenderer } from "../src/render/renderer";
 import { loadSprites, HERO_SPRITE_BASE, type SpriteSet } from "../src/render/sprites";
 

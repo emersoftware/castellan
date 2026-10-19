@@ -1,4 +1,4 @@
-import type { ReplayFile, SpectatorView } from "@aoa/shared";
+import type { ReplayFile, SpectatorView } from "@castellan/shared";
 import { createMatch } from "./index";
 import type { PlayerOrder } from "./match";
 

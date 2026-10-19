@@ -1,4 +1,4 @@
-import type { DepositView, MapSpec } from "@aoa/shared";
+import type { DepositView, MapSpec } from "@castellan/shared";
 
 /** Each stage has its own silhouette; all three keep the same scale and anchor. */
 export function depositSprite(amount: number, initialAmount: number): string {

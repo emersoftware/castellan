@@ -17,7 +17,7 @@ Comprobaciones reproducibles:
 ```sh
 pnpm exec vitest run connectors/autonomous/test
 pnpm exec tsc -p connectors/autonomous/tsconfig.json
-pnpm exec tsx connectors/autonomous/validate.ts --out /tmp/aoa-local-validation
+pnpm exec tsx connectors/autonomous/validate.ts --out /tmp/castellan-local-validation
 ```
 
 Siguen vigentes las limitaciones de la política: apertura vulnerable en terreno abierto, geometría de fortificación simple, pocas semillas y chat estructurado. El typecheck global tiene problemas ajenos al jugador; el typecheck aislado de este directorio permite verificarlo sin modificar otros componentes.

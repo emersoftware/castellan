@@ -107,8 +107,8 @@ export function DitherDefs() {
   const d = useDevicePixels();
   return (
     <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
-      <DitherFilter id="aoa-dither" d={d} />
-      <DitherFilter id="aoa-dither-soft" d={d} soft />
+      <DitherFilter id="castellan-dither" d={d} />
+      <DitherFilter id="castellan-dither-soft" d={d} soft />
     </svg>
   );
 }

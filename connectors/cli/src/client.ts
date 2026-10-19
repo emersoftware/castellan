@@ -1,5 +1,5 @@
 /** The one HTTP client every connector command goes through. */
-import { agentHeader, defaultServer, type GenericConnector } from "@aoa/shared";
+import { agentHeader, defaultServer, type GenericConnector } from "@castellan/shared";
 
 export interface ClientOptions {
   connector?: string;
@@ -19,15 +19,15 @@ export type Client = ReturnType<typeof client>;
 const undeclared: GenericConnector = "cli";
 
 export function client(opts: ClientOptions = {}) {
-  const server = (opts.server ?? process.env.AOA_SERVER ?? defaultServer).replace(/\/+$/, "");
-  const token = opts.token ?? process.env.AOA_TOKEN;
+  const server = (opts.server ?? process.env.CASTELLAN_SERVER ?? defaultServer).replace(/\/+$/, "");
+  const token = opts.token ?? process.env.CASTELLAN_TOKEN;
 
   /** JSON bodies come back parsed, text bodies (`format=text`) as strings. Non-2xx throws ApiError. */
   async function request<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
-    const declared = { connector: process.env.AOA_CONNECTOR ?? opts.connector ?? undeclared, model: process.env.AOA_MODEL ?? null,
-      effort: process.env.AOA_EFFORT ?? null, connectorVersion: process.env.AOA_CONNECTOR_VERSION ?? null,
-      promptSha256: process.env.AOA_PROMPT_SHA256 ?? null, memoryPolicy: process.env.AOA_MEMORY_POLICY ?? null,
-      contextPolicy: process.env.AOA_CONTEXT_POLICY ?? null };
+    const declared = { connector: process.env.CASTELLAN_CONNECTOR ?? opts.connector ?? undeclared, model: process.env.CASTELLAN_MODEL ?? null,
+      effort: process.env.CASTELLAN_EFFORT ?? null, connectorVersion: process.env.CASTELLAN_CONNECTOR_VERSION ?? null,
+      promptSha256: process.env.CASTELLAN_PROMPT_SHA256 ?? null, memoryPolicy: process.env.CASTELLAN_MEMORY_POLICY ?? null,
+      contextPolicy: process.env.CASTELLAN_CONTEXT_POLICY ?? null };
     const headers: Record<string, string> = agentHeader(declared);
     if (token) headers.authorization = `Bearer ${token}`;
     if (body !== undefined) headers["content-type"] = "application/json";
@@ -44,7 +44,7 @@ export function client(opts: ClientOptions = {}) {
       const msg =
         typeof parsed === "object" && parsed && "error" in parsed ? String(parsed.error)
         : typeof parsed === "string" && parsed.startsWith("FAILED") ? parsed // text answer: reason + current view
-        : `${res.statusText} from ${server} (not an Age of Agents server?)`;
+        : `${res.statusText} from ${server} (not an Castellan server?)`;
       throw new ApiError(res.status, `${res.status} ${msg}`);
     }
     return parsed as T;

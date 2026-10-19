@@ -57,7 +57,7 @@ export async function preparePlayer({ root, credential, env = process.env }) {
   const workspace = join(root, "workspace"), home = join(root, "home"), configDir = join(home, ".cursor");
   await mkdir(join(workspace, ".cursor"), { recursive: true, mode: 0o700 });
   await mkdir(configDir, { recursive: true, mode: 0o700 });
-  const permissions = { allow: ["Mcp(aoa:*)"], deny: ["Shell(*)", "Read(**)", "Write(**)", "WebFetch(*)"] };
+  const permissions = { allow: ["Mcp(castellan:*)"], deny: ["Shell(*)", "Read(**)", "Write(**)", "WebFetch(*)"] };
   await writeFile(join(configDir, "cli-config.json"), JSON.stringify({ version: 1, editor: { vimMode: false }, approvalMode: "allowlist", permissions }), { mode: 0o600 });
   await writeFile(join(workspace, ".cursor/cli.json"), JSON.stringify({ permissions }), { mode: 0o600 });
   const childEnv = Object.fromEntries(["PATH", "TMPDIR", "LANG", "LC_ALL", "SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS"].filter(k => env[k]).map(k => [k, env[k]]));
@@ -67,9 +67,9 @@ export async function preparePlayer({ root, credential, env = process.env }) {
 }
 
 export async function connectTools(player, { token, server }) {
-  await writeFile(join(player.workspace, ".cursor/mcp.json"), JSON.stringify({ mcpServers: { aoa: {
-    command: process.execPath, args: [resolve(here, "../../mcp/bin/aoa-mcp.mjs")],
-    env: { AOA_SERVER: server, AOA_TOKEN: token },
+  await writeFile(join(player.workspace, ".cursor/mcp.json"), JSON.stringify({ mcpServers: { castellan: {
+    command: process.execPath, args: [resolve(here, "../../mcp/bin/castellan-mcp.mjs")],
+    env: { CASTELLAN_SERVER: server, CASTELLAN_TOKEN: token },
   } } }), { mode: 0o600 });
 }
 
@@ -89,15 +89,15 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   credentialImpl = loadCredential, minIntervalMs = MIN_INTERVAL_MS, pollMs = 2000, retryMs = 2000, maxFailures = 8, idleTimeoutMs = 180_000, exitGraceMs = 2000,
   output = chunk => process.stdout.write(chunk), warn = text => console.error(text) } = {}) {
   const opts = options(args);
-  if (!env.AOA_TOKEN) throw new Error("set AOA_TOKEN (see aoa new or aoa run-series)");
+  if (!env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN (see castellan new or castellan run-series)");
   const credential = await credentialImpl(env);
-  const root = await mkdtemp(join(tmpdir(), "aoa-cursor-"));
+  const root = await mkdtemp(join(tmpdir(), "castellan-cursor-"));
   let child, watcher, session, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0;
   const abort = new AbortController();
   const stop = () => { stopped = true; abort.abort(); };
   const delay = ms => sleep(ms, undefined, { signal: abort.signal });
   const game = seat({ env, fetchImpl, signal: abort.signal });
-  const redact = text => Object.values(credential).concat(env.AOA_TOKEN).reduce((s, secret) => secret ? s.split(secret).join("[REDACTED]") : s, text);
+  const redact = text => Object.values(credential).concat(env.CASTELLAN_TOKEN).reduce((s, secret) => secret ? s.split(secret).join("[REDACTED]") : s, text);
   process.on("SIGINT", stop); process.on("SIGTERM", stop);
   try {
     const player = await preparePlayer({ root, credential, env });
@@ -111,7 +111,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         clearTimeout(timer);
         timer = setTimeout(() => { timedOut = true; terminate(); }, idleTimeoutMs);
       };
-      child = spawnImpl(env.AOA_CURSOR_BIN || "agent", cursorArgs({ model: opts.model, session: resume, prompt }), {
+      child = spawnImpl(env.CASTELLAN_CURSOR_BIN || "agent", cursorArgs({ model: opts.model, session: resume, prompt }), {
         cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "pipe"], detached: platform() !== "win32",
       });
       const consume = raw => {
@@ -174,10 +174,10 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
     const warmup = await decision("Reply READY. Do not use tools.", undefined, false);
     if (stopped) return 1;
     if (!warmup.success) throw new Error(`Cursor preflight failed; player has not joined. ${warmup.diagnostic || "No successful result; check model access and login."}`);
-    await connectTools(player, { token: env.AOA_TOKEN, server: serverUrl(env.AOA_SERVER) });
+    await connectTools(player, { token: env.CASTELLAN_TOKEN, server: serverUrl(env.CASTELLAN_SERVER) });
     const base = promptOf(env);
-    let version = env.AOA_CONNECTOR_VERSION;
-    if (!version) { try { version = (await exec(env.AOA_CURSOR_BIN || "agent", ["--version"], { timeout: 5000 })).stdout.trim(); } catch { /* optional metadata */ } }
+    let version = env.CASTELLAN_CONNECTOR_VERSION;
+    if (!version) { try { version = (await exec(env.CASTELLAN_CURSOR_BIN || "agent", ["--version"], { timeout: 5000 })).stdout.trim(); } catch { /* optional metadata */ } }
     await reportConfiguration(launchConfiguration({ connector: "cursor", ...opts, prompt: base, connectorVersion: version, env }), { env, fetchImpl });
     const watch = async () => {
       if (stopped) return;
@@ -191,7 +191,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         const observation = await game.observation(lastDeliveredTick);
         const seen = observedSeat(observation);
         if (seatOver(seen)) { finished = true; break; }
-        const prompt = turnFor(observation, { delivered: Boolean(session), prompt: base, resumed: Boolean(env.AOA_RESUME) });
+        const prompt = turnFor(observation, { delivered: Boolean(session), prompt: base, resumed: Boolean(env.CASTELLAN_RESUME) });
         if (!prompt) { await delay(1000); continue; }
         const tick = seen.tick;
         await reportActivity("deciding", { env, fetchImpl });
@@ -209,7 +209,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         if (stopped) break;
         if (/** @type {{ fatal?: boolean }} */ (error).fatal || ++failures >= maxFailures) throw error;
         const ms = Math.min(30_000, retryMs * 2 ** (failures - 1));
-        warn(`aoa cursor: ${redact(/** @type {Error} */ (error).message)}; retry in ${ms / 1000}s, preserving session and observation cursor`);
+        warn(`castellan cursor: ${redact(/** @type {Error} */ (error).message)}; retry in ${ms / 1000}s, preserving session and observation cursor`);
         await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + ms).toISOString() });
         await delay(ms).catch(() => {});
       }

@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { GAME_TOOLS } from "../../../packages/shared/src/http.ts";
 
 const names = new Set(GAME_TOOLS);
-const mcpBin = fileURLToPath(new URL("../../mcp/bin/aoa-mcp.mjs", import.meta.url));
+const mcpBin = fileURLToPath(new URL("../../mcp/bin/castellan-mcp.mjs", import.meta.url));
 // Resolve the SDK through the package that owns it, including in frozen runs.
 const requireMcp = createRequire(new URL("../../mcp/package.json", import.meta.url));
 const maxRequestBytes = 512 * 1024;
@@ -18,11 +18,11 @@ const timeoutMs = 65_000;
 async function connectClient({ server, token }) {
   const { Client } = await import(pathToFileURL(requireMcp.resolve("@modelcontextprotocol/sdk/client/index.js")).href);
   const { StdioClientTransport } = await import(pathToFileURL(requireMcp.resolve("@modelcontextprotocol/sdk/client/stdio.js")).href);
-  const client = new Client({ name: "aoa-antigravity-command", version: "0.1.0" });
+  const client = new Client({ name: "castellan-antigravity-command", version: "0.1.0" });
   try {
     await client.connect(new StdioClientTransport({
       command: process.execPath, args: [mcpBin],
-      env: { AOA_SERVER: server, AOA_TOKEN: token, AOA_CONNECTOR: "antigravity" },
+      env: { CASTELLAN_SERVER: server, CASTELLAN_TOKEN: token, CASTELLAN_CONNECTOR: "antigravity" },
     }));
     return client;
   } catch (error) {
@@ -48,7 +48,7 @@ function argumentsObject(args) {
 function commandRequest(argv) {
   const [name, json] = argv;
   if (argv.length !== 2 || !names.has(name)) {
-    throw new Error(`usage: aoa-tool <${GAME_TOOLS.join("|")}> '<JSON object>'`);
+    throw new Error(`usage: castellan-tool <${GAME_TOOLS.join("|")}> '<JSON object>'`);
   }
   let args;
   try { args = JSON.parse(json); }

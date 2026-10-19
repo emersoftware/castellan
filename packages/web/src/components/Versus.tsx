@@ -1,4 +1,4 @@
-import type { Outcome } from "@aoa/shared";
+import type { Outcome } from "@castellan/shared";
 import type { ReactNode } from "react";
 import { playerColors, winnersOf } from "../api";
 import { Agent, Agents } from "./Agent";

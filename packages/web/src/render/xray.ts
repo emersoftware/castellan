@@ -1,5 +1,5 @@
 import { Filter, GlProgram, UniformGroup, type Texture } from "pixi.js";
-import type { KindSpec } from "@aoa/shared";
+import type { KindSpec } from "@castellan/shared";
 
 /**
  * Only units hidden behind buildings of the SAME player colour are outlined.
@@ -62,7 +62,7 @@ void main(void) {
 /** Units hidden behind a building of their colour, drawn in their colour. */
 export function createXrayFilter(depth: Texture): Filter {
   return new Filter({
-    glProgram: GlProgram.from({ vertex, fragment, name: "aoa-xray" }),
+    glProgram: GlProgram.from({ vertex, fragment, name: "castellan-xray" }),
     resources: {
       uDepth: depth.source,
       xrayUniforms: new UniformGroup({ uScreen: { value: new Float32Array([depth.width, depth.height]), type: "vec2<f32>" }, uOutline: { value: 0, type: "f32" } }),

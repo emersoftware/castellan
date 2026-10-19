@@ -10,8 +10,8 @@ import { observedSeat, seat, seatOver, serverUrl } from "../game.mjs";
 import { MIN_INTERVAL_MS, promptOf, turnFor } from "../turns.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-/** The Codex CLI to run: AOA_CODEX_BIN, else `codex` on PATH. */
-export const codexBin = (env = process.env) => env.AOA_CODEX_BIN || "codex";
+/** The Codex CLI to run: CASTELLAN_CODEX_BIN, else `codex` on PATH. */
+export const codexBin = (env = process.env) => env.CASTELLAN_CODEX_BIN || "codex";
 
 /** `codex exec` cut off from the host: read-only in an empty workspace, without the user's config,
  * rules, project docs, web search or built-in tools, and never asking for approval. */
@@ -33,17 +33,17 @@ export async function isolatedHome(root, env = process.env) {
 
 export function codexArgs({ workspace, session, args, prompt }) {
   return [...isolatedExec({ workspace, session }), "--json",
-    "-c", 'mcp_servers.aoa.command="node"', "-c", `mcp_servers.aoa.args=${JSON.stringify([resolve(here, "../../mcp/bin/aoa-mcp.mjs")])}`,
-    "-c", 'mcp_servers.aoa.env_vars=["AOA_SERVER","AOA_TOKEN"]',
-    "-c", "mcp_servers.aoa.tool_timeout_sec=60", "-c", 'mcp_servers.aoa.default_tools_approval_mode="approve"', ...args, prompt];
+    "-c", 'mcp_servers.castellan.command="node"', "-c", `mcp_servers.castellan.args=${JSON.stringify([resolve(here, "../../mcp/bin/castellan-mcp.mjs")])}`,
+    "-c", 'mcp_servers.castellan.env_vars=["CASTELLAN_SERVER","CASTELLAN_TOKEN"]',
+    "-c", "mcp_servers.castellan.tool_timeout_sec=60", "-c", 'mcp_servers.castellan.default_tools_approval_mode="approve"', ...args, prompt];
 }
 
 /** Supplies observations, never strategy. One decision in flight per seat;
  * every later decision resumes this match's conversation. */
 export async function play({ env = process.env, args = process.argv.slice(2), fetchImpl = fetch, spawnImpl = spawn,
   minIntervalMs = MIN_INTERVAL_MS, pollMs = 2000 } = {}) {
-  if (!env.AOA_TOKEN) throw new Error("set AOA_TOKEN");
-  const root = await mkdtemp(join(tmpdir(), "aoa-codex-"));
+  if (!env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN");
+  const root = await mkdtemp(join(tmpdir(), "castellan-codex-"));
   let child, session, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0;
   const abort = new AbortController();
   const stop = () => { stopped = true; abort.abort(); child?.kill("SIGTERM"); };
@@ -54,7 +54,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
     const { home, workspace } = await isolatedHome(root, env);
     const base = promptOf(env);
     await reportConfiguration(launchConfiguration({ connector: "codex", args, prompt: base, env,
-      connectorVersion: env.AOA_CONNECTOR_VERSION || await connectorVersion(codexBin(env)) }), { env, fetchImpl });
+      connectorVersion: env.CASTELLAN_CONNECTOR_VERSION || await connectorVersion(codexBin(env)) }), { env, fetchImpl });
     process.on("SIGINT", stop); process.on("SIGTERM", stop);
     const watch = async () => {
       if (stopped) return;
@@ -75,7 +75,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         const observedTick = seen.tick;
         await reportActivity("deciding", { env, fetchImpl });
         child = spawnImpl(codexBin(env), codexArgs({ workspace, session, args, prompt }), {
-          cwd: workspace, env: { ...env, AOA_SERVER: serverUrl(env.AOA_SERVER), CODEX_HOME: home }, stdio: ["ignore", "pipe", "inherit"],
+          cwd: workspace, env: { ...env, CASTELLAN_SERVER: serverUrl(env.CASTELLAN_SERVER), CODEX_HOME: home }, stdio: ["ignore", "pipe", "inherit"],
         });
         let pending = "", turnComplete = false;
         const line = raw => {
@@ -101,7 +101,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         if (stopped) break;
         failures++;
         const ms = Math.min(30_000, 2000 * failures);
-        console.error(`aoa codex: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
+        console.error(`castellan codex: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
         await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + ms).toISOString() });
         await delay(ms).catch(() => {});
       }

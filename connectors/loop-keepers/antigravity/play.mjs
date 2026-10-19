@@ -11,14 +11,14 @@ import { serverUrl } from "../game.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 
 export async function preparePlayer({ workspace, projectId, server, token, transport = "cli", bridge }) {
-  if (transport !== "mcp" && transport !== "cli") throw new Error("AOA_AGY_TRANSPORT must be mcp or cli.");
+  if (transport !== "mcp" && transport !== "cli") throw new Error("CASTELLAN_AGY_TRANSPORT must be mcp or cli.");
   await mkdir(join(workspace, ".agents"), { recursive: true });
-  const mcp = { mcpServers: { aoa: {
+  const mcp = { mcpServers: { castellan: {
     command: process.execPath,
-    args: [resolve(here, "../../mcp/bin/aoa-mcp.mjs")],
-    env: { AOA_SERVER: server, AOA_TOKEN: token },
+    args: [resolve(here, "../../mcp/bin/castellan-mcp.mjs")],
+    env: { CASTELLAN_SERVER: server, CASTELLAN_TOKEN: token },
   } } };
-  const toolPath = join(workspace, "bin/aoa-tool");
+  const toolPath = join(workspace, "bin/castellan-tool");
   const outputDir = join(workspace, "tool-output");
   const schemaPath = join(workspace, ".agents/tool-schemas.json");
   if (transport === "cli") {
@@ -35,12 +35,12 @@ export async function preparePlayer({ workspace, projectId, server, token, trans
   }
   return {
     id: projectId,
-    name: `Age of Agents ${projectId}`,
+    name: `Castellan ${projectId}`,
     projectResources: { resources: [{ folderUri: pathToFileURL(workspace).href }] },
     permissionGrants: {
       v2Migrated: true,
       permissionGrants: {
-        allow: transport === "cli" ? [`command(${toolPath})`, `read_file(${outputDir})`, `read_file(${schemaPath})`] : ["mcp(aoa/*)"],
+        allow: transport === "cli" ? [`command(${toolPath})`, `read_file(${outputDir})`, `read_file(${schemaPath})`] : ["mcp(castellan/*)"],
         // Unlisted paths retain agy's default approval requirement. A blanket
         // read deny would also override the conversation-specific grants below.
         deny: [...(transport === "cli" ? [] : ["command(*)"]), "write_file(*)", "read_url(*)", "execute_url(*)"],
@@ -50,8 +50,8 @@ export async function preparePlayer({ workspace, projectId, server, token, trans
 }
 
 async function main() {
-  if (!process.env.AOA_TOKEN) throw new Error("set AOA_TOKEN (see aoa new)");
-  const agy = process.env.AOA_AGY_BIN || "agy";
+  if (!process.env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN (see castellan new)");
+  const agy = process.env.CASTELLAN_AGY_BIN || "agy";
   // Check the executable before creating a project or consuming a player's seat.
   await new Promise((resolveCheck, reject) => {
     const check = spawn(agy, ["--help"], { stdio: "ignore" });
@@ -65,8 +65,8 @@ async function main() {
     check.on("error", reject);
     check.on("exit", (code) => code === 0 ? resolveCheck() : reject(new Error(`Antigravity cannot list models. Run agy interactively and sign in before joining a match.\n${diagnostic.trim()}`)));
   });
-  const workspace = await realpath(await mkdtemp(join(tmpdir(), "aoa-antigravity-")));
-  const projectId = `aoa-${randomUUID()}`;
+  const workspace = await realpath(await mkdtemp(join(tmpdir(), "castellan-antigravity-")));
+  const projectId = `castellan-${randomUUID()}`;
   const projectDir = join(homedir(), ".gemini/config/projects");
   const projectPath = join(projectDir, `${projectId}.json`);
   let child, bridge;
@@ -78,18 +78,18 @@ async function main() {
   const onInt = () => forward("SIGINT");
   const onTerm = () => forward("SIGTERM");
   try {
-    const server = serverUrl(process.env.AOA_SERVER);
-    const transport = process.env.AOA_AGY_TRANSPORT || "cli";
+    const server = serverUrl(process.env.CASTELLAN_SERVER);
+    const transport = process.env.CASTELLAN_AGY_TRANSPORT || "cli";
     if (transport === "cli") bridge = await startToolBridge({
-      socketPath: join(workspace, "tools.sock"), server, token: process.env.AOA_TOKEN,
+      socketPath: join(workspace, "tools.sock"), server, token: process.env.CASTELLAN_TOKEN,
       outputDir: join(workspace, "tool-output"),
     });
-    const project = await preparePlayer({ workspace, projectId, server, token: process.env.AOA_TOKEN, transport, bridge });
+    const project = await preparePlayer({ workspace, projectId, server, token: process.env.CASTELLAN_TOKEN, transport, bridge });
     await mkdir(projectDir, { recursive: true });
     await writeFile(projectPath, JSON.stringify(project, null, 2), { mode: 0o600, flag: "wx" });
-    const env = { ...process.env, AOA_SERVER: server, AOA_AGY_BIN: agy, AOA_AGY_PROJECT: projectId };
-    if (transport === "cli") env.AOA_AGY_TOOL_OUTPUT_DIR = join(workspace, "tool-output");
-    delete env.AOA_RESUME;
+    const env = { ...process.env, CASTELLAN_SERVER: server, CASTELLAN_AGY_BIN: agy, CASTELLAN_AGY_PROJECT: projectId };
+    if (transport === "cli") env.CASTELLAN_AGY_TOOL_OUTPUT_DIR = join(workspace, "tool-output");
+    delete env.CASTELLAN_RESUME;
     process.on("SIGINT", onInt);
     process.on("SIGTERM", onTerm);
     process.exitCode = await new Promise((resolveExit, reject) => {
@@ -110,5 +110,5 @@ async function main() {
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
-  main().catch((e) => { console.error(`aoa antigravity: ${e.message}`); process.exitCode = 1; });
+  main().catch((e) => { console.error(`castellan antigravity: ${e.message}`); process.exitCode = 1; });
 }

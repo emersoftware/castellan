@@ -10,10 +10,10 @@ const game = seat();
 for (;;) {
   const observation = await game.observation();
   if (seatOver(observedSeat(observation))) process.exit(3);
-  const turn = turnFor(observation, { delivered: false, prompt: promptOf(), resumed: Boolean(process.env.AOA_RESUME) });
+  const turn = turnFor(observation, { delivered: false, prompt: promptOf(), resumed: Boolean(process.env.CASTELLAN_RESUME) });
   if (turn) {
     // The Stop hook paces later turns from this moment (see stop-hook.mjs).
-    await writeFile(".aoa-last-turn", String(Date.now()));
+    await writeFile(".castellan-last-turn", String(Date.now()));
     process.stdout.write(turn);
     break;
   }

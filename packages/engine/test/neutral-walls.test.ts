@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { MAPS, NEUTRAL_OWNER, playerGuide, rules, viewToText, type ReplayFile, type Ruleset } from "@aoa/shared";
+import { MAPS, NEUTRAL_OWNER, playerGuide, rules, viewToText, type ReplayFile, type Ruleset } from "@castellan/shared";
 import { createMatch, findPath, runReplay, type Match } from "../src";
 import { seatToMap, type Grid } from "../src/grid";
 

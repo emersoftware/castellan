@@ -2,14 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildServer } from "@aoa/server";
-import { rules } from "@aoa/shared";
+import { buildServer } from "@castellan/server";
+import { rules } from "@castellan/shared";
 import { Runtime } from "../src/runtime";
 
 let app: Awaited<ReturnType<typeof buildServer>>;
 let url = "";
 beforeAll(async () => {
-  app = await buildServer({ replayDir: mkdtempSync(join(tmpdir(), "aoa-castellan-")), ruleset: { ...rules, matchMs: 40_000 }, tickRate: 10, prepMs: 1000 });
+  app = await buildServer({ replayDir: mkdtempSync(join(tmpdir(), "castellan-castellan-")), ruleset: { ...rules, matchMs: 40_000 }, tickRate: 10, prepMs: 1000 });
   await app.listen({ port: 0, host: "127.0.0.1" });
   const addr = app.server.address();
   url = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}`;
@@ -36,7 +36,7 @@ describe("castellan runtime", () => {
     expect(summary).toContain("Outcome:");
     expect(rt.core.world?.view.status).toBe("finished");
     // The player only used its own token: it never asked for spectator data or the opponent's scripts.
-    expect(lines.some((l) => l.startsWith("castellan:"))).toBe(true);
+    expect(lines.some((l) => l.startsWith("castellan-bot:"))).toBe(true);
   }, 120_000);
 
   it("rejects a bad token at once", async () => {

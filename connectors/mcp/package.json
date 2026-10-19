@@ -1,12 +1,12 @@
 {
-  "name": "@aoa/mcp",
+  "name": "@castellan/mcp",
   "version": "0.1.0",
   "type": "module",
-  "bin": { "aoa-mcp": "./bin/aoa-mcp.mjs" },
+  "bin": { "castellan-mcp": "./bin/castellan-mcp.mjs" },
   "exports": { ".": "./src/tools.ts" },
   "dependencies": {
-    "@aoa/cli": "workspace:*",
-    "@aoa/shared": "workspace:*",
+    "@castellan/cli": "workspace:*",
+    "@castellan/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "tsx": "^4.20.0",
     "zod": "^4.0.0"

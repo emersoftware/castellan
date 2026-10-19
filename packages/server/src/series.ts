@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createMatch } from "@aoa/engine";
-import type { GameEvent, HistorySection, ReplayFile, SeriesProgress, SeriesReplay, SeriesSummary } from "@aoa/shared";
-import { playerResult } from "@aoa/shared";
+import { createMatch } from "@castellan/engine";
+import type { GameEvent, HistorySection, ReplayFile, SeriesProgress, SeriesReplay, SeriesSummary } from "@castellan/shared";
+import { playerResult } from "@castellan/shared";
 import { Room, type RoomCheckpoint, type RoomOptions } from "./room";
 
 type Config = Omit<RoomOptions, "onFinish" | "deferredStart">;

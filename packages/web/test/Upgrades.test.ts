@@ -3,8 +3,8 @@ import { afterEach, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { EventFeed, PlayerList, Tooltip } from "../src/components/Hud";
-import type { SpectatorView } from "@aoa/shared";
-import { currentFrame, rules, type GameEvent, type RecordedKind } from "@aoa/shared";
+import type { SpectatorView } from "@castellan/shared";
+import { currentFrame, rules, type GameEvent, type RecordedKind } from "@castellan/shared";
 import { fall, unitLook } from "../src/render/look";
 
 vi.mock("../src/audio/sfx", () => ({ sfx: { muted: true } }));

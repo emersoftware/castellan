@@ -7,8 +7,8 @@ not Gemini CLI or the desktop editor's command launcher.
 Create a room and give this player its token:
 
 ```sh
-pnpm aoa new --name antigravity --bot rush --chat
-AOA_TOKEN=<player-token> connectors/loop-keepers/antigravity/play.sh \
+pnpm castellan new --name antigravity --bot rush --chat
+CASTELLAN_TOKEN=<player-token> connectors/loop-keepers/antigravity/play.sh \
   --model gemini-4-argon-low --effort low
 ```
 
@@ -17,14 +17,14 @@ For Vertex through Google Cloud, configure ADC once with
 project and region in Antigravity's Google Cloud settings:
 
 ```sh
-AGY_ADC_AUTH=true AOA_TOKEN=<player-token> \
+AGY_ADC_AUTH=true CASTELLAN_TOKEN=<player-token> \
   connectors/loop-keepers/antigravity/play.sh --model gemini-4-argon-low --effort low
 ```
 
 The ADC quota project and Antigravity's GCP project must identify the intended
 billing project. The launcher inherits `AGY_ADC_AUTH`; it does not change global
-authentication. `AOA_SERVER` defaults to `http://localhost:4400` and
-`AOA_AGY_BIN` can select another executable. Model and effort arguments are
+authentication. `CASTELLAN_SERVER` defaults to `http://localhost:4400` and
+`CASTELLAN_AGY_BIN` can select another executable. Model and effort arguments are
 forwarded to `agy`. The driver owns the project, conversation, prompt and
 stream-json protocol; external conversation/project overrides are rejected.
 
@@ -48,7 +48,7 @@ and observation cursor. The recovery prompt explains that earlier actions may
 already have applied; the driver never repeats them. Three consecutive failures
 stop the connector. Match end, elimination and signals terminate the model
 process. The default CLI print timeout is 15 minutes and can be overridden with
-`--print-timeout`. There is no outer `aoa run` relaunch loop.
+`--print-timeout`. There is no outer `castellan run` relaunch loop.
 
 Stream output is forwarded unchanged. `result.usage` is cumulative within a
 conversation: use its latest value per conversation ID or calculate deltas;
@@ -57,7 +57,7 @@ do not sum every decision's cumulative usage.
 ## Persistent command transport
 
 `cli` is the default transport. One MCP process remains connected for the whole
-player session. A private Unix socket connects the temporary `bin/aoa-tool`
+player session. A private Unix socket connects the temporary `bin/castellan-tool`
 wrapper to that process. The wrapper accepts exactly a tool name and one JSON
 object. It exposes the same seven tools, schemas, validation and responses:
 `guide`, `state`, `act`, `script`, `run`, `chat` and `history`.
@@ -101,12 +101,12 @@ both responses. CLI exit zero or `SUCCESS` alone is insufficient. A 60-second
 host deadline stops the process and its children; temporary resources are
 removed. Regression tests use fake model processes and never call paid models.
 
-Native MCP remains available explicitly with `AOA_AGY_TRANSPORT=mcp`. In the
+Native MCP remains available explicitly with `CASTELLAN_AGY_TRANSPORT=mcp`. In the
 tested `agy 1.3.4`, MCP discovery succeeded but the model could not invoke the
 tools, including with configuration produced by `agy mcp add`. Its underlying
 cause is unresolved; use `--transport mcp` in the diagnostic to verify a future
 CLI version before selecting it for a match. Native mode pre-approves only
-`mcp(aoa/*)` and permitted output/schema reads; terminal commands are denied.
+`mcp(castellan/*)` and permitted output/schema reads; terminal commands are denied.
 
 References: [headless mode](https://antigravity.google/docs/cli/headless/),
 [MCP configuration](https://antigravity.google/docs/mcp?tab=cli),

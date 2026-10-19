@@ -1,5 +1,5 @@
 /** The combat and cost values the optimizer may move, with bounds and the design rules it must keep. */
-import { rules as base, currentKind, type EntityKind, type Ruleset } from "@aoa/shared";
+import { rules as base, currentKind, type EntityKind, type Ruleset } from "@castellan/shared";
 import { currentUpgrade } from "./names";
 
 /** Values move on a grid: costs and health in tens, times in whole 100 ms ticks (the engine rounds to them), small

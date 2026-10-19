@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { rules, playerGuide, type Ruleset } from '@aoa/shared';
+import { rules, playerGuide, type Ruleset } from '@castellan/shared';
 import { createMatch, runReplay, type Match } from '../src';
 const live: Match[] = [];
 afterEach(() => live.splice(0).forEach(m => m.dispose()));

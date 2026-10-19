@@ -9,7 +9,7 @@ const directories: string[] = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
 
 it("keeps odd-sized poses separate and preserves their display size, anchors and timing", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "aoa-hero-art-"));
+  const directory = await mkdtemp(join(tmpdir(), "castellan-hero-art-"));
   directories.push(directory);
   const source = join(directory, "source"), target = join(directory, "hero");
   await mkdir(join(source, "knight"), { recursive: true });

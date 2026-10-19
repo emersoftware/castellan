@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { createScriptHost, initSandbox, testScript, validateScript, type ScriptWorld } from "../src";
-import { rules } from "@aoa/shared";
+import { rules } from "@castellan/shared";
 
 const world: ScriptWorld = {
   tick: 5,

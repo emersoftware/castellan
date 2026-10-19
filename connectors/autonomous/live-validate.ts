@@ -5,7 +5,7 @@ import { httpTransport, runPlayer } from './src/runtime';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 
-const out=resolve(process.argv[2]??'/tmp/aoa-autonomous-live');
+const out=resolve(process.argv[2]??'/tmp/castellan-autonomous-live');
 await mkdir(out,{recursive:true});
 const app=await buildServer({replayDir:join(out,'replays'),prepMs:1000});
 await app.listen({host:'127.0.0.1',port:0});

@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { rules, type PlayerView } from "@aoa/shared";
+import { rules, type PlayerView } from "@castellan/shared";
 import { buildServer } from "../src/app";
 
 let app: FastifyInstance;
@@ -11,7 +11,7 @@ let base = "";
 let dir: string;
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "aoa-http-"));
+  dir = await mkdtemp(join(tmpdir(), "castellan-http-"));
   app = await buildServer({ replayDir: dir, ruleset: { ...rules, matchMs: 4000 }, tickRate: 20, prepMs: 300 });
   await app.listen({ port: 0, host: "127.0.0.1" });
   const addr = app.server.address();

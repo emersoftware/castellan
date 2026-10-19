@@ -9,7 +9,7 @@ try {
  const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(/** @type {Error} */ (e).message));
  await page.goto('http://localhost:5173',{waitUntil:'networkidle0'});await page.waitForSelector('.landing:not(.pending)');
  await page.evaluate(()=>/** @type {Element} */ (document.querySelector('.units')).scrollIntoView());await new Promise(r=>setTimeout(r,600));
- await page.screenshot({path:'/tmp/aoa-door-landing.png'});
+ await page.screenshot({path:'/tmp/castellan-door-landing.png'});
  const preview=await page.evaluateHandle(async(sharedPath)=>{
  const {GameRenderer}=await import(/** @type {string} */ (performance.getEntriesByType('resource').map(e=>e.name).find(u=>u.includes('/src/render/renderer.ts'))));
  const {v15:ruleset}=await import('/@fs'+sharedPath);
@@ -22,8 +22,8 @@ try {
  r.setFrame({tick:1,timeMs:100,entities,deposits:[],events:[],projectiles:[]},100);clock.draw();
  return {r,clock,entities};
  },sharedPath);
- await new Promise(r=>setTimeout(r,400));await page.screenshot({path:'/tmp/aoa-door-walls.png'});
+ await new Promise(r=>setTimeout(r,400));await page.screenshot({path:'/tmp/castellan-door-walls.png'});
  await page.evaluate(({r,clock,entities})=>{entities.forEach(e=>{if(e.kind==='door')e.open=!e.open;});r.setFrame({tick:2,timeMs:200,entities,deposits:[],events:[],projectiles:[]},100);clock.draw();},preview);
- await page.screenshot({path:'/tmp/aoa-door-walls-toggled.png'});
+ await page.screenshot({path:'/tmp/castellan-door-walls-toggled.png'});
  assert.deepEqual(errors,[]);console.log('Current rules: both axes, all four colours, closed/open; no browser errors.');
 } finally {await browser.close();}

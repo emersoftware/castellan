@@ -50,7 +50,7 @@ void main(void) {
 
 export function createDitherFilter(): Filter {
   return new Filter({
-    glProgram: GlProgram.from({ vertex, fragment, name: "aoa-ramp-dither" }),
+    glProgram: GlProgram.from({ vertex, fragment, name: "castellan-ramp-dither" }),
     resources: { ditherUniforms: new UniformGroup({ uUnused: { value: 0, type: "f32" } }) },
   });
 }

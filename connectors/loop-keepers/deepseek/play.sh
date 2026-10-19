@@ -1,7 +1,8 @@
 #!/bin/sh
-# One game. For a series, give agent.mjs directly to aoa run-series.
+# One game. For a series, give agent.mjs directly to castellan run-series.
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
-: "${AOA_TOKEN:?set AOA_TOKEN (see aoa new)}"
+. "$here/../legacy-env.sh"
+: "${CASTELLAN_TOKEN:?set CASTELLAN_TOKEN (see castellan new)}"
 node "$here/key.mjs" --check
-exec node "$here/../../cli/bin/aoa.mjs" run -- node "$here/agent.mjs" "$@"
+exec node "$here/../../cli/bin/castellan.mjs" run -- node "$here/agent.mjs" "$@"

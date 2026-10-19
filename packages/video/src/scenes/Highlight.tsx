@@ -1,5 +1,5 @@
 import { Video } from "@remotion/media";
-import type { SpectatorView } from "@aoa/shared";
+import type { SpectatorView } from "@castellan/shared";
 import { AbsoluteFill, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { Agent } from "../../../web/src/components/Agent";
 import { EventFeed, OutcomeBanner, PlayerList, notableEvents } from "../../../web/src/components/Hud";

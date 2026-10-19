@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { rules } from "@aoa/shared";
+import { rules } from "@castellan/shared";
 import { api } from "../src/api";
 import { battleMode } from "../src/components/BattleCard";
 
