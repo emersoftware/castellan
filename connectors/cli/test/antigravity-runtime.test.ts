@@ -78,11 +78,10 @@ readline.createInterface({input:process.stdin}).on('line', line => {
     phase: (value: string) => { status = value; }, eliminate: () => { alive = false; } };
 }
 
-it("waits through prep without model calls, then keeps normal decisions in one conversation with fresh observations", async () => {
+it("delivers the shared first turn in prep, then later turns only while running, in one conversation", async () => {
   const f = await fixture();
-  await vi.waitFor(() => expect(f.statusReads()).toBeGreaterThan(0), { timeout: 4000 });
-  expect(await f.calls()).toEqual([]);
-  expect(f.states).toEqual([{ tick: 0, since: "0", status: "prep" }]);
+  await vi.waitFor(async () => expect((await f.calls()).filter(c => c.kind === "prompt")).toHaveLength(1), { timeout: 8000 });
+  expect(f.states[0]).toMatchObject({ status: "prep" });
   f.phase("running");
   await vi.waitFor(async () => expect((await f.calls()).filter(c => c.kind === "result")).toHaveLength(2), { timeout: 8000 });
   f.phase("finished");
@@ -91,13 +90,13 @@ it("waits through prep without model calls, then keeps normal decisions in one c
   expect(calls.filter(c => c.kind === "start")).toHaveLength(1);
   expect(new Set(prompts.map(c => c.conversation)).size).toBe(1);
   expect(prompts.map(c => c.overlap)).toEqual([false, false]);
-  expect(prompts[0].prompt).toContain("Age of Agents");
-  expect(prompts[0].prompt).toContain("Test room mechanics");
-  expect(prompts[1].prompt).not.toContain("Test room mechanics");
-  expect(prompts[0].prompt).toContain("observation 1");
-  expect(prompts[1].prompt).toContain("observation 2");
+  expect(prompts[0].prompt).toMatch(/^play!/);
+  expect(prompts[0].prompt).not.toContain("Test room mechanics");
+  expect(prompts[1].prompt).not.toContain("play!");
+  expect(prompts[0].prompt).toContain("observation 0"); // delivered in prep
+  expect(prompts[1].prompt).toContain("observation 1");
   expect(prompts[1].prompt).not.toContain("Reply READY");
-  expect(f.states.filter(s => s.status === "running").map(s => s.since)).toEqual(["0", "1"]);
+  expect(f.states.filter(s => s.status === "running").map(s => s.since)).toEqual(["0"]);
   expect(calls[0].args).toContain("low");
   expect(calls[0].adc).toBe("true");
   expect(calls.filter(c => c.kind === "eof")).toHaveLength(1);
@@ -114,7 +113,8 @@ it("recovers an interrupted process in the same conversation and refreshes state
   expect(starts).toHaveLength(2);
   expect(starts[1].args).toContain("--conversation");
   expect(starts[1].conversation).toBe(starts[0].conversation);
-  expect(prompts[1].prompt).toContain("Some actions may already have taken effect");
+  // The crashed first turn never completed, so the restarted session gets the first turn again.
+  expect(prompts[1].prompt).toMatch(/^play!/);
   expect(prompts[1].prompt).toContain("observation 3");
   expect(prompts[0].prompt).toContain("observation 2");
   expect(f.states.map(s => s.since)).toEqual(["0", "0", "0"]);

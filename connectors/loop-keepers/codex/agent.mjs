@@ -1,12 +1,13 @@
 // @ts-check
 import { spawn } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 import { connectorVersion, launchConfiguration, reportConfiguration, reportActivity } from "../metadata.mjs";
-import { observedSeat, seat, seatOver, seatPlaying, serverUrl } from "../game.mjs";
+import { observedSeat, seat, seatOver, serverUrl } from "../game.mjs";
+import { MIN_INTERVAL_MS, promptOf, turnFor } from "../turns.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 /** The Codex CLI to run: AOA_CODEX_BIN, else `codex` on PATH. */
@@ -40,7 +41,7 @@ export function codexArgs({ workspace, session, args, prompt }) {
 /** Supplies observations, never strategy. One decision in flight per seat;
  * every later decision resumes this match's conversation. */
 export async function play({ env = process.env, args = process.argv.slice(2), fetchImpl = fetch, spawnImpl = spawn,
-  minIntervalMs = 1500, pollMs = 2000 } = {}) {
+  minIntervalMs = MIN_INTERVAL_MS, pollMs = 2000 } = {}) {
   if (!env.AOA_TOKEN) throw new Error("set AOA_TOKEN");
   const root = await mkdtemp(join(tmpdir(), "aoa-codex-"));
   let child, session, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0;
@@ -51,8 +52,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   let watcher;
   try {
     const { home, workspace } = await isolatedHome(root, env);
-    let base = env.AOA_PROMPT ?? await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
-    if (env.AOA_DIRECTIVE) base += `\n\n${env.AOA_DIRECTIVE}`;
+    const base = promptOf(env);
     await reportConfiguration(launchConfiguration({ connector: "codex", args, prompt: base, env,
       connectorVersion: env.AOA_CONNECTOR_VERSION || await connectorVersion(codexBin(env)) }), { env, fetchImpl });
     process.on("SIGINT", stop); process.on("SIGTERM", stop);
@@ -70,9 +70,9 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         const observation = await game.observation(lastDeliveredTick);
         const seen = observedSeat(observation);
         if (seatOver(seen)) { finished = true; break; }
-        if (!seatPlaying(seen)) { await delay(1000); continue; }
+        const prompt = turnFor(observation, { delivered: Boolean(session), prompt: base });
+        if (!prompt) { await delay(1000); continue; }
         const observedTick = seen.tick;
-        const prompt = `${session ? "Next decision. The following is your current observation." : base}\n\n${observation}`;
         await reportActivity("deciding", { env, fetchImpl });
         child = spawnImpl(codexBin(env), codexArgs({ workspace, session, args, prompt }), {
           cwd: workspace, env: { ...env, AOA_SERVER: serverUrl(env.AOA_SERVER), CODEX_HOME: home }, stdio: ["ignore", "pipe", "inherit"],

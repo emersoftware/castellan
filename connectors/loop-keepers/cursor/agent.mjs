@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 import { launchConfiguration, reportConfiguration, reportActivity } from "../metadata.mjs";
-import { observedSeat, seat, seatOver, seatPlaying, serverUrl } from "../game.mjs";
+import { observedSeat, seat, seatOver, serverUrl } from "../game.mjs";
+import { MIN_INTERVAL_MS, promptOf, turnFor } from "../turns.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const exec = promisify(execFile);
@@ -77,10 +78,6 @@ export function cursorArgs({ model, session, prompt }) {
     ...(session ? ["--resume", session] : []), prompt];
 }
 
-// Cursor's agent loop must finish this invocation, not the whole match. Keep
-// this lifecycle instruction separate from strategy and repeat it on resume.
-export const decisionBoundary = "This invocation is ONE decision, not the whole match. Apply your current decision, then finish with a final response immediately. Do not keep playing or wait for the match to end within this invocation. The external connector will resume this same conversation with a fresh observation for your next decision.";
-
 // These require user/account changes, not an unbounded retry loop. Never
 // downgrade to Auto or change the requested effort when access is denied.
 export function failureKind(text) {
@@ -89,7 +86,7 @@ export function failureKind(text) {
 }
 
 export async function play({ env = process.env, args = process.argv.slice(2), fetchImpl = fetch, spawnImpl = spawn,
-  credentialImpl = loadCredential, minIntervalMs = 1500, pollMs = 2000, retryMs = 2000, maxFailures = 8, idleTimeoutMs = 180_000, exitGraceMs = 2000,
+  credentialImpl = loadCredential, minIntervalMs = MIN_INTERVAL_MS, pollMs = 2000, retryMs = 2000, maxFailures = 8, idleTimeoutMs = 180_000, exitGraceMs = 2000,
   output = chunk => process.stdout.write(chunk), warn = text => console.error(text) } = {}) {
   const opts = options(args);
   if (!env.AOA_TOKEN) throw new Error("set AOA_TOKEN (see aoa new or aoa run-series)");
@@ -178,10 +175,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
     if (stopped) return 1;
     if (!warmup.success) throw new Error(`Cursor preflight failed; player has not joined. ${warmup.diagnostic || "No successful result; check model access and login."}`);
     await connectTools(player, { token: env.AOA_TOKEN, server: serverUrl(env.AOA_SERVER) });
-    let base = await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
-    base += `\n\n${decisionBoundary}`;
-    if (env.AOA_RESUME) base = `Your connector restarted; your earlier conversation is unavailable.\n\n${base}`;
-    if (env.AOA_DIRECTIVE) base += `\n\n${env.AOA_DIRECTIVE}`;
+    const base = promptOf(env);
     let version = env.AOA_CONNECTOR_VERSION;
     if (!version) { try { version = (await exec(env.AOA_CURSOR_BIN || "agent", ["--version"], { timeout: 5000 })).stdout.trim(); } catch { /* optional metadata */ } }
     await reportConfiguration(launchConfiguration({ connector: "cursor", ...opts, prompt: base, connectorVersion: version, env }), { env, fetchImpl });
@@ -197,9 +191,9 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         const observation = await game.observation(lastDeliveredTick);
         const seen = observedSeat(observation);
         if (seatOver(seen)) { finished = true; break; }
-        if (!seatPlaying(seen)) { await delay(1000); continue; }
+        const prompt = turnFor(observation, { delivered: Boolean(session), prompt: base, resumed: Boolean(env.AOA_RESUME) });
+        if (!prompt) { await delay(1000); continue; }
         const tick = seen.tick;
-        const prompt = `${session ? `Next decision. ${decisionBoundary}` : base}\n\n${observation}`;
         await reportActivity("deciding", { env, fetchImpl });
         const turn = await decision(prompt, session);
         // Keep partial sessions too: orders may already have reached the game.

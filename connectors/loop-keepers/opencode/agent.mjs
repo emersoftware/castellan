@@ -7,8 +7,9 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 import { connectorVersion, launchConfiguration, reportConfiguration, reportActivity } from "../metadata.mjs";
-import { observedSeat, seat, seatOver, seatPlaying, serverUrl } from "../game.mjs";
+import { observedSeat, seat, seatOver, serverUrl } from "../game.mjs";
 import { loadKey as loadDeepSeekKey } from "../deepseek/key.mjs";
+import { MIN_INTERVAL_MS, promptOf, turnFor } from "../turns.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_MODEL = "openrouter/~deepseek/deepseek-flash-latest";
@@ -118,7 +119,7 @@ export function providerRetryAfter(lines, now = Date.now()) {
 /** Supplies observations, never strategy, like the Codex connector: one decision in flight per seat,
  * and every later decision continues this match's OpenCode session in the same private HOME. */
 export async function play({ env = process.env, args = process.argv.slice(2), fetchImpl = fetch, spawnImpl = spawn,
-  minIntervalMs = 1500, pollMs = 2000 } = {}) {
+  minIntervalMs = MIN_INTERVAL_MS, pollMs = 2000 } = {}) {
   const opts = options(args);
   if (!env.AOA_TOKEN) throw new Error("set AOA_TOKEN (see aoa new or aoa run-series)");
   // deepseek/<model> goes straight to DeepSeek's API with the DeepSeek player's key; everything else through OpenRouter.
@@ -130,11 +131,9 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   await mkdir(runs, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(join(runs, "run-"));
   const player = await preparePlayer({ root, token: env.AOA_TOKEN, server: serverUrl(env.AOA_SERVER), key, ...opts, env });
-  let base = env.AOA_PROMPT ?? await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
-  if (env.AOA_RESUME) base = `You were restarted in the middle of the match; your earlier conversation is gone.\n\n${base}`;
+  const base = promptOf(env);
   // Optional experiment instruction for this player only; kept across relaunches.
   if (env.AOA_DIRECTIVE) {
-    base += `\n\n${env.AOA_DIRECTIVE}`;
     await writeFile(join(root, "run.json"), JSON.stringify({ ...player.metadata, directive: env.AOA_DIRECTIVE }, null, 2), { mode: 0o600 });
   }
   console.error(`aoa opencode: ${opts.model}${opts.variant ? ` (${opts.variant})` : ""}; logs ${root}${env.AOA_DIRECTIVE ? `; directive: ${env.AOA_DIRECTIVE}` : ""}`);
@@ -163,9 +162,9 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         const observation = await game.observation(lastDeliveredTick);
         const seen = observedSeat(observation);
         if (seatOver(seen)) { finished = true; break; }
-        if (!seatPlaying(seen)) { await delay(1000); continue; }
+        const prompt = turnFor(observation, { delivered: Boolean(session), prompt: base, resumed: Boolean(env.AOA_RESUME) });
+        if (!prompt) { await delay(1000); continue; }
         const observedTick = seen.tick;
-        const prompt = `${session ? "Next decision. The following is your current observation." : base}\n\n${observation}`;
         await reportActivity("deciding", { env, fetchImpl });
         child = spawnImpl(env.AOA_OPENCODE_BIN || "opencode", [...player.args, ...(session ? ["--session", session] : []), prompt],
           { cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "inherit"] });

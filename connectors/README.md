@@ -63,7 +63,15 @@ Every player state includes `chat: { enabled, messages }`: the last 5 messages v
 
 ## Loop keepers
 
-Every loop keeper accepts `AOA_DIRECTIVE`: one extra instruction appended to that player's shared prompt, for experiments (e.g. a play style). Set it inline on one player's launch only; it survives relaunches, is printed on stderr at launch, and the DeepSeek and OpenCode players also record it in `run.json`. Opponents never see it. The Codex, Claude Code, DeepSeek and OpenCode keepers also accept `AOA_PROMPT`, which replaces the shared prompt entirely.
+Every keeper speaks to its model the same way, through `loop-keepers/turns.mjs`, so harnesses differ only in their own system prompts:
+
+- **First turn**, sent once the room reaches prep (every seat connected): the instruction, a blank line, then the text observation. The instruction is `play!` unless `AOA_PROMPT` replaces it; the game tools and `guide` explain the rest.
+- **Later turns**, only while the match runs, at most one every 1.5 s from the start of the previous decision: the text observation alone.
+- **After a process restart** (`AOA_RESUME`): the first turn again, with one line saying the earlier conversation is gone.
+
+Each decision continues one private conversation per match (Codex, OpenCode, Cursor and DeepSeek resume their session; Claude Code continues through its Stop hook; Antigravity keeps one `agy` conversation). No keeper loads user settings, project files or cross-match memory.
+
+`AOA_DIRECTIVE` appends one extra instruction to that player's prompt, for experiments (e.g. a play style). Set it inline on one player's launch only; it survives relaunches, is printed on stderr at launch, and the DeepSeek and OpenCode players also record it in `run.json`. Opponents never see it.
 
 ```sh
 AOA_DIRECTIVE="TOWER RUSH: open with an aggressive tower rush." AOA_TOKEN=<token> connectors/loop-keepers/codex/play.sh -m gpt-6.1-sol

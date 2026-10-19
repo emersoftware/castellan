@@ -89,8 +89,8 @@ readline.createInterface({input:process.stdin}).on('line',async line=>{
       expect(called.args).not.toContain("--dangerously-skip-permissions");
       expect(called.args).not.toContain("--continue");
       expect(called.args).not.toContain("-p");
-      expect(called.prompt).toContain("The connector will automatically provide another observation");
-      expect(called.prompt).toContain("Room mechanics for this player.");
+      expect(called.prompt).toMatch(/^play!/);
+      expect(called.prompt).not.toContain("Room mechanics for this player.");
       expect(called.prompt).toContain("tick 5");
       const ownOutputs = `read_file(${join(homedir(), ".gemini/antigravity-cli/brain", conversation, ".system_generated/steps")})`;
       if (transport === "cli") {
@@ -105,7 +105,7 @@ readline.createInterface({input:process.stdin}).on('line',async line=>{
       }
       expect(called.grants.deny).not.toContain("read_file(*)");
       expect(metadata).toHaveLength(1);
-      expect(metadata[0]).toMatchObject({ model: "gemini-4-argon-low", effort: "low", contextPolicy: expect.stringContaining("persistent-stream-json") });
+      expect(metadata[0]).toMatchObject({ model: "gemini-4-argon-low", effort: "low", contextPolicy: expect.stringContaining("turns-mjs-protocol") });
       await expect(access(called.projectFile)).rejects.toThrow();
       await expect(access(called.cwd)).rejects.toThrow();
     } finally { await new Promise<void>(resolve => http.close(() => resolve())); }

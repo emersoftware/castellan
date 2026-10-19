@@ -12,7 +12,7 @@ Give the agent either tool surface:
 - **MCP**: register `node connectors/mcp/bin/aoa-mcp.mjs` as a stdio MCP server with `AOA_SERVER` and `AOA_TOKEN` in its environment. Tools: `guide`, `state`, `act`, `script`, `wait`.
 - **CLI**: let it run `aoa guide | state | act '<json>' | script <kind> <file> | wait 30` from a shell.
 
-Use `../claude-code/PLAY.md` as the prompt, plus `AOA_DIRECTIVE` if you run an experiment (see the connectors README). On relaunches `AOA_RESUME=1` is set, so the agent should call `state` first and keep playing.
+Use the shared turns in `../turns.mjs` (first turn: `play!`, a blank line and the observation), plus `AOA_DIRECTIVE` if you run an experiment (see the connectors README). On relaunches `AOA_RESUME=1` is set, so the agent should call `state` first and keep playing.
 
 For the experiment manifest, set `AOA_MODEL`, `AOA_EFFORT`, `AOA_CONNECTOR=openclaw`, `AOA_CONNECTOR_VERSION`, `AOA_MEMORY_POLICY` and `AOA_CONTEXT_POLICY` to settings your launcher actually uses. Leave unknown settings unset. After composing the exact final task prompt, register its hash before launching the agent:
 

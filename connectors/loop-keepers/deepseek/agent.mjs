@@ -1,14 +1,16 @@
 // @ts-check
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import { setTimeout as sleep } from "node:timers/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { cli, runtimeDir, VERSION, verifyRuntime } from "./runtime.mjs";
 import { loadKey } from "./key.mjs";
-import { launchConfiguration, reportConfiguration } from "../metadata.mjs";
-import { serverUrl } from "../game.mjs";
+import { launchConfiguration, reportActivity, reportConfiguration } from "../metadata.mjs";
+import { observedSeat, seat, seatOver, serverUrl } from "../game.mjs";
+import { MIN_INTERVAL_MS, promptOf, turnFor } from "../turns.mjs";
 /** @import { Effort } from "../../../packages/shared/src/replayMetadata.ts" */
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -44,6 +46,8 @@ export async function preparePlayer({ root, token, server = serverUrl(), key, mo
     "mcp-resources", "spill-policy", "repeat-tool-reminder", "session-title-llm", "hmr", "plugin-manager",
     "web", "web-search-deepseek", "web-fetch-http", "deepseek-account", "llm-deepseek-account", "llm-pi-ai",
     "session-log-deepseek", "plugin-package-inventory-deepseek", "session-telemetry-otel",
+    // Without file or shell tools there is nothing to sandbox, and no policy to describe to the model.
+    "sandbox", "bash-sandbox", "pwsh-sandbox", "fs-sandbox",
   ]);
   /** @type {object[]} */
   const patch = ids.filter((id) => id.startsWith("tool-") || extraDisabled.has(id)).map((id) => ({ id, disabled: true }));
@@ -52,9 +56,10 @@ export async function preparePlayer({ root, token, server = serverUrl(), key, mo
     { id: "session-persistence-jsonl", config: { root: join(home, "sessions"), compression: "none" } },
     { id: "agent-default-model", config: { provider: "deepseek-official", model, reasoningEffort: effort } },
     { id: "llm-deepseek", config: { apiKeyEnv: "DEEPSEEK_API_KEY", reasoningEffort: effort, ...(baseURL ? { baseURL } : {}) } },
-    { id: "sandbox-policy", config: { mode: "read-only", workspaceRoot: workspace } },
-    { id: "approval", config: { policy: "never" } },
-    { id: "system-prompt", config: { personaPrefix: "You are playing Age of Agents through its MCP tools.", personaSuffix: "" } },
+    // No file or shell tools are enabled, so no sandbox or approval policy is described to the model.
+    { id: "sandbox-policy", disabled: true },
+    { id: "approval", disabled: true },
+    { id: "system-prompt", config: { personaPrefix: "", personaSuffix: "" } },
     { insert: [
       { id: "mcp-aoa", name: "@deepseek-ai/dsh-mcp-client", config: { serverName: "aoa", transport: "stdio", command: process.execPath,
         args: [resolve(here, "../../mcp/bin/aoa-mcp.mjs")], env: { AOA_SERVER: server, AOA_TOKEN: token }, cwd: workspace, failOnStartupError: true, toolCallTimeoutMs: 60000 } },
@@ -91,7 +96,12 @@ export async function usage(root) {
   return totals;
 }
 
-export async function main(args = process.argv.slice(2), env = process.env) {
+/**
+ * One decision per dsh run, like the Codex keeper: the first run gets the shared first turn
+ * and every later run resumes the same Session with the next observation.
+ */
+export async function main(args = process.argv.slice(2), env = process.env, { fetchImpl = fetch, spawnImpl = spawn,
+  minIntervalMs = MIN_INTERVAL_MS, pollMs = 2000 } = {}) {
   const opts = options(args);
   if (!opts.check && !env.AOA_TOKEN) throw new Error("set AOA_TOKEN (see aoa new or aoa run-series)");
   const key = opts.check ? undefined : await loadKey(env);
@@ -101,27 +111,78 @@ export async function main(args = process.argv.slice(2), env = process.env) {
   await mkdir(runs, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(join(runs, "run-"));
   const player = await preparePlayer({ root, token: env.AOA_TOKEN ?? "check-only", server: serverUrl(env.AOA_SERVER), key, ...opts, env });
-  let prompt = env.AOA_PROMPT ?? await readFile(resolve(here, "../claude-code/PLAY.md"), "utf8");
-  if (env.AOA_RESUME) prompt = `You were restarted in the middle of the match: call state first, then keep playing.\n\n${prompt}`;
-  // Optional experiment instruction for this player only; kept across relaunches.
-  if (env.AOA_DIRECTIVE) {
-    prompt += `\n\n${env.AOA_DIRECTIVE}`;
-    await writeFile(join(root, "run.json"), JSON.stringify({ ...player.metadata, directive: env.AOA_DIRECTIVE }, null, 2), { mode: 0o600 });
+  if (opts.check) {
+    const child = spawnImpl(process.execPath, [...player.args, "--dump-config"], { cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "inherit"] });
+    child.stdout?.resume(); // Composed config contains a game token; never print it.
+    const code = await new Promise((resolveCode, reject) => { child.on("error", reject); child.on("exit", (c) => resolveCode(c ?? 1)); });
+    if (!code) console.log(`DeepSeek Harness ${VERSION}: profile valid (no model request made)`);
+    return code;
   }
+  const prompt = promptOf(env);
+  if (env.AOA_DIRECTIVE) await writeFile(join(root, "run.json"), JSON.stringify({ ...player.metadata, directive: env.AOA_DIRECTIVE }, null, 2), { mode: 0o600 });
   console.error(`aoa deepseek: ${opts.model} (${opts.effort}), dsh ${VERSION}; logs ${root}${env.AOA_DIRECTIVE ? `; directive: ${env.AOA_DIRECTIVE}` : ""}`);
-  if (!opts.check) await reportConfiguration(launchConfiguration({ connector: "deepseek-harness", model: opts.model,
-    effort: opts.effort, connectorVersion: VERSION, prompt, env }), { env });
-  const launchArgs = opts.check ? [...player.args, "--dump-config"] : [...player.args, "--json", prompt];
-  const child = spawn(process.execPath, launchArgs, { cwd: player.workspace, env: player.env, stdio: ["ignore", opts.check ? "pipe" : "inherit", "inherit"] });
-  if (opts.check) child.stdout?.resume(); // Composed config contains a game token; never print it.
-  const interrupt = () => child.kill("SIGINT"), terminate = () => child.kill("SIGTERM");
-  process.on("SIGINT", interrupt); process.on("SIGTERM", terminate);
-  let code;
-  try { code = await new Promise((resolve, reject) => { child.on("error", reject); child.on("exit", (code) => resolve(code ?? 1)); }); }
-  finally { process.off("SIGINT", interrupt); process.off("SIGTERM", terminate); }
-  if (!opts.check) console.error(`aoa deepseek usage: ${JSON.stringify(await usage(root))}`);
-  else if (!code) console.log(`DeepSeek Harness ${VERSION}: profile valid (no model request made)`);
-  return code;
+  await reportConfiguration(launchConfiguration({ connector: "deepseek-harness", model: opts.model,
+    effort: opts.effort, connectorVersion: VERSION, prompt, env }), { env, fetchImpl });
+  let child, session, watcher, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0;
+  const abort = new AbortController();
+  const stop = () => { stopped = true; abort.abort(); child?.kill("SIGTERM"); };
+  const game = seat({ env, fetchImpl, signal: abort.signal });
+  const delay = ms => sleep(ms, undefined, { signal: abort.signal });
+  process.on("SIGINT", stop); process.on("SIGTERM", stop);
+  const watch = async () => {
+    if (stopped) return;
+    try { if (seatOver(await game.status())) { finished = true; stop(); return; } } catch { /* next poll */ }
+    if (!stopped) watcher = setTimeout(watch, pollMs);
+  };
+  watcher = setTimeout(watch, pollMs);
+  try {
+    while (!stopped) {
+      const started = Date.now();
+      try {
+        const observation = await game.observation(lastDeliveredTick);
+        const seen = observedSeat(observation);
+        if (seatOver(seen)) { finished = true; break; }
+        const turn = turnFor(observation, { delivered: Boolean(session), prompt, resumed: Boolean(env.AOA_RESUME) });
+        if (!turn) { await delay(1000); continue; }
+        await reportActivity("deciding", { env, fetchImpl });
+        child = spawnImpl(process.execPath, [...player.args, "--json", ...(session ? ["--session-id", session] : []), turn],
+          { cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "inherit"] });
+        let pending = "", final = false;
+        const line = raw => {
+          try {
+            const event = JSON.parse(raw);
+            if (event.type === "session" && typeof event.sessionId === "string") session = event.sessionId;
+            if (event.type === "final") final = true;
+          } catch { /* diagnostics */ }
+        };
+        child.stdout.on("data", chunk => {
+          process.stdout.write(chunk);
+          const lines = (pending + chunk).split("\n"); pending = lines.pop() ?? ""; lines.forEach(line);
+        });
+        const code = await new Promise((resolveCode, reject) => { child.on("error", reject); child.on("close", resolveCode); });
+        line(pending); child = undefined;
+        if (stopped) break;
+        if (code !== 0 || !final || !session) throw new Error(`dsh decision incomplete (exit ${code})`);
+        if (Number.isFinite(seen.tick)) lastDeliveredTick = seen.tick;
+        failures = 0;
+        await reportActivity("between_decisions", { env, fetchImpl });
+        await delay(Math.max(0, minIntervalMs - (Date.now() - started)));
+      } catch (error) {
+        if (stopped) break;
+        failures++;
+        const ms = Math.min(30_000, 2000 * failures);
+        console.error(`aoa deepseek: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
+        await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + ms).toISOString() });
+        await delay(ms).catch(() => {});
+      }
+    }
+    return finished ? 0 : 1;
+  } finally {
+    stop(); clearTimeout(watcher);
+    process.off("SIGINT", stop); process.off("SIGTERM", stop);
+    console.error(`aoa deepseek usage: ${JSON.stringify(await usage(root))}`);
+    await reportActivity("stopped", { env, fetchImpl });
+  }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().then((code) => { process.exitCode = code; }, (error) => { console.error(error.message); process.exitCode = 1; });

@@ -34,13 +34,16 @@ function codexConfig(args, key) {
 }
 
 const clean = value => typeof value === "string" && value.trim() ? value.trim().slice(0, 256) : null;
+// Every LLM keeper uses the turns in turns.mjs: first turn = instruction + observation in prep,
+// later turns = observation only while running, one private conversation per match.
+const shared = "turns-mjs-protocol; first-turn-in-prep; observation-only-later-turns; instruction-prompt-sha256";
 const policies = {
-  cursor: ["isolated-home-config-and-workspace; no-cross-match-session", "resume-between-decisions; fresh-after-process-restart; aoa-launch-prompt-sha256"],
-  codex: ["auto-memory-disabled; isolated-match-session", "resume-between-decisions; fresh-after-process-failure; instruction-prompt-sha256; live-observations-excluded"],
-  "claude-code": ["auto-memory-disabled; isolated-workspace", "stop-hook-session; aoa-launch-prompt-sha256"],
-  opencode: ["isolated-home; no-cross-match-session", "fresh-context-on-relaunch; aoa-launch-prompt-sha256"],
-  "deepseek-harness": ["isolated-session-store; no-cross-match-session", "fresh-context-on-relaunch; aoa-launch-prompt-sha256"],
-  antigravity: ["fresh-player-conversation; own-tool-output-reads", "bootstrap-ready-then-aoa-launch-prompt-sha256"],
+  cursor: ["isolated-home-config-and-workspace; no-cross-match-session", `${shared}; resume-between-decisions`],
+  codex: ["auto-memory-disabled; isolated-match-session", `${shared}; resume-between-decisions`],
+  "claude-code": ["auto-memory-disabled; isolated-workspace", `${shared}; stop-hook-session`],
+  opencode: ["isolated-home; no-cross-match-session", `${shared}; resume-between-decisions`],
+  "deepseek-harness": ["isolated-session-store; no-cross-match-session", `${shared}; resume-between-decisions`],
+  antigravity: ["fresh-player-conversation; own-tool-output-reads", `${shared}; one-agy-conversation`],
   jev: ["stateless-decisions; no-cross-match-memory", "fresh-state-summary-each-decision; last-5-decisions-in-state; goal-sha256"],
 };
 

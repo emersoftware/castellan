@@ -134,9 +134,9 @@ describe("OpenCode connector", () => {
     expect(await play({ env: env(home), args: ["--model", "openrouter/z-ai/glm-5.3"], fetchImpl, spawnImpl, minIntervalMs: 0 })).toBe(0);
     expect(launches).toHaveLength(2);
     expect(launches[0].args).not.toContain("--session");
-    expect(launches[0].args.at(-1)).toContain("You are a player in Age of Agents");
+    expect(launches[0].args.at(-1)).toMatch(/^play!\n\ntick 1/);
     expect(launches[1].args).toEqual(expect.arrayContaining(["--session", session, "--model", "openrouter/z-ai/glm-5.3"]));
-    expect(launches[1].args.at(-1)).toMatch(/^Next decision[\s\S]*tick 2/);
+    expect(launches[1].args.at(-1)).toMatch(/^tick 2/);
     expect(launches[1].env.HOME).toBe(launches[0].env.HOME);
     expect(states).toEqual(["0", "1", "2"]);
     expect(activities).toEqual(["deciding", "between_decisions", "deciding", "between_decisions", "stopped"]);

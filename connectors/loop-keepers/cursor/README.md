@@ -2,7 +2,7 @@
 
 Runs Cursor CLI (`agent`) against the AoA MCP, one decision per fresh observation,
 resuming the same private conversation until elimination or match end. The
-connector supplies observations and the shared `PLAY.md`, never a strategy.
+connector supplies the shared turns (`../turns.mjs`) and observations, never a strategy.
 
 ```sh
 agent login
@@ -59,9 +59,8 @@ is deleted with the temporary directory on exit. Logs redact known credentials.
   eight consecutive failures. Access/plan errors stop immediately.
 - The watchdog stops a call after three minutes without stream activity. Active
   reasoning and tool events reset it; there is no fixed three-minute turn cutoff.
-  Each prompt explicitly asks Cursor to finish one decision so the connector can
-  deliver the next observation. This does not impose a strategy or guarantee low
-  model latency. Match finish, elimination and signals
+  Turns carry no extra lifecycle instruction; `guide` explains that each response
+  is one decision. This does not impose a strategy or guarantee low model latency. Match finish, elimination and signals
   cancel in-flight inference, with forced termination if the CLI does not exit.
 - Experiment metadata records the requested model, effort, CLI version, prompt
   hash and isolation policy. The provider's reported model appears in CLI logs.

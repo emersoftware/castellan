@@ -80,10 +80,12 @@ for (const connector of ["codex", "claude-code"] as const) {
       AOA_CONNECTOR_VERSION: "", AOA_MODEL: "", AOA_EFFORT: "",
     } });
     const launched: string[] = JSON.parse(await readFile(capture, "utf8"));
-    const prompt = connector === "codex" ? launched.at(-1)!.split(`\n\n${observation}`)[0] : launched[launched.indexOf("-p") + 1];
-    expect(prompt).toContain("Protect the eastern mine.");
-    if (connector === "codex") expect(stateCalls).toBe(2);
-    else expect(requests).toHaveLength(1);
+    // Both deliver the shared first turn: the instruction, then the observation.
+    const prompt = "play!\n\nProtect the eastern mine.";
+    const turn = connector === "codex" ? launched.at(-1)! : launched[launched.indexOf("-p") + 1];
+    expect(turn.startsWith(prompt)).toBe(true);
+    expect(turn.endsWith(observation)).toBe(true);
+    expect(stateCalls).toBe(connector === "codex" ? 2 : 1);
     expect(requests[0]).toMatchObject({ path: "/agent-config", authorization: "Bearer seat-secret" });
     expect(JSON.parse(requests[0].body)).toMatchObject({ connector, model: "declared-model", effort: "high", connectorVersion: "1.2.3",
       promptSha256: createHash("sha256").update(prompt).digest("hex") });
