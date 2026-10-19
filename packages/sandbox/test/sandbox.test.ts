@@ -87,7 +87,7 @@ describe("sandbox", () => {
     } finally { h.dispose(); }
   });
 
-  it("archer default kites only while a step away exists, and fights when cornered", () => {
+  it("archer default shoots even a closing knight: stepping away is the player's choice", () => {
     const stats = { atk: 16, def: 6, range: 1, minRange: 0, vision: 6, attackMs: 1000, moveMs: 400, ruin: false };
     const archer = (x: number, y: number, moves: Record<string, boolean>): ScriptWorld => ({
       reactiveOrders: true, tick: 1, side: 0,
@@ -97,11 +97,8 @@ describe("sandbox", () => {
       myBase: null, enemyBase: null,
     });
     const open = Object.fromEntries(["N", "NE", "E", "SE", "S", "SW", "W", "NW"].map((d) => [d, true]));
-    const kite = testScript(rules.defaultScripts.archer, "archer", [archer(5, 5, open)], rules.script);
-    expect(kite.ok && kite.frames[0].runs.e1).toMatchObject({ action: { a: "flee", id: "e2" }, orderControl: "suspend" });
-    // In the corner only steps that keep the same distance remain: shoot instead of standing silent.
-    const cornered = testScript(rules.defaultScripts.archer, "archer", [archer(0, 0, { ...open, N: false, NE: false, E: false, W: false, NW: false, SW: false })], rules.script);
-    expect(cornered.ok && cornered.frames[0].runs.e1).toMatchObject({ action: { a: "attack", id: "e2" }, orderControl: "continue" });
+    const run = testScript(rules.defaultScripts.archer, "archer", [archer(5, 5, open)], rules.script);
+    expect(run.ok && run.frames[0].runs.e1).toMatchObject({ action: { a: "attack", id: "e2" } });
   });
 
   it("probes finite scenarios in an isolated VM and reports requested actions and gas", () => {

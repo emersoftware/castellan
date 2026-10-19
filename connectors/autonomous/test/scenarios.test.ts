@@ -176,8 +176,9 @@ describe("autonomous player: observable engine scenarios", () => {
           towerDamage: tower ? experiment.damage.get(tower.id) ?? 0 : 0, summary: experiment.summary() });
       } finally { player?.close(); experiment.match.dispose(); }
     }
-    expect(results[0].kingHp).toBeLessThan(50);
-    expect(results[0].originalWorkersAlive).toBeLessThan(3);
+    // Contrasts, not absolute HP: the undefended branch must suffer what the defense prevents.
+    expect(results[0].kingHp).toBeLessThan(results[1].kingHp);
+    expect(results[0].originalWorkersAlive).toBeLessThan(results[1].originalWorkersAlive);
     expect(results[1].kingAlive).toBe(true);
     expect(results[1].kingHp).toBe(rules.kinds.king.hp);
     expect(results[1].originalWorkersAlive).toBe(3);

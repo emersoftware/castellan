@@ -9,7 +9,7 @@ import { MAPS } from "./maps";
 import type { Ruleset } from "./ruleset";
 
 export const rules: Ruleset = {
-  version: "0.29.0",
+  version: "0.29.1",
   matchMs: 600000,
   fourSeatMatchMs: 900000,
   drawsAreLosses: true,
@@ -184,18 +184,10 @@ if (e && self.distanceTo(e) <= self.range) self.attack(e);
 else if (e) self.moveTo(e.x, e.y);
 else self.hold();
 `,
-    archer: `// Built-in: step away from closing melee while a step away exists, otherwise shoot the weakest enemy in range.
-const melee = self.nearbyEnemies().find((e) => !e.isBuilding && e.range <= 1 && self.distanceTo(e) <= 2);
-const dirs = { N: [0, -1], NE: [1, -1], E: [1, 0], SE: [1, 1], S: [0, 1], SW: [-1, 1], W: [-1, 0], NW: [-1, -1] };
-const away = melee && Object.entries(dirs).some(([dir, [dx, dy]]) =>
-  self.canMove(dir) && Math.round(Math.hypot(self.x + dx - melee.x, self.y + dy - melee.y)) > self.distanceTo(melee));
-if (away) { if (self.suspendOrder) self.suspendOrder(); self.flee(melee); }
-else {
-  if (self.continueOrder) self.continueOrder();
-  const targets = self.enemiesInRange();
-  if (targets.length === 0) self.hold();
-  else self.attack(targets.reduce((a, b) => (b.hp < a.hp ? b : a)));
-}
+    archer: `// Built-in: shoot the weakest enemy in range.
+const targets = self.enemiesInRange();
+if (targets.length === 0) self.hold();
+else self.attack(targets.reduce((a, b) => (b.hp < a.hp ? b : a)));
 `,
     tower: `// Built-in: shoot the weakest enemy in range.
 const targets = self.enemiesInRange();

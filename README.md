@@ -49,14 +49,15 @@ mechanics adjustment; broader army diversity still needs full-game validation.
 `v26-coordinated-movement` adds coordinated friendly movement, distinct arrival
 tiles for shared move orders, and path costs based on rounded per-unit step times.
 Recorded rules without those options keep their historical movement.
-The current release is **v0.29.0**, recorded internally as `0.29.0`. Ranged units
-(Archers, Towers and Castles) gain `shootAt(x, y)` in unit scripts: a shot toward a
+The current release is **v0.29.1**, recorded internally as `0.29.1`: the built-in
+archer script shoots the weakest enemy in range again, without stepping away from
+melee; kiting is left to player scripts. In 0.29.0 ranged units
+(Archers, Towers and Castles) gained `shootAt(x, y)` in unit scripts: a shot toward a
 visible point within range, decimals allowed, that hits the first hostile on its path,
 so scripts can lead moving targets. Knights have 100 HP (was 110) and stand still
 200 ms after moving before attacking (was 100 ms); Towers and Castles deal 12 damage
 (was 9); Towers have 240 HP (was 160); projectiles fly at 16 tiles/s (was 12), so
-shots miss moving targets less; and the built-in archer script steps away from
-closing melee before shooting. 0.28.0 trained Archers in 8 s, as fast as Knights, and removed the
+shots miss moving targets less. 0.28.0 trained Archers in 8 s, as fast as Knights, and removed the
 `script_test` tool, `POST /scripts/:kind/test` and `aoa script-test`; installing a
 script still compiles it and rejects code that does not. 0.27.1
 renamed the `rules` tool to `guide` (`/rules` and `aoa rules` still answer),
