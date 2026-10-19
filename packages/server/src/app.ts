@@ -63,7 +63,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     } catch (error) { reply.code(400).send({ error: (error as Error).message }); return null; }
     who.room.touch(who.player);
     who.room.beginCall(who.player);
-    Object.assign(req, { castellan: who, aoaCall: { entry: who.room.openCall(who.player, `${req.method} ${req.routeOptions.url}`), startedAt: Date.now() } });
+    Object.assign(req, { castellan: who, castellanCall: { entry: who.room.openCall(who.player, `${req.method} ${req.routeOptions.url}`), startedAt: Date.now() } });
     return who;
   };
   // Every answered call closes the player's timing window (see Room.beginCall).
@@ -71,7 +71,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const who = (req as FastifyRequest & { castellan?: { room: Room; player: string }; waitedMs?: number }).castellan;
     if (who) {
       who.room.endCall(who.player, (req as FastifyRequest & { waitedMs?: number }).waitedMs ?? 0);
-      const call = (req as FastifyRequest & { aoaCall: { entry: ExperimentManifest["calls"][number]; startedAt: number } }).aoaCall;
+      const call = (req as FastifyRequest & { castellanCall: { entry: ExperimentManifest["calls"][number]; startedAt: number } }).castellanCall;
       Object.assign(call.entry, { answeredTick: who.room.tick, durationMs: Date.now() - call.startedAt, status: reply.statusCode,
         failed: reply.statusCode >= 400 || (req as FastifyRequest & { toolFailed?: boolean }).toolFailed === true });
       who.room.recordCall(call.entry);

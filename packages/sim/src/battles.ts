@@ -8,7 +8,7 @@ import { rules as baseRules, currentKind, kindSpec, type EntityKind, type GameEv
 import { candidateForRecordedNames } from "./names";
 
 export interface Snapshot {
-  format?: "aoa-battle-v2";
+  format?: "castellan-battle-v2";
   /** Only deliberately staged fixtures may omit a replay prefix. */
   synthetic?: true;
   id: string;
@@ -113,7 +113,7 @@ function jittered(x: number, y: number, jitter: number, map: { width: number; he
 
 /** Restore the entire state by executing its history, never by copying a spectator view. */
 export async function resumeBattle(s: Snapshot, ruleset?: Ruleset, variant: Variant = {}): Promise<Match> {
-  if (s.format !== "aoa-battle-v2" || !s.continuation) throw new Error(`Battle ${s.id} is a lossy legacy snapshot; re-extract it with extract-recent.mts`);
+  if (s.format !== "castellan-battle-v2" || !s.continuation) throw new Error(`Battle ${s.id} is a lossy legacy snapshot; re-extract it with extract-recent.mts`);
   const c = s.continuation;
   if (c.operationalFailures?.length) throw new Error(`Battle ${s.id} has operational sandbox failures; wall-clock watchdog outcomes are not reproducible balance samples`);
   const m = await createMatch(c.config);

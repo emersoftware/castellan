@@ -2,11 +2,12 @@
 // that the current engine reproduces, for the balance optimizer's recorded battles.
 //   npx tsx src/extract-recent.mts > /tmp/castellan-opt/battles-recent.json
 import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { createMatch } from "@castellan/engine";
 import type { ReplayFile } from "@castellan/shared";
 import { assertBalanceReplay, replayContinuation, type Snapshot } from "./battles";
-const dir = process.env.REPLAYS ?? "/Users/emersoftware/Documents/projects/aoa/replays";
+const dir = process.env.REPLAYS ?? resolve(import.meta.dirname, "../../../replays");
 const out: Snapshot[] = [];
 let games = 0, skipped = 0;
 for (const f of readdirSync(dir).filter((f) => /^[0-9a-f]{8}\.json\.gz$/.test(f))) {
@@ -50,7 +51,7 @@ for (const f of readdirSync(dir).filter((f) => /^[0-9a-f]{8}\.json\.gz$/.test(f)
   games++;
   console.error(`${r.id} ${r.ruleset.version}: ${found.length} fights`);
   found.forEach((snap, n) => out.push({
-    format: "aoa-battle-v2",
+    format: "castellan-battle-v2",
     id: `${r.id}#${n}`, version: r.ruleset.version,
     continuation: replayContinuation(r, snap.tick, snap.hash),
     map: { name: r.ruleset.map.name, width: r.ruleset.map.width, height: r.ruleset.map.height, walls: r.ruleset.map.walls, seats: r.ruleset.map.seats ?? 2 },

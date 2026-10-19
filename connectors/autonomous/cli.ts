@@ -2,10 +2,8 @@
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
 import { client } from '../cli/src/client';
-import { adoptLegacyEnv } from '@castellan/shared';
 import { httpTransport, runPlayer } from './src/runtime';
 
-adoptLegacyEnv(process.env);
 
 const {values}=parseArgs({options:{server:{type:'string'},out:{type:'string'},practice:{type:'string'},map:{type:'string'},poll:{type:'string'},help:{type:'boolean'}}});
 if(values.help){

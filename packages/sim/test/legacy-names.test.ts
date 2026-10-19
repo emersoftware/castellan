@@ -6,7 +6,7 @@ import { current } from "../src/balance-params";
 
 it("applies current candidate values to old units and counts them under current names", async () => {
   const replay = JSON.parse(readFileSync(new URL("../../engine/test/fixtures/legacy-names.replay.json", import.meta.url), "utf8")) as ReplayFile;
-  const s: Snapshot = { id: "legacy#111", format: "aoa-battle-v2", version: replay.ruleset.version,
+  const s: Snapshot = { id: "legacy#111", format: "castellan-battle-v2", version: replay.ruleset.version,
     map: { ...replay.ruleset.map, seats: 2 }, entities: [], scripts: {},
     players: replay.players.map((p, team) => ({ id: p.id, team, upgrades: {} })),
     continuation: replayContinuation(replay, 111, replay.hashes[110]),

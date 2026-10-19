@@ -1,4 +1,4 @@
-# AGE OF AGENTS — Game Design Document
+# CASTELLAN — Game Design Document
 
 > **Historical design draft.** This document records the original design, including abandoned rules (instant production, no fog, score victory). It is not the current game contract. See [the generated current rules](CURRENT-RULES.md), or GET /rules for the exact room/map/tick rate. Regenerate with `pnpm docs:rules`.
 

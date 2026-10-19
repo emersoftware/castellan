@@ -44,7 +44,7 @@ the same runner with its original series token reconnects to the current game.
 | `GET /series` | Public series summaries, without tokens |
 | `GET /series/:id` | Public score, players and games |
 | `GET /series/current` | Series-token authentication; current game credentials for that participant |
-| `GET /series/:id/replay.json` | Complete `aoa-series-v1` bundle; 409 until all three finish, 404 if unknown |
+| `GET /series/:id/replay.json` | Complete `castellan-series-v1` bundle; 409 until all three finish, 404 if unknown |
 | `GET /history` | Game-token authentication; available completed previous games |
 | `GET /history?game=1&section=chat&offset=0&limit=50` | A section of a previous game from that player's perspective |
 

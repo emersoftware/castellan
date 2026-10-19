@@ -19,7 +19,7 @@ import { agentText } from "../components/Agent";
 
 const SPEEDS = [0.5, 1, 2, 4, 8, 16];
 /** The viewer's chosen speed, kept for the tab: the next game of a series plays on at it. */
-const SPEED_KEY = "aoa:replay-speed";
+const SPEED_KEY = "castellan:replay-speed";
 const savedSpeed = () => { const s = Number(sessionStorage.getItem(SPEED_KEY)); return SPEEDS.includes(s) ? s : 2; };
 /** At high speed only the big moments make a sound. */
 const BIG_MOMENTS = new Set<SoundName>(["horn", "fanfare", "collapse"]);

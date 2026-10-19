@@ -112,7 +112,7 @@ export async function readReplayFile(file: File): Promise<ReplayFile | SeriesRep
     text = await new Response(stream).text();
   } else text = await file.text();
   const r = JSON.parse(text) as ReplayFile | SeriesReplay;
-  if (r.format === "aoa-series-v1") {
+  if (r.format === "castellan-series-v1") {
     if (r.series?.totalGames !== 3 || r.series.status !== "finished" || !Array.isArray(r.games) || r.games.length !== 3 || r.games.some((g) => g.format !== 1 || !Array.isArray(g.orders))) throw new Error("not a complete three-game series replay");
     return r;
   }

@@ -24,7 +24,7 @@ assert.equal(series.length, publication.series.length);
 for (const { summary } of publication.series) {
   assert.deepEqual(await (await get(`${publishedRoutes.series}/${summary.id}`)).json(), summary);
   const full = await (await get(`${publishedRoutes.series}/${summary.id}/replay.json`)).json();
-  assert.equal(full.format, "aoa-series-v1");
+  assert.equal(full.format, "castellan-series-v1");
   assert.deepEqual(full.series, summary);
   assert.deepEqual(full.games.map((g: { id: string }) => g.id), summary.games.map((g) => g.roomId));
 }

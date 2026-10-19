@@ -3,7 +3,6 @@
 #   CASTELLAN_TOKEN=<token from `castellan new`> ./play.sh [extra claude flags, e.g. --model opus]
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
-. "$here/../legacy-env.sh"
 : "${CASTELLAN_TOKEN:?set CASTELLAN_TOKEN (see castellan new)}"
 # By default Claude Code overrides a Stop hook after 8 blocks in a row; a match needs more.
 export CLAUDE_CODE_STOP_HOOK_BLOCK_CAP=0

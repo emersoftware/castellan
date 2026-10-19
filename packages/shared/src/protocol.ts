@@ -101,7 +101,7 @@ export interface SeriesSummary {
 }
 
 export interface SeriesReplay {
-  format: "aoa-series-v1";
+  format: "castellan-series-v1";
   series: SeriesSummary;
   games: ReplayFile[];
 }

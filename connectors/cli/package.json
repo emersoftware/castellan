@@ -2,7 +2,7 @@
   "name": "@castellan/cli",
   "version": "0.1.0",
   "type": "module",
-  "bin": { "castellan": "./bin/castellan.mjs", "aoa": "./bin/castellan.mjs" },
+  "bin": { "castellan": "./bin/castellan.mjs" },
   "exports": { ".": "./src/index.ts" },
   "dependencies": {
     "@castellan/shared": "workspace:*",

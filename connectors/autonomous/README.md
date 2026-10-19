@@ -41,7 +41,7 @@ La estrategia se reevalúa cada cinco segundos de juego. La rutina HTTP corre ca
 - Planes secuenciales de castle, tower, walls y doors. Reserva mineral hasta completar o confirmar la cancelación; no confunde aceptación con obra terminada. Recupera constructores muertos, recibos perdidos, rechazos y obras estancadas, o abandona el plan.
 - Scripts por tipo que siguen cada tick, aun si el cliente tarda. Defensa, objetivos de ataque, kiteo de archer, retirada y reacción del King. Una retirada cancela el uso de scouts.
 - Investigación según composición y presupuesto disponible.
-- Coordinación 2v2 y treguas FFA mediante mensajes estructurados `[AOA1]`. Valida remitente/equipo, limita duración y cambia objetivos tras mensajes aliados. Las treguas solo cambian la política de blancos; no modifican la hostilidad del motor. Una incursión cerca de la base rompe el acuerdo.
+- Coordinación 2v2 y treguas FFA mediante mensajes estructurados `[CASTELLAN1]`. Valida remitente/equipo, limita duración y cambia objetivos tras mensajes aliados. Las treguas solo cambian la política de blancos; no modifican la hostilidad del motor. Una incursión cerca de la base rompe el acuerdo.
 
 ## Registros y límites de información
 
@@ -80,6 +80,6 @@ Ver [evidencia y resultados](EVIDENCE.md), [matriz](evidence/matches.json), [esc
 - Es una base investigable, no un jugador competitivo optimizado. La apertura expansiva pierde ante presión temprana en `open`; en la matriz perdió los cuatro encuentros abiertos.
 - La defensa generada es una barrera corta con tower y puerta; no resuelve automáticamente un perímetro óptimo ni demuestra que wallear sea rentable en todos los mapas. Los proyectiles del juego pasan sobre paredes.
 - La política usa umbrales y distancia aproximada para peligro/ubicaciones. La navegación fina queda al motor; ante bloqueos reintenta con límites o abandona. No planifica evacuaciones navales ni capacidades inexistentes en el juego.
-- Chat compatible mediante un protocolo pequeño; no interpreta negociación libre. No se ha validado coordinación estratégica con jugadores humanos o LLM que no usen `[AOA1]`.
+- Chat compatible mediante un protocolo pequeño; no interpreta negociación libre. No se ha validado coordinación estratégica con jugadores humanos o LLM que no usen `[CASTELLAN1]`.
 - La persistencia tolera reinicios y recibos perdidos; no hay soporte de múltiples procesos controlando simultáneamente el mismo token ni recuperación de un servidor que haya perdido la sala. El servidor existente sigue siendo responsable de autenticar capacidades.
 - `pnpm typecheck` verifica el workspace y usa la configuración propia de Remotion para el paquete de video. El chequeo aislado de este jugador incluye además sus lanzadores y validadores.

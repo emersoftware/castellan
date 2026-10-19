@@ -29,7 +29,7 @@ const KINDS: [EntityKind, number][] = [["knight", 1], ["archer", 1], ["tower", 0
 const OBJECTIVE = process.env.OBJECTIVE ?? "parity";
 const CASTLE_MARGIN = 0.05, CASTLE_FLOOR = 0.5, CASTLE_WEIGHT = 1;
 const recorded: Snapshot[] = JSON.parse(readFileSync(process.env.BATTLES ?? "/tmp/castellan-opt/battles.json", "utf8"));
-for (const s of recorded) if (s.format !== "aoa-battle-v2" || !s.continuation) throw new Error(`Battle ${s.id} is a lossy legacy snapshot; re-extract with extract-recent.mts`);
+for (const s of recorded) if (s.format !== "castellan-battle-v2" || !s.continuation) throw new Error(`Battle ${s.id} is a lossy legacy snapshot; re-extract with extract-recent.mts`);
 const recordedIds = recorded.map((b) => b.id);
 const battles = recordedIds.length;
 const partitions = splitReplays(recordedIds);

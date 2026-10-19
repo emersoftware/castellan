@@ -35,7 +35,7 @@ async function readAPI(path: string, db: D1Database): Promise<Response> {
     const summary: SeriesSummary = JSON.parse(raw);
     const rows = await db.batch(summary.games.map((game) => chunksOf(db, game.roomId)));
     if (rows.some((row) => !row.results.length)) return error("Series is incomplete", 503);
-    return new Response(`{"format":"aoa-series-v1","series":${raw},"games":[${rows.map(joined).join(",")}]}`, { headers: jsonHeaders });
+    return new Response(`{"format":"castellan-series-v1","series":${raw},"games":[${rows.map(joined).join(",")}]}`, { headers: jsonHeaders });
   }
   return error("Not found", 404);
 }

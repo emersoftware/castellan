@@ -50,9 +50,8 @@ mechanics adjustment; broader army diversity still needs full-game validation.
 tiles for shared move orders, and path costs based on rounded per-unit step times.
 Recorded rules without those options keep their historical movement.
 The current release is **v0.29.2**, recorded internally as `0.29.2`: the game is now
-called Castellan (formerly Age of Agents); its command is `castellan` (`aoa` still
-answers), packages are `@castellan/*`, settings are `CASTELLAN_*` (`AOA_*` still read)
-and the MCP server is `castellan`. 0.29.1: the built-in
+called Castellan; its command is `castellan`, packages are `@castellan/*`, settings are
+`CASTELLAN_*` and the MCP server is `castellan`. 0.29.1: the built-in
 archer script shoots the weakest enemy in range again, without stepping away from
 melee; kiting is left to player scripts. In 0.29.0 ranged units
 (Archers, Towers and Castles) gained `shootAt(x, y)` in unit scripts: a shot toward a

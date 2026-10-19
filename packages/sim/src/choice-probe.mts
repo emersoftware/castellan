@@ -28,7 +28,7 @@ const ASK = `Decide what you spend on during the next minute. Reply with JSON on
 
 function rulesOf(source: string): Ruleset {
   if (source.endsWith(".json")) return JSON.parse(readFileSync(source, "utf8"));
-  return JSON.parse(gunzipSync(readFileSync(`/Users/emersoftware/Documents/projects/aoa/replays/${source}.json.gz`)).toString()).ruleset;
+  return JSON.parse(gunzipSync(readFileSync(join(import.meta.dirname, "../../../replays", `${source}.json.gz`))).toString()).ruleset;
 }
 
 /** One isolated, tool-less Codex call (same isolation as the player connector, without the game tools). */

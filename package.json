@@ -16,7 +16,6 @@
     "web": "pnpm --filter @castellan/web dev",
     "sim": "pnpm --filter @castellan/sim sim",
     "castellan": "castellan",
-    "aoa": "castellan",
     "seed-replays": "pnpm --filter @castellan/server seed-replays",
     "build": "pnpm --filter @castellan/web build",
     "build:cloudflare": "pnpm --filter @castellan/web build --mode cloudflare",

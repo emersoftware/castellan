@@ -8,7 +8,7 @@ import { scenario } from "../src/synthetic";
 
 const players = [{ id: "p1", name: "one" }, { id: "p2", name: "two" }];
 function snapshot(config: MatchConfig, tick: number, hash: string, orders: (PlayerOrder & { tick: number })[]): Snapshot {
-  return { format: "aoa-battle-v2", id: "replay#0", version: config.ruleset.version,
+  return { format: "castellan-battle-v2", id: "replay#0", version: config.ruleset.version,
     map: { ...config.ruleset.map, seats: 2 }, players: players.map((p, team) => ({ id: p.id, team, upgrades: {} })),
     entities: [], scripts: {}, continuation: { config, tick, hash, orders } };
 }
@@ -131,7 +131,7 @@ describe("recorded battle continuation", () => {
   });
 
   it("scores a death on the very first tick and accepts restored attack orders with current vision", async () => {
-    const s: Snapshot = { format: "aoa-battle-v2", synthetic: true, id: "fixture", version: rules.version,
+    const s: Snapshot = { format: "castellan-battle-v2", synthetic: true, id: "fixture", version: rules.version,
       map: { name: "fixture", width: 8, height: 8, seats: 2, walls: [] },
       players: players.map((p, team) => ({ id: p.id, team, upgrades: {} })), scripts: {},
       entities: [{ id: "e1", kind: "knight", owner: "p1", x: 3, y: 3, hp: rules.kinds.knight.hp, maxHp: rules.kinds.knight.hp, order: "attack e2" },

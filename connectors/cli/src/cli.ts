@@ -1,11 +1,9 @@
 /** `castellan`: argv → one command function → stdout. */
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { adoptLegacyEnv, isChatChannel, isRoomMode } from "@castellan/shared";
+import { isChatChannel, isRoomMode } from "@castellan/shared";
 import { client } from "./client";
 import * as cmd from "./commands";
-
-adoptLegacyEnv(process.env);
 
 const USAGE = `castellan — Castellan client (env CASTELLAN_SERVER, CASTELLAN_TOKEN)
 

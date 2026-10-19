@@ -105,7 +105,7 @@ describe("three-game series", () => {
     const pageResponse = await app.inject(`/series/${id}/replay`);
     expect(pageResponse.headers["content-type"]).toContain("text/html");
     expect(pageResponse.body).toContain("Series viewer");
-    expect(bundle.format).toBe("aoa-series-v1");
+    expect(bundle.format).toBe("castellan-series-v1");
     expect(bundle.games).toHaveLength(3);
     expect(bundle.series).toMatchObject({ score: { p1: 0, p2: 0, p3: 0, p4: 0 },
       losses: { p1: 3, p2: 3, p3: 3, p4: 3 }, winners: [], allDefeated: true });

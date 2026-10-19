@@ -332,7 +332,7 @@ export class AutonomousPlayer {
       const id=`${m.tick}:${m.from}:${m.text}`;if(m.from===v.you||this.memory.chatSeen.includes(id))continue;
       this.memory.chatSeen.push(id);this.memory.chatSeen=this.memory.chatSeen.slice(-100);
       const sender=v.players.find(p=>p.id===m.from);if(!sender?.alive)continue;
-      const command=/^\[AOA1\] (defend|attack|rally) (\d+),(\d+)$/.exec(m.text);
+      const command=/^\[CASTELLAN1\] (defend|attack|rally) (\d+),(\d+)$/.exec(m.text);
       if(sender.team===me.team&&command) {
         const point={x:Number(command[2]),y:Number(command[3])};
         if(point.x>=v.grid[0].length||point.y>=v.grid.length)continue;
@@ -341,9 +341,9 @@ export class AutonomousPlayer {
         this.log('coordination-adopted',v,{from:m.from,action:command[1],point});
       }
       if(sender.team!==me.team&&v.players.length>2) {
-        if(m.text==='[AOA1] truce 60'&&this.threatFrom(v,m.from,this.safeHome(v))===0) {
-          this.memory.treaties[m.from]=v.timeMs+60000;this.chatPending={type:'chat',to:m.from,text:'[AOA1] accept 60'};this.log('treaty-accepted',v,{with:m.from,untilMs:v.timeMs+60000});
-        } else if(m.text==='[AOA1] accept 60'&&this.memory.proposedTo===m.from&&(this.memory.lastProposalMs??-1e9)+30000>=v.timeMs) {
+        if(m.text==='[CASTELLAN1] truce 60'&&this.threatFrom(v,m.from,this.safeHome(v))===0) {
+          this.memory.treaties[m.from]=v.timeMs+60000;this.chatPending={type:'chat',to:m.from,text:'[CASTELLAN1] accept 60'};this.log('treaty-accepted',v,{with:m.from,untilMs:v.timeMs+60000});
+        } else if(m.text==='[CASTELLAN1] accept 60'&&this.memory.proposedTo===m.from&&(this.memory.lastProposalMs??-1e9)+30000>=v.timeMs) {
           this.memory.treaties[m.from]=v.timeMs+60000;this.log('treaty-confirmed',v,{with:m.from});
         }
       }
@@ -360,10 +360,10 @@ export class AutonomousPlayer {
       const action=defend?'defend':this.memory.stance==='attack'?'attack':'rally';
       const goal=defend?this.safeHome(v):this.memory.goal??this.safeHome(v);
       // Don't echo a received rally back indefinitely.
-      if(!this.memory.coordination||this.memory.coordination.untilMs<=v.timeMs||defend)this.out.push({type:'chat',channel:'team',text:`[AOA1] ${action} ${goal.x},${goal.y}`});
+      if(!this.memory.coordination||this.memory.coordination.untilMs<=v.timeMs||defend)this.out.push({type:'chat',channel:'team',text:`[CASTELLAN1] ${action} ${goal.x},${goal.y}`});
     } else if(v.players.filter(p=>p.alive).length>2&&v.timeMs-(this.memory.lastProposalMs??-1e9)>90000) {
       const peer=v.players.find(p=>p.id!==v.you&&p.alive&&!this.threatFrom(v,p.id,this.safeHome(v)));
-      if(peer){this.memory.proposedTo=peer.id;this.memory.lastProposalMs=v.timeMs;this.out.push({type:'chat',to:peer.id,text:'[AOA1] truce 60'});}
+      if(peer){this.memory.proposedTo=peer.id;this.memory.lastProposalMs=v.timeMs;this.out.push({type:'chat',to:peer.id,text:'[CASTELLAN1] truce 60'});}
     }
   }
 

@@ -41,8 +41,8 @@ class Sfx {
   private musicHolders: Track[] = [];
   private music: { track: Track; source: AudioBufferSourceNode; gain: GainNode } | null = null;
   private tracks = new Map<Track, Promise<{ buffer: AudioBuffer; info: LoopInfo }>>();
-  effectsMuted = (localStorage.getItem("aoa:effects-muted") ?? localStorage.getItem("aoa:muted")) === "1";
-  musicMuted = (localStorage.getItem("aoa:music-muted") ?? localStorage.getItem("aoa:muted")) === "1";
+  effectsMuted = (localStorage.getItem("castellan:effects-muted") ?? localStorage.getItem("castellan:muted")) === "1";
+  musicMuted = (localStorage.getItem("castellan:music-muted") ?? localStorage.getItem("castellan:muted")) === "1";
   get muted() { return this.effectsMuted && this.musicMuted; }
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -73,7 +73,7 @@ class Sfx {
 
   setEffectsMuted(m: boolean) {
     this.effectsMuted = m;
-    localStorage.setItem("aoa:effects-muted", m ? "1" : "0");
+    localStorage.setItem("castellan:effects-muted", m ? "1" : "0");
     if (!m) this.unlock();
     if (this.ctx && this.effects) this.effects.gain.setTargetAtTime(m ? 0 : 1, this.ctx.currentTime, 0.015);
     this.syncAmbient();
@@ -82,7 +82,7 @@ class Sfx {
 
   setMusicMuted(m: boolean) {
     this.musicMuted = m;
-    localStorage.setItem("aoa:music-muted", m ? "1" : "0");
+    localStorage.setItem("castellan:music-muted", m ? "1" : "0");
     if (m) this.stopMusic();
     else this.unlock();
     this.listeners.forEach((listener) => listener());

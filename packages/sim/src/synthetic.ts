@@ -151,7 +151,7 @@ export function scenario(i: number, r: Ruleset): Snapshot {
     return k === 0 ? standard(idle) : k === 1 ? {} : k === 2 ? tactical(idle) : recorded[k - 3];
   };
   return {
-    format: "aoa-battle-v2", synthetic: true,
+    format: "castellan-battle-v2", synthetic: true,
     id: `synthetic:${sc.name}${flip ? " (flipped)" : ""} [scripts ${pair[0]}/${pair[1]}]`,
     version: r.version,
     map: { name: "synthetic", width: W, height: H, walls: [], seats: 2 },

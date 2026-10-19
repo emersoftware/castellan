@@ -4,10 +4,7 @@
  */
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
-import { adoptLegacyEnv } from "@castellan/shared";
 import { Runtime } from "./runtime";
-
-adoptLegacyEnv(process.env);
 
 const { values } = parseArgs({ args: process.argv.slice(2), options: {
   log: { type: "string", default: process.env.CASTELLAN_BOT_LOG ?? "runs/castellan-bot" },

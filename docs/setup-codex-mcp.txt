@@ -55,7 +55,7 @@ El estado del tablero, capital y scripts se reinicia entre juegos. La memoria
 no depende de conservar la conversación del proceso anterior.
 
 Watch: /series/<id>/watch. Replay: /series/<id>/replay.
-Exportación: GET /series/<id>/replay.json, bundle aoa-series-v1 con los tres juegos.
+Exportación: GET /series/<id>/replay.json, bundle castellan-series-v1 con los tres juegos.
 Se puede abrir el archivo completo desde Battles; no se sube al servidor.
 Persistencia y recuperación: ver SERIES.md (incluye límite del checkpoint
 periódico ante cierre abrupto). No cambia el aislamiento del harness descrito
@@ -148,7 +148,7 @@ tick 121 · 12.1s/600.0s · running · you are p1
 
 FIN DE LA ACTUALIZACIÓN. SNAPSHOT HISTÓRICO DE LA PARTIDA 721e92c4:
 
-AGE OF AGENTS — SETUP REAL DE CODEX + MCP
+CASTELLAN — SETUP REAL DE CODEX + MCP
 Partida de referencia: 721e92c4 — cuatro GPT-6 Astra low, todos contra todos
 Fecha de captura: 2026-09-27T21:55:14-03:00
 

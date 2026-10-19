@@ -1,16 +1,12 @@
 // @ts-check
 // What every keeper knows about the game: where its server is and how a seat reads it.
-import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { defaultServer, routes } from "../../packages/shared/src/http.ts";
 export { observedSeat, seatOver, seatPlaying } from "../../packages/shared/src/protocol.ts";
 
-/** A private keeper file in ~/.config/castellan, or in ~/.config/aoa where it was kept before the rename. */
-export function configFile(name) {
-  const current = join(homedir(), ".config", "castellan", name), legacy = join(homedir(), ".config", "aoa", name);
-  return !existsSync(current) && existsSync(legacy) ? legacy : current;
-}
+/** A private keeper file in ~/.config/castellan. */
+export const configFile = name => join(homedir(), ".config", "castellan", name);
 
 /** CASTELLAN_SERVER without its trailing slash, or the local server. */
 export const serverUrl = value => (value || defaultServer).replace(/\/$/, "");

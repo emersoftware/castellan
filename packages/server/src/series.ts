@@ -170,7 +170,7 @@ export class SeriesStore {
   replay(id: string): SeriesReplay | undefined {
     const summary = this.summary(id);
     if (!summary || summary.status !== "finished") return;
-    return { format: "aoa-series-v1", series: summary, games: this.entries.get(id)!.games.map((r) => r.replay()!) };
+    return { format: "castellan-series-v1", series: summary, games: this.entries.get(id)!.games.map((r) => r.replay()!) };
   }
 
   async history(roomId: string, player: string, game: number | undefined, section: HistorySection, offset: number, limit: number) {

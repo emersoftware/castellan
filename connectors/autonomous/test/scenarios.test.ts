@@ -269,7 +269,7 @@ describe("autonomous player: observable engine scenarios", () => {
       experiment.advanceTo(1000);
       const army = experiment.view("p1").mine.filter(e => e.kind === "knight" || e.kind === "archer");
       const before = new Map(army.map(e => [e.id, e.x]));
-      experiment.tick([{ player: "p2", order: { type: "chat", channel: "team", text: "[AOA1] attack 20,8" } }]);
+      experiment.tick([{ player: "p2", order: { type: "chat", channel: "team", text: "[CASTELLAN1] attack 20,8" } }]);
       experiment.advanceTo(15_000);
       expect(player.memory.coordination).toMatchObject({ from: "p2", action: "attack", point: { x: 20, y: 8 } });
       const redirected = experiment.view("p1").mine.filter(e => before.has(e.id) && e.x > before.get(e.id)! + 5);
@@ -292,7 +292,7 @@ describe("autonomous player: observable engine scenarios", () => {
       const target = spawnFixture(experiment, "knight", "p2", 24, 12);
       experiment.tick([{ player: "p1", order: { type: "script", kind: "archer", code: "self.hold();" } },
         { player: "p2", order: { type: "script", kind: "knight", code: "self.hold();" } },
-        { player: "p2", order: { type: "chat", to: "p1", text: "[AOA1] truce 60" } }], new Set(["p1"]));
+        { player: "p2", order: { type: "chat", to: "p1", text: "[CASTELLAN1] truce 60" } }], new Set(["p1"]));
       experiment.advanceTo(55_000);
       expect(player.memory.treaties.p2).toBeGreaterThan(55_000);
       expect(experiment.damage.get(archer.id) ?? 0).toBe(0);

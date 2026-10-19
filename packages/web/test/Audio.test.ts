@@ -28,7 +28,7 @@ beforeEach(() => {
 });
 async function settled() { for (let i = 0; i < 20; i++) await Promise.resolve(); }
 it("migrates the old preference, then persists music and effects independently", async () => {
-  localStorage.setItem("aoa:muted", "1");
+  localStorage.setItem("castellan:muted", "1");
   const { sfx } = await import("../src/audio/sfx");
   expect(sfx.muted).toBe(true);
   sfx.setEffectsMuted(false);
@@ -36,8 +36,8 @@ it("migrates the old preference, then persists music and effects independently",
   sfx.setMusicMuted(false);
   sfx.setEffectsMuted(true);
   expect(sfx.musicMuted).toBe(false);
-  expect(localStorage.getItem("aoa:effects-muted")).toBe("1");
-  expect(localStorage.getItem("aoa:music-muted")).toBe("0");
+  expect(localStorage.getItem("castellan:effects-muted")).toBe("1");
+  expect(localStorage.getItem("castellan:music-muted")).toBe("0");
 });
 it("keeps battle music behind effects and muting sounds leaves its source playing", async () => {
   const { sfx } = await import("../src/audio/sfx");
