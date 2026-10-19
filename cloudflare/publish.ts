@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { collectPublication, publicationSQL } from "./catalog";
+import { collectPublication, publicationSQL, type Published } from "./catalog";
 
 const args = process.argv.slice(2);
 // `--version v21b`: only games under that set of rules (the engine replays no other), and series made of them.
@@ -24,15 +24,26 @@ if (version || only) {
   const kept = new Set(publication.replays.map((r) => r.replay.id));
   publication.series = publication.series.filter((s) => s.summary.games.every((g) => kept.has(g.roomId)));
 }
-const sql = publicationSQL(publication);
-console.log(`${publication.replays.length} agent battles, ${publication.series.length} complete series; ${publication.excluded} bot/demo recordings excluded.`);
-if (!args.includes("--dry-run")) {
+const wrangler = (extra: string[]) => {
+  const result = spawnSync("pnpm", ["exec", "wrangler", "d1", "execute", "DB", args.includes("--local") ? "--local" : "--remote", ...extra, "--json"], { cwd: root, encoding: "utf8", stdio: ["inherit", "pipe", "inherit"], maxBuffer: 256 * 1024 * 1024 });
+  if (result.error) throw result.error;
+  return result;
+};
+// Unchanged rows are not rewritten: compare with what D1 already holds.
+const state = wrangler(["--command", "SELECT id, content_hash, summary_json FROM replays"]);
+if (state.status !== 0) throw new Error(`Could not read the published catalogue (exit ${state.status}); apply migrations with pnpm cloud:migrate.`);
+const rows: { id: string; content_hash: string; summary_json: string }[] = JSON.parse(state.stdout)[0].results;
+const published: Published = new Map(rows.map((r) => [r.id, { contentHash: r.content_hash, summaryJson: r.summary_json }]));
+const sql = publicationSQL(publication, published);
+const changed = publication.replays.filter(({ replay }) => sql.includes(`VALUES('${replay.id}',`)).length;
+console.log(`${publication.replays.length} agent battles (${changed} new or changed), ${publication.series.length} complete series; ${publication.excluded} bot/demo recordings excluded.`);
+if (!sql) console.log("Nothing to publish.");
+else if (!args.includes("--dry-run")) {
   const dir = await mkdtemp(join(tmpdir(), "aoa-publish-"));
   try {
     const file = join(dir, "replays.sql");
     await writeFile(file, sql, { mode: 0o600 });
-    const result = spawnSync("pnpm", ["exec", "wrangler", "d1", "execute", "DB", args.includes("--local") ? "--local" : "--remote", "--file", file, "--yes", "--json"], { cwd: root, encoding: "utf8", stdio: ["inherit", "pipe", "inherit"], maxBuffer: 16 * 1024 * 1024 });
-    if (result.error) throw result.error;
+    const result = wrangler(["--file", file, "--yes"]);
     if (result.status !== 0) {
       console.error(result.stdout.slice(-3000));
       throw new Error(`Publication failed (exit ${result.status}); it is safe to retry.`);

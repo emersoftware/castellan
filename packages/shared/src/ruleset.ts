@@ -46,8 +46,10 @@ export interface Ruleset {
   /**
    * Ranged attacks are real projectiles (Euclidean tiles/s). Only hostile entities stop
    * them, never rock; `flyOver` building kinds are hit only by a shot aimed at them.
+   * `blindSpot`: nothing closer to the shooter than its `minRange` can be hit along the path
+   * (absent in recordings made before the field: on from 0.29.0, see `blindSpotOnPath`).
    */
-  projectiles: { speed: number; unitRadius: number; buildingRadius: number; flyOver: RecordedKind[] };
+  projectiles: { speed: number; unitRadius: number; buildingRadius: number; flyOver: RecordedKind[]; blindSpot?: boolean };
   kinds: Record<string, KindSpec>;
   /** Research belongs to a player and affects one kind. */
   upgrades: Record<string, UpgradeSpec>;

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import type { ReplayFile, SeriesSummary } from "../packages/shared/src/protocol";
@@ -43,6 +43,8 @@ export function publicReplay(value: ReplayFile): ReplayFile {
     orders: value.orders, hashes: value.hashes, finalTick: value.finalTick, outcome: value.outcome,
     ...(value.timing ? { timing: value.timing } : {}), ...(value.chat !== undefined ? { chat: value.chat } : {}),
     ...(value.series ? { series: { id: value.series.id, gameNumber: value.series.gameNumber, totalGames: 3 } } : {}),
+    // The viewer needs recorded sandbox interruptions to re-simulate the match; nothing else of the manifest is public.
+    ...(value.experiment?.operationalFailures?.length ? { experiment: { operationalFailures: value.experiment.operationalFailures } as ReplayFile["experiment"] } : {}),
   };
 }
 
@@ -103,7 +105,8 @@ export async function collectPublication(root: string): Promise<Publication> {
     if (hasScriptedBot(raw.players) || hasScriptedBot(localIndex.get(id)?.players ?? []) || raw.players.some((p) => /^demo:/i.test(p.name))) { excluded++; continue; }
     const replay = publicReplay(raw);
     const old = previous.get(id);
-    const savedAt = old?.savedAt ?? (await stat(path)).mtime.toISOString();
+    // When the match ended: file times move when recordings are copied or rewritten.
+    const savedAt = old?.savedAt ?? new Date(Date.parse(replay.createdAt) + replay.finalTick * 1000 / replay.tickRate).toISOString();
     replays.push({ replay, summary: {
       id, title: titles.replays[id] ?? old?.title ?? `${replay.players.map((p) => p.name).join(" vs. ")} — ${replay.ruleset.map.name ?? "Open field"}`,
       createdAt: replay.createdAt, savedAt, players: replayPlayerSummaries(raw), outcome: replay.outcome,
@@ -115,13 +118,38 @@ export async function collectPublication(root: string): Promise<Publication> {
 }
 
 const quote = (s: string) => `'${s.replaceAll("'", "''")}'`;
-export function publicationSQL(publication: Publication): string {
-  const statements = publication.replays.map(({ replay, summary }) => {
-    const payload = JSON.stringify(replay);
-    const hash = createHash("sha256").update(payload).digest("hex");
-    return `INSERT INTO replays(id,saved_at,summary_json,replay_json,content_hash) VALUES(${[replay.id, summary.savedAt, JSON.stringify(summary), payload, hash].map(quote).join(",")}) ON CONFLICT(id) DO UPDATE SET saved_at=excluded.saved_at,summary_json=excluded.summary_json,replay_json=excluded.replay_json,content_hash=excluded.content_hash WHERE replays.content_hash != excluded.content_hash OR replays.summary_json != excluded.summary_json;`;
-  });
+const STATEMENT_LIMIT = 100_000, CHUNK_BYTES = 80_000;
+
+/** A payload in pieces whose quoted SQL literal stays well under D1's statement limit. */
+export function chunks(payload: string): string[] {
+  const out: string[] = [];
+  let piece = "", bytes = 0;
+  for (const char of payload) {
+    const size = Buffer.byteLength(char) * (char === "'" ? 2 : 1);
+    if (bytes + size > CHUNK_BYTES) { out.push(piece); piece = ""; bytes = 0; }
+    piece += char; bytes += size;
+  }
+  return [...out, piece];
+}
+
+/** What D1 already holds for a replay, to skip unchanged rows. */
+export type Published = Map<string, { contentHash: string; summaryJson: string }>;
+
+export const contentHash = (payload: string) => createHash("sha256").update(payload).digest("hex");
+
+export function publicationSQL(publication: Publication, published: Published = new Map()): string {
+  const statements: string[] = [];
+  for (const { replay, summary } of publication.replays) {
+    const payload = JSON.stringify(replay), hash = contentHash(payload), summaryJson = JSON.stringify(summary);
+    const before = published.get(replay.id);
+    if (before?.contentHash === hash && before.summaryJson === summaryJson) continue;
+    if (before?.contentHash !== hash) {
+      statements.push(`DELETE FROM replay_chunks WHERE id=${quote(replay.id)};`);
+      chunks(payload).forEach((chunk, n) => statements.push(`INSERT INTO replay_chunks(id,n,chunk) VALUES(${quote(replay.id)},${n},${quote(chunk)});`));
+    }
+    statements.push(`INSERT INTO replays(id,saved_at,summary_json,content_hash) VALUES(${[replay.id, summary.savedAt, summaryJson, hash].map(quote).join(",")}) ON CONFLICT(id) DO UPDATE SET saved_at=excluded.saved_at,summary_json=excluded.summary_json,content_hash=excluded.content_hash;`);
+  }
   for (const { summary, savedAt } of publication.series) statements.push(`INSERT INTO series(id,saved_at,summary_json) VALUES(${[summary.id, savedAt, JSON.stringify(summary)].map(quote).join(",")}) ON CONFLICT(id) DO UPDATE SET saved_at=excluded.saved_at,summary_json=excluded.summary_json WHERE series.summary_json != excluded.summary_json OR series.saved_at != excluded.saved_at;`);
-  for (const statement of statements) if (Buffer.byteLength(statement) >= 100_000) throw new Error("Replay exceeds D1's 100 KB SQL import statement limit. Nothing was uploaded; use a parameterized importer for this replay.");
-  return statements.join("\n") + "\n";
+  for (const statement of statements) if (Buffer.byteLength(statement) >= STATEMENT_LIMIT) throw new Error("A catalogue statement exceeds D1's 100 KB SQL import limit. Nothing was uploaded.");
+  return statements.length ? statements.join("\n") + "\n" : "";
 }

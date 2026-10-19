@@ -2,7 +2,7 @@ import type {
   DepositView, EntityView, GameEvent, KindSpec, MatchStatus, Order, OrderResult, Outcome, PlayerId, PlayerStats,
   Doing, LastSeen, OrderEndReason, PlayerView, ProjectileView, RecordedKind, Ruleset, SpectatorView, UnderAttack, ActionFeedback, ActionAvailability, CombatSummary, UnitOrder, OrderProgress,
 } from "@aoa/shared";
-import { barrierAxes, eventOwner, HOLD_SCRIPT, matchLengthMs, NEUTRAL_OWNER, withMineralNames } from "@aoa/shared";
+import { barrierAxes, blindSpotOnPath, eventOwner, HOLD_SCRIPT, matchLengthMs, NEUTRAL_OWNER, withMineralNames } from "@aoa/shared";
 import { createScriptHost, testScript, type ScriptAction, type ScriptActionResult, type ScriptHost, type ScriptHostFactory, type ScriptWorld, type ScriptEvent, type UnitRun } from "@aoa/sandbox";
 import { DIRS, DIR_LIST, SEAT_DIRS, canStep, dist, findPath, hypot, inBounds, mapToSeat, seatToMap, type Grid } from "./grid";
 import { segmentCircleHit } from "./projectiles";
@@ -1292,6 +1292,7 @@ export class Match {
   /** Sweep each segment, so fast shots cannot tunnel through an occupied tile. */
   private advanceProjectiles(damage: Map<string, number>, lastHit: Map<string, PlayerId>, emit: (e: GameEvent) => void) {
     const config = this.ruleset.projectiles;
+    const blindSpot = blindSpotOnPath(this.ruleset);
     for (const p of this.projectiles.values()) {
       if (p.launchedAt === this._tick) continue;
       const remaining = hypot(p.endX - p.x, p.endY - p.y);
@@ -1303,7 +1304,7 @@ export class Match {
         if (!this.hostile(p.owner, e.owner)) continue;
         if (config.flyOver.includes(e.kind) && e.id !== p.aimedAt) continue;
         // The shooter's blind spot: a minimum-range shooter hits nothing closer than it (the guide promises adjacent units are safe).
-        if (p.minRange && dist(p.fromX, p.fromY, e.x, e.y) < p.minRange) continue;
+        if (blindSpot && p.minRange && dist(p.fromX, p.fromY, e.x, e.y) < p.minRange) continue;
         const hit = segmentCircleHit(p.x, p.y, nx, ny, e.x, e.y, e.spec.building ? config.buildingRadius : config.unitRadius);
         if (hit !== null && hit < fraction) { fraction = hit; target = e; }
       }

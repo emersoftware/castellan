@@ -16,8 +16,8 @@ pnpm cloud:verify https://rts.emersoftware.cl  # compare every public replay wit
 
 Publishing data does not require rebuilding the website. Commands use the current
 Wrangler login; no publishing credentials or write endpoints exist in the web
-application. Repeat publication updates changed rows without duplicating matches;
-unchanged rows are not rewritten. It does not delete previously published games.
+application. Publication first reads what D1 holds and uploads only new or changed
+battles; unchanged rows are not rewritten. It does not delete previously published games.
 Public API caches expire within 60 seconds.
 
 Use `--only <id,...>` for curated releases: publishing without it includes all
@@ -37,9 +37,14 @@ They override bundled titles and survive repeat publication. New recordings
 without an editorial title get a descriptive player/map title automatically.
 
 The importer validates the whole input before uploading it. It uses SQL files
-with properly escaped JSON through Wrangler. A statement larger than D1's
-100,000-byte SQL limit is rejected before any upload; larger future recordings
-will need a parameterized importer (D1 itself allows rows up to 2 MB).
+with properly escaped JSON through Wrangler. D1 caps one imported statement at
+100 KB and a row at 2 MB, so each replay payload is stored in ordered ~80 KB pieces
+(`replay_chunks`) that the Worker joins on read; any size of recording publishes.
+
+The battles page lists every version of the rules with a version selector. The
+browser re-simulates each replay with the current engine, which keeps older rules
+(behaviour changes are gated by ruleset fields); a replay that no longer matches its
+recorded hashes shows "desync at <tick>".
 
 ## Setup and local verification
 

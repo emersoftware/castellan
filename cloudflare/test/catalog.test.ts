@@ -8,7 +8,7 @@ import type { ReplayFile } from "../../packages/shared/src/protocol";
 import { rules } from "../../packages/shared/src/rules";
 import { replayArchive } from "../../packages/shared/src/replayArchive";
 import { createMatch } from "../../packages/engine/src";
-import { collectPublication, completeSeries, publicationSQL, publicReplay, type Publication } from "../catalog";
+import { collectPublication, completeSeries, publicationSQL, publicReplay, type Publication, type Published } from "../catalog";
 
 // A short finished match under the current rules, recorded like a real replay.
 const fixture: ReplayFile = await (async () => {
@@ -30,24 +30,51 @@ const entry = (replay: ReplayFile): Publication["replays"][number] => ({ replay,
   players: replay.players, outcome: replay.outcome, finalTick: replay.finalTick, tickRate: replay.tickRate,
 } });
 
+const migrated = async () => {
+  const db = new DatabaseSync(":memory:");
+  for (const file of ["0001_catalog.sql", "0002_replay_chunks.sql"]) db.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8"));
+  return db;
+};
+const stored = (db: DatabaseSync, id: string) => (db.prepare("SELECT chunk FROM replay_chunks WHERE id = ? ORDER BY n").all(id) as { chunk: string }[]).map((r) => r.chunk).join("");
+const publishedIn = (db: DatabaseSync): Published => new Map((db.prepare("SELECT id, content_hash, summary_json FROM replays").all() as { id: string; content_hash: string; summary_json: string }[])
+  .map((r) => [r.id, { contentHash: r.content_hash, summaryJson: r.summary_json }]));
+
 it("imports exact JSON into SQLite, safely quotes scripts, and writes nothing on a repeat publication", async () => {
+  const db = await migrated();
+  try {
+    const replay = structuredClone(fixture);
+    replay.players[0].name = "O'Brien\nこんにちは";
+    db.exec(publicationSQL({ replays: [entry(replay)], series: [], excluded: 0 }));
+    expect(JSON.parse(stored(db, replay.id))).toEqual(replay);
+    expect(JSON.parse((db.prepare("SELECT summary_json FROM replays").get()!.summary_json as string)).title).toBe("Agent's battle; SELECT 'hello'");
+    expect(publicationSQL({ replays: [entry(replay)], series: [], excluded: 0 }, publishedIn(db))).toBe("");
+    replay.players[0].name = "Updated";
+    db.exec(publicationSQL({ replays: [entry(replay)], series: [], excluded: 0 }, publishedIn(db)));
+    expect(db.prepare("SELECT count(*) AS n FROM replays").get()!.n).toBe(1);
+    expect(JSON.parse(stored(db, replay.id)).players[0].name).toBe("Updated");
+  } finally { db.close(); }
+});
+
+it("stores a replay larger than one D1 statement in pieces and reassembles it exactly", async () => {
+  const db = await migrated();
+  try {
+    const replay = structuredClone(fixture);
+    replay.chat = Array.from({ length: 3000 }, (_, i) => ({ tick: i, from: "p1", channel: "all", text: `it's ${i} — señal ✓` })) as unknown as ReplayFile["chat"];
+    const sql = publicationSQL({ replays: [entry(replay)], series: [], excluded: 0 });
+    expect(db.exec(sql)).toBeUndefined();
+    expect((db.prepare("SELECT count(*) AS n FROM replay_chunks").get()!.n as number)).toBeGreaterThan(2);
+    expect(JSON.parse(stored(db, replay.id))).toEqual(replay);
+  } finally { db.close(); }
+});
+
+it("migrates published rows into pieces and keeps their rules version in the summary", async () => {
   const db = new DatabaseSync(":memory:");
   try {
     db.exec(await readFile(new URL("../migrations/0001_catalog.sql", import.meta.url), "utf8"));
-    const replay = structuredClone(fixture);
-    replay.players[0].name = "O'Brien\nこんにちは";
-    const sql = publicationSQL({ replays: [entry(replay)], series: [], excluded: 0 });
-    db.exec(sql);
-    const row = db.prepare("SELECT replay_json, summary_json FROM replays").get()!;
-    expect(JSON.parse(row.replay_json as string)).toEqual(replay);
-    expect(JSON.parse(row.summary_json as string).title).toBe("Agent's battle; SELECT 'hello'");
-    const changes = db.prepare("SELECT total_changes() AS n").get()!.n;
-    db.exec(sql);
-    expect(db.prepare("SELECT total_changes() AS n").get()!.n).toBe(changes);
-    replay.players[0].name = "Updated";
-    db.exec(publicationSQL({ replays: [entry(replay)], series: [], excluded: 0 }));
-    expect(db.prepare("SELECT count(*) AS n FROM replays").get()!.n).toBe(1);
-    expect(JSON.parse(db.prepare("SELECT replay_json FROM replays").get()!.replay_json as string).players[0].name).toBe("Updated");
+    db.prepare("INSERT INTO replays VALUES (?, ?, ?, ?, ?)").run(fixture.id, fixture.createdAt, JSON.stringify({ id: fixture.id }), JSON.stringify(fixture), "h");
+    db.exec(await readFile(new URL("../migrations/0002_replay_chunks.sql", import.meta.url), "utf8"));
+    expect(JSON.parse(stored(db, fixture.id))).toEqual(fixture);
+    expect(JSON.parse(db.prepare("SELECT summary_json FROM replays").get()!.summary_json as string)).toEqual({ id: fixture.id, rulesVersion: rules.version });
   } finally { db.close(); }
 });
 
@@ -138,5 +165,11 @@ it.each([["low", "low"], ["PRIVATE-INVALID-EFFORT", null]])("reads fresh payload
 it("rejects unfinished recordings and oversized import statements before publication", () => {
   expect(() => publicReplay({ ...fixture, outcome: undefined! })).toThrow("Invalid finished replay");
   const replay = structuredClone(fixture); replay.players[0].name = "x".repeat(100_000);
-  expect(() => publicationSQL({ replays: [entry(replay)], series: [], excluded: 0 })).toThrow("Nothing was uploaded");
+  expect(() => publicationSQL({ replays: [entry(replay)], series: [], excluded: 0 })).toThrow("Nothing was uploaded"); // the summary itself is one statement
+});
+
+it("keeps recorded sandbox interruptions, which the viewer needs to re-simulate, and nothing else of the manifest", () => {
+  const failure = { tick: 5, player: "p1", message: "sandbox watchdog timeout after 250ms; player VM terminated" };
+  const replay = { ...structuredClone(fixture), experiment: { operationalFailures: [failure], players: { p1: { configuration: { promptSha256: "PRIVATE" } } } } } as unknown as ReplayFile;
+  expect(publicReplay(replay).experiment).toEqual({ operationalFailures: [failure] });
 });

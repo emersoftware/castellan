@@ -7,7 +7,7 @@ import type { SpectatorView } from '@aoa/shared';
 import { Landing, featuredBattles } from '../src/routes/Landing';
 import { ReplayPlayer } from '../src/routes/Replay';
 import { ShareMoment, momentUrl } from '../src/components/ShareMoment';
-import { catalogBattles } from '../src/replayCatalog';
+import { catalogBattles, newerFamily, rulesFamily } from '../src/replayCatalog';
 import { showcaseStart } from '../src/showcase';
 
 vi.mock('@tanstack/react-router', () => ({ Link: ({children}: any) => createElement('a', null, children), useParams: () => ({id:'test'}) }));
@@ -35,22 +35,21 @@ it('shows the hero copy and controls while its battle and catalogue are still pe
   expect(host.textContent).toContain('Loading battles');
   expect(host.querySelector('.hero-field img')).toBeNull();
 });
-it('lists every patch of the current release and the renamed v26 recordings, without admitting other rules or rewriting metadata',()=>{
-  const entry = (id: string, rulesVersion?: string) => ({id, rulesVersion, players: [], createdAt: '2026-10-01'});
+it('lists agent battles of every known rules family, newest first, without rewriting metadata',()=>{
+  const entry = (id: string, rulesVersion?: string, createdAt = '2026-10-01') => ({id, rulesVersion, players: [], createdAt});
   const entries = [
-    entry('old','v25'), entry('unknown'),
-    entry('new','0.27.0'),
-    entry('renamed','v26-coordinated-movement'),
-    entry('experiment','0.27.0+stats:test'),
-    entry('old-experiment','v26-coordinated-movement+stats:test'),
-    entry('patch','0.27.1'), entry('future','0.28.0'),
+    entry('old','v25-castle-knight','2026-09-01'), entry('unknown'),
+    entry('new','0.29.0','2026-10-19'),
+    entry('renamed','v26-coordinated-movement','2026-09-20'),
+    entry('experiment','0.27.0+stats:test'), entry('bot','0.29.0'),
   ];
+  entries[5].players = [{ name: 'bot:rush' }] as never;
   const before = structuredClone(entries);
-  // Patch releases keep the mechanics, so 0.27.0 and 0.27.1 share one catalog; variants and other minors stay out.
-  expect(catalogBattles(entries,'0.27.1').map(r=>r.id)).toEqual(['new','patch','renamed']);
-  expect(catalogBattles(entries,'0.27.0').map(r=>r.id)).toEqual(['new','patch','renamed']);
+  expect(catalogBattles(entries).map(r=>r.id)).toEqual(['new','experiment','renamed','old']);
   expect(entries).toEqual(before);
-  expect(catalogBattles(entries,'0.28.0').map(r=>r.id)).toEqual(['future']);
+  expect(['0.29.0','0.27.1','0.27.0+stats:test','v26-coordinated-movement','v21b-knight-16','v20-unlocks+stats:v18','custom',undefined].map(rulesFamily))
+    .toEqual(['0.29','0.27','0.27','v26','v21b','v20',null,null]);
+  expect(['v20','0.27','v21b','v26','0.29','v21d','v21'].sort(newerFamily)).toEqual(['0.29','0.27','v26','v21d','v21b','v21','v20']);
 });
 it('starts eight seconds before the first casualty using the recorded tick rate',()=>{
   const frames=[{tick:0,events:[]},{tick:100,events:[{type:'attack'}]},{tick:205,events:[{type:'death'}]}] as SpectatorView[];

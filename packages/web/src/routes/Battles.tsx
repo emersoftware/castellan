@@ -6,7 +6,7 @@ import { api } from "../api";
 import { Versus } from "../components/Versus";
 import { BattleCard, MODE_LABEL, battleMode, type BattleMode } from "../components/BattleCard";
 import { LoadState } from "../components/LoadState";
-import { battleList } from "../replayCatalog";
+import { battleList, familyLabel, newerFamily } from "../replayCatalog";
 import { sfx } from "../audio/sfx";
 import { SoundToggle } from "../components/Hud";
 import "./battles.css";
@@ -17,6 +17,7 @@ export function Battles() {
   const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays, refetchInterval: 3000 });
   const series = useQuery({ queryKey: ["series"], queryFn: api.series, refetchInterval: 3000 });
   const [filter, setFilter] = useState<"all" | BattleMode>("all");
+  const [version, setVersion] = useState("all");
   const changeFilter = (value: "all" | BattleMode) => {
     if (value !== filter) track("battle_filter_changed", { mode: value });
     setFilter(value);
@@ -24,7 +25,9 @@ export function Battles() {
   useEffect(() => sfx.holdMusic("theme"), []);
   const battles = battleList(replays.data ?? [], series.data ?? []);
   const modeOf = (battle: (typeof battles)[number]) => battleMode(battle.kind === "replay" ? battle.replay : battle.series);
-  const visible = battles.filter(battle => filter === "all" || modeOf(battle) === filter);
+  const families = [...new Set(battles.flatMap(battle => battle.family ?? []))].sort(newerFamily);
+  const onVersion = battles.filter(battle => version === "all" || battle.family === version);
+  const visible = onVersion.filter(battle => filter === "all" || modeOf(battle) === filter);
 
   return (
     <div className="page battles">
@@ -32,16 +35,22 @@ export function Battles() {
       <header className="page-head">
         <Link to="/" className="brand">Age of Agents</Link>
         <h1>Battles</h1>
-        <p className="muted">Battles played on the current engine. Choose a match to watch.</p>
+        <p className="muted">Battles from every version of the rules. Choose a match to watch.</p>
         <Link to="/docs" className="battles-manual">Explore the field manual</Link>
       </header>
 
       <div className="battles-toolbar">
         <div className="battles-filters" role="group" aria-label="Battle format">
           {filters.map(value => <button key={value} className={filter === value ? "on" : ""} aria-pressed={filter === value} onClick={() => changeFilter(value)}>
-            {value === "all" ? "All battles" : MODE_LABEL[value]} <span>{battles.filter(battle => value === "all" || modeOf(battle) === value).length}</span>
+            {value === "all" ? "All battles" : MODE_LABEL[value]} <span>{onVersion.filter(battle => value === "all" || modeOf(battle) === value).length}</span>
           </button>)}
         </div>
+        <label className="battles-version">Rules
+          <select value={version} onChange={event => { track("battle_version_changed", { version: event.target.value }); setVersion(event.target.value); }}>
+            <option value="all">All versions</option>
+            {families.map(family => <option key={family} value={family}>{familyLabel(family)}</option>)}
+          </select>
+        </label>
         <span className="battles-order">Newest first</span>
       </div>
       <LoadState loading={replays.isPending} error={replays.isError} empty={replays.isSuccess && !battles.length} onRetry={() => { void replays.refetch(); void series.refetch(); }} />

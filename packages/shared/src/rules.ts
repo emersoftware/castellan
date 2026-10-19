@@ -25,7 +25,7 @@ export const rules: Ruleset = {
   revealAttackerMs: 2000,
   scriptSight: "player",
   reactiveOrders: true,
-  projectiles: { speed: 16, unitRadius: 0.35, buildingRadius: 0.5, flyOver: ["wall", "door"] },
+  projectiles: { speed: 16, unitRadius: 0.35, buildingRadius: 0.5, flyOver: ["wall", "door"], blindSpot: true },
   kinds: {
     worker: {
       building: false,

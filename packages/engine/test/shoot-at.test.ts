@@ -5,8 +5,8 @@ import { createMatch, runReplay, type Match, type PlayerOrder } from "../src";
 const live: Match[] = [];
 afterEach(() => { for (const m of live.splice(0)) m.dispose(); });
 const players = [{ id: "a", name: "A" }, { id: "b", name: "B" }];
-async function setup(start: Ruleset["map"]["start"] = [{ kind: "archer", x: 2, y: 4 }, { kind: "king", x: 0, y: 0 }], width = 9) {
-  const ruleset: Ruleset = { ...rules, matchMs: 5000,
+async function setup(start: Ruleset["map"]["start"] = [{ kind: "archer", x: 2, y: 4 }, { kind: "king", x: 0, y: 0 }], width = 9, patch: Partial<Ruleset> = {}) {
+  const ruleset: Ruleset = { ...rules, matchMs: 5000, ...patch,
     defaultScripts: { ...rules.defaultScripts, knight: "self.hold();", archer: "self.hold();", tower: "self.hold();" },
     kinds: { ...rules.kinds, archer: { ...rules.kinds.archer, range: 8, def: 0, attackMs: 10000, moveMs: 100, aimMs: 0 } },
     map: { ...rules.map, width, height: 9, deposits: [], sharedDeposits: [], walls: [], start } };
@@ -76,6 +76,16 @@ it("never hits inside the shooter's blind spot: adjacent enemies survive point s
   const impact = advance(m, 14).find(e => e.type === "projectile_end" && e.reason === "hit");
   expect(impact).toMatchObject({ target: enemyTower.id, dmg: 5 });
   expect(hp(m, knight.id)).toBe(knight.hp);
+});
+
+it("keeps recordings made before the blind-spot rule simulating as they were played", async () => {
+  // Without the field, rules older than 0.29.0 let an adjacent enemy intercept the shot.
+  const legacy = { version: "v26-coordinated-movement", projectiles: { ...rules.projectiles, blindSpot: undefined } };
+  const { m } = await setup([{ kind: "tower", x: 2, y: 4 }, { kind: "knight", x: 5, y: 4 }, { kind: "king", x: 0, y: 0 }], 9, legacy);
+  const knight = m.view("a").enemy.find(e => e.kind === "knight")!;
+  m.step([script("a", "tower", "self.shootAt(4, 4);")]);
+  advance(m, 4);
+  expect(hp(m, knight.id)).toBeLessThan(knight.hp);
 });
 
 it("replays a match with point shots deterministically", async () => {

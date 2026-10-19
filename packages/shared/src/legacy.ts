@@ -15,6 +15,13 @@ export function withMineralNames(ruleset: Ruleset): Ruleset {
   return { ...rest, startMineral, score: { ...score, mineral } };
 }
 
+/** Whether shots skip entities inside the shooter's minimum range; 0.29.0 recordings predate the field. */
+export function blindSpotOnPath(ruleset: Ruleset): boolean {
+  if (ruleset.projectiles.blindSpot !== undefined) return ruleset.projectiles.blindSpot;
+  const [major, minor] = /^(\d+)\.(\d+)\.\d+(?:\+|$)/.exec(ruleset.version ?? "")?.slice(1).map(Number) ?? [];
+  return major !== undefined && (major > 0 || minor >= 29);
+}
+
 /** Static showcase frames published before the resource rename. */
 function mineralBalance(player: PlayerStats): number | undefined {
   return player.mineral ?? (player as PlayerStats & { capital?: number }).capital;

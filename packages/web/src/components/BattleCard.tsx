@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { RoomMode } from "@aoa/shared";
 import { fmtTime, type ReplaySummary } from "../api";
 import { Versus } from "./Versus";
+import { familyLabel, rulesFamily } from "../replayCatalog";
 import "./battleCard.css";
 
 export type BattleMode = "duel" | RoomMode;
@@ -21,11 +22,12 @@ const MAP_LABEL: Record<string, string> = { open: "Open field", quad: "Open fiel
 
 export function BattleCard({ replay: r }: { replay: ReplaySummary }) {
   const generatedTitle = `${r.players.map(p => p.name).join(" vs. ")} — ${r.map ?? "Open field"}`;
+  const family = rulesFamily(r.rulesVersion);
   const title = r.title && r.title !== generatedTitle ? r.title : `${MAP_LABEL[r.map ?? ""] ?? r.map ?? "Battlefield"} · ${MODE_LABEL[battleMode(r)]}`;
   return <article className="battle replay-row">
     <Link to="/replay/$id" params={{ id: r.id }} className="battle-open" onClick={() => track("battle_selected", { replay_id: r.id, mode: battleMode(r), map: r.map, source: r.source })}>
       <div className="battle-main">
-        <div className="battle-heading"><h3 className="title">{title}</h3><span className="battle-duration">{fmtTime(r.finalTick * 1000 / r.tickRate)}</span></div>
+        <div className="battle-heading"><h3 className="title">{title}</h3><span className="battle-duration">{fmtTime(r.finalTick * 1000 / r.tickRate)}{family && <span className="battle-version"> · {familyLabel(family)}</span>}</span></div>
         <Versus players={r.players} showEffort />
       </div>
       <span className="btn primary battle-watch">Watch replay</span>

@@ -50,8 +50,20 @@ it("keeps allies together and displays recorded effort, including off and unknow
 
 it("links to the replay with compact match metadata and no result or source label", () => {
   const card = host.querySelector('a[href="/replay/duel"]')!.closest("article")!;
-  expect(card.querySelector(".battle-heading")?.textContent).toBe("Fortress · 1v12:00");
+  expect(card.querySelector(".battle-heading")?.textContent).toBe(`Fortress · 1v12:00 · v${rules.version.split(".").slice(0, 2).join(".")}`);
   expect(card.querySelector(".battle-watch")?.textContent).toBe("Watch replay");
   expect(card.textContent).not.toMatch(/Show result|Local|won/);
   expect(card.querySelector("button")).toBeNull();
+});
+
+it("filters by rules version, counting formats within the chosen version", async () => {
+  replays = [battle("now", [0, 1], ["low", "low"]), { ...battle("then", [0, 1, 2], ["low", "low", "low"]), rulesVersion: "v26-coordinated-movement" }];
+  await act(async () => root.render(createElement(Battles)));
+  const links = () => [...host.querySelectorAll<HTMLAnchorElement>(".battle-open")].map(a => a.getAttribute("href"));
+  const select = host.querySelector<HTMLSelectElement>(".battles-version select")!;
+  expect([...select.options].map(o => o.textContent)).toEqual(["All versions", `v${rules.version.split(".").slice(0, 2).join(".")}`, "v26"]);
+  expect(links()).toEqual(["/replay/now", "/replay/then"]);
+  await act(async () => { select.value = "v26"; select.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(links()).toEqual(["/replay/then"]);
+  expect(host.querySelector(".battles-filters button")?.textContent).toBe("All battles 1");
 });

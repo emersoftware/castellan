@@ -1,4 +1,4 @@
-import { publishedRoutes, replayArchive, routes, rules, type MatchStatus, type Outcome, type PlayerTiming, type ReplayFile, type ReplayPlayerSummary, type RoomMode, type SeriesReplay, type SeriesSummary } from "@aoa/shared";
+import { publishedRoutes, replayArchive, routes, type MatchStatus, type Outcome, type PlayerTiming, type ReplayFile, type ReplayPlayerSummary, type RoomMode, type SeriesReplay, type SeriesSummary } from "@aoa/shared";
 import { analyticsHeaders } from "./analytics";
 import { catalogBattles } from "./replayCatalog";
 
@@ -75,7 +75,7 @@ export const api = {
   async replays(): Promise<ReplaySummary[]> {
     if (published()) {
       const entries = await apiFetch(publishedRoutes.replays).then((r) => json<Omit<ReplaySummary, "source">[]>(r));
-      return catalogBattles(entries.map((entry) => ({ ...entry, source: "published" as const })), rules.version);
+      return catalogBattles(entries.map((entry) => ({ ...entry, source: "published" as const })));
     }
     const responses = await Promise.allSettled([
       fetch(`${replayArchive.featuredUrl}/${replayArchive.index}`).then(r => json<Omit<ReplaySummary, "source">[]>(r)),
@@ -85,7 +85,7 @@ export const api = {
     const featured = responses[0].status === "fulfilled" ? responses[0].value.map(x => ({ ...x, source: "featured" as const })) : [];
     const local = responses[1].status === "fulfilled" ? responses[1].value.map(x => ({ ...x, source: "local" as const })) : [];
     const seen = new Set(featured.map((f) => f.id));
-    return catalogBattles([...featured, ...local.filter((l) => !seen.has(l.id))], rules.version);
+    return catalogBattles([...featured, ...local.filter((l) => !seen.has(l.id))]);
   },
 
   async replay(id: string): Promise<ReplayFile> {

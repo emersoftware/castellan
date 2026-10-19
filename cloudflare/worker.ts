@@ -7,19 +7,25 @@ const error = (message: string, status: number) => Response.json({ error: messag
 const replayPattern = new RegExp(`^${publishedRoutes.replays}/([a-zA-Z0-9_-]+)$`);
 const seriesPattern = new RegExp(`^${publishedRoutes.series}/([a-zA-Z0-9_-]+)(/replay.json)?$`);
 
+/** A replay payload is stored in ordered pieces (see migrations/0002). */
+const chunksOf = (db: D1Database, id: string) => db.prepare("SELECT chunk FROM replay_chunks WHERE id = ? ORDER BY n").bind(id);
+const joined = (rows: D1Result) => (rows.results as { chunk: string }[]).map((r) => r.chunk).join("");
+
 /** The public Worker only reads D1. Publishing uses Wrangler on the host computer. */
 async function readAPI(path: string, db: D1Database): Promise<Response> {
   if (path === publishedRoutes.replays || path === publishedRoutes.series) {
-    const query = path === publishedRoutes.replays
-      ? "SELECT json_set(summary_json, '$.rulesVersion', json_extract(replay_json, '$.ruleset.version')) AS summary_json FROM replays ORDER BY saved_at DESC, id"
-      : "SELECT summary_json FROM series ORDER BY saved_at DESC, id";
+    const query = `SELECT summary_json FROM ${path === publishedRoutes.replays ? "replays" : "series"} ORDER BY saved_at DESC, id`;
     const { results } = await db.prepare(query).all<{ summary_json: string }>();
     return new Response(`[${results.map((r) => r.summary_json).join(",")}]`, { headers: jsonHeaders });
   }
   const replay = replayPattern.exec(path);
   if (replay) {
-    const row = await db.prepare("SELECT replay_json, content_hash FROM replays WHERE id = ?").bind(replay[1]).first<{ replay_json: string; content_hash: string }>();
-    return row ? new Response(row.replay_json, { headers: { ...jsonHeaders, etag: `"${row.content_hash}"` } }) : error("Replay not found", 404);
+    const [row, payload] = await db.batch([
+      db.prepare("SELECT content_hash FROM replays WHERE id = ?").bind(replay[1]),
+      chunksOf(db, replay[1]),
+    ]);
+    const hash = (row.results[0] as { content_hash: string } | undefined)?.content_hash;
+    return hash && payload.results.length ? new Response(joined(payload), { headers: { ...jsonHeaders, etag: `"${hash}"` } }) : error("Replay not found", 404);
   }
   const series = seriesPattern.exec(path);
   if (series) {
@@ -27,9 +33,9 @@ async function readAPI(path: string, db: D1Database): Promise<Response> {
     if (!raw) return error("Series not found", 404);
     if (!series[2]) return new Response(raw, { headers: jsonHeaders });
     const summary: SeriesSummary = JSON.parse(raw);
-    const rows = await db.batch<{ replay_json: string }>(summary.games.map((game) => db.prepare("SELECT replay_json FROM replays WHERE id = ?").bind(game.roomId)));
-    if (rows.some((row) => row.results.length !== 1)) return error("Series is incomplete", 503);
-    return new Response(`{"format":"aoa-series-v1","series":${raw},"games":[${rows.map((row) => row.results[0].replay_json).join(",")}]}`, { headers: jsonHeaders });
+    const rows = await db.batch(summary.games.map((game) => chunksOf(db, game.roomId)));
+    if (rows.some((row) => !row.results.length)) return error("Series is incomplete", 503);
+    return new Response(`{"format":"aoa-series-v1","series":${raw},"games":[${rows.map(joined).join(",")}]}`, { headers: jsonHeaders });
   }
   return error("Not found", 404);
 }
