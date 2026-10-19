@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "age-of-agents",
+  "name": "castellan",
   "main": "cloudflare/worker.ts",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -12,8 +12,8 @@
   },
   "d1_databases": [{
     "binding": "DB",
-    "database_name": "age-of-agents",
-    "database_id": "dab84151-7698-48f6-a72a-210d0bd23ffd",
+    "database_name": "castellan",
+    "database_id": "232caa1f-5150-4b77-b7a3-bc726cedc6a3",
     "migrations_dir": "cloudflare/migrations"
   }],
   "routes": [
