@@ -81,7 +81,7 @@ for (const connector of ["codex", "claude-code"] as const) {
     } });
     const launched: string[] = JSON.parse(await readFile(capture, "utf8"));
     // Both deliver the shared first turn: the instruction, then the observation.
-    const prompt = "play!\n\nProtect the eastern mine.";
+    const prompt = "PLAY\n\nProtect the eastern mine.";
     const turn = connector === "codex" ? launched.at(-1)! : launched[launched.indexOf("-p") + 1];
     expect(turn.startsWith(prompt)).toBe(true);
     expect(turn.endsWith(observation)).toBe(true);

@@ -157,7 +157,7 @@ export interface EntityView {
 }
 
 /** What a unit did last tick, in words. */
-export type Doing = "hold" | "build" | "unload" | `→ ${number},${number}` | `step ${string}` | `attack ${string}` | `gather ${string}`;
+export type Doing = "hold" | "build" | "unload" | `→ ${number},${number}` | `step ${string}` | `attack ${string}` | `shoot ${number},${number}` | `gather ${string}`;
 
 export interface ActionFeedback {
   tick: number;
@@ -267,7 +267,8 @@ export type GameEvent =
   | { tick: number; type: "construction_started"; owner: PlayerId; builder: string; kind: RecordedKind; x: number; y: number; completesAtMs: number }
   | { tick: number; type: "research_started"; owner: PlayerId; upgrade: string; level: number; completesAtMs: number; mineral: MineralChange }
   | { tick: number; type: "upgrade_completed"; owner: PlayerId; upgrade: string; level: number }
-  | { tick: number; type: "attack"; from: string; to: string; dmg: number; projectile?: string }
+  /** `to`: the attacked entity; a shot aimed with shootAt has `at`, the point it was launched toward, instead. */
+  | { tick: number; type: "attack"; from: string; to?: string; at?: { x: number; y: number }; dmg: number; projectile?: string }
   | { tick: number; type: "projectile_end"; id: string; x: number; y: number; target?: string; dmg: number; reason: "hit" | "blocked" | "miss" }
   | { tick: number; type: "death"; id: string; kind: RecordedKind; owner: PlayerId; x: number; y: number; by?: PlayerId }
   | { tick: number; type: "spawn"; id: string; kind: RecordedKind; owner: PlayerId; x: number; y: number; builder?: string; mineral?: MineralChange }

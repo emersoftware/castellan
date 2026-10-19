@@ -98,6 +98,7 @@ export type ScriptAction =
   | { a: "move"; dir: string }
   | { a: "moveTo"; x: number; y: number }
   | { a: "attack"; id: string }
+  | { a: "shootAt"; x: number; y: number }
   | { a: "flee"; id: string }
   | { a: "gather"; id?: string }
   | { a: "unload" };
@@ -348,6 +349,8 @@ function parseRun(raw: string): UnitRun {
   if (a.a === "move" && typeof a.dir === "string" && DIRS.has(a.dir)) out.action = { a: "move", dir: a.dir };
   else if (a.a === "moveTo" && int(a.x) && int(a.y)) out.action = { a: "moveTo", x: a.x, y: a.y };
   else if ((a.a === "attack" || a.a === "flee") && typeof a.id === "string") out.action = { a: a.a, id: a.id };
+  // A point, not a tile: leading a moving target needs fractions.
+  else if (a.a === "shootAt" && Number.isFinite(a.x) && Number.isFinite(a.y)) out.action = { a: "shootAt", x: a.x as number, y: a.y as number };
   else if (a.a === "gather" && (a.id === undefined || typeof a.id === "string")) out.action = { a: "gather", ...(a.id === undefined ? {} : { id: a.id }) };
   else if (a.a === "unload") out.action = { a: "unload" };
   return out;

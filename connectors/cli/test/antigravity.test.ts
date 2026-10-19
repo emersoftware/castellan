@@ -89,7 +89,7 @@ readline.createInterface({input:process.stdin}).on('line',async line=>{
       expect(called.args).not.toContain("--dangerously-skip-permissions");
       expect(called.args).not.toContain("--continue");
       expect(called.args).not.toContain("-p");
-      expect(called.prompt).toMatch(/^play!/);
+      expect(called.prompt).toMatch(/^PLAY/);
       expect(called.prompt).not.toContain("Room mechanics for this player.");
       expect(called.prompt).toContain("tick 5");
       const ownOutputs = `read_file(${join(homedir(), ".gemini/antigravity-cli/brain", conversation, ".system_generated/steps")})`;

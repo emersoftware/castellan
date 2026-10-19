@@ -10,7 +10,7 @@ const players = [{ id: "a", name: "A" }, { id: "b", name: "B" }];
 async function setup(options: { speed?: number; range?: number; wall?: boolean; rate?: number; start?: Ruleset["map"]["start"] } = {}) {
   const base = rules;
   const ruleset: Ruleset = { ...base, matchMs: 5000,
-    ...(options.speed ? { projectiles: { ...rules.projectiles!, speed: options.speed } } : {}),
+    projectiles: { ...rules.projectiles!, speed: options.speed ?? 12 },
     defaultScripts: { knight: "self.hold();", archer: "self.hold();" },
     kinds: { ...base.kinds, archer: { ...base.kinds.archer, range: options.range ?? 8, def: 0, attackMs: 10000, moveMs: 100 } },
     map: { ...base.map, width: 9, height: 9, deposits: [], sharedDeposits: [], walls: options.wall ? [{ x: 4, y: 4 }] : [],

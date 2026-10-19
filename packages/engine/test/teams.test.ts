@@ -94,7 +94,7 @@ describe("2v2", () => {
         expect(m.spectate().entities.some((x) => x.owner === (e as { owner: string }).owner && !x.ruin)).toBe(false); // only ruins stay
       }
     }
-    for (const e of events) if (e.type === "attack") expect(team.get(owner.get(e.from)!)).not.toBe(team.get(owner.get(e.to)!));
+    for (const e of events) if (e.type === "attack" && e.to) expect(team.get(owner.get(e.from)!)).not.toBe(team.get(owner.get(e.to)!));
     expect(events.some((e) => e.type === "eliminated")).toBe(true);
     const o = m.outcome!;
     expect(o.reason).toBe("vital_lost");

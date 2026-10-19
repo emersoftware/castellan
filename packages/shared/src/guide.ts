@@ -76,7 +76,7 @@ ${research}
 
 ## Combat
 Damage per hit = max(1, atk - target def). Melee (range 1) hits in the attack tick.
-Ranged attacks fire projectiles at ${r.projectiles.speed} tiles/s toward the target's position at launch; they don't home. A shot hits the first hostile entity on its path, so targets can dodge and others can intercept.
+Ranged attacks fire projectiles at ${r.projectiles.speed} tiles/s toward the target's position at launch; they don't home. A shot hits the first hostile entity on its path, so targets can dodge and others can intercept; a shooter with a minimum range hits nothing closer than it.
 Shots fly over rock and over hostile ${flyOver}, which take damage only from shots aimed at them; castles and towers stop shots. No friendly fire; allies and deposits don't block.
 Shots outlive their shooter. Collision radii: units ${r.projectiles.unitRadius}, buildings ${r.projectiles.buildingRadius}. Attack is set at launch, defense at impact.
 Each tick: scripts decide, units move, projectiles advance (a new shot starts moving next tick).
@@ -102,6 +102,16 @@ One tile each. A door lets its owner's and teammates' units through, one unit pe
 A door joins same-owner walls or doors along X or along Y, never both: no corners or junctions. A wall that would turn a door, built or reserved, into a corner is rejected.
 Walls and doors block movement, not shots. A unit standing in a door can be targeted by its id; the door by the door's id. Doors report open:true/false, and the grid shows a unit standing in one.
 
+## API
+Every call, as an MCP tool of the same name or HTTP with your player token; player routes also answer compact text with ?format=text.
+- guide (GET /guide): this document.
+- state (GET /state): your view under fog of war; since=<tick> limits events to those after that tick.
+- act (POST /act): orders, several per call; the shapes are below.
+- script (GET/PUT /scripts/<kind>): read or replace the per-tick script every unit of a kind runs.
+- run (POST /run): a one-shot function body run on the server with your view in scope.
+- chat (POST /chat; GET /chat reads the visible history): messages to other players, when the room has chat.
+- history (GET /history): completed earlier games of your series; a single game has none.
+
 ## Orders (POST /act {"orders":[...]}, several per call)
 - {"type":"train","building":"<castle id>","kind":${(kindSpec(r, "castle")?.trains ?? []).map(kind => JSON.stringify(kind)).join("|")}}
 - {"type":"build","unit":"<worker id>","kind":${(k.worker.builds ?? []).map((kind) => JSON.stringify(kind)).join("|")},"x":X,"y":Y}
@@ -121,7 +131,7 @@ feedback: lastActionResult is null initially, then {tick,action,status,effect?,r
 movement: canMove(direction) is local passability at decision time, ignoring cooldown: true/false, or null for a tile outside current vision. Other units can move before you, so true is not a reservation.
 perception: nearbyEnemies() nearbyAllies() nearestEnemy() nearestAlly() enemiesInRange() (within range and minRange; check readiness separately) distanceTo(u) distanceToPos(x,y) enemyBase() myBase()
   (each seen unit: {id,type,owner,mine,${teams ? "ally," : ""}x,y,hp,maxHp,isBuilding,atk,def,range,minRange,vision,attackMs,moveMs,ruin}; everything you can see, not only within this unit's vision${teams ? "; allies = yours and your ally's" : ""})
-actions: move("N"|"NE"|"E"|"SE"|"S"|"SW"|"W"|"NW") moveTo(x,y) attack(u) flee(u) hold()
+actions: move("N"|"NE"|"E"|"SE"|"S"|"SW"|"W"|"NW") moveTo(x,y) attack(u) shootAt(x,y) flee(u) hold(). shootAt (ranged kinds) launches a shot toward a visible point within range, decimals allowed; it hits the first hostile entity on its path, with attack's cooldown and aim.
 reaction: lastAttackedTick (null until hit), lastAttacker() (a visible hostile that hit this unit in the last 5 s, or null). Damage shows on the next tick; a launch alone is not damage.
 workers: carrying carryCapacity deposits() nearestDeposit() gather(deposit?) unload(). gather() runs the whole cycle: walks to a known deposit, mines a full load (${r.gather.carry}), carries it to the nearest Castle and goes back; gather(deposit) picks the deposit. unload() delivers what the worker carries before the load is full. Deposits are the known ones, {id,x,y,amount}, nearest first; hidden amounts may be stale.
 Defaults: workers gather, also under attack; the King hits a recent attacker in reach and never chases. stop clears an order and resumes the script.

@@ -247,11 +247,12 @@ export async function runBattle(s: Snapshot, ruleset: Ruleset = baseRules, varia
       }
       else if (e.type === "attack") {
         quiet = 0;
-        engagedIds.add(e.from); engagedIds.add(e.to);
+        engagedIds.add(e.from); if (e.to) engagedIds.add(e.to);
         const k = kindOf.get(e.from);
         if (k && e.projectile) { shotKind.set(e.projectile, k); shotOwner.set(e.projectile, ownerOf.get(e.from)!); }
-        else if (e.dmg) { if (k) lastHit.set(e.to, k); damage(k, ownerOf.get(e.from), e.to, e.dmg); }
+        else if (e.dmg && e.to) { if (k) lastHit.set(e.to, k); damage(k, ownerOf.get(e.from), e.to, e.dmg); }
       } else if (e.type === "projectile_end" && e.target && e.dmg) {
+        engagedIds.add(e.target);
         const k = shotKind.get(e.id);
         if (k) lastHit.set(e.target, k);
         damage(k, shotOwner.get(e.id), e.target, e.dmg);

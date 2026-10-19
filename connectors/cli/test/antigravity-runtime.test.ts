@@ -90,9 +90,9 @@ it("delivers the shared first turn in prep, then later turns only while running,
   expect(calls.filter(c => c.kind === "start")).toHaveLength(1);
   expect(new Set(prompts.map(c => c.conversation)).size).toBe(1);
   expect(prompts.map(c => c.overlap)).toEqual([false, false]);
-  expect(prompts[0].prompt).toMatch(/^play!/);
+  expect(prompts[0].prompt).toMatch(/^PLAY/);
   expect(prompts[0].prompt).not.toContain("Test room mechanics");
-  expect(prompts[1].prompt).not.toContain("play!");
+  expect(prompts[1].prompt).not.toContain("PLAY");
   expect(prompts[0].prompt).toContain("observation 0"); // delivered in prep
   expect(prompts[1].prompt).toContain("observation 1");
   expect(prompts[1].prompt).not.toContain("Reply READY");
@@ -114,7 +114,7 @@ it("recovers an interrupted process in the same conversation and refreshes state
   expect(starts[1].args).toContain("--conversation");
   expect(starts[1].conversation).toBe(starts[0].conversation);
   // The crashed first turn never completed, so the restarted session gets the first turn again.
-  expect(prompts[1].prompt).toMatch(/^play!/);
+  expect(prompts[1].prompt).toMatch(/^PLAY/);
   expect(prompts[1].prompt).toContain("observation 3");
   expect(prompts[0].prompt).toContain("observation 2");
   expect(f.states.map(s => s.since)).toEqual(["0", "0", "0"]);

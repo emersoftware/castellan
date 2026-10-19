@@ -53,7 +53,7 @@ export function holdings(view) {
 /** What the plan still asks for. */
 export function needs(view, plan) {
   const h = holdings(view);
-  return Object.fromEntries(Object.entries(plan?.targets ?? {}).map(([k, want]) => [k, Math.max(0, Number(want) - h.total(k))]).filter(([, n]) => n > 0));
+  return Object.fromEntries(Object.entries(plan?.targets ?? {}).map(([k, want]) => /** @type {[string, number]} */ ([k, Math.max(0, Number(want) - h.total(k))])).filter(([, n]) => n > 0));
 }
 
 /** Free tiles near my castles, one per direction, plus a tile beside each deposit group far from them. */
@@ -73,6 +73,7 @@ export function buildSites(view) {
     for (const s of best.values()) sites.set(`${s.x},${s.y}`, { x: s.x, y: s.y, text: `${s.d} tiles ${s.dir} of my ${c.kind} ${c.id}` });
   }
   const far = view.deposits.filter(d => anchor.every(c => dist(c, d) > 6));
+  /** @type {typeof far[]} */
   const groups = [];
   for (const d of far) (groups.find(g => dist(g[0], d) <= 3) ?? (groups.push([]), groups.at(-1))).push(d);
   for (const g of groups) {
@@ -238,7 +239,9 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   const journal = line => appendFile(join(root, "decisions.jsonl"), JSON.stringify({ at: Date.now(), ...line }) + "\n", { mode: 0o600 });
   const recent = [], failed = new Map();
   let stopped = false, finished = false, failures = 0, rejections = 0, jevCost = 0, decisions = 0;
-  let planner, plan = null, planning = null, lastPlanAt = 0, plans = 0;
+  /** @type {ReturnType<typeof plannerSession> | undefined} */
+  let planner;
+  let plan = null, planning = null, lastPlanAt = 0, plans = 0;
   const stop = () => { stopped = true; abort.abort(); };
   process.on("SIGINT", stop); process.on("SIGTERM", stop);
 

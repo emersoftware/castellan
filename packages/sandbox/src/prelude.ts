@@ -132,6 +132,7 @@ export const PRELUDE = String.raw`
       move: function (dir) { if (DIRS.indexOf(dir) >= 0) act({ a: "move", dir: dir }); },
       moveTo: function (x, y) { act({ a: "moveTo", x: Math.round(x), y: Math.round(y) }); },
       attack: function (t) { act({ a: "attack", id: idOf(t) }); },
+      shootAt: function (x, y) { act({ a: "shootAt", x: Number(x), y: Number(y) }); },
       flee: function (t) { act({ a: "flee", id: idOf(t) }); },
       hold: function () { act({ a: "hold" }); },
     };

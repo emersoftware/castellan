@@ -49,17 +49,22 @@ mechanics adjustment; broader army diversity still needs full-game validation.
 `v26-coordinated-movement` adds coordinated friendly movement, distinct arrival
 tiles for shared move orders, and path costs based on rounded per-unit step times.
 Recorded rules without those options keep their historical movement.
-The current release is **v0.28.0**, recorded internally as `0.28.0`. It trains
-Archers in 8 s, as fast as Knights (they took 10 s for the same cost), and removes
-the `script_test` tool, `POST /scripts/:kind/test` and `aoa script-test`: 9% of
-players used it and its results did not predict whether actions would succeed;
-installing a script still compiles it and rejects code that does not. 0.27.1
+The current release is **v0.29.0**, recorded internally as `0.29.0`. Ranged units
+(Archers, Towers and Castles) gain `shootAt(x, y)` in unit scripts: a shot toward a
+visible point within range, decimals allowed, that hits the first hostile on its path,
+so scripts can lead moving targets. Knights have 100 HP (was 110) and stand still
+200 ms after moving before attacking (was 100 ms); Towers and Castles deal 12 damage
+(was 9); Towers have 240 HP (was 160); projectiles fly at 16 tiles/s (was 12), so
+shots miss moving targets less; and the built-in archer script steps away from
+closing melee before shooting. 0.28.0 trained Archers in 8 s, as fast as Knights, and removed the
+`script_test` tool, `POST /scripts/:kind/test` and `aoa script-test`; installing a
+script still compiles it and rejects code that does not. 0.27.1
 renamed the `rules` tool to `guide` (`/rules` and `aoa rules` still answer),
 removed evaluative or directive phrases from the guide and map descriptions, and
 reports idle units of every mobile kind in the text state. Every loop keeper now
 sends the same turns (`connectors/loop-keepers/turns.mjs`). Historical recordings
 retain their original identifiers; the battle catalog lists every patch of the
-current release (`0.28.x`), and `0.27.x` lists together with the exact v26
+current release (`0.29.x`), and `0.27.x` lists together with the exact v26
 version, but not experimental variants or older rules.
 `quad-crossroads` is a four-player map with solid, indestructible terrain wedges
 and routes through the center. Player-built walls remain destructible.

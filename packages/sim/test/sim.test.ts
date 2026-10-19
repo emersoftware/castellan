@@ -95,6 +95,8 @@ describe("recorded battle continuation", () => {
         { kind: "knight", x: 4, y: 3 }, { kind: "archer", x: 3, y: 3 }] };
     r.defaultScripts.knight = "self.memory.n = (self.memory.n || 0) + 1; if (self.memory.n >= 10) self.attack(self.nearestEnemy()); else self.hold();";
     r.defaultScripts.king = "self.hold();";
+    // Pin the shooter: the current archer default steps away from melee this close instead of firing.
+    r.defaultScripts.archer = "const t = self.enemiesInRange(); if (t.length) self.attack(t[0]); else self.hold();";
     const config = { ruleset: r, players, seed: 2, tickRate: 10 };
     const m = await createMatch(config);
     let restored;

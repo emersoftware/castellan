@@ -101,7 +101,7 @@ describe("Cursor player", () => {
     expect(h.launches[1].args).not.toContain("--resume");
     expect(h.launches[2].args).toContain(session);
     expect(h.launches[2].args.at(-1)).toContain("tick 2");
-    expect(h.launches[1].args.at(-1)).toMatch(/^play!\n\ntick 1/);
+    expect(h.launches[1].args.at(-1)).toMatch(/^PLAY\n\ntick 1/);
     expect(h.launches[2].args.at(-1)).toMatch(/^tick 2/);
     expect(h.launches[2].env.HOME).toBe(h.launches[1].env.HOME);
     expect(h.states).toEqual(["0", "1", "2"]);

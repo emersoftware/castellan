@@ -9,7 +9,7 @@ import { MAPS } from "./maps";
 import type { Ruleset } from "./ruleset";
 
 export const rules: Ruleset = {
-  version: "0.28.0",
+  version: "0.29.0",
   matchMs: 600000,
   fourSeatMatchMs: 900000,
   drawsAreLosses: true,
@@ -25,7 +25,7 @@ export const rules: Ruleset = {
   revealAttackerMs: 2000,
   scriptSight: "player",
   reactiveOrders: true,
-  projectiles: { speed: 12, unitRadius: 0.35, buildingRadius: 0.5, flyOver: ["wall", "door"] },
+  projectiles: { speed: 16, unitRadius: 0.35, buildingRadius: 0.5, flyOver: ["wall", "door"] },
   kinds: {
     worker: {
       building: false,
@@ -48,7 +48,7 @@ export const rules: Ruleset = {
       building: false,
       symbol: "K",
       enemySymbol: "k",
-      hp: 110,
+      hp: 100,
       def: 6,
       vision: 6,
       cost: 100,
@@ -58,7 +58,7 @@ export const rules: Ruleset = {
       attackMs: 1000,
       scriptable: true,
       trainMs: 8000,
-      aimMs: 100,
+      aimMs: 200,
     },
     archer: {
       building: false,
@@ -80,11 +80,11 @@ export const rules: Ruleset = {
       building: true,
       symbol: "T",
       enemySymbol: "t",
-      hp: 160,
+      hp: 240,
       def: 7,
       vision: 8,
       cost: 150,
-      atk: 9,
+      atk: 12,
       range: 7,
       minRange: 2,
       attackMs: 1000,
@@ -103,7 +103,7 @@ export const rules: Ruleset = {
       vital: false,
       trains: ["worker", "knight", "archer"],
       dropoff: true,
-      atk: 9,
+      atk: 12,
       range: 5,
       attackMs: 1000,
       scriptable: true,
@@ -184,10 +184,18 @@ if (e && self.distanceTo(e) <= self.range) self.attack(e);
 else if (e) self.moveTo(e.x, e.y);
 else self.hold();
 `,
-    archer: `// Built-in: shoot the weakest enemy in range.
-const targets = self.enemiesInRange();
-if (targets.length === 0) self.hold();
-else self.attack(targets.reduce((a, b) => (b.hp < a.hp ? b : a)));
+    archer: `// Built-in: step away from closing melee while a step away exists, otherwise shoot the weakest enemy in range.
+const melee = self.nearbyEnemies().find((e) => !e.isBuilding && e.range <= 1 && self.distanceTo(e) <= 2);
+const dirs = { N: [0, -1], NE: [1, -1], E: [1, 0], SE: [1, 1], S: [0, 1], SW: [-1, 1], W: [-1, 0], NW: [-1, -1] };
+const away = melee && Object.entries(dirs).some(([dir, [dx, dy]]) =>
+  self.canMove(dir) && Math.round(Math.hypot(self.x + dx - melee.x, self.y + dy - melee.y)) > self.distanceTo(melee));
+if (away) { if (self.suspendOrder) self.suspendOrder(); self.flee(melee); }
+else {
+  if (self.continueOrder) self.continueOrder();
+  const targets = self.enemiesInRange();
+  if (targets.length === 0) self.hold();
+  else self.attack(targets.reduce((a, b) => (b.hp < a.hp ? b : a)));
+}
 `,
     tower: `// Built-in: shoot the weakest enemy in range.
 const targets = self.enemiesInRange();

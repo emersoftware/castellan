@@ -36,7 +36,7 @@ for (const f of readdirSync(dir).filter((f) => /^[0-9a-f]{8}\.json\.gz$/.test(f)
     let hit = false;
     for (const e of m.step(byTick.get(t) ?? []).events) {
       if (e.type === "spawn") owners.set(e.id, e.owner);
-      if (e.type === "attack" && e.dmg > 0 && owners.get(e.from) && owners.get(e.to) && owners.get(e.from) !== owners.get(e.to)) hit = true;
+      if (e.type === "attack" && e.dmg > 0 && e.to && owners.get(e.from) && owners.get(e.to) && owners.get(e.from) !== owners.get(e.to)) hit = true;
       if (e.type === "projectile_end" && e.target && e.dmg > 0 && owners.get(e.target)) hit = true;
     }
     if (r.hashes[t] !== undefined && m.hash() !== r.hashes[t]) desync = true;

@@ -87,6 +87,23 @@ describe("sandbox", () => {
     } finally { h.dispose(); }
   });
 
+  it("archer default kites only while a step away exists, and fights when cornered", () => {
+    const stats = { atk: 16, def: 6, range: 1, minRange: 0, vision: 6, attackMs: 1000, moveMs: 400, ruin: false };
+    const archer = (x: number, y: number, moves: Record<string, boolean>): ScriptWorld => ({
+      reactiveOrders: true, tick: 1, side: 0,
+      units: { e1: { id: "e1", type: "archer", x, y, hp: 60, maxHp: 60, atk: 12, def: 3, range: 5, vision: 7, moves,
+        attackReadyInTicks: 0, moveReadyInTicks: 0, aimReadyInTicks: 0, gatherReadyInTicks: 0 } },
+      all: [["e1", "archer", "p1", 1, x, y, 60, 60, 0, y * 32 + x], ["e2", "knight", "p2", 0, x + 1, y, 100, 100, 0, y * 32 + x + 1, stats]],
+      myBase: null, enemyBase: null,
+    });
+    const open = Object.fromEntries(["N", "NE", "E", "SE", "S", "SW", "W", "NW"].map((d) => [d, true]));
+    const kite = testScript(rules.defaultScripts.archer, "archer", [archer(5, 5, open)], rules.script);
+    expect(kite.ok && kite.frames[0].runs.e1).toMatchObject({ action: { a: "flee", id: "e2" }, orderControl: "suspend" });
+    // In the corner only steps that keep the same distance remain: shoot instead of standing silent.
+    const cornered = testScript(rules.defaultScripts.archer, "archer", [archer(0, 0, { ...open, N: false, NE: false, E: false, W: false, NW: false, SW: false })], rules.script);
+    expect(cornered.ok && cornered.frames[0].runs.e1).toMatchObject({ action: { a: "attack", id: "e2" }, orderControl: "continue" });
+  });
+
   it("probes finite scenarios in an isolated VM and reports requested actions and gas", () => {
     const frames = [world, { ...world, tick: 6 }];
     const code = "self.memory.n=(self.memory.n||0)+1; self.log(self.memory.n); self.move('N');";

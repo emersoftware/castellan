@@ -25,7 +25,7 @@ it("runs onTick during a move, but requires explicit interruption to override th
   expect(logs(m, [script(code), { player: "a", order: { type: "move", unit: a.id, x: 0, y: 3 } }])).toEqual(["1"]);
   expect(unit(m)).toMatchObject({ x: 2, y: 3, actionResult: { source: "order", effect: "move" } });
   expect(logs(m)).toEqual(["2"]);
-  expect(unit(m, "b").hp).toBe(110);
+  expect(unit(m, "b").hp).toBe(rules.kinds.knight.hp);
 });
 
 it("reacts to damage next tick, suspends movement, fights, then resumes the stored destination", async () => {
@@ -50,7 +50,7 @@ it("lets the agent keep retreating when attacked, and does not repeat an old dam
   const code = `return { onAttacked(e) { self.log(JSON.stringify([e.tick,e.damage,e.attacker.id])); self.continueOrder(); self.attack(e.attacker); } };`;
   expect(logs(m, [script(code), { player: "a", order: { type: "move", unit: a.id, x: 0, y: 3 } }])).toEqual([JSON.stringify([0, 10, b.id])]);
   expect(unit(m)).toMatchObject({ x: 2, y: 3, actionResult: { source: "order" } });
-  expect(unit(m, "b").hp).toBe(110);
+  expect(unit(m, "b").hp).toBe(rules.kinds.knight.hp);
   expect(logs(m)).toEqual([]);
 });
 

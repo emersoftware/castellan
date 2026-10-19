@@ -41,6 +41,7 @@ type Intent =
   | { t: "goto"; x: number; y: number; range: number }
   | { t: "dir"; dx: number; dy: number }
   | { t: "attack"; id: string }
+  | { t: "shoot"; x: number; y: number }
   | { t: "gather"; id: string }
   | { t: "unload"; id: string }
   | { t: "build" };
@@ -78,7 +79,7 @@ interface Entity {
   training?: { kind: RecordedKind; completesAtTick?: number }[];
 }
 
-interface Projectile extends ProjectileView { attack: number; launchedAt: number; source: string; aimedAt: string }
+interface Projectile extends ProjectileView { attack: number; launchedAt: number; source: string; aimedAt: string; fromX: number; fromY: number; minRange: number }
 
 interface OrderHistory {
   order: UnitOrder;
@@ -368,11 +369,25 @@ export class Match {
     const lastHit = new Map<string, PlayerId>();
     for (const e of this.interleaved(prio)) {
       const it = intents.get(e.id);
-      if (it?.t !== "attack") continue;
-      if (!e.spec.atk) { this.scriptResult(e, "invalid", undefined, "unit cannot attack"); continue; }
+      if (it?.t !== "attack" && it?.t !== "shoot") continue;
+      const ranged = (e.spec.range ?? 1) > 1;
+      if (!e.spec.atk || (it.t === "shoot" && !ranged)) { this.scriptResult(e, "invalid", undefined, it.t === "shoot" ? "unit cannot shoot" : "unit cannot attack"); continue; }
       if (T < e.nextAttack) { this.scriptResult(e, "cooldown", undefined, "attack cooldown"); continue; }
       // Aim: after a step, the attacker must stand still before it strikes.
       if (e.spec.aimMs && e.lastStep && T - e.lastStep.tick < this.ticks(e.spec.aimMs)) { this.scriptResult(e, "aiming"); continue; }
+      if (it.t === "shoot") {
+        // Like an attack, but toward a visible point in range; the shot hits the first hostile on its path.
+        if (!this.canSee(e.owner, Math.round(it.x), Math.round(it.y)) || !this.inReach(e, it)) { this.scriptResult(e, "blocked", undefined, "point not visible or not in range"); continue; }
+        e.nextAttack = T + this.ticks(e.spec.attackMs ?? 1000);
+        this.scriptResult(e, "acted", "attack");
+        const dx = it.x - e.x, dy = it.y - e.y, distance = hypot(dx, dy) || 1;
+        const id = `p${this.nextProjectileId++}`;
+        this.projectiles.set(id, { id, owner: e.owner, x: e.x, y: e.y,
+          vx: dx / distance * this.ruleset.projectiles.speed, vy: dy / distance * this.ruleset.projectiles.speed,
+          endX: it.x, endY: it.y, attack: e.spec.atk, launchedAt: T, source: e.id, aimedAt: "", fromX: e.x, fromY: e.y, minRange: e.spec.minRange ?? 0 });
+        emit({ tick: T, type: "attack", from: e.id, at: { x: it.x, y: it.y }, dmg: 0, projectile: id });
+        continue;
+      }
       const target = this.ents.get(it.id);
       if (!target || !this.canSee(e.owner, target.x, target.y) || !this.hostile(target.owner, e.owner) || !this.inReach(e, target)) { this.scriptResult(e, "blocked", undefined, "target no longer visible or in range"); continue; }
       e.nextAttack = T + this.ticks(e.spec.attackMs ?? 1000);
@@ -383,7 +398,7 @@ export class Match {
         const id = `p${this.nextProjectileId++}`;
         this.projectiles.set(id, { id, owner: e.owner, x: e.x, y: e.y,
           vx: dx / distance * this.ruleset.projectiles.speed, vy: dy / distance * this.ruleset.projectiles.speed,
-          endX: target.x, endY: target.y, attack: e.spec.atk, launchedAt: T, source: e.id, aimedAt: target.id });
+          endX: target.x, endY: target.y, attack: e.spec.atk, launchedAt: T, source: e.id, aimedAt: target.id, fromX: e.x, fromY: e.y, minRange: e.spec.minRange ?? 0 });
         emit({ tick: T, type: "attack", from: e.id, to: target.id, dmg: 0, projectile: id });
       } else {
         const dmg = Math.max(1, e.spec.atk - target.spec.def);
@@ -530,7 +545,7 @@ export class Match {
     for (const e of this.log) {
       if (e.type === "attack" && e.projectile) shooters.set(e.projectile, e.from);
       if (e.tick < since) continue;
-      const hit = e.type === "attack" && !e.projectile ? { target: e.to, from: e.from, dmg: e.dmg }
+      const hit = e.type === "attack" && !e.projectile && e.to ? { target: e.to, from: e.from, dmg: e.dmg }
         : e.type === "projectile_end" && e.reason === "hit" && e.target ? { target: e.target, from: shooters.get(e.id), dmg: e.dmg } : null;
       if (!hit || this.ents.get(hit.target)?.owner !== player) continue;
       const h = hits.get(hit.target) ?? { damage: 0, attackers: new Set<string>() };
@@ -663,7 +678,7 @@ export class Match {
       for (const d of this.knownDeposits.get(p.id)?.values() ?? []) { mix(d.x); mix(d.y); mix(d.amount); }
     }
     mix(this.nextProjectileId);
-    for (const p of this.projectiles.values()) for (const c of JSON.stringify(p)) mix(c.charCodeAt(0));
+    for (const { fromX, fromY, minRange, ...p } of this.projectiles.values()) for (const c of JSON.stringify(p)) mix(c.charCodeAt(0));
     return (h >>> 0).toString(16).padStart(8, "0");
   }
 
@@ -891,7 +906,7 @@ export class Match {
   }
 
   private rememberCombat(event: GameEvent) {
-    const target = event.type === "attack" && !event.projectile ? this.ents.get(event.to)
+    const target = event.type === "attack" && !event.projectile && event.to ? this.ents.get(event.to)
       : event.type === "projectile_end" && event.reason === "hit" && event.target ? this.ents.get(event.target) : undefined;
     const record = event.type === "death" ? { tick: event.tick, id: event.id, kind: event.kind, owner: event.owner,
       x: event.x, y: event.y, damage: 0, death: true }
@@ -1157,6 +1172,8 @@ export class Match {
         if (this.inReach(e, t)) return { t: "attack", id: t.id };
         return e.spec.moveMs ? { t: "goto", x: t.x, y: t.y, range } : { t: "hold" };
       }
+      case "shootAt":
+        return { t: "shoot", x: clamp(a.x, 0, width - 1), y: clamp(a.y, 0, height - 1) };
       case "flee": {
         const t = this.ents.get(a.id);
         if (!t || !this.canSee(e.owner, t.x, t.y) || !e.spec.moveMs) return { t: "hold" };
@@ -1269,7 +1286,7 @@ export class Match {
   private projectileViews(player?: PlayerId): ProjectileView[] {
     return [...this.projectiles.values()]
       .filter((p) => !player || this.canSee(player, Math.round(p.x), Math.round(p.y)))
-      .map(({ attack, launchedAt, source, aimedAt, ...view }) => ({ ...view }));
+      .map(({ attack, launchedAt, source, aimedAt, fromX, fromY, minRange, ...view }) => ({ ...view }));
   }
 
   /** Sweep each segment, so fast shots cannot tunnel through an occupied tile. */
@@ -1285,6 +1302,8 @@ export class Match {
       for (const e of this.ents.values()) {
         if (!this.hostile(p.owner, e.owner)) continue;
         if (config.flyOver.includes(e.kind) && e.id !== p.aimedAt) continue;
+        // The shooter's blind spot: a minimum-range shooter hits nothing closer than it (the guide promises adjacent units are safe).
+        if (p.minRange && dist(p.fromX, p.fromY, e.x, e.y) < p.minRange) continue;
         const hit = segmentCircleHit(p.x, p.y, nx, ny, e.x, e.y, e.spec.building ? config.buildingRadius : config.unitRadius);
         if (hit !== null && hit < fraction) { fraction = hit; target = e; }
       }
@@ -1790,8 +1809,9 @@ export class Match {
     if ("x" in event) return this.canSee(player, Math.round(event.x), Math.round(event.y));
     if (event.type === "depleted") { const d = this.knownDeposits.get(player)?.get(event.id); return !!d && this.canSee(player, d.x, d.y); }
     if (event.type === "attack") {
-      const target = this.ents.get(event.to), attacker = this.ents.get(event.from);
-      return !!target && !!attacker && this.canSee(player, target.x, target.y) && this.canSee(player, attacker.x, attacker.y);
+      const attacker = this.ents.get(event.from);
+      const aim = event.to ? this.ents.get(event.to) : event.at && { x: Math.round(event.at.x), y: Math.round(event.at.y) };
+      return !!aim && !!attacker && this.canSee(player, aim.x, aim.y) && this.canSee(player, attacker.x, attacker.y);
     }
     return false;
   }
@@ -1895,6 +1915,7 @@ function describeIntent(it: Intent): Doing {
     case "goto": return `→ ${it.x},${it.y}`;
     case "dir": return `step ${arrow(it.dx, it.dy)}`;
     case "attack": return `attack ${it.id}`;
+    case "shoot": return `shoot ${+it.x.toFixed(1)},${+it.y.toFixed(1)}`;
     case "gather": return `gather ${it.id}`;
     case "unload": return "unload";
     case "build": return "build";

@@ -19,7 +19,7 @@ export function cameraActivity(frame: SpectatorView): CameraActivity {
   for (const event of frame.events) {
     if (event.type === "attack") {
       byId ??= new Map(frame.entities.map(e => [e.id, e]));
-      for (const id of [event.from, event.to]) { const e = byId.get(id); if (e) points.push({ x: e.x, y: e.y }); }
+      for (const id of [event.from, event.to]) { const e = id ? byId.get(id) : undefined; if (e) points.push({ x: e.x, y: e.y }); }
     } else if (event.type === "projectile_end" || event.type === "death") points.push({ x: event.x, y: event.y });
   }
   return { tick: frame.tick, points };

@@ -917,13 +917,14 @@ export class GameRenderer {
   private onEvent(ev: GameEvent, now: number, events: GameEvent[] = []) {
     if (ev.type === "attack") {
       const from = this.drawn.get(ev.from);
-      const to = this.drawn.get(ev.to);
+      const to = ev.to ? this.drawn.get(ev.to) : undefined;
       if (!from) return;
       // A real shot carries its launch vector even if its target has just died
       // or left the visible frame. Movement heading never defines this facing.
       const projectile = ev.projectile ? this.shots.get(ev.projectile)?.to : undefined;
       const death = events.find((e): e is Extract<GameEvent, { type: "death" }> => e.type === "death" && e.id === ev.to);
-      const targetPosition = to?.to ?? death;
+      // A shootAt shot has a point instead of a target.
+      const targetPosition = to?.to ?? death ?? ev.at;
       if (!targetPosition && !projectile) return;
       const spec = this.ruleset.kinds[from.view.kind];
       const a = iso(from.to.x, from.to.y);

@@ -46,7 +46,7 @@ const ARMY = new Set<RecordedKind>(["knight", "archer"]);
 function cameraTrack(frames: SpectatorView[], width: number, height: number) {
   const recent = new Map<string, number>();
   const target = frames.map((f, i) => {
-    for (const e of f.events) if (e.type === "attack") { recent.set(e.from, i); recent.set(e.to, i); }
+    for (const e of f.events) if (e.type === "attack") { recent.set(e.from, i); if (e.to) recent.set(e.to, i); }
     const fighting = f.entities.filter((e) => (recent.get(e.id) ?? -99) >= i - 15);
     // With several fights at once (free-for-alls), follow the biggest: the fighters around the one with most neighbours.
     const near = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y) <= 10;
