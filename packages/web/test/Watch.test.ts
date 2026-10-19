@@ -12,7 +12,7 @@ vi.mock("@tanstack/react-query", () => ({
   } }),
 }));
 vi.mock("../src/components/GameCanvas", () => ({ GameCanvas: () => null }));
-vi.mock("../src/components/Hud", () => ({
+vi.mock("../src/components/Hud", () => ({ ViewerTop: () => null,
   SidePanel: () => null, OutcomeBanner: () => null, SoundToggle: () => null,
   Tooltip: () => null, PlayerList: () => null, notableEvents: (events: unknown[]) => events,
 }));

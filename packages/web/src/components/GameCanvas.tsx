@@ -116,7 +116,7 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
     const jump = lastJump.current !== jumpKey;
     lastJump.current = jumpKey;
     renderer.current.setFrame(frame, tickMs, jump);
-    setPresented(true);
+    if (!presented) setPresented(true);
   }, [rendererVersion, frame, tickMs, jumpKey]);
 
   useEffect(() => {

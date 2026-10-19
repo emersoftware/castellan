@@ -149,13 +149,14 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
 .scores .clock .time { font-family: var(--serif); font-size: 24px; color: var(--white); }
 .scores .clock .sub { font-size: 12px; color: var(--grey); }
 .scores table { border-collapse: collapse; width: 100%; font-size: 13px; }
-.scores th { font-weight: 400; font-size: 11px; color: var(--grey); text-align: right; padding: 0 0 2px 12px; }
+.scores th { white-space: nowrap; font-weight: 400; font-size: 11px; color: var(--grey); text-align: right; padding: 0 0 2px 12px; }
 .scores td { text-align: right; padding: 2px 0 2px 12px; color: var(--light-grey); white-space: nowrap; }
 .scores td.name { text-align: left; padding-left: 0; font-size: 14px; }
 .scores .swatch { display: inline-block; width: 9px; height: 9px; margin-right: 7px; vertical-align: 0; }
 .scores tr.team td { text-align: left; padding: 6px 0 1px; font-size: 11px; color: var(--grey); text-transform: uppercase; letter-spacing: 0.1em; }
 .scores tbody + tbody tr.team td { border-top: 1px solid var(--line); }
-.scores tr.dead td { color: var(--dark-grey); }
+/* Dark grey on the panel dithers into noise; the line-through already says the player is out. */
+.scores tr.dead td { color: var(--grey); }
 .scores tr.dead td.name { text-decoration: line-through; }
 .scores tr.timing td { text-align: left; padding: 0 0 4px; }
 .scores .timing { display: flex; gap: 10px; font-size: 10px; color: var(--grey); }
@@ -248,7 +249,7 @@ body { -webkit-font-smoothing: none; font-smooth: never; }
 .arrow { display: inline-block; vertical-align: 0.1em; }
 /* Times New Roman titles keep their original look: anti-aliased, dithered softly
    (a dithered title inside a dithered box passes the box's filter unchanged). */
-h1, h2, h3, h4, .brand, .scores .clock .time, .scores .brand-head, .banner .big, .corner.brandmark, .battle .title, .tagline {
+h1, h2, h3, h4, .brand, .scores .clock .time, .scores .brand-head, .viewer-top .brand-head, .viewer-top .time, .banner .big, .corner.brandmark, .battle .title, .tagline {
   -webkit-font-smoothing: auto; font-smooth: auto; filter: url(#aoa-dither-soft); will-change: transform;
 }
 /* Dark letters on a light fill (selected buttons, the primary call to action):
@@ -427,6 +428,8 @@ button.on { background: linear-gradient(to bottom, #ffffff, #8c8c8c); }
 /* Whose view the map shows: an eye in a bordered square per player, "all" at the bottom. */
 .scores .clock:has(.brand-head) { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .scores .brand-head { font-family: var(--title); font-size: 22px; color: var(--white); }
+/* The title, clock and audio switches join the top of the map only on phones. */
+.viewer-top-title, .viewer-top .audio-controls { display: none; }
 .scores td.view, .scores th.view { text-align: center; }
 .view-eye {
   display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0;
@@ -479,6 +482,15 @@ button.on { background: linear-gradient(to bottom, #ffffff, #8c8c8c); }
   .side .scores .clock .time { font-size: 20px; }
   .side .scores { padding: 8px 10px; }
   .log-body { font-size: 13px; }
+  .viewer .viewer-top { left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 10px; padding: 6px 8px; }
+  .viewer-top-title { display: flex; flex: 1; justify-content: center; align-items: baseline; gap: 8px; min-width: 0; white-space: nowrap; }
+  .viewer-top .brand-head { font-family: var(--title); font-size: 18px; color: var(--white); letter-spacing: 0.02em; }
+  .viewer-top .time { font-family: var(--serif); font-size: 18px; color: var(--white); }
+  .viewer-top .sub { font-size: 11px; color: var(--grey); }
+  .viewer-top .audio-controls { display: flex; gap: 4px; }
+  .viewer-top .sound { padding: 6px; }
+  .viewer-top .sound span { display: none; }
+  .viewer .controls .audio-controls, .side .scores .clock { display: none; }
 }
 
 .load-state { padding: 24px; text-align: center; color: var(--grey); }

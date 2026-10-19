@@ -1,6 +1,7 @@
 import { useSyncExternalStore, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { ChatChannel, ChatMessage, DepositView, EntityView, GameEvent, Outcome, PlayerStats, RecordedKind, SpectatorView } from "@aoa/shared";
 import { eventKind, eventOwner, NEUTRAL_OWNER, scriptOrigin } from "@aoa/shared";
+import { Link } from "@tanstack/react-router";
 import type { HoverInfo } from "../render/renderer";
 import { fmtTime, winnersOf } from "../api";
 import { Agent, Agents, agentText } from "./Agent";
@@ -47,6 +48,23 @@ export function PlayerList({ view, names, colors, selectedPlayer, onSelectPlayer
           <tr><td colSpan={cols - 1}>all</td><td className="view"><ViewButton on={!selectedPlayer} label="View everyone" onClick={() => onSelectPlayer(null)} /></td></tr>
         </tbody>}
       </table>
+    </div>
+  );
+}
+
+/**
+ * The top of the map: the way back, and on phones also the title, the clock and the
+ * audio switches (icons only), which on wider screens live in the side panel and controls.
+ */
+export function ViewerTop({ view }: { view: SpectatorView | null }) {
+  return (
+    <div className="corner viewer-top">
+      <Link to="/battles"><Arrow dir="left" /> Battles</Link>
+      <span className="viewer-top-title">
+        <span className="brand-head">Age of Agents</span>
+        {view && <span className="viewer-top-clock"><span className="time">{fmtTime(view.timeMs)}</span> <span className="sub">/ {fmtTime(view.matchMs)}</span></span>}
+      </span>
+      <SoundToggle />
     </div>
   );
 }
@@ -381,11 +399,11 @@ export function SoundToggle() {
   useSyncExternalStore(sfx.subscribe, sfx.snapshot);
   return (
     <div className="audio-controls" role="group" aria-label="Audio">
-      <button className="sound" aria-pressed={!sfx.effectsMuted} onClick={() => sfx.setEffectsMuted(!sfx.effectsMuted)}>
+      <button className="sound" aria-pressed={!sfx.effectsMuted} title={`Sounds: ${sfx.effectsMuted ? "off" : "on"}`} onClick={() => sfx.setEffectsMuted(!sfx.effectsMuted)}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4Z" />{sfx.effectsMuted ? <path d="m16 9 6 6m0-6-6 6" /> : <><path d="M15 8a6 6 0 0 1 0 8" /><path d="M18 5a10 10 0 0 1 0 14" /></>}</svg>
         <span>Sounds: {sfx.effectsMuted ? "off" : "on"}</span>
       </button>
-      <button className="sound" aria-pressed={!sfx.musicMuted} onClick={() => sfx.setMusicMuted(!sfx.musicMuted)}>
+      <button className="sound" aria-pressed={!sfx.musicMuted} title={`Music: ${sfx.musicMuted ? "off" : "on"}`} onClick={() => sfx.setMusicMuted(!sfx.musicMuted)}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13M9 9l11-2" /><ellipse cx="6" cy="18" rx="3" ry="2" /><ellipse cx="17" cy="16" rx="3" ry="2" />{sfx.musicMuted && <path d="m3 3 18 18" />}</svg>
         <span>Music: {sfx.musicMuted ? "off" : "on"}</span>
       </button>

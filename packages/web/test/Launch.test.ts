@@ -14,7 +14,7 @@ vi.mock('@tanstack/react-router', () => ({ Link: ({children}: any) => createElem
 vi.mock('../src/components/GameCanvas', () => ({ GameCanvas: () => null }));
 vi.mock('../src/components/Portrait', () => ({ Portrait: () => null }));
 vi.mock('../src/render/sprites', () => ({ loadSprites: async () => null, HERO_SPRITE_BASE: "/game-assets/hero-sprites" }));
-vi.mock('../src/components/Hud', () => ({ SidePanel:()=>null, OutcomeBanner:()=>null, SoundToggle:()=>null, Tooltip:()=>null, UnitPanel:()=>null, DepositPanel:()=>null, notableEvents:(e:unknown[])=>e }));
+vi.mock('../src/components/Hud', () => ({ ViewerTop: () => null, SidePanel:()=>null, OutcomeBanner:()=>null, SoundToggle:()=>null, Tooltip:()=>null, UnitPanel:()=>null, DepositPanel:()=>null, notableEvents:(e:unknown[])=>e }));
 vi.mock('../src/audio/sfx', () => ({sfx:{muted:true, holdMusic:()=>()=>{},holdAmbient:()=>()=>{}}}));
 vi.mock('../src/useReplay', () => ({useReplayFrames:()=>({frames:{current:[]},loaded:0,error:null,check:null})}));
 let root: Root, host: HTMLDivElement, client: QueryClient;
