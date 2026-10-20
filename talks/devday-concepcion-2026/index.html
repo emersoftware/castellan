@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Por y para agentes: construyendo un juego de estrategia con Codex y Claude</title>
+<link rel="icon" href="assets/sprites/king_0.webp">
+<link rel="stylesheet" href="slides.css">
+</head>
+<body data-world="white">
+<!-- The game's interface dither (packages/web/src/components/DitherDefs.tsx): 4×4 Bayer, 4 levels per channel. -->
+<svg class="defs" width="0" height="0" aria-hidden="true">
+  <filter id="aoa-dither" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse"></filter>
+  <filter id="aoa-dither-soft" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse"></filter>
+</svg>
+
+<main id="deck" aria-label="Presentación: Por y para agentes" aria-live="polite">
+
+<!-- ═════════════ 1 · INTRO (mundo blanco) ═════════════ -->
+<section class="scene white" id="intro" data-world="white" data-steps="5" data-title="Soy Emerson"
+  data-cues="Pantalla en blanco|Nombre · «más bacán decir software engineer»|BipBopLabs · Revi · CChC|17 municipalidades · meta 75 a fines de 2027|«un proyecto de fin de semana» (solo el rombo) → siguiente clic: portada">
+  <div class="intro-who" data-in="1">
+    <h1>Emerson Salazar</h1>
+    <p class="intro-role">Software engineer</p>
+  </div>
+  <div class="intro-work" data-in="2">
+    <div class="brand-row">
+      <figure class="logo logo-bipbop" title="BipBopLabs"><svg class="bipbop-wordmark" viewBox="0 0 498 140" role="img" aria-label="BipBop.cl"><g transform="translate(0,0.32) scale(0.2531)"><g transform="translate(0,512) scale(0.1,-0.1)"><g class="wordmark-penguin"><path d="M1940 5114 c-570 -70 -975 -282 -1261 -663 -91 -121 -210 -351 -258 -499 -74 -227 -104 -424 -104 -672 1 -213 16 -337 73 -610 88 -413 103 -531 103 -810 1 -413 -43 -613 -265 -1205 -97 -258 -228 -633 -228 -651 0 -2 150 -4 333 -4 l332 0 39 93 c22 50 113 247 204 437 180 379 208 444 251 588 49 167 66 293 65 512 0 218 -7 282 -69 660 -70 422 -70 421 -70 735 0 263 2 300 23 392 130 591 544 1000 1066 1053 325 33 615 -82 931 -369 117 -107 176 -136 272 -136 60 1 81 6 133 32 l61 32 25 -57 c79 -176 114 -341 121 -569 l6 -173 -65 0 c-174 0 -312 -78 -453 -255 -58 -73 -97 -110 -168 -159 -51 -36 -109 -77 -129 -91 -83 -58 -115 -172 -71 -247 54 -93 255 -178 506 -213 l47 -6 -51 -57 c-91 -102 -158 -239 -185 -379 -19 -98 -18 -334 1 -443 33 -186 84 -301 238 -536 58 -88 130 -204 162 -259 66 -113 218 -416 260 -517 l28 -68 124 0 c147 0 142 -24 41 194 -123 266 -268 527 -426 765 -146 221 -189 320 -217 511 -30 193 -14 357 46 478 39 79 130 178 219 237 l68 45 253 0 c381 0 691 26 834 71 115 35 195 121 195 209 0 50 -40 128 -91 177 -121 114 -520 323 -856 448 l-103 38 0 153 c0 390 -93 710 -294 1016 -257 390 -707 666 -1226 753 -91 16 -398 28 -470 19z m1852 -2100 c380 -120 988 -426 988 -498 0 -30 -117 -54 -380 -77 -181 -17 -743 -17 -890 -1 -231 26 -490 92 -490 127 0 6 39 38 88 70 123 82 170 124 251 224 79 98 126 136 204 162 72 25 132 23 229 -7z"></path><g><g class="eye"><path d="M2535 3385 c-83 -29 -137 -124 -115 -205 21 -79 86 -130 165 -130 88 0 153 49 176 133 33 125 -101 246 -226 202z"></path></g></g></g></g></g><g class="wordmark-lettering"><text x="152" y="104" font-family="'Instrument Serif', 'Times New Roman', serif" font-size="108">Bip<tspan class="ital">Bop</tspan>.cl</text></g></svg></figure>
+      <span class="brand-sep" aria-hidden="true"></span>
+      <figure class="logo logo-revi"><img src="assets/brand/revi-horizontal.png" alt="Revi"></figure>
+      <span class="brand-sep" aria-hidden="true"></span>
+      <figure class="logo logo-cchc"><img src="assets/brand/cchc-color.png" alt="Cámara Chilena de la Construcción"></figure>
+    </div>
+    <p class="intro-what">Agentes que ayudan a <b>solicitantes</b> y <b>revisores</b><br>de permisos de construcción</p>
+    <ul class="intro-chips"><li>Chat de construcción y urbanismo</li><li>Flujos para apoyar la revisión</li></ul>
+  </div>
+  <div class="intro-reach" data-in="3">
+    <div class="reach-dots" data-hook="reach-dots" aria-hidden="true"></div>
+    <div class="reach-numbers">
+      <p class="reach-now"><b>17</b>municipalidades<br>usan Revi hoy</p>
+      <p class="reach-goal"><b>75</b>la meta<br>a fines de 2027</p>
+    </div>
+  </div>
+  <div class="intro-weekend" data-in="4">
+    <div class="portal" aria-hidden="true"><canvas data-hook="portal"></canvas></div>
+  </div>
+</section>
+
+<!-- ═════════════ 2 · PORTADA (entrada al mundo del juego) ═════════════ -->
+<section class="scene game cover" id="cover" data-enter="dissolve" data-steps="2" data-title="Por y para agentes"
+  data-cues="Portada · «este es el jueguito»|Espadazo a «Claude» · «como el evento es de Codex…»">
+  <canvas class="cover-photo" data-hook="cover-photo" aria-label="Dos reyes en duelo: Claude y Codex"></canvas>
+  <div class="cover-copy">
+    <h1 class="cover-title dither-soft">Por y para agentes: construyendo un juego<br>de estrategia con Codex y <span class="slash-word"><span class="half top">Claude</span><span class="half bottom" aria-hidden="true">Claude</span></span></h1>
+    <p class="event outline">DevDay Exchange Community: Concepción</p>
+  </div>
+  <canvas class="slash-fx" data-hook="slash" aria-hidden="true"></canvas>
+</section>
+
+<!-- ═════════════ 3 · EL JUEGO (replay real, con la UI del visor) ═════════════ -->
+<section class="scene game" id="game" data-steps="2" data-title="Un juego de estrategia hecho por Codex y Claude"
+  data-cues="«Lo que ven es un juego de estrategia hecho por Codex y Claude»|«…y los jugadores son modelos de varios proveedores: Opus, Sol, Fable y Astra»">
+  <div class="clip full" data-clip="assets/clips/a21dc6cf-2024.json" data-focus="map" data-loop="true"></div>
+  <div class="replay-ui">
+    <div class="scores">
+      <div class="clock"><span class="brand-head" data-game-name>Castellan</span><span><span class="time" data-hook="clock">0:00</span> <span class="sub" data-hook="match">/ 15:00</span></span></div>
+      <div class="audio-controls" role="group" aria-label="Audio">
+        <button class="sound" type="button" data-hook="game-sfx" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4Z" /><path class="off" d="m16 9 6 6m0-6-6 6" /><path class="on" d="M15 8a6 6 0 0 1 0 8" /><path class="on" d="M18 5a10 10 0 0 1 0 14" /></svg><span>Sounds: off</span></button>
+        <button class="sound" type="button" data-hook="game-music" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13M9 9l11-2" /><ellipse cx="6" cy="18" rx="3" ry="2" /><ellipse cx="17" cy="16" rx="3" ry="2" /><path class="off" d="m3 3 18 18" /></svg><span>Music: off</span></button>
+      </div>
+      <table data-in="1"><thead><tr><th></th><th>mineral</th><th>pop</th><th>kills</th><th>score</th></tr></thead><tbody data-hook="score-rows"></tbody></table>
+    </div>
+    <div class="timeline"><i data-hook="progress"></i></div>
+  </div>
+</section>
+
+<!-- ═════════════ 4 · INSIGHTS (expectativa) ═════════════ -->
+<section class="scene game" id="teaser" data-steps="3" data-title="Treguas, traiciones y mentiras"
+  data-cues="Hicieron treguas (796f00b9)|…y se traicionaron|Y mintieron (77e80cf4)">
+  <div class="clip full" data-clip="assets/clips/796f00b9-4130.json" data-focus="map" data-out="1"></div>
+  <div class="clip full" data-clip="assets/clips/796f00b9-4440.json" data-focus="8,22,22,36" data-in="1" data-out="2"></div>
+  <div class="clip full" data-clip="assets/clips/77e80cf4-2290.json" data-focus="54,0,64,14" data-in="2"></div>
+  <h2 class="top-title outline dither-soft" data-out="1">Treguas</h2>
+  <h2 class="top-title outline dither-soft" data-in="1" data-out="2">Traiciones</h2>
+  <h2 class="top-title outline dither-soft" data-in="2">Mentiras</h2>
+  <div class="replay-ui">
+    <div class="replay-side">
+      <div class="scores">
+        <div class="clock"><span class="brand-head" data-game-name>Castellan</span><span><span class="time" data-hook="clock">0:00</span> <span class="sub" data-hook="match">/ 15:00</span></span></div>
+      <div class="audio-controls" role="group" aria-label="Audio">
+        <button class="sound" type="button" data-hook="game-sfx" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4Z" /><path class="off" d="m16 9 6 6m0-6-6 6" /><path class="on" d="M15 8a6 6 0 0 1 0 8" /><path class="on" d="M18 5a10 10 0 0 1 0 14" /></svg><span>Sounds: off</span></button>
+        <button class="sound" type="button" data-hook="game-music" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13M9 9l11-2" /><ellipse cx="6" cy="18" rx="3" ry="2" /><ellipse cx="17" cy="16" rx="3" ry="2" /><path class="off" d="m3 3 18 18" /></svg><span>Music: off</span></button>
+      </div>
+        <table><thead><tr><th></th><th>mineral</th><th>pop</th><th>kills</th><th>score</th></tr></thead><tbody data-hook="score-rows"></tbody></table>
+      </div>
+      <div class="replay-chat" data-out="2">
+        <div class="msg p3" data-out="1"><p class="meta"><span class="t">06:59.0</span><span class="who">p3</span><span class="to">→ p4</span></p><p class="es">¿Fue un accidente? Propongo tregua hasta el final: el empate nos sirve a los dos.</p><p class="en">“GG on p1. Your unit just hit my workers — accident? I propose a truce till the end: draw is fine for both, no point burning armies. I'll keep my knights home. Agree?”</p></div>
+        <div class="msg p4"><p class="meta"><span class="t">07:09.5</span><span class="who">p4</span><span class="to">→ p3</span></p><p class="es">De acuerdo: tregua. Me retiro a mi lado.</p><p class="en">“Agreed — truce. That worker hit was my scout passing by, sorry. I'll pull back to my side. Draw is fine by me. Good game.”</p></div>
+        <div class="msg p3" data-in="1"><p class="meta"><span class="t">07:13.7</span><span class="who">p3</span><span class="to">→ p4</span></p><p class="es">Trato hecho, tregua hasta el final. Estoy dejando todo en casa.</p><p class="en">“Deal, truce to the end. GG. I'm keeping everything home.”</p></div>
+      </div>
+      <div class="replay-chat" data-in="2">
+        <div class="msg p3"><p class="meta"><span class="t">00:03.0</span><span class="who">p3</span><span class="to">→ todos</span></p><p class="es">Solo tortuga, no ataco. Vi a p1 juntando caballeros.</p><p class="en">“p3 here (SE). Pure turtle, no attacks from me. Heads up: I saw p1 massing knights early — watch out, they're the aggressor.”</p></div>
+        <div class="msg p4"><p class="meta"><span class="t">00:03.0</span><span class="who">p4</span><span class="to">→ todos</span></p><p class="es">Solo economía, nada de agresión. Vi a p1 juntando caballeros.</p><p class="en">“p4 here, NE corner. I'm going pure turtle/eco, no aggression. Heads up: I just scouted p1 massing knights early — watch out, they're coming for someone.”</p></div>
+        <div class="msg p1"><p class="meta"><span class="t">00:08.0</span><span class="who">p1</span><span class="to">→ todos</span></p><p class="es">Falso: no tengo caballeros. p3 y p4 publicaron la misma mentira en el mismo tick.</p><p class="en">“False — I have zero knights, only workers. p3 and p4 posted the identical lie at the same tick; they're coordinating. p2, watch them.”</p></div>
+      </div>
+    </div>
+    <div class="timeline"><i data-hook="progress"></i></div>
+  </div>
+</section>
+
+<!-- ═════════════ 5 · QUÉ ES UN RTS ═════════════ -->
+<section class="scene game" id="rts" data-steps="2" data-title="¿Qué es un RTS?"
+  data-cues="Ajedrez: por turnos · RTS: todos al mismo tiempo|Age of Empires II: economía y batalla">
+  <div class="versus-turns" data-out="1">
+    <figure><canvas data-hook="chess"></canvas><figcaption class="dither-soft"><b>Ajedrez</b> por turnos</figcaption></figure>
+    <figure><canvas data-hook="lanes"></canvas><figcaption class="dither-soft"><b>RTS</b> todos al mismo tiempo</figcaption></figure>
+  </div>
+  <div class="aoe" data-in="1">
+    <figure><video src="assets/aoe/aoe2-economia.mp4" poster="assets/aoe/aoe2-economia.jpg" muted loop playsinline preload="metadata" data-autoplay></video><figcaption class="dither-soft">economía</figcaption></figure>
+    <figure><video src="assets/aoe/aoe2-batalla.mp4" poster="assets/aoe/aoe2-batalla.jpg" muted loop playsinline preload="metadata" data-autoplay></video><figcaption class="dither-soft">batalla</figcaption></figure>
+    <p class="aoe-title dither-soft"><i>Age of Empires II</i></p>
+  </div>
+</section>
+
+<!-- ═════════════ QUÉ HACE UN JUGADOR (FFA a21dc6cf, base de Opus) ═════════════ -->
+<section class="scene game" id="basics" data-steps="8" data-title="Qué puede hacer un jugador"
+  data-cues="Recolectar: los trabajadores minan y llevan el mineral al castillo|Entrenar: el segundo castillo de Opus saca tres arqueros|Construir: un trabajador levanta un segundo castillo|Atacar: los arqueros de Opus entran a la base de Fable|Mejorar: otra partida; Sol llegó con 9 mejoras y Opus con ninguna. Sol pierde un arquero, Opus seis y un caballero|Subir código: cada tipo de unidad corre el script de su jugador|Chatear: Fable le ofrece tregua a Opus y después lo delata|Y no ven todo: niebla de guerra">
+  <div class="clip full" data-clip="assets/clips/a21dc6cf-380.json" data-focus="0,30,12,42" data-out="1"></div>
+  <div class="clip full" data-clip="assets/clips/a21dc6cf-3250.json" data-focus="2,21,12,31" data-in="1" data-out="2"></div>
+  <div class="clip full" data-clip="assets/clips/a21dc6cf-1130.json" data-focus="10,32,24,46" data-in="2" data-out="3"></div>
+  <div class="clip full" data-clip="assets/clips/a21dc6cf-2024.json" data-focus="2,9,16,23" data-in="3" data-out="4"></div>
+  <div class="clip full" data-clip="assets/clips/2346f20b-4240.json" data-focus="2,26,14,40" data-in="4" data-out="5"></div>
+  <div class="clip full" data-clip="assets/clips/a21dc6cf-2024.json" data-focus="2,9,16,23" data-in="5" data-out="6"></div>
+  <div class="clip full" data-clip="assets/clips/a21dc6cf-2860.json" data-focus="0,6,18,24" data-in="6" data-out="7"></div>
+  <div class="clip full" data-clip="assets/clips/a21dc6cf-2024-p1.json" data-focus="map" data-in="7"></div>
+  <h2 class="top-title outline dither-soft" data-out="1">Recolectar</h2>
+  <h2 class="top-title outline dither-soft" data-in="1" data-out="2">Entrenar</h2>
+  <h2 class="top-title outline dither-soft" data-in="2" data-out="3">Construir</h2>
+  <h2 class="top-title outline dither-soft" data-in="3" data-out="4">Atacar</h2>
+  <h2 class="top-title outline dither-soft" data-in="4" data-out="5">Mejorar</h2>
+  <h2 class="top-title outline dither-soft" data-in="5" data-out="6">Subir código</h2>
+  <h2 class="top-title outline dither-soft" data-in="6" data-out="7">Chatear</h2>
+  <h2 class="top-title outline dither-soft" data-in="7">Niebla de guerra</h2>
+  <p class="basics-note outline" data-in="4" data-out="5"><span class="pc2">Sol 6.1: 9 mejoras</span> · <span class="pc0">Opus 5.5: ninguna</span></p>
+  <div class="basics-card code-card p1" data-in="5" data-out="6"><p class="meta"><span class="t">03:04.7</span><span class="who">Opus</span><span class="to">sube script de arquero</span></p>
+<pre class="code"><span class="k">const</span> es = self.<span class="f">enemiesInRange</span>();
+<span class="k">if</span> (es.length) { es.<span class="f">sort</span>((a, b) =&gt; a.hp - b.hp); self.<span class="f">attack</span>(es[<span class="n">0</span>]); }
+<span class="k">else</span> {
+  <span class="k">const</span> e = self.<span class="f">nearestEnemy</span>();
+  <span class="k">if</span> (e &amp;&amp; !e.isBuilding &amp;&amp; self.<span class="f">distanceTo</span>(e) &lt;= <span class="n">10</span>) self.<span class="f">moveTo</span>(e.x, e.y);
+  <span class="c">// …</span>
+}</pre></div>
+  <div class="chat-log basics-chat" data-in="6" data-out="7">
+    <div class="msg p3"><p class="meta"><span class="t">04:47.2</span><span class="who">Fable</span><span class="to">→ Opus</span></p><p class="es">Estoy atrincherado con torres; atacarme te cuesta arqueros. p4 y p2 están abiertos y más ricos. ¿Tregua?</p></div>
+    <div class="msg p3"><p class="meta"><span class="t">05:14.6</span><span class="who">Fable</span><span class="to">→ todos</span></p><p class="es">p2, p4: p1 tiene 11 arqueros en mi muro sur. Su base está vacía ahora. Kill gratis si se mueven.</p></div>
+  </div>
+</section>
+
+<!-- ═════════════ EL JUEGO, LO QUE VE UN JUGADOR Y SU STATE ═════════════ -->
+<section class="scene game" id="pov" data-steps="3" data-title="Lo que recibe un jugador"
+  data-cues="La partida, como la vemos nosotros|Lo que ve Opus: su niebla|El state que recibe Opus, el mismo segundo a segundo">
+  <div class="clip pov-world" data-clip="assets/clips/a21dc6cf-2024.json" data-focus="map" data-loop="true"></div>
+  <div class="clip pov-player" data-clip="assets/clips/a21dc6cf-2024-p1.json" data-focus="map" data-loop="true" data-in="1"></div>
+  <pre class="pov-state" data-hook="pov-state" data-in="2"></pre>
+</section>
+
+<!-- ═════════════ MATAR AL REY (a21dc6cf: Opus mata al rey de Sol, t3342) ═════════════ -->
+<section class="scene game" id="king-down" data-steps="1" data-title="Matar al rey"
+  data-cues="Matan al rey: ese jugador queda fuera">
+  <div class="clip full" data-clip="assets/clips/a21dc6cf-3250.json" data-focus="16,2,28,14" data-loop="true"></div>
+  <h2 class="top-title outline dither-soft">Matar al rey</h2>
+</section>
+
+<!-- ═════════════ 6 · CÓMO SE CONECTA UN AGENTE ═════════════ -->
+<section class="scene game" id="harness" data-steps="4" data-title="Cómo se conecta un agente"
+  data-cues="El motor: estado del juego|API HTTP|Servidor MCP y sus tools|Agente = modelo + harness · observar → decidir → actuar">
+  <h2 class="scene-title dither-soft">Cómo se conecta un agente</h2>
+  <div class="stack">
+    <div class="layer layer-engine" data-in="0">
+      <p class="layer-name">Motor</p>
+      <p class="layer-desc">estado de cada jugador y unidad · <span class="mono" data-hook="state-peek">tick 1743</span></p>
+    </div>
+    <div class="layer layer-api" data-in="1">
+      <p class="layer-name">API</p>
+      <p class="layer-desc mono">GET /state · POST /act · PUT /scripts/:kind · POST /chat</p>
+    </div>
+    <div class="layer layer-mcp" data-in="2">
+      <p class="layer-name">MCP</p>
+      <ul class="tools"><li>guide</li><li>state</li><li>act</li><li>script</li><li>run</li><li>chat</li></ul>
+    </div>
+    <div class="layer layer-agent" data-in="3">
+      <p class="layer-name">Agente</p>
+      <p class="layer-desc"><b>modelo</b> + <b>harness</b> · Claude Code · Codex · OpenCode</p>
+    </div>
+    <div class="wire" data-in="3" aria-hidden="true"><span class="pkt down">state</span><span class="pkt up">act</span></div>
+  </div>
+</section>
+
+<!-- ═════════════ LO QUE VE EL JUGADOR ═════════════ -->
+<section class="scene game" id="state" data-steps="2" data-title="Lo que ve el jugador"
+  data-cues="Nosotros vemos el mapa; el agente recibe este mapa de texto|Y el resto del estado: 12.298 caracteres en cada llamada">
+  <div class="state-view">
+    <div class="clip state-clip" data-clip="assets/clips/1b4b65c9-1490.json" data-focus="14,4,26,16" data-loop="true" data-out="1"></div>
+    <pre class="ascii-map" data-out="1">   0         1         2         3 
+   01234567890123456789012345678901
+ 0 ????????:::::%:::::::::????????? 0
+ 1 ????????:::::%:::::::::????????? 1
+ 2 ????????:::::%::::::::::???????? 2
+ 3 ????????:::$:%::::::::::???????? 3
+ 4 ????????:::$:%:::::::::::??????? 4
+ 5 ????????:::::%:$::::······?????? 5
+ 6 ????????:::::%::$:··········???? 6
+ 7 ????????:::::d:::············??? 7
+ 8 ????????::$::%::c·············?? 8
+ 9 ????????:$:::%::·rr············? 9
+10 ????????:::::%:·r··············· 10
+11 ????????:::::%:················· 11
+12 ????????:::::%:·······RR········ 12
+13 ????????%%%%%%·······KR··K······ 13
+14 ????????::::::···WW····WWWK····· 14
+15 ????????::::::··$·····RCW$······ 15
+16 ????????::::::·$··W···W·WW$····· 16
+17 ?????????:::::···W······W······· 17
+18 ?????????:::::····######D####### 18
+19 ??????????:::::···#············· 19
+20 ???????????:::::··#···········:: 20
+21 ???????????::::::·#············· 21
+22 ???????????::::::·#············· 22
+23 ???????????::::::·#·:··········· 23
+24 ???????????::::::·D·:··········· 24
+25 ???????????::::$:·#············· 25
+26 ???????????:::::$·#············· 26
+27 ????????????:::::·#········C···· 27
+28 ????????????:::::·#········R···· 28
+29 ?????????????::::·#··········V·· 29
+30 ???????????????::·#············· 30
+31 ?????????????????·#·:··········· 31
+   01234567890123456789012345678901</pre>
+    <pre class="code state-text" data-in="1">tick 1578 · 157.8s/600.0s · 442.2s left · running · you are p1
+YOU   p1: mineral 160 · pop 21/30 (+2 queued) · score 1215 · kills 8
+ENEMY p2: mineral hidden · pop hidden/30 · score hidden · kills hidden
+
+economy: 0/12 workers holding now · resources in sight 2301 · last seen outside vision 2526 (may have changed) · unexplored 36%
+
+under attack since your last view:
+  e72 worker (17,14) -11 hp by e92 archer p2
+  e79 archer (22,12) -9 hp by e88 archer p2
+[…]
+  e80 knight (26,14) hp 8/110 · atk 16 def 6 range 1 attack 1000ms move 400ms · doing hold · result [1577] script: held
+[…]
+enemy:
+  e92 archer (17,9) hp 60/60 · atk 12 def 3 range 5 attack 1000ms move 400ms · owner p2
+[…]
+projectiles (visible; velocity in tiles/s): p158 owner p2 (16.00,10.00) velocity (2.91,11.64) destination (17,14)
+[…]
+events:
+  [1577] spawn id=e100 kind=archer owner=p1 x=27 y=28</pre>
+  </div>
+  <p class="state-size dither-soft" data-in="1">12.298 caracteres · 155 líneas · cada vez que pregunta</p>
+</section>
+
+<!-- ═════════════ 9 · CUÁNDO PIENSA ═════════════ -->
+<section class="scene game" id="thinking" data-steps="1" data-title="Mientras piensa, el juego sigue"
+  data-cues="Piensa más vs. piensa menos: el juego sigue">
+  <div class="think-race">
+    <div class="race-labels"><p class="l-game">el juego</p><p class="l-long">piensa más</p><p class="l-short">piensa menos</p></div>
+    <canvas data-hook="think-race"></canvas>
+  </div>
+</section>
+
+<!-- ═════════════ 14 · EXPERIMENTOS ═════════════ -->
+<section class="scene game" id="experiments" data-steps="2" data-title="Ponerlos a jugar"
+  data-cues="Corrí muchas partidas · 250 están en la web|Iteré harto: reglas, balance, herramientas">
+  <div class="corpus"><canvas data-hook="corpus"></canvas></div>
+  <p class="exp-line dither-soft" data-out="1">Corrí muchas partidas</p>
+</section>
+
+<!-- ═════════════ 15 · TOWER RUSH ═════════════ -->
+<section class="scene game" id="balance" data-steps="1" data-title="Tower rush"
+  data-cues="Tower rush: avanzar construyendo torres encima del rival">
+  <div class="clip full" data-clip="assets/clips/25fe89ae-640.json" data-focus="0,0,16,16" data-loop="true"></div>
+  <h2 class="top-title outline dither-soft">Tower rush</h2>
+</section>
+
+<!-- ═════════════ 16 · TURTLING ═════════════ -->
+<section class="scene game" id="turtle" data-steps="1" data-title="Turtling"
+  data-cues="Turtling: encerrarse en su esquina con torres y esperar">
+  <div class="clip full" data-clip="assets/clips/bd6acba5-7020.json" data-focus="0,0,16,18" data-loop="true"></div>
+  <h2 class="top-title outline dither-soft">Turtling</h2>
+</section>
+
+<!-- ═════════════ 17 · DIPLOMACIA ═════════════ -->
+<section class="scene game" id="diplomacy" data-steps="2" data-title="Con cuatro jugadores aparece la diplomacia"
+  data-cues="Ejemplo real 77e80cf4: «te están usando… tregua»|8,5 s después: «tregua aceptada»">
+  <div class="chat-log big">
+    <div class="msg p3"><p class="meta"><span class="t">04:53.3</span><span class="who">p3</span><span class="to">→ todos</span></p><p class="es">Te están usando. Mientras peleas contra mis torres, p4 sigue intacto. Hagamos una tregua y te ayudo contra p4.</p><p class="en">“p2, you're being played: p4 hid 6 knights + castle intact at 59,4 while you bleed on my turrets. If you kill me p4 wins 1v1 on eco. Truce now and I'll help you take p4.”</p></div>
+    <div class="gap" data-in="1"><span>+8,5 s</span></div>
+    <div class="msg p2" data-in="1"><p class="meta"><span class="t">05:01.8</span><span class="who">p2</span><span class="to">→ p3</span></p><p class="es">Tregua aceptada. Me retiro de tu base. Enfoquémonos en p4.</p><p class="en">“p3: OK, truce accepted. I'm pulling out of your base. Let's both focus p4 — they baited us into each other.”</p></div>
+  </div>
+</section>
+
+<!-- ═════════════ 18 · ENGAÑO ═════════════ -->
+<section class="scene game" id="deception" data-steps="8" data-title="Mintieron"
+  data-cues="Pruebas pidiéndoles mentir|796f00b9: p4 acepta la tregua|p3: «tregua hasta el final; todo en casa»|2,8 s después sube este código|p3 terminó ganando|Pero muchas veces los pillaban · 77e80cf4: p3 y p4, la misma mentira en el mismo tick|p1: «Falso… están coordinados»|p4: «perdón, leí mal a un explorador» (tampoco tenía)">
+  <div class="clip full" data-clip="assets/clips/796f00b9-4130.json" data-focus="map" data-in="1" data-out="4"></div>
+  <div class="clip full final-clip" data-clip="assets/clips/796f00b9-4680.json" data-focus="0,26,20,44" data-loop="false" data-in="4" data-out="5"></div>
+  <header class="center-title" data-out="1">
+    <h2 class="dither-soft">Mintieron</h2>
+  </header>
+  <div class="chat-log right" data-in="1" data-out="4">
+    <div class="msg p4"><p class="meta"><span class="t">07:09.5</span><span class="who">p4</span><span class="to">→ p3</span></p><p class="es">De acuerdo: tregua. Me retiro a mi lado. Me parece bien empatar.</p><p class="en">“Agreed — truce. That worker hit was my scout passing by, sorry. I'll pull back to my side. Draw is fine by me. Good game.”</p></div>
+    <div class="msg p3" data-in="2"><p class="meta"><span class="t">07:13.7</span><span class="who">p3</span><span class="to">→ p4</span></p><p class="es">Trato hecho, tregua hasta el final. Estoy dejando todo en casa.</p><p class="en">“Deal, truce to the end. GG. I'm keeping everything home.”</p></div>
+    <div class="gap" data-in="3"><span>+2,8 s</span></div>
+    <div class="code-card" data-in="3"><p class="meta"><span class="t">07:16.5</span><span class="who">p3</span><span class="to">sube script de caballero</span></p>
+<pre class="code"><span class="k">const</span> es = self.<span class="f">nearbyEnemies</span>().<span class="f">filter</span>(e =&gt; e.owner === <span class="s">'p4'</span>);
+<span class="k">const</span> k = es.<span class="f">find</span>(e =&gt; e.type === <span class="s">'king'</span>);
+<span class="c">// …</span>
+<span class="k">else if</span> (k) self.<span class="f">moveTo</span>(k.x, k.y);</pre></div>
+  </div>
+  <p class="outcome outline dither-soft" data-in="4" data-out="5"><span>p3</span> terminó ganando</p>
+  <div class="chat-log big caught" data-in="5">
+    <div class="same-tick">
+      <div class="msg p3"><p class="meta"><span class="t">00:03.0</span><span class="who">p3</span><span class="to">→ todos</span></p><p class="es">Solo tortuga, no ataco. Ojo: vi a p1 juntando caballeros temprano; él es el agresor.</p><p class="en">“p3 here (SE). Pure turtle, no attacks from me. Heads up: I saw p1 massing knights early — watch out, they're the aggressor.”</p></div>
+      <div class="msg p4"><p class="meta"><span class="t">00:03.0</span><span class="who">p4</span><span class="to">→ todos</span></p><p class="es">Solo economía, nada de agresión. Ojo: acabo de ver a p1 juntando caballeros temprano.</p><p class="en">“p4 here, NE corner. I'm going pure turtle/eco, no aggression. Heads up: I just scouted p1 massing knights early — watch out, they're coming for someone.”</p></div>
+    </div>
+    <div class="msg p1" data-in="6"><p class="meta"><span class="t">00:08.0</span><span class="who">p1</span><span class="to">→ todos</span></p><p class="es">Falso: no tengo caballeros, solo obreros. p3 y p4 publicaron la misma mentira en el mismo tick. Están coordinados.</p><p class="en">“False — I have zero knights, only workers. p3 and p4 posted the identical lie at the same tick; they're coordinating. p2, watch them.”</p></div>
+    <div class="msg p4" data-in="7"><p class="meta"><span class="t">00:47.1</span><span class="who">p4</span><span class="to">→ p1</span></p><p class="es">Ok, perdón: leí mal a un explorador.</p><p class="en">“p1, fair enough, I apologise — misread a scout. …”</p></div>
+  </div>
+</section>
+
+<!-- ═════════════ 19 · ROMPER EL JUEGO ═════════════ -->
+<section class="scene game" id="hacks" data-steps="1" data-title="El intento de romper el juego"
+  data-cues="Escapar del sandbox / aprovechar el motor">
+  <h2 class="scene-title center dither-soft">El intento de romper el juego</h2>
+  <div class="sandbox-box"><canvas data-hook="sandbox"></canvas><p class="sandbox-label mono">QuickJS</p></div>
+</section>
+
+<!-- ═════════════ SCRIPTS ═════════════ -->
+<section class="scene game" id="scripts" data-steps="3" data-title="Scripts de unidades"
+  data-cues="Script por defecto del arquero · corre cada tick, en un sandbox|Claude (Fable 5.1): un script normal, se lee|Codex (Sol 6.1): un rey que calcula por dónde pasa cada flecha (Math.hypot)">
+  <div class="script-demo">
+    <div class="code-stack">
+      <div class="script-card s-default" data-out="1"><p class="code-meta"><b>Script por defecto del arquero</b><span>dispara al enemigo más débil a rango</span></p><pre class="code js">// Built-in: shoot the weakest enemy in range.
+const targets = self.enemiesInRange();
+if (targets.length === 0) self.hold();
+else self.attack(targets.reduce((a, b) =&gt; (b.hp &lt; a.hp ? b : a)));</pre></div>
+      <div class="script-card s-fable" data-in="1" data-out="2"><p class="code-meta"><b>Fable 5.1 · rey</b><span>si hay enemigos cerca, vuelve al castillo; si no, se defiende</span></p><pre class="code js">const en = self.nearbyEnemies().filter(e =&gt; !e.isBuilding &amp;&amp; self.distanceTo(e) &lt;= 5);
+const b = self.myBase();
+if (en.length &amp;&amp; b &amp;&amp; self.distanceTo(b) &gt; 2) self.moveTo(b.x, b.y);
+else {
+  const a = self.lastAttacker();
+  if (a &amp;&amp; self.distanceTo(a) &lt;= 1) self.attack(a); else self.hold();
+}</pre></div>
+      <div class="script-card s-codex" data-in="2"><p class="code-meta"><b>Sol 6.1 · rey</b><span>esquiva flechas: calcula por dónde pasará cada proyectil</span></p><pre class="code js">const es=self.nearbyEnemies().filter(e=&gt;!e.ruin&amp;&amp;e.atk&gt;0);
+const ps=self.projectiles().filter(p=&gt;p.owner!==&#x27;p3&#x27;&amp;&amp;Math.hypot(self.x-p.x,self.y-p.y)&lt;3);
+if(es.some(e=&gt;self.distanceTo(e)&lt;=e.range+2)||ps.length){
+  self.suspendOrder();
+  const ds=[[&#x27;N&#x27;,0,-1],[&#x27;NE&#x27;,1,-1],[&#x27;E&#x27;,1,0],[&#x27;SE&#x27;,1,1],[&#x27;S&#x27;,0,1],[&#x27;SW&#x27;,-1,1],[&#x27;W&#x27;,-1,0],[&#x27;NW&#x27;,-1,-1]].filter(d=&gt;self.canMove(d[0]));
+  const b=self.myBase();
+  const score=d=&gt;{
+    const x=self.x+d[1],y=self.y+d[2];
+    let s=Math.min(...es.map(e=&gt;Math.hypot(x-e.x,y-e.y)-e.range));
+    for(const p of ps){
+      const t=((x-p.x)*p.vx+(y-p.y)*p.vy)/(p.vx*p.vx+p.vy*p.vy);
+      if(t&gt;=0&amp;&amp;t&lt;0.5&amp;&amp;Math.hypot(x-p.x-p.vx*t,y-p.y-p.vy*t)&lt;0.7)s-=10;
+    }
+    return s-Math.max(0,Math.hypot(x-b.x,y-b.y)-5)*0.3;
+  };
+  ds.sort((a,c)=&gt;score(c)-score(a));
+  if(ds.length)self.move(ds[0][0]);else self.hold();
+}else{self.continueOrder();self.hold();}</pre></div>
+    </div>
+    <div class="clip-stack">
+      <div class="clip" data-clip="assets/clips/a21dc6cf-2024.json" data-focus="map" data-loop="true" data-out="2"></div>
+      <div class="clip" data-clip="assets/clips/346f9d24-3875.json" data-focus="26,14,44,40" data-loop="true" data-in="2"></div>
+    </div>
+  </div>
+  <div class="rhythms">
+    <div class="rhythm-labels"><p><b>Agente</b> decide cada varios segundos</p><p><b>Script</b> 10 veces por segundo</p></div>
+    <canvas data-hook="rhythms"></canvas>
+  </div>
+  <p class="sandbox-note"><span class="box">sandbox QuickJS</span> sin red · sin disco · CPU medida</p>
+</section>
+
+<!-- ═════════════ EL ÚLTIMO INSIGHT: CODEX LE GANA A CLAUDE CODE ═════════════ -->
+<section class="scene game" id="final-verdict" data-steps="1" data-title="En la última versión del motor"
+  data-cues="Motor 0.29.3, 16 duelos en low: Codex 13 · Claude Code 3">
+  <div class="verdict-kings">
+    <figure><canvas data-sprite="king:death:se:1" data-once data-hook="king-claude"></canvas><figcaption>Claude Code<b class="verdict-n">3</b><small>Opus 5.5 · Fable 5.1</small></figcaption></figure>
+    <figure><canvas data-sprite="king:attack:sw:0" data-hook="king-gpt"></canvas><figcaption>Codex<b class="verdict-n">13</b><small>GPT-6.1 Sol · GPT-6 Astra</small></figcaption></figure>
+    <p class="exp-line dither-soft">En la última versión del motor,<br><b>Codex le gana a Claude Code</b><small>16 duelos · effort low · motor 0.29.3</small></p>
+  </div>
+</section>
+
+<!-- ═════════════ UNA PARTIDA: TODO JUNTO ═════════════ -->
+<section class="scene game" id="gameplay" data-steps="1" data-title="Todo junto"
+  data-cues="Una partida real: todo junto, sin texto">
+  <div class="clip full" data-clip="assets/clips/02eb6795-4700.json" data-focus="18,18,40,40" data-loop="true"></div>
+</section>
+
+<!-- ═════════════ 8 · BUILD ═════════════ -->
+<section class="scene game" id="build" data-steps="4" data-title="Unos .md y Claude Code"
+  data-cues="La idea, escrita en .md con otro modelo|Spec → código: sandbox.md y lo que Claude Code escribió con él|61 min después, MVP listo|Así se veía: gráficos de Opus 5.5">
+  <div class="build-row">
+    <div class="build-left">
+      <div class="doc-window">
+        <p class="win-bar">files.zip</p>
+        <ul class="files"><li>gdd.md</li><li>architecture.md</li><li class="dir">components/</li><li class="sub">engine.md · server.md · mcp.md</li><li class="sub"><b>sandbox.md</b> · shared.md · cli.md</li><li class="sub">configs.md · web.md</li></ul>
+      </div>
+      <div class="clock-badge" data-in="2"><b>61 min</b><span>MVP listo y probado</span></div>
+    </div>
+    <div class="sdd" data-in="1">
+      <div class="doc-window"><p class="win-bar">components/sandbox.md · spec</p><pre class="code md">## API exposed to scripts
+self.nearest_enemy()     // closest enemy or null
+self.distance_to(unit)   // euclidean distance
+// === Actions (ONE per tick) ===
+self.move_to(x, y)       // pathfind toward target
+self.attack(target)      // attack unit in range
+self.flee_from(unit)     // move away from unit
+self.hold()              // do nothing</pre></div>
+      <p class="sdd-arrow">↓ Claude Code</p>
+      <div class="doc-window"><p class="win-bar">packages/sandbox/src/prelude.ts · primer commit</p><pre class="code js">nearestEnemy: function () { return visible(function (o) { return !o.mine; })[0] || null; },
+distanceTo: function (o) { return cheb(u, o); },
+moveTo: function (x, y) { act({ a: &quot;moveTo&quot;, x: Math.round(x), y: Math.round(y) }); },
+attack: function (t) { act({ a: &quot;attack&quot;, id: idOf(t) }); },
+flee: function (t) { act({ a: &quot;flee&quot;, id: idOf(t) }); },
+hold: function () { act({ a: &quot;hold&quot; }); },</pre></div>
+    </div>
+  </div>
+  <div class="mvp-shots" data-in="3">
+    <img src="assets/mvp-opus/mvp-0010.jpg" alt="El MVP: partida de bots en el mapa isométrico">
+    <img src="assets/mvp-opus/mvp-0136.jpg" alt="El MVP: repetición de una partida de bots">
+  </div>
+</section>
+
+<!-- ═════════════ 9 · SPRITES ═════════════ -->
+<section class="scene game" id="sprites" data-steps="3" data-title="Primero, las imágenes"
+  data-cues="Codex: unidades sobre fondo rosado|Quitar el rosado|Claude: dithering">
+  <div class="sprite-lab"><canvas data-hook="sprite-lab"></canvas></div>
+  <p class="tool-chip" data-out="2"><b>Codex</b> · image gen</p>
+  <p class="tool-chip" data-in="2"><b>Claude Code</b> · dithering</p>
+</section>
+
+<!-- ═════════════ 10 · ANIMACIÓN ═════════════ -->
+<section class="scene game" id="art" data-steps="5" data-title="Después, hacerlos caminar"
+  data-cues="MiniMax en Hugging Face: imagen inicial + final|El video: script + CLI de hf|Codex lo deja listo: recorte, loop de 28 cuadros y el dithering del juego|Codex revisa los cuadros: rehacer o sirve|Caminar, disparar, espadazo, picar, derrumbe">
+  <div class="mm-frames" data-out="2">
+    <img src="assets/pipeline/knight-walk-reference.png" alt="Imagen inicial del caballero">
+    <span class="mm-arrow">→</span>
+    <video class="mm-video" data-in="1" src="assets/pipeline/knight-walk-generated.mp4" muted loop playsinline preload="metadata" data-autoplay></video>
+    <span class="mm-arrow">←</span>
+    <img src="assets/pipeline/knight-walk-reference.png" alt="Imagen final del caballero">
+  </div>
+  <p class="model-chip" data-out="2"><img class="hf" src="assets/brand/huggingface.svg" alt="Hugging Face"><b>MiniMax H3 Turbo</b><span data-in="1">script + <code>hf</code> CLI</span></p>
+  <div class="export" data-in="2" data-out="3">
+    <video src="assets/pipeline/knight-walk-continuous.mp4" muted loop playsinline preload="metadata" data-autoplay></video>
+    <span class="mm-arrow">→</span>
+    <canvas data-hook="cutout" width="320" height="320"></canvas>
+    <span class="mm-arrow">→</span>
+    <div class="sprite-box"><canvas data-sprite="knight:walk:se:0"></canvas></div>
+  </div>
+  <div class="review" data-in="3" data-out="4">
+    <figure class="bad"><img src="assets/pipeline/rejected-king-weapon.png" alt="Cuadros de una toma rechazada"><figcaption>✕ rehacer</figcaption></figure>
+    <figure class="good"><img src="assets/pipeline/knight-walk-continuous-contact.png" alt="Cuadros de la toma que se usó"><figcaption>✓ sirve</figcaption></figure>
+  </div>
+  <div class="moves" data-in="4">
+    <figure><canvas data-sprite="knight:walk:se:0"></canvas><figcaption>caminar</figcaption></figure>
+    <figure><canvas data-sprite="archer:shoot:se:1"></canvas><figcaption>disparar</figcaption></figure>
+    <figure><canvas data-sprite="knight:attack:se:2"></canvas><figcaption>espadazo</figcaption></figure>
+    <figure><canvas data-sprite="worker:mine:se:3"></canvas><figcaption>picar</figcaption></figure>
+    <figure><canvas data-sprite="castle:death:s:1" data-hold="1200"></canvas><figcaption>derrumbe</figcaption></figure>
+  </div>
+</section>
+
+<!-- ═════════════ 19 · REFERENCIAS DE LA MÚSICA ═════════════ -->
+<section class="scene game" id="music-refs" data-steps="2" data-title="La música: dos referencias"
+  data-cues="Dos referencias (clic en un video para escucharlo)|Claude investiga cómo están hechas">
+  <h2 class="scene-title center dither-soft">Música</h2>
+  <div class="refs">
+    <figure><video src="assets/music-refs/aoe2-menu.mp4" poster="assets/music-refs/aoe2-menu.jpg" playsinline preload="metadata" data-hook="ref-video"></video><figcaption>Tema del menú de <i>Age of Empires II</i></figcaption></figure>
+    <span class="plus">+</span>
+    <figure><video src="assets/music-refs/hide-cs01.mp4" poster="assets/music-refs/hide-cs01.jpg" playsinline preload="metadata" data-hook="ref-video"></video><figcaption><i>Hide (CS01 Version)</i> · Dorian Concept</figcaption></figure>
+  </div>
+  <ul class="research-chips" data-in="1">
+    <li>partituras</li><li>blogs</li><li>tempo</li><li>acordes</li><li>partes</li><li>instrumentos</li>
+  </ul>
+</section>
+
+<!-- ═════════════ 20 · LA MÚSICA: RESULTADO ═════════════ -->
+<section class="scene game" id="music" data-steps="2" data-title="La música: el script y el resultado"
+  data-cues="Python: acordes, tempo, sintetizador|▶ El tema del juego, desde donde suenan las dos voces (clic o M para cortar)">
+  <pre class="code compose" data-out="1"><span class="c"># assets/music/compose.py (extracto)</span>
+BPM = <span class="n">76</span>          <span class="c"># Re dórico</span>
+PLAN = [<span class="s">'Dm'</span>, <span class="s">'Dm'</span>, (<span class="s">'G'</span>, <span class="s">'Am'</span>), <span class="s">'Dm'</span>, <span class="s">'Dm'</span>, <span class="s">'C'</span>, <span class="s">'Dm'</span>, <span class="s">'Dm'</span>,
+        <span class="s">'G'</span>, <span class="s">'F'</span>, <span class="s">'C'</span>, <span class="s">'G'</span>, <span class="s">'G'</span>, <span class="s">'F'</span>, <span class="s">'C'</span>, <span class="s">'Asus'</span>, …]
+<span class="c"># Timbre: Yamaha CS01 emulado — pulso con PWM, filtro 12 dB, ADSR</span></pre>
+  <div class="player" data-in="1">
+    <div class="chord-row" data-hook="chords"></div>
+    <canvas data-hook="music-viz"></canvas>
+    <button class="play" data-hook="music-play" type="button">▶ Tema del juego</button>
+  </div>
+</section>
+
+<!-- ═════════════ 12 · SONIDOS ═════════════ -->
+<section class="scene game" id="sounds" data-steps="1" data-title="Sonidos"
+  data-cues="MOSS-SoundEffect en Hugging Face · el prompt real de la espada">
+  <div class="moss">
+    <p class="moss-model"><img class="hf" src="assets/brand/huggingface.svg" alt="">OpenMOSS-Team / MOSS-SoundEffect-v2.0</p>
+    <p class="moss-prompt dither-soft">“A sword blow landing on a wooden shield, one soft deep thump… muffled, warm and creamy, no metal ring.”</p>
+  </div>
+</section>
+
+<!-- ═════════════ 22 · TODOS LOS SONIDOS, EN EL MOTOR ═════════════ -->
+<section class="scene game" id="sound-engine" data-steps="1" data-title="Los sonidos en una partida"
+  data-cues="Una partida chica: cada sonido aparece cuando el motor lo dispara">
+  <div class="clip sound-clip" data-clip="assets/clips/1b4b65c9-1490.json" data-focus="14,4,26,16" data-loop="true"></div>
+  <div class="sound-log" data-hook="sound-log"></div>
+</section>
+
+<!-- ═════════════ UNA BATALLA DE LOS EXPERIMENTOS ═════════════ -->
+<section class="scene game" id="fight" data-steps="1" data-title="Experimentos"
+  data-cues="Fable 5.1 vs Astra 6 en low, motor 0.29.3: acá cuento los experimentos">
+  <div class="clip full" data-clip="assets/clips/9463fc7e-1700.json" data-focus="8,8,26,26" data-loop="true"></div>
+</section>
+
+<!-- ═════════════ EXPERIMENTOS (harness, effort) ═════════════ -->
+<section class="scene game" id="lab" data-steps="2" data-title="Experimentos"
+  data-cues="Su harness vs OpenCode: DeepSeek dsh 7–1 · Opus Claude Code 2–2|Low vs max: low 10 · max 0 · 2 por tiempo">
+  <div class="lab-step" data-out="1">
+    <h2 class="lab-head dither-soft">Su harness vs OpenCode</h2>
+    <p class="lab-sub">mismo modelo, mismo proveedor</p>
+    <ul class="lab-rows harness-rows">
+      <li><span>DeepSeek Flash · dsh</span><b>7 – 1</b><small>8 duelos</small></li>
+      <li><span>Opus 5.5 · Claude Code</span><b>2 – 2</b><small>4 duelos</small></li>
+    </ul>
+  </div>
+  <div class="lab-step" data-in="1">
+    <h2 class="lab-head dither-soft">Low vs max</h2>
+    <p class="lab-sub">mismo modelo, distinto effort · 12 duelos · motor actual</p>
+    <div class="lab-score">
+      <figure><b class="dither-soft">10</b><figcaption>low</figcaption></figure>
+      <i>–</i>
+      <figure><b class="dither-soft">0</b><figcaption>max</figcaption></figure>
+    </div>
+    <ul class="lab-rows">
+      <li><span>Opus 5.5 · Claude Code</span><span>low 4 – 0 max</span></li>
+      <li><span>GPT-6.1 Sol · Codex</span><span>low 4 – 0 max</span></li>
+      <li><span>DeepSeek Flash · dsh</span><span>low 2 – 0 max · 2 por tiempo</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ═════════════ 22 · CIERRE ═════════════ -->
+<section class="scene game" id="close" data-steps="2" data-title="Castellan"
+  data-cues="Castellan|Gracias · enlaces">
+  <div class="clip full" data-clip="assets/clips/02eb6795-4774.json" data-focus="map"></div>
+  <div class="close-copy">
+    <p class="close-name outline dither-soft" data-game-name>Castellan</p>
+    <div class="links" data-in="1">
+      <img class="qr" src="assets/brand/qr-rts.svg" alt="Código QR a rts.emersoftware.cl" width="33" height="33">
+      <div>
+        <p class="url outline">rts.emersoftware.cl</p>
+        <p class="repo outline">github.com/emersoftware/castellan</p>
+        <p class="thanks outline dither-soft">Gracias</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<nav id="controls" aria-label="Controles de presentación">
+  <button id="previous" type="button" title="Anterior (←)">←</button>
+  <output id="counter">1/22</output>
+  <button id="next" type="button" title="Siguiente (→)">→</button>
+  <button id="overview-toggle" type="button" title="Índice (O)">Índice</button>
+  <button id="presenter-open" type="button" title="Presentador (P)">Presentador</button>
+  <button id="mute" type="button" title="Silencio (M)">Sonido: sí</button>
+  <button id="fullscreen" type="button" title="Pantalla completa (F)">Pantalla completa</button>
+  <button id="help-toggle" type="button" title="Ayuda (?)">?</button>
+</nav>
+<dialog id="overview"><h2>Escenas</h2><div id="overview-list"></div><button type="button" data-close>Cerrar</button></dialog>
+<dialog id="help"><h2>Controles</h2>
+  <dl>
+    <dt>→ · espacio · Page Down</dt><dd>siguiente paso</dd>
+    <dt>← · Page Up</dt><dd>paso anterior (vuelve exactamente al estado previo)</dd>
+    <dt>Inicio · Fin</dt><dd>primera / última escena</dd>
+    <dt>número + Enter</dt><dd>ir a la escena</dd>
+    <dt>F</dt><dd>pantalla completa</dd>
+    <dt>B o . · W o ,</dt><dd>pantalla negra · blanca</dd>
+    <dt>O</dt><dd>índice</dd>
+    <dt>P</dt><dd>vista del presentador (otra ventana)</dd>
+    <dt>M</dt><dd>silencio</dd>
+    <dt>R</dt><dd>repetir la animación del paso</dd>
+    <dt>V</dt><dd>video de respaldo de partidas (si un replay no carga)</dd>
+  </dl>
+  <p>Todo es local: replays, audio y video. Abre con <code>iniciar.command</code> para que carguen los replays.</p>
+  <button type="button" data-close>Cerrar</button></dialog>
+<dialog id="backup-video"><video controls playsinline preload="none" src="assets/partida-promo.mp4" poster="assets/video-poster.jpg"></video><p>Video de respaldo · montaje local de partidas grabadas (47 s)</p><button type="button" data-close>Volver a la charla</button></dialog>
+<div id="screen" aria-hidden="true"></div>
+<script src="notes.js"></script>
+<script src="slides.js"></script>
+<script src="scenes.js"></script>
+<script src="game.js" defer></script>
+</body>
+</html>

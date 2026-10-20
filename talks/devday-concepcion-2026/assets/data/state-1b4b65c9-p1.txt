@@ -1,0 +1,155 @@
+tick 1578 · 157.8s/600.0s · 442.2s left · running · you are p1
+YOU   p1: mineral 160 · pop 21/30 (+2 queued) · score 1215 · kills 8
+  upgrades: none
+ENEMY p2: mineral hidden · pop hidden/30 · score hidden · kills hidden
+
+economy: 0/12 workers holding now · resources in sight 2301 · last seen outside vision 2526 (may have changed) · unexplored 36%
+
+under attack since your last view:
+  e72 worker (17,14) -11 hp by e92 archer p2
+  e79 archer (22,12) -9 hp by e88 archer p2
+
+combat since tick 1545:
+  area (18..23,6..11) ticks 1572..1572: damage taken {"p2":9}; losses none observed
+  area (12..17,12..17) ticks 1573..1573: damage taken {"p1":11}; losses none observed
+  area (18..23,12..17) ticks 1575..1575: damage taken {"p1":9}; losses none observed
+
+action costs and current restrictions (may change before application):
+  train worker at e1: 50, queue 0/5, available now
+  train knight at e1: 100, queue 0/5, available now
+  train archer at e1: 100, queue 0/5, available now
+  train worker at e89: 50, queue 2/5, available now
+  train knight at e89: 100, queue 2/5, available now
+  train archer at e89: 100, queue 2/5, available now
+  build (site and path still need checking; charged on completion): tower 150: available now · wall 25: available now · door 40: available now · castle 300: blocked: needs 300 mineral, you have 160
+  research: knight_damage L1 250: blocked: needs 250 mineral, you have 160 · knight_cadence L1 150: available now · knight_mobility L1 150: available now · archer_damage L1 250: blocked: needs 250 mineral, you have 160 · archer_cadence L1 150: available now · archer_mobility L1 150: available now · worker_damage L1 150: available now · archer_range L1 200: blocked: needs 200 mineral, you have 160 · tower_range L1 150: available now
+
+chat (last 5 visible messages):
+  no messages yet
+  Use chat without text to read the full visible history.
+fog: ? unexplored · : explored ground outside vision · enemy units on the map are currently visible; historical unit sightings are listed in last seen. Buildings and deposits outside vision are drawn as last seen.
+
+map (x→, y↓; the x ruler is tens over units: column 24 = '2' over '4'):
+   0         1         2         3 
+   01234567890123456789012345678901
+ 0 ????????:::::%:::::::::????????? 0
+ 1 ????????:::::%:::::::::????????? 1
+ 2 ????????:::::%::::::::::???????? 2
+ 3 ????????:::$:%::::::::::???????? 3
+ 4 ????????:::$:%:::::::::::??????? 4
+ 5 ????????:::::%:$::::······?????? 5
+ 6 ????????:::::%::$:··········???? 6
+ 7 ????????:::::d:::············??? 7
+ 8 ????????::$::%::c·············?? 8
+ 9 ????????:$:::%::·rr············? 9
+10 ????????:::::%:·r··············· 10
+11 ????????:::::%:················· 11
+12 ????????:::::%:·······RR········ 12
+13 ????????%%%%%%·······KR··K······ 13
+14 ????????::::::···WW····WWWK····· 14
+15 ????????::::::··$·····RCW$······ 15
+16 ????????::::::·$··W···W·WW$····· 16
+17 ?????????:::::···W······W······· 17
+18 ?????????:::::····######D####### 18
+19 ??????????:::::···#············· 19
+20 ???????????:::::··#···········:: 20
+21 ???????????::::::·#············· 21
+22 ???????????::::::·#············· 22
+23 ???????????::::::·#·:··········· 23
+24 ???????????::::::·D·:··········· 24
+25 ???????????::::$:·#············· 25
+26 ???????????:::::$·#············· 26
+27 ????????????:::::·#········C···· 27
+28 ????????????:::::·#········R···· 28
+29 ?????????????::::·#··········V·· 29
+30 ???????????????::·#············· 30
+31 ?????????????????·#·:··········· 31
+   01234567890123456789012345678901
+   0         1         2         3 
+
+mine:
+  e1 castle (27,27) hp 600/600 · atk 9 def 7 range 5 attack 1000ms move 0ms · doing hold · result [1577] script: held
+  e3 king (29,29) hp 400/400 · VITAL · atk 3 def 10 range 1 attack 3000ms move 500ms · doing hold · result [1577] script: held
+  e5 worker (24,17) hp 40/40 · atk 3 def 1 range 1 attack 1000ms move 500ms · order gather d11 · order history 83.3s; moved 100 steps, net 6 tiles; stationary 0.6s; blocked 15.3s · doing → 26,16 · result [1577] order: cooldown (movement cooldown)
+  e7 worker (25,16) hp 40/40 · atk 3 def 1 range 1 attack 1000ms move 500ms · order gather d11 · order history 131.0s; moved 185 steps, net 13 tiles; stationary 0.2s; blocked 9.2s · doing → 23,15 · result [1577] order: cooldown (movement cooldown) · carry 10
+  e9 worker (25,14) hp 40/40 · atk 3 def 1 range 1 attack 1000ms move 500ms · order gather d11 · order history 83.3s; moved 116 steps, net 11 tiles; stationary 0.3s; blocked 6.4s · doing → 26,16 · result [1577] order: cooldown (movement cooldown)
+  e11 wall (18,31) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e13 wall (18,30) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e15 wall (18,29) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e17 wall (18,28) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e19 wall (18,27) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e21 wall (18,26) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e23 wall (18,25) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e25 door (18,24) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e27 wall (18,23) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e29 wall (18,22) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e31 wall (18,21) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e33 wall (18,20) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e35 wall (18,19) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e37 wall (18,18) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e39 wall (31,18) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e41 wall (30,18) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e43 wall (29,18) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e45 wall (28,18) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e47 wall (27,18) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e49 wall (26,18) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e51 wall (25,18) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e53 door (24,18) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e55 wall (23,18) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e57 wall (22,18) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e59 wall (21,18) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e61 wall (20,18) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e63 wall (19,18) hp 300/300 · atk 0 def 10 range 0 attack 0ms move 0ms
+  e65 worker (22,16) hp 40/40 · atk 3 def 1 range 1 attack 1000ms move 500ms · order gather d11 · order history 126.4s; moved 160 steps, net 12 tiles; blocked 8.8s · doing → 26,16 · result [1577] order: acted move
+  e66 worker (23,14) hp 40/40 · atk 3 def 1 range 1 attack 1000ms move 500ms · order gather d11 · order history 142.6s; moved 196 steps, net 16 tiles; stationary 0.3s; blocked 6.6s · doing → 26,16 · result [1577] order: cooldown (movement cooldown)
+  e68 worker (24,15) hp 40/40 · atk 3 def 1 range 1 attack 1000ms move 500ms · order gather d11 · order history 137.4s; moved 200 steps, net 14 tiles; stationary 6.3s; blocked 14.9s · doing → 26,16 · result [1577] order: blocked (step blocked or destination unreachable)
+  e70 worker (18,14) hp 40/40 · atk 3 def 1 range 1 attack 1000ms move 500ms · order gather d26 · order history 30.6s; moved 49 steps, net 9 tiles; stationary 0.2s; blocked 0.8s · doing → 16,15 · result [1577] order: cooldown (movement cooldown)
+  e72 worker (17,14) hp 29/40 · atk 3 def 1 range 1 attack 1000ms move 500ms · order gather d26 · order history 30.6s; moved 46 steps, net 6 tiles; stationary 0.8s · doing gather d26 · result [1577] order: cooldown · carry 4
+  e74 worker (17,17) hp 40/40 · atk 3 def 1 range 1 attack 1000ms move 500ms · order gather d25 · order history 30.6s; moved 49 steps, net 7 tiles; stationary 0.4s; blocked 4.1s · doing → 23,15 · result [1577] order: cooldown (movement cooldown) · carry 10
+  e76 worker (24,16) hp 40/40 · atk 3 def 1 range 1 attack 1000ms move 500ms · doing gather d12 · result [1577] script: acted gather · carry 4
+  e79 archer (22,12) hp 51/60 · atk 12 def 3 range 5 attack 1000ms move 400ms · doing attack e88 · result [1577] script: cooldown (attack cooldown)
+  e80 knight (26,14) hp 8/110 · atk 16 def 6 range 1 attack 1000ms move 400ms · doing hold · result [1577] script: held
+  e81 archer (22,13) hp 60/60 · atk 12 def 3 range 5 attack 1000ms move 400ms · doing hold · result [1577] script: held
+  e82 worker (18,16) hp 40/40 · atk 3 def 1 range 1 attack 1000ms move 500ms · order gather d25 · order history 30.6s; moved 46 steps, net 4 tiles; stationary 0.2s; blocked 0.2s · doing → 23,15 · result [1577] order: cooldown (movement cooldown) · carry 10
+  e87 archer (23,12) hp 60/60 · atk 12 def 3 range 5 attack 1000ms move 400ms · doing hold · result [1577] script: held
+  e89 castle (23,15) hp 600/600 · training [knight completes at 158.7s (waits if exits blocked), worker queued] · atk 9 def 7 range 5 attack 1000ms move 0ms · doing hold · result [1577] script: held
+  e90 knight (25,13) hp 19/110 · atk 16 def 6 range 1 attack 1000ms move 400ms · doing hold · result [1577] script: held
+  e93 knight (21,13) hp 15/110 · atk 16 def 6 range 1 attack 1000ms move 400ms · doing hold · result [1577] script: held
+  e94 worker (24,14) hp 40/40 · atk 3 def 1 range 1 attack 1000ms move 500ms · doing gather d12 · result [1577] script: acted gather · carry 1
+  e98 archer (22,15) hp 60/60 · atk 12 def 3 range 5 attack 1000ms move 400ms · doing hold · result [1577] script: held
+  e100 archer (27,28) hp 60/60 · atk 12 def 3 range 5 attack 1000ms move 400ms · doing hold · result [1577] script: held
+enemy:
+  e84 castle (16,8) hp 564/600 · atk 9 def 7 range 5 attack 1000ms move 0ms · owner p2
+  e88 archer (18,9) hp 51/60 · atk 12 def 3 range 5 attack 1000ms move 400ms · owner p2
+  e91 archer (16,10) hp 60/60 · atk 12 def 3 range 5 attack 1000ms move 400ms · heading ↑ · owner p2
+  e92 archer (17,9) hp 60/60 · atk 12 def 3 range 5 attack 1000ms move 400ms · owner p2
+last seen (outside your vision now; may have changed):
+  d22 deposit (16,6) = 459 · seen 2.0s ago
+  e34 wall (13,11) hp 300/300 · owner p2 · seen 2.6s ago
+  e36 wall (13,12) hp 300/300 · owner p2 · seen 2.6s ago
+  e28 wall (13,8) hp 300/300 · owner p2 · seen 2.6s ago
+  e30 wall (13,9) hp 300/300 · owner p2 · seen 2.6s ago
+  e32 wall (13,10) hp 270/300 · owner p2 · seen 2.6s ago
+  d21 deposit (15,5) = 595 · seen 2.6s ago
+  e26 door (13,7) hp 300/300 · owner p2 · seen 3.0s ago
+  e24 wall (13,6) hp 300/300 · owner p2 · seen 3.4s ago
+  e38 wall (13,13) hp 246/300 · owner p2 · seen 5.9s ago
+  e64 wall (12,13) hp 300/300 · owner p2 · seen 9.0s ago
+  e22 wall (13,5) hp 300/300 · owner p2 · seen 9.6s ago
+  e62 wall (11,13) hp 300/300 · owner p2 · seen 10.0s ago
+  d20 deposit (10,8) = 4 · seen 10.0s ago
+  e60 wall (10,13) hp 300/300 · owner p2 · seen 10.6s ago
+  e20 wall (13,4) hp 300/300 · owner p2 · seen 10.6s ago
+  e18 wall (13,3) hp 294/300 · owner p2 · seen 10.6s ago
+  d19 deposit (9,9) = 7 · seen 10.6s ago
+  d15 deposit (11,4) = 23 · seen 10.6s ago
+  e16 wall (13,2) hp 300/300 · owner p2 · seen 11.0s ago
+  … 9 more
+deposits: d11(26,16)=390 d12(25,15)=435 d25(15,16)=750 d26(16,15)=726
+projectiles (visible; velocity in tiles/s): p158 owner p2 (16.00,10.00) velocity (2.91,11.64) destination (17,14)
+scripts: worker:default · knight:custom · archer:custom · tower:default · castle:default · king:default
+events:
+  [1551] order_end id=e80 owner=p1 reason=arrived
+  [1551] order_end id=e90 owner=p1 reason=arrived
+  [1563] order_end id=e93 owner=p1 reason=arrived
+  [1577] spawn id=e100 kind=archer owner=p1 x=27 y=28

@@ -18,7 +18,7 @@
     "castellan": "castellan",
     "seed-replays": "pnpm --filter @castellan/server seed-replays",
     "build": "pnpm --filter @castellan/web build",
-    "build:cloudflare": "pnpm --filter @castellan/web build --mode cloudflare",
+    "build:cloudflare": "pnpm --filter @castellan/web build --mode cloudflare && node talks/devday-concepcion-2026/tools/publish.mjs",
     "cloud:types": "wrangler types cloudflare/worker-configuration.d.ts",
     "cloud:typecheck": "pnpm cloud:types && tsc -p cloudflare/tsconfig.json && tsc -p cloudflare/tsconfig.tools.json",
     "cloud:dev": "pnpm build:cloudflare && wrangler dev",
