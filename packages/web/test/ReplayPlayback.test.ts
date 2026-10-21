@@ -12,6 +12,11 @@ const recording = (): ReplayFile => JSON.parse(gunzipSync(readFileSync(new URL("
 // full regression; shared CI CPUs can exceed the suite's 60-second default.
 it("recovers the recorded match, including both shutdowns, while strict evaluation still rejects it", async () => {
   const replay = recording();
+  // A one-shot failure by the same player must not count as another VM shutdown.
+  replay.experiment!.operationalFailures!.push({
+    tick: 0, player: replay.experiment!.operationalFailures![0].player,
+    message: "sandbox watchdog timeout after 250ms; request terminated",
+  });
   const before = JSON.stringify(replay);
   let last: SpectatorView | undefined;
   let frames = 0;
@@ -25,6 +30,34 @@ it("recovers the recorded match, including both shutdowns, while strict evaluati
   expect(last?.outcome?.winner).toBe("p2");
   expect(JSON.stringify(replay)).toBe(before);
 }, 180_000);
+
+// MiniMax vs DeepSeek: a /run timeout in prep did not change the match.
+const requestTimeoutRecording = (): ReplayFile => JSON.parse(gunzipSync(readFileSync(new URL("./fixtures/f7387e23.json.gz", import.meta.url))).toString());
+
+it("plays a request-only timeout recording without disabling unit scripts or changing the replay", async () => {
+  const replay = requestTimeoutRecording();
+  const before = JSON.stringify(replay);
+  let last: SpectatorView | undefined;
+  let frames = 0;
+  await expect(runReplay(replay, () => {})).rejects.toThrow("operational failure");
+  const check = await playRecordedReplay(replay, view => { last = view; frames++; }, { includePerspectives: false });
+  expect(check).toEqual({ verified: true, desyncAt: undefined });
+  expect(frames).toBe(replay.finalTick + 1);
+  expect(last?.tick).toBe(4529);
+  expect(last?.outcome).toEqual(replay.outcome);
+  expect(JSON.stringify(replay)).toBe(before);
+}, 120_000);
+
+it.each([
+  { tick: -1 },
+  { tick: 4530 },
+  { player: "unknown-player" },
+  { message: "sandbox worker startup timed out" },
+])("does not silently drop an unrecognized or invalid request failure: %j", async change => {
+  const replay = requestTimeoutRecording();
+  Object.assign(replay.experiment!.operationalFailures![0], change);
+  await expect(playRecordedReplay(replay, () => {})).rejects.toThrow("cannot be reconstructed safely");
+});
 
 it("rejects interruptions whose effect is not recorded precisely enough", async () => {
   const replay = recording();

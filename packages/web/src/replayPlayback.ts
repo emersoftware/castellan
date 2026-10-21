@@ -10,11 +10,18 @@ export async function playRecordedReplay(replay: ReplayFile, onFrame: (view: Spe
   const failures = replay.experiment?.operationalFailures ?? [];
   if (!failures.length) return runReplay(replay, onFrame, options);
 
-  const byPlayer = new Map(failures.map(failure => [failure.player, failure]));
-  if (byPlayer.size !== failures.length || failures.some(failure =>
-    !/^sandbox (watchdog|dispatch) timeout after \d+ms; player VM terminated$/.test(failure.message)
-    || !Number.isInteger(failure.tick) || failure.tick < 0 || failure.tick >= replay.finalTick
+  // /run uses a disposable VM. Its watchdog returns no orders and does not
+  // terminate the player's persistent unit-script VM (runOnceIsolated).
+  // Preserve the failure in the recording, but it requires no simulation action.
+  const requestTimeout = (message: string) => /^sandbox watchdog timeout after \d+ms; request terminated$/.test(message);
+  const shutdowns = failures.filter(failure => !requestTimeout(failure.message));
+  const byPlayer = new Map(shutdowns.map(failure => [failure.player, failure]));
+  if (failures.some(failure =>
+    !Number.isInteger(failure.tick) || failure.tick < 0 || failure.tick > replay.finalTick
     || !replay.players.some(player => player.id === failure.player)
+  ) || byPlayer.size !== shutdowns.length || shutdowns.some(failure =>
+    !/^sandbox (watchdog|dispatch) timeout after \d+ms; player VM terminated$/.test(failure.message)
+    || failure.tick >= replay.finalTick
     // A simultaneous upload could have timed out during compilation instead of
     // unit execution. Old recordings do not distinguish those two cases.
     || replay.orders.some(order => order.player === failure.player && order.tick === failure.tick && order.order.type === "script")
