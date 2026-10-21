@@ -1,23 +1,25 @@
 # Voz y presentaciones de Emerson: evidencia para la charla AoA
 
-La investigación de voz se conserva. Las propuestas visuales iniciales de este documento quedaron subordinadas a la instrucción posterior de Emerson: introducción blanca con BipBop, CChC y Revi; luego el diseño real del juego, implementado por Claude Opus. Ver [estructura.md](estructura.md).
+La investigación de voz sigue vigente. Las propuestas visuales iniciales ceden ante una instrucción posterior de Emerson: introducción blanca con BipBop, CChC y Revi, y luego el diseño real del juego, que implementó Claude Opus. Ver [estructura.md](estructura.md).
 
-Investigación local, 15 octubre 2026. Originales intactos. Corpus social recuperado con Pacifico primero (`search_sessions` → `read_session` acotado), luego lectura del archivo que esa sesión identifica.
+Investigación local, 15 octubre 2026, con originales intactos. El corpus social salió de Pacifico (`search_sessions` → `read_session` acotado) y luego del archivo que esa sesión señala.
 
 ## 1. Voz a usar
 
-Fuente principal: `/Users/emersoftware/.claude/projects/-Users-emersoftware-Documents-projects-linkedin/memory/linkedin-posts-corpus.md`. Es una captura local del feed de LinkedIn realizada el 27 julio 2026, no una verificación nueva de publicaciones activas. La sesión `8de53cd5-5f73-42c4-ac33-0556358661b1` (mensajes 0–7) confirma que el usuario pidió recopilar posts propios y luego comentó que buena parte de la etapa antigua le daba cringe. No usar reposts ajenos ni los drafts de startups como si probaran su voz personal.
+Fuente principal: `/Users/emersoftware/.claude/projects/-Users-emersoftware-Documents-projects-linkedin/memory/linkedin-posts-corpus.md`. Es una captura local del feed de LinkedIn del 27 julio 2026, no una verificación nueva de publicaciones activas.
 
-- **Curiosidad que termina en algo construido.** Post #3: “Quería saber cómo pivotean las startups en Chile. Terminé armando un sitio…” (líneas 13–16). Para esta charla, favorecer relato primera persona y decisiones reales. No asignar una motivación específica a AoA sin evidencia del proyecto.
-- **Proyectos concretos primero.** #37 Kapin: “problema que encontré” → “mi solución” → repo → “dejé unos aprendizajes en el README :)” (182–188). Explica qué hace el sistema, incluyendo detalles, sin exagerar importancia.
-- **Diversión explícita y natural.** #38 CONDOR: “CONDOR es el jueguito que hice para el Arcade Challenge de la Platanus Hack 25”; “me divertí harto haciendolo y pensando como hacer que sea divertido jugarlo” (190–198). Es el antecedente más próximo a AoA.
-- **Humor seco y autocrítica pequeña.** #32 abre una lista de mejoras con “nos hackearon” (138–147). CONDOR incluye “un beat jungle (intento)” y remata “obvio con Claude Code” (196–197). La broma de Claude tachado funciona en ese registro. Una broma clara basta; no convertir todo en memes.
-- **Chileno sin caricatura.** Usa “harto”, “bacán”, “jueguito”, “pizzitas”, “conce”, “sequisimos”. No agregar “po”, garabatos ni modismos que la evidencia no sostiene.
-- **Lenguaje horizontal.** #36: “gente tan bacán / que después de trabajar toda la semana, vienen y el fin de semana no lo duermen construyendo por gusto” (177–180). #26 describe “charlas bien horizontales y luego pizzitas”. Hablar como builder entre builders, sin voz de keynote corporativa.
-- **Actual: minúsculas frecuentes, frases cortas, inglés técnico cotidiano.** “update”, “sideproject”, “repo”, “feedback”, “handmade”. No necesita traducir cada término ante devs. No copiar errores ortográficos. El título solicitado puede conservar mayúsculas.
-- **Cierra con objeto tangible / invitación concreta.** Juego, repo, sitio, pregunta útil. Evitar “revolucionar”, “el futuro ya está aquí”, “transformación”, lecciones inventadas y tricolones motivacionales.
+La sesión `8de53cd5-5f73-42c4-ac33-0556358661b1` (mensajes 0–7) confirma que el usuario pidió recopilar sus posts. Luego comentó que buena parte de la etapa antigua le daba cringe. Los reposts ajenos y los drafts de startups no prueban su voz personal.
 
-El corpus distingue era reciente de la etapa 2024 con muchos hashtags y emojis. Priorizar la voz reciente. Rechazo del usuario a sobreeditar su lenguaje también registrado en MEMORY.md 3115–3116; no inferir que los borradores asistidos prueban una publicación.
+- **Curiosidad que termina en algo construido.** Post #3: “Quería saber cómo pivotean las startups en Chile. Terminé armando un sitio…” (líneas 13–16). Favorece primera persona y decisiones reales. No le asignes a AoA una motivación específica sin evidencia del proyecto.
+- **Proyectos concretos primero.** #37 Kapin: “problema que encontré” → “mi solución” → repo → “dejé unos aprendizajes en el README :)” (182–188). Explica qué hace el sistema, con detalles, sin exagerar.
+- **Diversión explícita y natural.** #38 CONDOR: “CONDOR es el jueguito que hice para el Arcade Challenge de la Platanus Hack 25”; “me divertí harto haciendolo y pensando como hacer que sea divertido jugarlo” (190–198). Es el antecedente más cercano a AoA.
+- **Humor seco y autocrítica pequeña.** #32 abre una lista de mejoras con “nos hackearon” (138–147). CONDOR incluye “un beat jungle (intento)” y remata “obvio con Claude Code” (196–197). La broma de Claude tachado calza ahí. Basta una broma clara; nada de memes por todos lados.
+- **Chileno sin caricatura.** Usa “harto”, “bacán”, “jueguito”, “pizzitas”, “conce”, “sequisimos”. No agregues “po”, garabatos ni modismos sin evidencia.
+- **Lenguaje horizontal.** #36: “gente tan bacán / que después de trabajar toda la semana, vienen y el fin de semana no lo duermen construyendo por gusto” (177–180). #26 describe “charlas bien horizontales y luego pizzitas”. Habla como builder entre builders, no como keynote corporativa.
+- **Lo actual: minúsculas frecuentes, frases cortas, inglés técnico cotidiano.** “update”, “sideproject”, “repo”, “feedback”, “handmade”. Ante devs no traduzcas cada término. No copies errores ortográficos. El título pedido puede llevar mayúsculas.
+- **Cierra con un objeto tangible o una invitación concreta:** juego, repo, sitio, pregunta útil. Evita “revolucionar”, “el futuro ya está aquí”, “transformación”, lecciones inventadas y tríos motivacionales.
+
+El corpus separa la etapa reciente de la etapa 2024, con muchos hashtags y emojis. Prioriza la voz reciente. MEMORY.md 3115–3116 registra que el usuario rechaza sobreeditar su lenguaje. Un borrador asistido no prueba una publicación.
 
 ## 2. Presentaciones inspeccionadas
 
@@ -27,7 +29,7 @@ Archivos:
 - `/Users/emersoftware/Library/Mobile Documents/com~apple~Keynote/Documents/ML-PresentaciónProyecto.key`
 - `/Users/emersoftware/Library/Mobile Documents/com~apple~Keynote/Documents/ML-PresentaciónProyecto.pptx`
 
-Leí los 12 XML del PPTX y vi el preview original del Keynote. Portada: título enorme blanco, alineado izquierda, fondo casi negro con ondas azules, subtítulo de curso y nombre abajo izquierda. Helvetica Neue dominante según estilos del archivo; no es una plantilla de tarjetas UI.
+Leí los 12 XML del PPTX y vi el preview original del Keynote. Portada: título enorme blanco a la izquierda, fondo casi negro con ondas azules, subtítulo de curso y nombre abajo a la izquierda. Domina Helvetica Neue, según los estilos del archivo. No es una plantilla de tarjetas UI.
 
 Secuencia real:
 1. Ajuste fino con QLoRA de LLaMA 2 con Corpus de La Ley Chilena.
@@ -43,47 +45,51 @@ Secuencia real:
 11. Validación con preguntas y comparación contra modelo sin ajustar.
 12. Gracias.
 
-Patrón útil: **problema → ejemplo real → examinar qué falló → propuesta → explicar piezas → validar**. Lleva la audiencia desde un caso visible hasta la técnica. Para AoA, mostrar partida o bug antes de diagrama/arquitectura. Los interiores fueron inspeccionados mediante XML y conteo de imágenes, no renderizados completos.
+Patrón útil: **problema → ejemplo real → examinar qué falló → propuesta → explicar piezas → validar**. Lleva a la audiencia de un caso visible a la técnica. Para AoA: partida o bug antes del diagrama o la arquitectura. Revisé los interiores por XML y conteo de imágenes, sin renderizarlos completos.
 
 ### ESalazar-MRoman (Arduino, 2023), coautoría, 8 slides
 
-Misma carpeta Keynote, `.key` y `.pptx`. Portada vista: fondo claro, título negro Futura Bold grande, planta con placa Arduino como imagen central, nombres en esquinas inferiores. Cuerpo Arial, títulos Futura Bold (39–80 pt en XML), texto ~20–21 pt. Secuencia: portada → introducción → problema/objetivo → objetivos específicos → materiales en dos slides → otros servicios/entorno → metodología de seis pasos. Es académico y más denso que lo apropiado para esta charla.
+Misma carpeta Keynote, `.key` y `.pptx`. Portada vista: fondo claro, título negro grande en Futura Bold, planta con placa Arduino al centro y nombres en las esquinas inferiores. Cuerpo en Arial, títulos en Futura Bold (39–80 pt en XML), texto de ~20–21 pt.
 
-Tomar de aquí jerarquía tipográfica e imagen protagonista. No copiar largas introducciones, listas de objetivos de tesis ni densidad.
+Secuencia: portada → introducción → problema/objetivo → objetivos específicos → materiales en 2 slides → otros servicios/entorno → metodología de 6 pasos. Es académico y más denso que lo apropiado aquí.
+
+Toma la jerarquía tipográfica y la imagen protagonista. No copies introducciones largas, objetivos de tesis ni densidad.
 
 ### PT-Defensa (marzo 2024), individual, solo portada verificada
 
 `/Users/emersoftware/Library/Mobile Documents/com~apple~CloudDocs/PT-Defensa.key`
 
-Preview original: blanco, título centrado serif negro, logo facultad arriba, nombre/guía/fecha y gran captura del producto Chat Legal Chile con fondo rojo suave. Título: “Agente de Preguntas Sobre La Ley Chilena Basado en Generación Aumentada Por Recuperación”. Tiene código formal de defensa universitaria. No representa por sí sola su estilo para meetup. Sí confirma hábito de dar protagonismo al producto real.
+Preview original: fondo blanco, título serif negro centrado, logo de la facultad arriba, y nombre, guía, fecha y gran captura del producto Chat Legal Chile con fondo rojo suave. Título: “Agente de Preguntas Sobre La Ley Chilena Basado en Generación Aumentada Por Recuperación”.
+
+Sigue el código formal de una defensa universitaria y no representa su estilo de meetup. Sí confirma su hábito de darle protagonismo al producto real.
 
 ### AnteproyectoProblema (agosto 2023), solo portada verificada
 
 `/Users/emersoftware/Library/Mobile Documents/com~apple~Keynote/Documents/AnteproyectoProblema.key`
 
-Preview original: blanco, título sans grande con degradado naranja/rosa/magenta “Solución de Mezcla de Colores”, subtítulo negro y nombre abajo. Mucho espacio libre. Es otra variante académica, no una identidad visual fija.
+Preview original: fondo blanco, título sans grande con degradado naranja/rosa/magenta, “Solución de Mezcla de Colores”, subtítulo negro, nombre y mucho espacio libre. Es otra variante académica, no una identidad visual fija.
 
-Se localizaron además presentaciones grupales de pudú/realidad virtual, seguridad y logística, y material de docentes. Se descartó el material docente para no atribuirlo a Emerson.
+También aparecieron presentaciones grupales de pudú/realidad virtual, seguridad y logística, y material de docentes. Descarté el material docente para no atribuírselo a Emerson.
 
 ## 3. Aplicación propuesta
 
-- Tomar ML como referencia principal de composición: título enorme, pocas palabras, imágenes/capturas grandes, explicar lo visible.
-- Tomar los posts recientes como referencia de habla: “hice”, “probé”, “quería ver”, “pasó esto”, con hechos comprobados.
-- Azul muy oscuro, blanco y el rojo/oro de estandarte funcionan con ML y el universo medieval solicitado, pero esa paleta medieval es una decisión nueva para esta charla, no un rasgo descubierto en decks antiguos.
-- Portada izquierda título, derecha estandarte. Claude con un único espadazo como chiste rápido. No repetirlo en toda la charla.
-- Orden narrativo útil: enseñar juego → por qué me metí → qué juego construí/qué hace el agente → cómo llegué ahí → problema concreto y arreglo → insights honestos → juego/repo.
-- Separar frases confirmadas del usuario de copy nuevo escrito en su voz. No poner entre comillas invenciones.
+- Composición: usa ML como referencia principal: título enorme, pocas palabras, imágenes y capturas grandes, y explicar lo visible.
+- Habla: usa los posts recientes: “hice”, “probé”, “quería ver”, “pasó esto”, siempre con hechos comprobados.
+- Azul muy oscuro, blanco y el rojo/oro del estandarte funcionan con ML y con el universo medieval pedido. Esa paleta medieval es una decisión nueva, no un rasgo de los decks antiguos.
+- Portada: título a la izquierda, estandarte a la derecha. Claude con un único espadazo, como chiste rápido. No lo repitas en toda la charla.
+- Orden narrativo útil: enseñar el juego → por qué me metí → qué juego construí y qué hace el agente → cómo llegué ahí → problema concreto y arreglo → aprendizajes honestos → juego/repo.
+- Separa frases confirmadas del usuario del copy nuevo en su voz. No pongas invenciones entre comillas.
 
 ## 4. Archivos de referencia extraídos
 
-Previews originales copiados a `/tmp/aoa-talk-references/`:
+Copié los previews originales a `/tmp/aoa-talk-references/`:
 - `ML-PresentaciónProyecto-preview.jpg`
 - `ESalazar-MRoman-preview.jpg`
 - `PT-Defensa-preview.jpg`
 - `AnteproyectoProblema-preview.jpg`
 
-Se intentó exportar ML con Keynote. La app abrió su onboarding y el botón Continue acepta una licencia. No se aceptó ni se exportó. Los previews y XML aportan evidencia suficiente para esta primera versión. No presentar esto como una inspección visual de cada slide de cada Keynote.
+Intenté exportar ML con Keynote. La app abrió su onboarding, cuyo botón Continue acepta una licencia. No la acepté ni exporté. Previews y XML bastan para esta primera versión. No presentes esto como una inspección visual de cada slide de cada Keynote.
 
 ## Citas de memoria usadas
 
-`MEMORY.md:3083-3091` ayudó a identificar búsqueda de posts/historial; `MEMORY.md:3115-3122` orientó preservación de voz y recuperación acotada Pacifico. Rollout: `01a0a04e-6952-7e01-bca1-44f74737f057`. El corpus de LinkedIn se verificó como archivo existente y su origen se contrastó con Pacifico en esta investigación.
+`MEMORY.md:3083-3091` ayudó a ubicar la búsqueda de posts e historial. `MEMORY.md:3115-3122` orientó cómo preservar la voz y acotar la recuperación con Pacifico. Rollout: `01a0a04e-6952-7e01-bca1-44f74737f057`. Verifiqué que el corpus de LinkedIn existe como archivo y contrasté su origen con Pacifico en esta investigación.

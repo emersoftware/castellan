@@ -1,12 +1,18 @@
 # Haciendo un RTS con Codex y Claude — estructura v2
 
-Charla de 25 minutos: 23 de contenido con pausas/demostraciones y 2 de margen. El dictado de Emerson reemplaza la narrativa de la primera versión. La versión íntegra corregida está en [relato-completo.md](relato-completo.md); el texto de escenario en [guion.md](guion.md).
+Charla de 25 minutos: 23 de contenido con pausas y demostraciones, y 2 de margen. El dictado de Emerson reemplaza la narrativa de la primera versión. Versión íntegra corregida: [relato-completo.md](relato-completo.md). Texto de escenario: [guion.md](guion.md).
 
 ## Recorrido
 
-Presentación personal y Revi → el juego y la pregunta sobre tiempo de razonamiento → reglas y herramientas → cómo se construyó código, imagen, animación y audio → diversión y experimentación → balance, diplomacia, engaño e incentivos → futura arena de comparación.
+1. Presentación personal y Revi.
+2. El juego y la pregunta sobre tiempo de razonamiento.
+3. Reglas y herramientas.
+4. Cómo se construyó: código, imagen, animación y audio.
+5. Diversión y experimentación.
+6. Balance, diplomacia, engaño e incentivos.
+7. Futura arena de comparación.
 
-El antecedente central ahora es la experiencia del speaker construyendo agentes y equilibrando calidad con velocidad. No sustituirlo por el recuerdo de bots Java de la primera versión.
+Antecedente central: el speaker construye agentes y equilibra calidad con velocidad. No lo sustituyas por el recuerdo de bots Java de la primera versión.
 
 ## Escenas y tiempos
 
@@ -37,19 +43,22 @@ El antecedente central ahora es la experiencia del speaker construyendo agentes 
 
 ## Dirección visual solicitada
 
-La introducción personal y Revi llevan fondo blanco y logos oficiales de BipBopLabs, CChC y Revi. Al empezar a hablar del juego se entra a su ambiente: portada con estandarte y Claude cruzado por un espadazo, seguida por sus sprites, tipografía, dithering, sonido y renderizador reales. Claude Opus, esfuerzo max, desarrolla la presentación. Codex mantiene el relato.
+La introducción personal y Revi llevan fondo blanco y logos oficiales de BipBopLabs, CChC y Revi. Con el juego, el deck entra a su ambiente: primero una portada con estandarte y Claude cruzado por un espadazo. luego sus sprites, tipografía, dithering, sonido y renderizador reales. Claude Opus, esfuerzo max, desarrolla la presentación. Codex mantiene el relato.
 
-Cada escena debe tener acciones visuales pertinentes al relato, controladas por el presentador: unidades/tiempo, herramientas, pipeline de arte y audio, episodios de partidas, chat y reglas. El movimiento explica lo dicho; las demostraciones construidas se distinguen de los replays reales. La presentación funciona con archivos locales sin llamadas a modelos.
+Cada escena tiene acciones visuales pertinentes al relato, y el presentador las controla: unidades/tiempo, herramientas, pipeline de arte y audio, episodios de partidas, chat y reglas. El movimiento explica lo dicho. Las demostraciones construidas se distinguen de los replays reales. Funciona con archivos locales, sin llamadas a modelos.
 
 ## Criterio editorial
 
-Conservar el humor y el lenguaje de Emerson. Las comparaciones de proveedores son observaciones de sus propias partidas, no resultados de un benchmark controlado. La reflexión sobre AGI y la posible influencia de saberse observado se mantienen como impresiones/hipótesis. Las reglas históricas se separan de las actuales. No inventar resultados para acompañar una buena anécdota.
+Conserva el humor y el lenguaje de Emerson. Las comparaciones de proveedores son observaciones de sus propias partidas, no resultados de un benchmark controlado. La reflexión sobre AGI (inteligencia artificial general) queda como impresión, y la influencia de saberse observado, como hipótesis. Separa las reglas históricas de las actuales. No inventes resultados para acompañar una buena anécdota.
 
-Revi está en 17 municipalidades y la meta es 75 a fines de 2027, verificado en [app.ia-revi.cl](https://app.ia-revi.cl/). Música: menú AoEII y Hide (CS01 Version) de Dorian Concept como referencias; audio real del juego para escuchar. SFX: MOSS-SoundEffect-v2.0. Los modelos, archivos y notas de evidencia están en [investigacion-v2.md](investigacion-v2.md).
+Revi está en 17 municipalidades y la meta es 75 a fines de 2027, verificado en [app.ia-revi.cl](https://app.ia-revi.cl/). Música: menú de AoEII y Hide (CS01 Version) de Dorian Concept como referencias; audio real del juego para escuchar. SFX (efectos de sonido): MOSS-SoundEffect-v2.0. Modelos, archivos y notas de evidencia: [investigacion-v2.md](investigacion-v2.md).
 
 ## Ensayo y cortes
 
-Dedicar 10–15 segundos al tema musical y unos segundos a los efectos. Mostrar una sola negociación completa que quepa en el tiempo. Si el ensayo se alarga, condensar la reflexión de AGI y la hipótesis de observación, manteniéndolas en el relato completo. No apurar la dicción para conservar todo. Ajustar los tiempos después del ensayo hablado.
+1. Dedica 10–15 segundos al tema musical y unos segundos a los efectos.
+2. Muestra 1 sola negociación completa que quepa en el tiempo.
+3. Si el ensayo se alarga, condensa la reflexión de AGI y la hipótesis de observación. Mantenlas en el relato completo.
+4. No apures la dicción para conservar todo.
+5. Ajusta los tiempos después del ensayo hablado.
 
-La referencia final se normalizó como «un modelo de decisiones como Jev», coherente con la descripción oficial de TypeSafe como System One Model. La transcripción «full decision» sigue siendo incierta; no se afirma que sea difusión ni se trasladan cifras comerciales de rendimiento.
-
+La referencia final quedó como «un modelo de decisiones como Jev». Calza con la descripción oficial de TypeSafe como System One Model. La transcripción «full decision» sigue incierta. El texto no afirma que sea difusión ni traslada cifras comerciales de rendimiento.
