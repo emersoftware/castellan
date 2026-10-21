@@ -1,0 +1,257 @@
+import type { OrderEndReason, PlayerId, Ruleset, UnitOrder } from "@castellan/shared";
+import type { ScriptActionResult } from "@castellan/sandbox";
+import type { Entity, Intent } from "./entities";
+import type { SimulationClock } from "./clock";
+import { DIR_LIST, SEAT_DIRS, canStep, dist, findPath, inBounds, mapToSeat, type Grid } from "./grid";
+
+/** Owns routes, arrival allocation and seat-relative spatial choices; commits moves to shared occupancy. */
+export class Movement {
+  constructor(private rules: () => Ruleset, private clock: Readonly<SimulationClock>, private world: {
+    grid: Grid; occupancy: (string | null)[];
+    entities: ReadonlyMap<string, Entity>; doors: ReadonlyMap<number, string>;
+    version(): number;
+  }, private sideOf: (owner: PlayerId) => number, private hostile: (a: PlayerId, b: PlayerId) => boolean) {}
+
+  /** Commit movement once per entity, preserving priority and simultaneous-order feedback. */
+  advance(ordered: readonly Entity[], intents: ReadonlyMap<string, Intent>, feedback: {
+    result(entity: Entity, status: ScriptActionResult["status"], effect?: ScriptActionResult["effect"], reason?: string): void;
+    endOrder(entity: Entity, reason: OrderEndReason): void;
+  }) {
+    const T = this.clock.tick;
+    const moved = new Set<string>();
+    const visiting = new Set<string>();
+    const move = (e: Entity) => {
+      if (moved.has(e.id) || visiting.has(e.id)) return;
+      const it = intents.get(e.id);
+      if (!it || (it.t !== "goto" && it.t !== "dir")) return;
+      visiting.add(e.id);
+      if (this.rules().coordinatedMovement && e.spec.moveMs && T >= e.nextMove) {
+        const next = it.t === "dir" ? (e.y + it.dy) * this.world.grid.width + e.x + it.dx : this.route(e, it.x, it.y, it.range)?.[0];
+        const nx = it.t === "dir" ? e.x + it.dx : next === undefined ? e.x : next % this.world.grid.width;
+        const ny = it.t === "dir" ? e.y + it.dy : next === undefined ? e.y : Math.floor(next / this.world.grid.width);
+        const grid = this.gridFor(e.owner);
+        const occupant = next === undefined ? undefined : this.world.entities.get(this.world.occupancy[next] ?? "");
+        // Never push idle units, borrow an enemy's turn, or exchange occupied tiles.
+        if (occupant && occupant.id !== e.id && !this.hostile(e.owner, occupant.owner) && canStep(grid, e.x, e.y, nx - e.x, ny - e.y)) move(occupant);
+      }
+      visiting.delete(e.id);
+      moved.add(e.id);
+      if (!e.spec.moveMs) { feedback.result(e, "invalid", undefined, "unit cannot move"); return; }
+      if (T < e.nextMove) { feedback.result(e, "cooldown", undefined, "movement cooldown"); return; }
+      const before = { x: e.x, y: e.y };
+      if (it.t === "dir") {
+        if (this.canStep(e, e.x + it.dx, e.y + it.dy)) this.moveTo(e, e.x + it.dx, e.y + it.dy);
+      } else if (!this.walk(e, it.x, it.y, it.range) && e.order && !e.orderSuspended) {
+        feedback.endOrder(e, "unreachable");
+      }
+      if (before.x !== e.x || before.y !== e.y) feedback.result(e, "acted", "move");
+      else if (it.t === "goto" && dist(e.x, e.y, it.x, it.y) <= (it.range || (this.gridFor(e.owner).isStatic(it.x, it.y) ? 1 : 0))) feedback.result(e, "arrived");
+      else feedback.result(e, "blocked", undefined, "step blocked or destination unreachable");
+    };
+    for (const e of ordered) move(e);
+  }
+
+  /** Doors remain solid for placement, but pathfinding depends on the moving side. */
+  gridFor(owner: PlayerId): Grid {
+    if (!this.world.doors.size) return this.world.grid;
+    return { width: this.world.grid.width, height: this.world.grid.height, isStatic: (x, y) => {
+      const tile = y * this.world.grid.width + x;
+      const door = this.world.doors.get(tile);
+      if (door) return this.hostile(owner, this.world.entities.get(door)!.owner);
+      return this.world.grid.isStatic(x, y);
+    } };
+  }
+
+  private pathDiagonalCost(e: Entity): number {
+    return this.rules().tickPathCosts ? this.clock.ticks(e.spec.moveMs! * this.rules().diagonalMove) : Math.round(10 * this.rules().diagonalMove);
+  }
+
+  private pathStraightCost(e: Entity): number | undefined {
+    return this.rules().tickPathCosts ? this.clock.ticks(e.spec.moveMs!) : undefined;
+  }
+
+  canStep(e: Entity, x: number, y: number): boolean {
+    const grid = this.gridFor(e.owner);
+    return canStep(grid, e.x, e.y, x - e.x, y - e.y) && this.world.occupancy[y * grid.width + x] === null;
+  }
+
+  private moveTo(e: Entity, x: number, y: number) {
+    const W = this.world.grid.width;
+    this.world.occupancy[e.y * W + e.x] = null;
+    const diagonal = x !== e.x && y !== e.y;
+    e.lastStep = { dx: x - e.x, dy: y - e.y, tick: this.clock.tick };
+    e.x = x;
+    e.y = y;
+    this.world.occupancy[y * W + x] = e.id;
+    e.nextMove = this.clock.tick + this.clock.ticks(e.spec.moveMs! * (diagonal ? this.rules().diagonalMove : 1));
+  }
+
+  private route(e: Entity, gx: number, gy: number, range: number): number[] | null {
+    const grid = this.gridFor(e.owner);
+    if (range === 0 && grid.isStatic(gx, gy)) range = 1;
+    if (dist(e.x, e.y, gx, gy) <= range) return [];
+    const W = grid.width;
+    const key = `${gx},${gy},${range},${this.world.version()}` + (this.rules().tickPathCosts ? `,${this.pathStraightCost(e)},${this.pathDiagonalCost(e)}` : "");
+    const adjacent = (i: number) => dist(e.x, e.y, i % W, (i / W) | 0) === 1;
+    // A cached null means "unreachable" and stays valid until the key changes.
+    const stale = e.pathKey !== key || (e.path !== null && (e.path.length === 0 || !adjacent(e.path[0])));
+    if (stale) {
+      e.path = findPath(grid, e.x, e.y, gx, gy, range, this.directions(e.owner), undefined, this.pathDiagonalCost(e), this.pathStraightCost(e));
+      e.pathKey = key;
+    }
+    return e.path;
+  }
+
+  /** Assign only explicit same-owner move orders; scripts keep exact destinations. */
+  assignTargets() {
+    const groups = new Map<string, Entity[]>();
+    for (const e of this.world.entities.values()) {
+      if (e.order?.type !== "move") continue;
+      const key = `${e.owner},${e.order.x},${e.order.y}`;
+      const group = groups.get(key) ?? []; group.push(e); groups.set(key, group);
+    }
+    // Compute each owner's static connected components lazily. This bounds
+    // destination allocation even if every nearby candidate is unreachable.
+    const components = new Map<PlayerId, Map<number, Set<number>>>();
+    const reachable = (e: Entity) => {
+      const grid = this.gridFor(e.owner), W = grid.width;
+      const cache = components.get(e.owner) ?? new Map<number, Set<number>>();
+      components.set(e.owner, cache);
+      const origin = e.y * W + e.x;
+      if (cache.has(origin)) return cache.get(origin)!;
+      const seen = new Set([origin]), queue = [origin];
+      for (let i = 0; i < queue.length; i++) {
+        const x = queue[i] % W, y = Math.floor(queue[i] / W);
+        for (const [dx, dy] of this.directions(e.owner)) {
+          const nx = x + dx, ny = y + dy, tile = ny * W + nx;
+          if (seen.has(tile) || !canStep(grid, x, y, dx, dy)) continue;
+          seen.add(tile); queue.push(tile);
+        }
+      }
+      for (const tile of seen) cache.set(tile, seen);
+      return seen;
+    };
+    const reserved = new Map<PlayerId, Set<number>>();
+    for (const group of groups.values()) {
+      for (const e of group) {
+        const grid = this.gridFor(e.owner);
+        if (e.moveTarget && grid.isStatic(e.moveTarget.x, e.moveTarget.y)) delete e.moveTarget;
+        const target = e.moveTarget ?? (group.length === 1 ? e.order as Extract<UnitOrder, {type: "move"}> : undefined);
+        const tiles = reserved.get(e.owner) ?? new Set<number>();
+        if (target) tiles.add(target.y * grid.width + target.x);
+        reserved.set(e.owner, tiles);
+      }
+    }
+    for (const group of groups.values()) {
+      if (group.length < 2) continue;
+      const goal = group[0].order as Extract<UnitOrder, { type: "move" }>;
+      const grid = this.gridFor(group[0].owner), W = grid.width;
+      const members = new Set(group.map(e => e.id));
+      const claimed = reserved.get(group[0].owner)!;
+      if (group.every(e => e.moveTarget)) continue;
+      // A narrow passage may need one approach-side tile per arriving unit.
+      const radius = group.length;
+      const candidates: { x: number; y: number }[] = [];
+      for (let y = Math.max(0, goal.y - radius); y <= Math.min(grid.height - 1, goal.y + radius); y++) {
+        for (let x = Math.max(0, goal.x - radius); x <= Math.min(W - 1, goal.x + radius); x++) {
+          const occupant = this.world.occupancy[y * W + x];
+          if (!grid.isStatic(x, y) && (occupant === null || members.has(occupant))) candidates.push({ x, y });
+        }
+      }
+      const squared = (a: {x: number; y: number}, b: {x: number; y: number}) => (a.x-b.x)**2 + (a.y-b.y)**2;
+      // Closest units claim first; the existing entity order breaks exact ties.
+      for (const e of [...group].sort((a,b) => squared(a,goal) - squared(b,goal))) {
+        if (e.moveTarget) continue;
+        candidates.sort((a,b) => squared(a,goal) - squared(b,goal) || squared(a,e) - squared(b,e)
+          || this.readingKey(a.x,a.y,this.sideOf(e.owner)) - this.readingKey(b.x,b.y,this.sideOf(e.owner)));
+        const accessible = reachable(e);
+        if (!grid.isStatic(goal.x, goal.y) && !accessible.has(goal.y * W + goal.x)) continue;
+        for (const tile of candidates) {
+          if (claimed.has(tile.y * W + tile.x) || !accessible.has(tile.y * W + tile.x)) continue;
+          // Do not ask followers to pass a leader that has already parked at the goal.
+          if ((tile.x-goal.x)*(e.x-goal.x) + (tile.y-goal.y)*(e.y-goal.y) < 0) continue;
+          e.moveTarget = { ...tile }; claimed.add(tile.y * W + tile.x); break;
+        }
+      }
+    }
+  }
+
+  /** One step toward being within `range` of (gx,gy). False if unreachable. */
+  private walk(e: Entity, gx: number, gy: number, range: number): boolean {
+    // A static goal tile can't be entered: standing next to it is arriving.
+    const grid = this.gridFor(e.owner);
+    if (range === 0 && grid.isStatic(gx, gy)) range = 1;
+    if (dist(e.x, e.y, gx, gy) <= range) return true;
+    const W = this.world.grid.width;
+    this.route(e, gx, gy, range);
+    if (!e.path) return false;
+    if (e.path.length === 0) return true;
+    const next = e.path[0];
+    const nx = next % W;
+    const ny = (next / W) | 0;
+    if (this.canStep(e, nx, ny)) {
+      this.moveTo(e, nx, ny);
+      e.path.shift();
+      e.blocked = 0;
+      return true;
+    }
+    // A unit is in the way. First try a free tile that still gets closer.
+    e.blocked++;
+    const h = (x: number, y: number) => Math.max(0, dist(x, y, gx, gy) - range);
+    const here = h(e.x, e.y);
+    let best: [number, number] | null = null;
+    for (const [dx, dy] of this.directions(e.owner)) {
+      const x = e.x + dx;
+      const y = e.y + dy;
+      if (h(x, y) < here && this.canStep(e, x, y) && (!best || h(x, y) < h(best[0], best[1]))) best = [x, y];
+    }
+    // Still stuck after a moment: plan around the units next to us.
+    if (!best && e.blocked >= 3) {
+      const avoid = new Set<number>();
+      for (const [dx, dy] of DIR_LIST) {
+        const x = e.x + dx;
+        const y = e.y + dy;
+        if (inBounds(this.world.grid, x, y) && this.world.occupancy[y * W + x] !== null) avoid.add(y * W + x);
+      }
+      const detour = findPath(grid, e.x, e.y, gx, gy, range, this.directions(e.owner), avoid, this.pathDiagonalCost(e), this.pathStraightCost(e));
+      if (detour && detour.length > 0 && this.canStep(e, detour[0] % W, (detour[0] / W) | 0)) best = [detour[0] % W, (detour[0] / W) | 0];
+    }
+    if (best) {
+      this.moveTo(e, best[0], best[1]);
+      e.path = null;
+      e.pathKey = "";
+      e.blocked = 0;
+    }
+    return true;
+  }
+
+  directions(owner: PlayerId): [number, number][] {
+    return SEAT_DIRS[this.sideOf(owner)] ?? DIR_LIST;
+  }
+
+  /** Is `a` closer to `e` than `b`? Ties go to the tile first in `e`'s owner's reading order. */
+  closer(e: Entity, a: { x: number; y: number }, b: { x: number; y: number }): boolean {
+    const da = dist(e.x, e.y, a.x, a.y);
+    const db = dist(e.x, e.y, b.x, b.y);
+    if (da !== db) return da < db;
+    const side = this.sideOf(e.owner);
+    return this.readingKey(a.x, a.y, side) < this.readingKey(b.x, b.y, side);
+  }
+
+  /** Position of a tile in a seat's own reading order (row by row from its corner). */
+  readingKey(x: number, y: number, side: number): number {
+    const { width: W, height: H } = this.rules().map;
+    const [lx, ly] = mapToSeat(x, y, side, W, H);
+    return ly * W + lx;
+  }
+
+  freeNeighbor(x: number, y: number, owner: PlayerId): [number, number] | null {
+    for (const [dx, dy] of this.directions(owner)) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (inBounds(this.world.grid, nx, ny) && !this.gridFor(owner).isStatic(nx, ny) && this.world.occupancy[ny * this.world.grid.width + nx] === null) return [nx, ny];
+    }
+    return null;
+  }
+
+}

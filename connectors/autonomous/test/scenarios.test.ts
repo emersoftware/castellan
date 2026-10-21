@@ -21,9 +21,9 @@ function constructionRules(): Ruleset {
 
 /** Scenario setup only. No private entity, identifier or position is sent to the player. */
 function spawnFixture(experiment: Experiment, kind: string, owner: string, x: number, y: number): string {
-  const fixture = experiment.match as unknown as { spawn(kind: string, owner: string, x: number, y: number): { id: string }; refreshVision(): void };
+  const fixture = experiment.match as unknown as { spawn(kind: string, owner: string, x: number, y: number): { id: string }; vision: { refresh(): void } };
   const unit = fixture.spawn(kind, owner, x, y);
-  fixture.refreshVision();
+  fixture.vision.refresh();
   return unit.id;
 }
 

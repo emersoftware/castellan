@@ -87,11 +87,11 @@ interface Internals {
   doors: Map<number, string>;
   buildSites: Map<number, string>;
   staticVersion: number;
-  projectiles: Map<string, { id: string; source: string; owner: string }>;
+  combat: { projectiles: Map<string, { id: string; source: string; owner: string }> };
   spawn(kind: RecordedKind, owner: string, x: number, y: number): { id: string; hp: number; spec: { hp: number } };
   player(id: string): { upgrades: Record<string, number> };
   effectiveSpec(p: unknown, kind: string): KindSpec;
-  refreshVision(): void;
+  vision: { refresh(): void };
 }
 
 const historyKinds = new WeakMap<Match, Map<string, EntityKind>>();
@@ -158,7 +158,7 @@ export async function resumeBattle(s: Snapshot, ruleset?: Ruleset, variant: Vari
     if (variant.open || variant.jitter) {
       internal.staticVersion++;
       for (const e of internal.ents.values()) { e.path = null; e.pathKey = ""; }
-      internal.refreshVision();
+      internal.vision.refresh();
     }
     historyKinds.set(m, kinds);
     return m;
@@ -213,11 +213,11 @@ export async function runBattle(s: Snapshot, ruleset: Ruleset = baseRules, varia
       if (id && move) return [{ player: e.owner, order: { type: "move" as const, unit: id, x: Number(move[1] ?? move[3]), y: Number(move[2] ?? move[4]) } }];
       return [];
     });
-    if (!s.continuation) internal.refreshVision();
+    if (!s.continuation) internal.vision.refresh();
     const firstInput = s.continuation ? [] : [...setup, ...orders];
     const shotKind = new Map<string, EntityKind>(), shotOwner = new Map<string, string>(), lastHit = new Map<string, EntityKind>();
     // Shots already in flight at the boundary still belong to their original attacker.
-    if (s.continuation) for (const p of internal.projectiles.values()) {
+    if (s.continuation) for (const p of internal.combat.projectiles.values()) {
       const kind = kindOf.get(p.source) ?? historyKinds.get(m)?.get(p.source); if (kind) shotKind.set(p.id, kind);
       shotOwner.set(p.id, p.owner);
     }

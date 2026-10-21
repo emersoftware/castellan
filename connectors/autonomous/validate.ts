@@ -18,7 +18,8 @@ export type Rejection = { tick: number; player: string; order: Order; result: Or
 export type UnloadEvidence = { tick: number; owner: string; worker: string; amount: number; dropoff: string; x: number; y: number; builtDuringMatch: boolean };
 
 async function sourceFingerprints() {
-  const paths = ["src/player.ts", "src/scripts.ts", "validate.ts", "../../packages/shared/src/rules.ts", "../../packages/engine/src/match.ts"];
+  const paths = ["src/player.ts", "src/scripts.ts", "validate.ts", "../../packages/shared/src/rules.ts",
+    ...["match", "clock", "entities", "combat", "movement", "vision", "order-progress"].map(name => `../../packages/engine/src/${name}.ts`)];
   return Object.fromEntries(await Promise.all(paths.map(async path => [path, createHash("sha256").update(await readFile(new URL(path, import.meta.url))).digest("hex")])));
 }
 

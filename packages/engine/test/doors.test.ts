@@ -105,14 +105,14 @@ it("prevents overlapping construction even when a door's passage is empty", asyn
 
 it("keeps diagonal corner checks owner-aware around a door", async () => {
   const {m,build}=await setup(false,false);m.step([build]);
-  const internals=m as unknown as {ents:Map<string,unknown>;canStep(e:unknown,x:number,y:number):boolean;spawn(kind:string,owner:string,x:number,y:number):{id:string}};
+  const internals=m as unknown as {ents:Map<string,unknown>;movement:{canStep(e:unknown,x:number,y:number):boolean};spawn(kind:string,owner:string,x:number,y:number):{id:string}};
   // Door is the east neighbour of the worker, diagonal target is otherwise free.
-  expect(internals.canStep(internals.ents.get(entity(m,"worker").id),2,3)).toBe(true);
+  expect(internals.movement.canStep(internals.ents.get(entity(m,"worker").id),2,3)).toBe(true);
   const enemy=internals.spawn("worker","b",1,5);
-  expect(internals.canStep(internals.ents.get(enemy.id),2,4)).toBe(false);
+  expect(internals.movement.canStep(internals.ents.get(enemy.id),2,4)).toBe(false);
   // From (1,4), attempting (2,3) across the hostile door corner is also blocked.
   const hostile={...internals.ents.get(entity(m,"worker").id) as object,owner:"b"};
-  expect(internals.canStep(hostile,2,3)).toBe(false);
+  expect(internals.movement.canStep(hostile,2,3)).toBe(false);
 });
 
 it("serializes doors and their shared tiles through deterministic replay", async () => {

@@ -101,8 +101,8 @@ it("keeps shots alive after the shooter dies and records the owner of the kill",
 it("filters projectile state by current team vision", async () => {
   const { m, fire } = await setup();
   m.step(fire);
-  const internals = m as unknown as { visible: Map<string, Set<number>> };
-  internals.visible.set("b", new Set());
+  const internals = m as unknown as { vision: { visible: Map<string, Set<number>> } };
+  internals.vision.visible.set("b", new Set());
   expect(m.view("b").projectiles).toEqual([]);
   expect(m.spectate().perspectives!.b.projectiles).toEqual([]);
   expect(m.spectate().projectiles).toHaveLength(1);
