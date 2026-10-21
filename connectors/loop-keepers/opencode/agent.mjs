@@ -37,8 +37,23 @@ export async function loadKey(env = process.env) {
   catch (error) { if (/** @type {NodeJS.ErrnoException} */ (error).code === "ENOENT") return ""; throw error; }
 }
 
-/** @param {{ root: string, token: string, server?: string, key?: string, model?: string, variant?: string, env?: NodeJS.ProcessEnv }} player */
-export async function preparePlayer({ root, token, server = serverUrl(), key, model = DEFAULT_MODEL, variant, env = process.env }) {
+// Anthropic key and workspace: env, then private castellan files. A key not scoped to a workspace needs the workspace id.
+export async function loadAnthropic(env = process.env) {
+  const read = async (value, file, what) => {
+    if (value?.trim()) return value.trim();
+    try {
+      if ((await stat(file)).mode & 0o077) throw new Error(`${what} file must be private: chmod 600 ${file}`);
+      return (await readFile(file, "utf8")).trim();
+    } catch (error) { if (/** @type {NodeJS.ErrnoException} */ (error).code === "ENOENT") return ""; throw error; }
+  };
+  return {
+    key: await read(env.ANTHROPIC_API_KEY, env.CASTELLAN_ANTHROPIC_KEY_FILE || configFile("anthropic-api-key"), "Anthropic key"),
+    workspace: await read(env.CASTELLAN_ANTHROPIC_WORKSPACE, configFile("anthropic-workspace-id"), "Anthropic workspace"),
+  };
+}
+
+/** @param {{ root: string, token: string, server?: string, key?: string, workspace?: string, model?: string, variant?: string, env?: NodeJS.ProcessEnv }} player */
+export async function preparePlayer({ root, token, server = serverUrl(), key, workspace: anthropicWorkspace, model = DEFAULT_MODEL, variant, env = process.env }) {
   const workspace = join(root, "workspace"), home = join(root, "home");
   await mkdir(workspace, { recursive: true, mode: 0o700 });
   await mkdir(home, { recursive: true, mode: 0o700 });
@@ -60,7 +75,17 @@ export async function preparePlayer({ root, token, server = serverUrl(), key, mo
   if (env.CASTELLAN_OPENROUTER_PROVIDER && provider === "openrouter") modelConfig.options = { provider: { order: env.CASTELLAN_OPENROUTER_PROVIDER.split(","), allow_fallbacks: false } };
   // OpenCode's DeepSeek catalog has no effort variants; the API takes reasoning_effort.
   if (variant && provider === "deepseek") modelConfig.variants = { [variant]: { reasoningEffort: variant } };
+  // Anthropic's API takes adaptive thinking plus an effort level, the same knob as Claude Code's --effort.
+  // Declaring the model also covers ids newer than OpenCode's catalog (e.g. claude-opus-5-5).
+  if (provider === "anthropic") {
+    modelConfig.name = rest.join("/");
+    if (variant) modelConfig.variants = { [variant]: { thinking: { type: "adaptive", display: "summarized" }, effort: variant } };
+  }
   if (Object.keys(modelConfig).length) config.provider = { [provider]: { models: { [rest.join("/")]: modelConfig } } };
+  if (provider === "anthropic" && anthropicWorkspace) {
+    config.provider ??= { anthropic: { models: {} } };
+    config.provider.anthropic.options = { headers: { "anthropic-workspace-id": anthropicWorkspace } };
+  }
   const configPath = join(root, "opencode.json");
   await writeFile(configPath, JSON.stringify(config, null, 2), { mode: 0o600 });
   // Private HOME: no personal OpenCode config, sessions, AGENTS.md or ~/.claude skills. Provider packages are cached.
@@ -70,7 +95,7 @@ export async function preparePlayer({ root, token, server = serverUrl(), key, mo
     XDG_CACHE_HOME: join(homedir(), ".cache", "castellan", "opencode"),
     OPENCODE_CONFIG: configPath, OPENCODE_PURE: "1", OPENCODE_DISABLE_PROJECT_CONFIG: "1", OPENCODE_DISABLE_CLAUDE_CODE: "1",
     OPENCODE_DISABLE_EXTERNAL_SKILLS: "1", OPENCODE_DISABLE_AUTOUPDATE: "1", OPENCODE_DISABLE_SHARE: "1", OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
-    ...(provider === "deepseek" ? { DEEPSEEK_API_KEY: key ?? "" } : { OPENROUTER_API_KEY: key ?? "" }),
+    ...(provider === "deepseek" ? { DEEPSEEK_API_KEY: key ?? "" } : provider === "anthropic" ? { ANTHROPIC_API_KEY: key ?? "" } : { OPENROUTER_API_KEY: key ?? "" }),
   });
   const metadata = { harness: "opencode", model, variant: variant ?? null, workspace, home };
   await writeFile(join(root, "run.json"), JSON.stringify(metadata, null, 2), { mode: 0o600 });
@@ -122,15 +147,17 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   minIntervalMs = MIN_INTERVAL_MS, pollMs = 2000 } = {}) {
   const opts = options(args);
   if (!env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN (see castellan new or castellan run-series)");
-  // deepseek/<model> goes straight to DeepSeek's API with the DeepSeek player's key; everything else through OpenRouter.
-  const direct = opts.model.startsWith("deepseek/");
-  const key = direct ? await loadDeepSeekKey(env) : await loadKey(env);
-  if (!key) throw new Error(direct ? "set DEEPSEEK_API_KEY or run node connectors/loop-keepers/deepseek/key.mjs"
+  // deepseek/<model> and anthropic/<model> go straight to their APIs; everything else through OpenRouter.
+  const provider = opts.model.split("/")[0];
+  const anthropic = provider === "anthropic" ? await loadAnthropic(env) : null;
+  const key = anthropic ? anthropic.key : provider === "deepseek" ? await loadDeepSeekKey(env) : await loadKey(env);
+  if (!key) throw new Error(anthropic ? "set ANTHROPIC_API_KEY or save it in ~/.config/castellan/anthropic-api-key (mode 600)"
+    : provider === "deepseek" ? "set DEEPSEEK_API_KEY or run node connectors/loop-keepers/deepseek/key.mjs"
     : "set OPENROUTER_API_KEY, save it in ~/.config/castellan/openrouter-api-key, or log in with `opencode auth login`");
   const runs = join(homedir(), ".local", "state", "castellan", "opencode");
   await mkdir(runs, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(join(runs, "run-"));
-  const player = await preparePlayer({ root, token: env.CASTELLAN_TOKEN, server: serverUrl(env.CASTELLAN_SERVER), key, ...opts, env });
+  const player = await preparePlayer({ root, token: env.CASTELLAN_TOKEN, server: serverUrl(env.CASTELLAN_SERVER), key, workspace: anthropic?.workspace, ...opts, env });
   const base = promptOf(env);
   // Optional experiment instruction for this player only; kept across relaunches.
   if (env.CASTELLAN_DIRECTIVE) {

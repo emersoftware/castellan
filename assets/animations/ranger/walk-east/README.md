@@ -1,9 +1,12 @@
 # Arquero: primera prueba de caminata hacia la derecha
 
-Generado el 2026-09-28 con la API pública de
+Este ciclo es una primera prueba visual. Aún no está en el juego y
+el cierre puede requerir ajuste. Solo cubre la dirección este.
+
+Lo generamos el 2026-09-28 con la API pública de
 [MiniMax-H3-Turbo-Lora](https://huggingface.co/spaces/MiniMaxAI/MiniMax-H3-Turbo-Lora).
-La conexión funcionó sin token. El Space informa `mcp_server: false`; se usó
-`gradio_client` desde CLI.
+Funcionó sin token. El Space informa `mcp_server: false`, así que
+usamos `gradio_client` desde CLI.
 
 - `reference.png`: recorte del arquero de perfil de `assets/raw/ranger_sheet.png`.
 - `generated.mp4`: resultado original, 544 × 544, 56 fotogramas a 24 fps.
@@ -14,12 +17,12 @@ La conexión funcionó sin token. El Space informa `mcp_server: false`; se usó
 - `frames/`: fotogramas extraídos y versiones procesadas.
 - `request.json`, `result.json`, `generate.py`: parámetros, reporte y ejecución.
 
-Se eligieron los fotogramas 8 a 34 inclusive, cada dos fotogramas, para quitar
-las pausas. Se eliminó el fondo magenta y se estabilizó el personaje usando el
-centro horizontal de la capucha y la altura inferior de los pies. La versión
-del spritesheet está en escala de grises. Este ciclo es una primera prueba
-visual: el cierre puede requerir ajuste, y todavía no se ha integrado al juego.
-Solo cubre la dirección este.
+Proceso:
+
+1. Elegimos los fotogramas 8 a 34 inclusive, 1 de cada 2, para quitar las pausas.
+2. Quitamos el fondo magenta.
+3. Estabilizamos al personaje con el centro horizontal de la capucha y la altura inferior de los pies.
+4. Dejamos el spritesheet en grises.
 
 Para volver a generar (usa cuota de Hugging Face):
 
@@ -27,4 +30,4 @@ Para volver a generar (usa cuota de Hugging Face):
 uv run --with gradio_client python assets/animations/ranger/walk-east/generate.py
 ```
 
-Puede recibir `HF_TOKEN` desde el entorno. No guarda credenciales.
+El script puede leer `HF_TOKEN` del entorno. No guarda credenciales.

@@ -1,47 +1,47 @@
 # CASTELLAN — Game Design Document
 
-> **Historical design draft.** This document records the original design, including abandoned rules (instant production, no fog, score victory). It is not the current game contract. See [the generated current rules](CURRENT-RULES.md), or GET /rules for the exact room/map/tick rate. Regenerate with `pnpm docs:rules`.
+> **Historical design draft.** For the current game, read [the generated current rules](CURRENT-RULES.md), or GET /rules for the exact room/map/tick rate. Regenerate with `pnpm docs:rules`. This document records the original design, including dropped rules: instant production, no fog, score victory.
 
 Working title, after Age of Empires.
 
-> Real-time RTS played by LLM agents (Claude Code, Codex, OpenClaw…) through an open HTTP API (any connector: MCP, CLI, custom). Agents run in a loop; thinking speed matters as much as strategy.
+> Real-time RTS that LLM agents (Claude Code, Codex, OpenClaw…) play through an open HTTP API (any connector: MCP, CLI, custom). Agents run in a loop, so thinking speed matters as much as strategy.
 
 ## Core
-- Server simulates at a fixed tick rate, whether agents respond or not. Slow agent = lost tempo.
+- The server simulates at a fixed tick rate, whether agents respond or not. Slow agent = lost tempo.
 - Combat units run **bot scripts** (RoboCode-style) written by the agent. The agent plays by economy, orders and code.
 - Each player has an **Agent** unit on the map: its body. The Agent dies → you lose.
 
 ## Time
 - `TICK_RATE = 10` (1 tick = 100 ms). It sets resolution, not balance.
 - The ruleset uses ms; the engine converts them to integer ticks. No floats in game state.
-- **No build or training time**: placing/training is instant, it only costs mineral. (LLM latency already is the "time".)
-- Match limit `MAX_TICKS = 6000` (10 min).
+- **No build or training time**: placing/training is instant and only costs mineral. LLM latency already is the "time".
+- Match limit: `MAX_TICKS = 6000` (10 min).
 
 ## Map
-- Square grid, **8 directions**, 32×32 for 1v1, 44×44 for four players. Distance = **Chebyshev** `max(|dx|,|dy|)` for movement, range and vision.
-- Maps are data (`packages/shared/src/maps.ts`), chosen when the room is created: **open** (flat), **ridge** (a rock ridge with three passes), **canyons** (two long walls, three lanes), and for 2v2 **quad** (44×44, one base per corner). Rock (`^`) is impassable and unbuildable.
-- A map has 2 seats (symmetric under a 180° rotation) or 4 (square, symmetric under 90° rotations). **Which corner each player gets is random** by default (seeded, so replays know it); `sides: "fixed"` uses list order (seat 0 top).
+- Square grid with **8 directions**: 32×32 for 1v1, 44×44 for 4 players. Movement, range and vision use **Chebyshev** distance: `max(|dx|,|dy|)`.
+- Maps are data (`packages/shared/src/maps.ts`), chosen at room creation: **open** (flat), **ridge** (a rock ridge with 3 passes), **canyons** (2 long walls, 3 lanes), and for 2v2 **quad** (44×44, one base per corner). Rock (`^`) blocks movement and building.
+- A map has 2 seats (symmetric under a 180° rotation) or 4 (square, symmetric under 90° rotations). By default **each player gets a random corner**, seeded so replays know it. `sides: "fixed"` uses list order (seat 0 top).
 
 ## Teams (2v2)
-- 4-seat maps are played 2v2: teams default to the first two players against the last two, or set `team` 0/1 per player. Corners are shuffled, so allies may be neighbours or opposite.
-- Allies can't attack each other, can't order each other's units, and don't block each other's building (the exclusion only counts enemy buildings). Agents see allies in `allies`, marked `+` (unit) and `=` (building) on the map; scripts see them with `ally: true`, and they are not enemies.
-- A player whose vital entity dies is **out**: all its entities disappear and it can send nothing; its ally plays on. A team wins when every enemy is out. Timeout: the higher team total wins.
-- Chat, if on, reaches all four players.
+- 4-seat maps play as 2v2. Teams default to the first 2 players against the last 2, or set `team` 0/1 per player. Corners are shuffled, so allies may be neighbours or opposite.
+- Allies can't attack or order each other's units, and don't block each other's building (the exclusion only counts enemy buildings). Agents see allies in `allies`, marked `+` (unit) and `=` (building) on the map. Scripts see them with `ally: true`, and they are not enemies.
+- A player whose vital entity dies is **out**: its entities disappear and it can send nothing. Its ally plays on. A team wins when every enemy is out. On timeout, the higher team total wins.
+- Chat, if on, reaches all 4 players.
 - No fog in MVP (agents see everything). Scripts only perceive within their unit's vision.
 
 ## Win
 - One rule: you lose when any of your **vital** entities dies (Agent, Nexus). There is no special code for each.
 - Both lose in the same tick → draw. Teams: last team standing (see Teams).
-- Timeout → higher score (team total in 2v2); equal → draw.
+- Timeout → higher score wins (team total in 2v2); equal → draw.
 - `score = units×10 + buildings×25 + mineral + kills×15 + buildings_destroyed×30`
 
 ## Economy
 Single resource: **mineral**.
-- Start: Nexus + Agent + 3 Workers, 200 mineral. Pop cap 30.
-- Deposits hold 500. A Worker must be adjacent, extracts 1 mineral / 200 ms, carries 10 and unloads next to the Nexus.
+- Start: Nexus, Agent, 3 Workers, 200 mineral. Pop cap 30.
+- Deposits hold 500. An adjacent Worker extracts 1 mineral / 200 ms, carries 10 and unloads next to the Nexus.
 
 ## Units
-Stats live in the ruleset (`balance.md`); v0 values below. Times in ms. Damage = `max(1, atk − def)`, and every attack in a tick resolves simultaneously.
+Stats live in the ruleset (`balance.md`). v0 values below, times in ms. Damage is `max(1, atk − def)`. All attacks in a tick resolve at the same time.
 
 | Unit | Role | Controlled by |
 |---|---|---|
@@ -66,20 +66,20 @@ Later, candidates: Explorer (fast scout, once there is fog).
 | Tower | 150 | 5 | 200 | Static defense. ATK 15, range 5, 1000 ms/attack, vision 6. Scriptable (target choice). |
 | Wall | 300 | 10 | 50 | Blocks movement. Builds chokepoints and protects the Agent. |
 
-Training spawns on a free tile adjacent to the building; no free tile → command fails.
-No building within `buildExclusion` (8) tiles of an enemy building: with instant construction, a lone worker could otherwise plant towers that outrange the enemy Nexus (seen in the first LLM match).
+Training spawns on a free tile next to the building; no free tile → command fails.
+You can't build within `buildExclusion` (8) tiles of an enemy building. With instant construction, a lone worker could otherwise plant towers that outrange the enemy Nexus (seen in the first LLM match).
 
 ## Behavior priority
 Each unit acts from, in order: **player order → type script → default**.
 - Orders: `move` (until arrival/unreachable), `attack` (chase until target dies/unreachable), `gather` (persistent loop), `build` (walk adjacent, place, end), `stop` (clear order).
 - When an order ends, the unit returns to its script or default.
-- Defaults: Worker gathers, Agent holds. Knights, Towers and the Nexus start with a built-in script (attack in range, else hold). It is written in the public API, so the agent can read it with `script(type)` and use it as an example.
-- Pathfinding: A* on the 8-connected grid, no corner-cutting past blocked tiles.
+- Defaults: Worker gathers, Agent holds. Knights, Towers and the Nexus start with a built-in script: attack in range, else hold. It is written in the public API, so the agent can read it with `script(type)` and use it as an example.
+- Pathfinding: A* on the 8-connected grid. No corner-cutting past blocked tiles.
 
 ## Bot scripts
-- Language: **JavaScript or TypeScript** (TS is type-stripped on the server). One script per unit type (MVP); per unit (Golden).
+- Language: **JavaScript or TypeScript** (the server strips TS types). 1 script per unit type (MVP); per unit (Golden).
 - Runs once per unit per tick, in a QuickJS-WASM sandbox. See `components/sandbox.md`.
-- The script body is executed each tick with `self`. The first action it calls counts; none = hold.
+- Each tick runs the script body with `self`. The first action it calls counts; none = hold.
 
 ```js
 const e = self.nearestEnemy();
@@ -90,18 +90,18 @@ else self.moveTo(e.x, e.y);
 
 API (`self`): `id type x y hp maxHp atk def range vision tick memory` · `nearbyEnemies() nearbyAllies() nearestEnemy() nearestAlly() enemiesInRange() distanceTo(u) distanceToPos(x,y) enemyBase() myBase() random() log(msg)` · actions `move(dir) moveTo(x,y) attack(u) flee(u) hold()`. Units seen: `{id,type,owner,mine,x,y,hp,maxHp,isBuilding}`. `attack` on a target out of range walks toward it.
 
-The full player-facing rules are generated from the ruleset by `playerGuide()` (`packages/shared/src/guide.ts`) and served at `GET /guide`.
+`playerGuide()` (`packages/shared/src/guide.ts`) generates the full player-facing rules from the ruleset. The server serves them at `GET /guide`.
 
 ## Agent interface
-The product is the HTTP API (`architecture.md`). Anyone can build their connector; we ship two reference ones (CLI and MCP).
-- `act([...])`: many orders per call. One LLM round-trip, many actions; this is the speed lever.
+The product is the HTTP API (`architecture.md`). Anyone can build their connector; we ship 2 reference ones (CLI and MCP).
+- `act([...])` sends many orders per call: 1 LLM round-trip, many actions. This is the speed lever.
 - Every response returns the result + the state of the tick it was applied.
-- `wait` sleeps ≤30 s or until an event, without burning tokens.
-- Optional **chat** (room flag): players can talk, bluff or taunt; messages cost time like any call.
+- `wait` sleeps ≤30 s or until an event, without spending tokens.
+- Optional **chat** (a room flag): players can talk, bluff or taunt. Messages cost time like any call.
 
 State (per player): tick, ASCII grid, my stats, enemy stats, my/enemy units and buildings (ids, positions, hp, order), mineral deposits, script errors, events since `since`.
 
-ASCII: `·` empty, `$` deposit, `^` rock, uppercase = mine, lowercase = enemy: `A` agent, `W` worker, `K` knight, `R` archer, `N` nexus, `T` tower, `#` wall (enemy wall `%`). In 2v2 allied entities are `+` (unit) and `=` (building).
+ASCII: `·` empty, `$` deposit, `^` rock. Uppercase is mine, lowercase is enemy: `A` agent, `W` worker, `K` knight, `R` archer, `N` nexus, `T` tower, `#` wall (enemy wall `%`). In 2v2, allied entities are `+` (unit) and `=` (building).
 
 ## MVP
 In: 32×32 no fog · 3 maps, random corners · Agent, Worker, Knight, Archer · Nexus, Tower, Wall · mineral · JS/TS scripts per type · A* · HTTP API + reference CLI and MCP · 1v1 and 2v2 · vital rule + timeout · web spectator with shapes · replay.

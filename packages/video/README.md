@@ -1,7 +1,7 @@
 # Replay videos
 
 Remotion compositions reuse the game's HUD, colors and recorded battlefield.
-`Promo` is a vertical reel; `Highlights` selects moments from one replay.
+`Promo` is a vertical reel. `Highlights` picks moments from 1 replay.
 
 From the repository root:
 
@@ -14,23 +14,28 @@ pnpm --filter video dev
 ## Local media
 
 Recorded clips, timelines, sound mixes and final renders stay outside Git.
-The compositions require those inputs before previewing or rendering.
+The compositions need them to preview or render.
 
-For `Promo`, keep the original replays in `replays/<id>.json.gz`, load them in the
-local server, and run `pnpm server` and `pnpm web`. Then:
+To prepare `Promo`:
+
+1. Load the original replays from `replays/<id>.json.gz` in the local server.
+2. Run `pnpm server` and `pnpm web`.
+3. Run:
 
 ```sh
 bash packages/video/scripts/prepare-promo.sh
 ```
 
-The script recreates the existing five shots sequentially, generates timelines,
-mixes their sound effects and copies the accompaniment. It requires Chrome at
-the recorder's configured macOS path, FFmpeg and FFprobe. Set `CASTELLAN_VIDEO_SERVER`
+The script recreates the existing 5 shots one by one and generates timelines.
+It mixes their sound effects and copies the accompaniment. It needs FFmpeg, FFprobe
+and Chrome at the recorder's configured macOS path. Set `CASTELLAN_VIDEO_SERVER`
 to use a web URL other than `http://localhost:5173`.
 
-For `Highlights`, generate `public/<id>.json` with
-`packages/sim/src/video-timeline.mts` and record `public/<id>.mp4` at 2× with
-`packages/web/scripts/record.mjs`. Pass that replay ID to the composition.
+To prepare `Highlights`:
+
+1. Generate `public/<id>.json` with `packages/sim/src/video-timeline.mts`.
+2. Record `public/<id>.mp4` at 2× with `packages/web/scripts/record.mjs`.
+3. Pass that replay ID to the composition.
 
 ## Export
 
@@ -43,15 +48,15 @@ node packages/video/scripts/dither.mjs packages/video/out/promo.mp4 packages/vid
 
 ## Horizontal post video
 
-`PromoHorizontal` uses the approved v7 moments and music in native 1920×1080,
-with the current hero's white outlined lettering. It keeps the player's opening
-perspective, subtle speed indicator, and game-style unit/map dissolves.
-The charge holds for an extra musical bar so the king's fall remains visible;
-the landscape version is 47.13 seconds at 30 fps.
-Each shot is also available under `Horizontal-scenes` in Studio.
+`PromoHorizontal` uses the approved v7 moments and music in native 1920×1080.
+Lettering is the current hero's white outline. It keeps the player's opening
+perspective, the subtle speed indicator and game-style unit/map dissolves.
+The charge holds 1 extra musical bar so the king's fall stays visible.
+The landscape version runs 47.13 seconds at 30 fps.
+Studio also shows each shot under `Horizontal-scenes`.
 
-With the same five original replays loaded in the local server and the web
-running, prepare the landscape footage and mix the current game sound samples:
+With the same 5 replays loaded and the web running,
+prepare the landscape footage and mix the current game sound samples:
 
 ```sh
 bash packages/video/scripts/prepare-horizontal.sh
@@ -60,5 +65,5 @@ node packages/video/scripts/dither.mjs packages/video/out/horizontal-raw.mp4 pac
 ffmpeg -i packages/video/out/horizontal-dithered.mp4 -c:v copy -af loudnorm=I=-14:TP=-1.5:LRA=11 -ar 48000 -c:a aac -b:a 192k -movflags +faststart videos/castellan-promo-horizontal.mp4
 ```
 
-`--ending-cues` in the sound mixer adds the current king/end samples at a lower
-gain. Existing vertical exports retain their original sound-mix defaults.
+`--ending-cues` makes the sound mixer add the current king/end samples at a lower
+gain. Existing vertical exports keep their original sound-mix defaults.

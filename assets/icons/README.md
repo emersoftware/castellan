@@ -1,7 +1,7 @@
 # King head icon
 
-Generated with the built-in image generation tool on 2026-09-29, using
-`assets/raw/king_sheet.png` as the character reference.
+Candidate asset, not installed as the site's favicon. Made with the built-in image
+generation tool on 2026-09-29, with `assets/raw/king_sheet.png` as character reference.
 
 Prompt:
 
@@ -11,15 +11,14 @@ Prompt:
 - Icon: `king-head-dithered.png`, 256 x 256 with transparent background.
 - Preview: `king-head-preview.png`, enlarged 3x with nearest-neighbor sampling on black.
 
-Regenerate with `node --import tsx assets/icons/render-king-icon.mts`.
-The script imports the game's actual contrast normalization, Bayer 4x4
-three-tone dithering, and team A palette, with the portrait renderer's 1.1 lift.
-This is a candidate asset; it is not installed as the site's favicon.
+To regenerate, run `node --import tsx assets/icons/render-king-icon.mts`.
+The script imports the game's actual contrast normalization, Bayer 4x4 3-tone
+dithering and team A palette, plus the portrait renderer's 1.1 lift.
 
 ## Fire variant
 
-`../raw/king-head-fire.png` is an undithered edit made with the built-in image
-generation tool, using `../raw/king-head-icon.png` as the edit target.
+`../raw/king-head-fire.png`: undithered edit of `../raw/king-head-icon.png` with the
+built-in image generation tool.
 
 Prompt:
 
@@ -27,8 +26,8 @@ Prompt:
 
 ## Corrected fire variant: inside the hood
 
-`../raw/king-head-inner-fire.png` was edited with the built-in image generation
-tool from the original `../raw/king-head-icon.png`, without dithering.
+`../raw/king-head-inner-fire.png`: undithered edit of the original
+`../raw/king-head-icon.png` with the built-in image generation tool.
 
 Prompt:
 
@@ -36,8 +35,8 @@ Prompt:
 
 ## Stronger inner fire
 
-`../raw/king-head-inner-fire-v2.png`: built-in ImageGen edit of
-`../raw/king-head-inner-fire.png`, without dithering.
+`../raw/king-head-inner-fire-v2.png`: undithered edit of
+`../raw/king-head-inner-fire.png` with the built-in ImageGen tool.
 
 Prompt:
 

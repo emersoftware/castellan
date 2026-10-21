@@ -3,30 +3,38 @@
 For one-shot destruction of Castle, Turret, walls and gates, see
 [collapse/README.md](collapse/README.md).
 
-Castle damage uses exactly two approved images: mild (`25`) and intermediate
-(`50` visual destruction); the severe ruin was rejected. Masonry is fixed,
-flames are independent HF loops, and fire ignites at 50% remaining HP.
-The intermediate material appears at 25% remaining HP. Source pixel bounds
-map four/five fire sites into sprite-local coordinates in
-`castle/damage-stages/fire-pixels.json`. Collapse frames also map moving fires.
-Native particles use the same simulation clock and dedicated three-tone white/gray
-fire ramp through the game's ordered-dither shader. The orange source fires are
-exported as grayscale heat, keeping the game's monochrome visual language.
-Healing, fog and replay seeking
-clear overlays; pause freezes flames, sparks and the fall.
+## Castle damage
 
-The replacement Castle falls break the upper masonry first, then tip walls
-inward. An imagegen last-frame reference gives Age of Empires inspired low ruins,
-short broken perimeter walls and loose courtyard masonry inside the foundation;
-no whole-building scaling or outward-spreading slabs are used. Healthy Castle
-has a matching generated fall too. HF settings: `larry`, 544 × 544, two seconds,
-10 steps/seed 93 for falls and 6 steps/seed 42 for fire loops. First and last
-frames guide every clip. Requests and reviewed source references are retained.
+Castle damage uses exactly 2 approved images: mild (`25`) and intermediate
+(`50` visual destruction). The severe ruin was rejected.
 
-The full collapse plays at the original ground position. The final frame holds
-for 1.5 seconds, then fades in place over three seconds using the same linear
-alpha curve as dead units. There is no runtime descent or ground clipping.
-Pause, speed and seek affect the fall and final fade together.
+- Fire ignites at 50% remaining HP.
+- The intermediate material appears at 25% remaining HP.
+- Masonry is fixed. Flames are independent HF loops.
+- `castle/damage-stages/fire-pixels.json` maps 4/5 fire sites from source pixel
+  bounds to sprite-local coordinates. Collapse frames also map moving fires.
+- Native particles use the simulation clock and a 3-tone white/gray fire ramp
+  through the game's ordered-dither shader.
+- Orange source fires export as grayscale heat, to keep the game monochrome.
+- Healing, fog and replay seeking clear overlays. Pause freezes flames, sparks
+  and the fall.
+
+## Castle falls
+
+Castle falls break the upper masonry first, then tip walls inward. An imagegen
+last-frame reference gives Age of Empires inspired low ruins: short broken
+perimeter walls and loose courtyard masonry inside the foundation. No
+whole-building scaling or outward-spreading slabs. The healthy Castle has a
+matching generated fall too.
+
+HF settings: `larry`, 544 × 544, 2 seconds. Falls use 10 steps and seed 93.
+Fire loops use 6 steps and seed 42. First and last frames guide every clip.
+Requests and reviewed source references are kept.
+
+The collapse plays at the original ground position. The final frame holds for
+1.5 seconds, then fades in place over 3 seconds with the linear alpha curve of
+dead units. No runtime descent or ground clipping. Pause, speed and seek affect
+fall and fade together.
 
 ```sh
 node packages/web/scripts/castle-damage.mjs --prepare
@@ -35,12 +43,16 @@ node packages/web/scripts/castle-damage.mjs
 node packages/web/scripts/check-castle-damage.mjs --record
 ```
 
-Prepared references are preserved on reruns. The in-game review video is
+Reruns keep the prepared references. The in-game review video is
 `castle/damage-stages/review/in-game-fire-and-inward-collapse.mp4`.
 
-Castle and Tower source art was generated with the built-in `image_gen` tool, using the previous `public/sprites/castle.png` and `tower.png` as edit references. Source PNGs retain transparency in `castle/source.png` and `turret/source.png`.
+## Source art
 
-## Source prompts
+The built-in `image_gen` tool made the Castle and Tower source art, with the
+previous `public/sprites/castle.png` and `tower.png` as edit references. Source
+PNGs keep transparency in `castle/source.png` and `turret/source.png`.
+
+### Source prompts
 
 Castle:
 
@@ -52,15 +64,30 @@ Tower:
 
 ## Flag loops
 
-The same MiniMax H3 Turbo LoRA pipeline as the characters: `larry`, 544 × 544, two seconds, four steps, seed 42, identical first/last reference. The private worker timed out while loading metadata; the public Space completed both clips. Each folder preserves the request, magenta reference, generated video and contact sheet. No token is stored here.
+Same MiniMax H3 Turbo LoRA pipeline as the characters: `larry`, 544 × 544,
+2 seconds, 4 steps, seed 42, identical first/last reference. The private worker
+timed out loading metadata; the public Space completed both clips. Each folder
+keeps the request, magenta reference, generated video and contact sheet. No
+token is stored here.
 
 ```sh
 uv run --with gradio_client==2.7.1 python assets/animations/generate-buildings.py
 node packages/web/scripts/building-animations.mjs
 ```
 
-The exporter takes only cloth pixels above the roof from the video. Masonry and mast remain the fixed reference, so generative camera/building drift cannot leak into the game. It removes magenta, exports 28 frames at 12 fps and preserves a common ground anchor for sprite/depth/x-ray passes. Runtime uses simulation time, including pause and replay speed. Both building kinds have one isometric view, with no directional mirroring.
+The exporter takes only cloth pixels above the roof from the video. Masonry and
+mast stay the fixed reference, so generator camera/building drift cannot leak
+into the game. It removes magenta, exports 28 frames at 12 fps and keeps a common
+ground anchor for sprite/depth/x-ray passes.
 
-Published assets: `packages/web/public/sprites/{castle,turret}/` plus static fallbacks `castle.png` and `tower.png`. Landing portraits use the same atlas with all four player ramps. The Worker also uses its directional idle atlas.
+Runtime uses simulation time, including pause and replay speed. Both building
+kinds have 1 isometric view, with no directional mirroring.
 
-Validation: building asset tests check transparent borders, moving cloth and unchanged masonry; browser QA checks the landing and a real replay. `node packages/web/scripts/check-landing-audio.mjs` requires the local web/server processes.
+Published assets: `packages/web/public/sprites/{castle,turret}/` plus static
+fallbacks `castle.png` and `tower.png`. Landing portraits use the same atlas with
+all 4 player ramps. The Worker also uses its directional idle atlas.
+
+Building asset tests check transparent borders, moving cloth and unchanged
+masonry. Browser QA checks the landing and a real replay.
+`node packages/web/scripts/check-landing-audio.mjs` needs local web/server
+processes.

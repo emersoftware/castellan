@@ -1,10 +1,13 @@
 # Castellan Bot — evidence
 
-All matches below were played by the player in `connectors/castellan-bot` with its own token only.
+The player in `connectors/castellan-bot` played all matches below, with its own token only.
+
 Real-time rooms ran on the local server (`http://localhost:4400`, rules `v21d-no-unlocks`,
-10 ticks/s); each has a public replay at `http://localhost:5173/replay/<room>` once finished and
-a journal + summary under `evidence/<name>/`. Headless benchmarks run the same core against the
-reference bots through the engine (no server, no real time; `pnpm --filter @castellan/castellan-bot bench`).
+10 ticks/s). Each finished room has a public replay at `http://localhost:5173/replay/<room>` and
+a journal + summary under `evidence/<name>/`.
+
+Headless benchmarks run the same core against the reference bots through the engine. They use no
+server and no real time (`pnpm --filter @castellan/castellan-bot bench`).
 
 ## Real-time rooms
 
@@ -18,18 +21,18 @@ reference bots through the engine (no server, no real time; `pnpm --filter @cast
 | C1-quad-teams | quad | castellan+castellan vs eco+rush | loss (both kings) | 3:41 | /replay/afdfa1a8 | eco and rush both struck the same ally; team messages (plans, attack, help) exchanged, but no combined defence in time |
 | C2-quad-ffa | quad | 4 castellans | draw (4 kings alive) | 15:00 | /replay/bfe2f5b5 | truces proposed and accepted by private chat at 0:06–0:14, 6–7 messages per player; after minute 5 three attacks on (39,4), truces marked broken, endgame `hold` |
 
-The server measured every player the same way (`timing` in the room summary): the loop kept
+The server measured every player the same way (`timing` in the room summary). The loop kept
 observation age at 0–1 ticks, with at most 38 ms of thinking per cycle.
 
-Two more rooms of the same evening (`/replay/0144fa37`, a win against eco at 9:33, and
-`/replay/ec322e99`, a draw against turtle) were played by an earlier build that could hand a few
-strategic choices to a model; that feature was removed afterwards at the user's request, so they
-are not evidence for the delivered player.
+2 more rooms from the same evening do not count as evidence for the delivered player:
+`/replay/0144fa37` (a win against eco at 9:33) and `/replay/ec322e99` (a draw against turtle). An
+earlier build played them, and that build could hand a few strategic choices to a model. That
+feature was removed afterwards at the user's request.
 
 ## Headless benchmarks (engine, one decision per second, final code)
 
-Seed 100, castellan on seat 0. The bots are deterministic, so one game per pairing is
-representative; `pnpm --filter @castellan/castellan-bot bench --n 2` flips sides.
+Seed 100, castellan on seat 0. The bots are deterministic, so 1 game per pairing is
+representative. `pnpm --filter @castellan/castellan-bot bench --n 2` flips sides.
 
 | map | opponent | result | time | what happened |
 |---|---|---|---|---|
@@ -43,5 +46,5 @@ representative; `pnpm --filter @castellan/castellan-bot bench --n 2` flips sides
 | quad ffa | 4 castellans | draw | 10:00 | every truce agreed by chat; three players expand and build keeps; one is overrun once truces expire |
 | quad teams | 2 castellans vs eco+rush | loss | ~4:00 | both allies attacked the same corner at 1:43; team messages exchanged |
 
-Earlier versions of the same evening were measured in the same way; the numbers above are from the
-code as delivered. Logs of the bench runs: `/tmp/castellan-bench-*.txt` on the machine that ran them.
+Earlier versions that evening were measured the same way. The numbers above come from the
+code as delivered. The bench logs are in `/tmp/castellan-bench-*.txt` on the machine that ran them.

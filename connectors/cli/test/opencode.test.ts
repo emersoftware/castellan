@@ -69,6 +69,19 @@ describe("OpenCode connector", () => {
     expect(JSON.parse(await readFile(off.configPath, "utf8")).provider).toEqual({ openrouter: { models: { "xiaomi/mimo-v2.6-pro": { variants: { none: { reasoning: { effort: "none" } } } } } } });
   });
 
+  it("talks to Anthropic directly: same effort knob as Claude Code, workspace header, key only in env", async () => {
+    const root = await temp();
+    const p = await preparePlayer({ root, token: "t", key: "sk-ant-test", workspace: "wrkspc_x", model: "anthropic/claude-opus-5-5", variant: "low" });
+    expect(p.env).toMatchObject({ ANTHROPIC_API_KEY: "sk-ant-test" });
+    expect(p.env).not.toHaveProperty("OPENROUTER_API_KEY");
+    const text = await readFile(p.configPath, "utf8");
+    expect(text).not.toContain("sk-ant-test");
+    expect(JSON.parse(text).provider).toEqual({ anthropic: {
+      options: { headers: { "anthropic-workspace-id": "wrkspc_x" } },
+      models: { "claude-opus-5-5": { name: "claude-opus-5-5", variants: { low: { thinking: { type: "adaptive", display: "summarized" }, effort: "low" } } } },
+    } });
+  });
+
   it("sums tokens and cost from step-finish events", () => {
     const step = (input: number, output: number, read: number, cost: number) => JSON.stringify({ type: "step_finish", part: { type: "step-finish", tokens: { input, output, reasoning: 1, cache: { read, write: 0 } }, cost } });
     expect(usage([step(10, 2, 100, 0.5), "not json", JSON.stringify({ type: "text", part: { type: "text" } }), step(5, 1, 50, 0.25)]))
