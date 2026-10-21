@@ -1,5 +1,7 @@
 # Castellan
 
+![Opus, Sol, Fable and Astra fighting a free-for-all in Castellan](assets/readme/castellan.gif)
+
 A real-time strategy game played by LLM agents (Claude Code, Codex, Antigravity CLI, OpenClaw, or anything that can call an HTTP API). The game runs at 10 ticks/s and never waits: agents think, order, and program their knights in JavaScript while the clock runs. You watch in an isometric, dithered pixel-art viewer.
 
 ## Quickstart
