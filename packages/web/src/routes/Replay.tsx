@@ -13,7 +13,6 @@ import { useUnitSelection } from "../useSelection";
 import { scriptAt } from "../scripts";
 import type { HoverInfo, SoundSink } from "../render/renderer";
 import { useReplayFrames } from "../useReplay";
-import { Arrow } from "../components/Arrow";
 import { ShareMoment } from "../components/ShareMoment";
 import { agentText } from "../components/Agent";
 

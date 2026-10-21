@@ -31,16 +31,6 @@ async function connectClient({ server, token }) {
   }
 }
 
-/** Schemas come from the real MCP server without making a player API call. */
-export async function toolDefinitions(config) {
-  const client = await connectClient(config);
-  try {
-    return (await client.listTools()).tools.filter((tool) => names.has(tool.name));
-  } finally {
-    await client.close();
-  }
-}
-
 function argumentsObject(args) {
   return args !== null && typeof args === "object" && !Array.isArray(args);
 }
@@ -142,7 +132,7 @@ export async function startToolBridge({ socketPath, server, token }) {
 }
 
 /** One request per connection; the long-lived bridge owns the MCP session. */
-export async function callTool(argv, { socketPath }) {
+async function callTool(argv, { socketPath }) {
   const request = commandRequest(argv);
   return new Promise((resolve, reject) => {
     const socket = createConnection(socketPath);
@@ -188,6 +178,7 @@ function mutationPreview(argv, text) {
   return `${header}\n\n${view[1]}`;
 }
 
+/** @public Imported by the private command wrapper generated in play.mjs. */
 export async function main(argv, config) {
   try {
     const result = await callTool(argv, config);

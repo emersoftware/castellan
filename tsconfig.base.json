@@ -11,6 +11,8 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
     "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
-    "types": ["node"]
+    "types": ["node"],
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
   }
 }

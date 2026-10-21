@@ -73,7 +73,7 @@ export function fighterLoss(side: Side | undefined): number {
 }
 
 /** A king counts like an expensive building: losing it ends the game. */
-export const KING_VALUE = 600;
+const KING_VALUE = 600;
 /** Damage only counts against these. In army strength a castle counts as one tower: most of its cost is economy. */
 const TARGETS: EntityKind[] = ["knight", "archer", "tower", "castle"];
 const armyValue = (r: Ruleset, kind: EntityKind) => (kind === "castle" ? mineralValue(r, "tower") : TARGETS.includes(kind) ? mineralValue(r, kind) : 0);

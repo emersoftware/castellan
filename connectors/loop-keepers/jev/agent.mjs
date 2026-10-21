@@ -16,14 +16,14 @@ import { launchConfiguration, reportActivity, reportConfiguration } from "../met
 import { seat, seatOver, serverUrl } from "../game.mjs";
 import { loadKey } from "../opencode/agent.mjs";
 
-export const DEFAULT_JEV = "typesafe/jev-1.14";
-export const DEFAULT_PLANNER = "~deepseek/deepseek-flash-latest";
+const DEFAULT_JEV = "typesafe/jev-1.14";
+const DEFAULT_PLANNER = "~deepseek/deepseek-flash-latest";
 const OPENROUTER = "https://openrouter.ai/api";
 const ARMY = ["knight", "archer"];
 const SCRIPTABLE = ["worker", "knight", "archer", "tower", "castle", "king"];
 const REPLAN_MS = 20_000, FAILED_MS = 10_000;
 
-export function options(args) {
+function options(args) {
   const { values } = parseArgs({ args, options: {
     jev: { type: "string", default: DEFAULT_JEV },
     planner: { type: "string", default: DEFAULT_PLANNER },
@@ -39,7 +39,7 @@ const nearest = (list, p) => list.reduce((a, b) => (dist(b, p) < dist(a, p) ? b 
 const tally = list => list.reduce((c, k) => ({ ...c, [k]: (c[k] ?? 0) + 1 }), /** @type {Record<string, number>} */ ({}));
 
 /** What the player owns, counted by code: alive, queued at castles, under construction, upgrade levels. */
-export function holdings(view) {
+function holdings(view) {
   const me = view.players.find(p => p.id === view.you);
   const alive = tally(view.mine.filter(e => !e.ruin).map(e => e.kind));
   const queued = tally(view.mine.flatMap(e => (e.training ?? []).map(t => t.kind)));
@@ -51,13 +51,13 @@ export function holdings(view) {
 }
 
 /** What the plan still asks for. */
-export function needs(view, plan) {
+function needs(view, plan) {
   const h = holdings(view);
   return Object.fromEntries(Object.entries(plan?.targets ?? {}).map(([k, want]) => /** @type {[string, number]} */ ([k, Math.max(0, Number(want) - h.total(k))])).filter(([, n]) => n > 0));
 }
 
 /** Free tiles near my castles, one per direction, plus a tile beside each deposit group far from them. */
-export function buildSites(view) {
+function buildSites(view) {
   const castles = view.mine.filter(e => e.kind === "castle");
   const anchor = castles.length ? castles : view.mine.filter(e => e.vital);
   const free = (x, y) => view.grid[y]?.[x] === "·" && view.visibility[y]?.[x] === "2";
@@ -179,7 +179,7 @@ export function jevClient({ key, model, fetchImpl = fetch }) {
 }
 
 /** The planner keeps one conversation per match (its last exchanges) and answers with a JSON plan. */
-export function plannerSession({ key, model, effort, rules, you, goal, fetchImpl = fetch }) {
+function plannerSession({ key, model, effort, rules, you, goal, fetchImpl = fetch }) {
   const system = { role: "system", content: `You are the planner for player ${you} in Castellan. ${goal}
 Another model chooses each order from bounded actions built from your plan: it trains or builds only toward your targets, attacks visible enemies, moves the army to your waypoint, sends idle workers to mine, and scouts.
 Reply with a JSON object: objective (string); targets (object: unit or building kind → total wanted, counting alive, queued and under construction; upgrade id → level); waypoint ({x,y} where the army goes when told, or null); notes (string); optionally message ({to: a player id or "all", text: at most 200 characters}); optionally scripts (object: unit kind → JavaScript function body, at most 4096 bytes, installed as that kind's per-tick script).
@@ -212,7 +212,7 @@ export function parsePlan(text) {
     scripts: plan.scripts && typeof plan.scripts === "object" ? Object.fromEntries(Object.entries(plan.scripts).filter(([k, c]) => SCRIPTABLE.includes(k) && typeof c === "string")) : {} };
 }
 
-export async function play({ env = process.env, args = process.argv.slice(2), fetchImpl = fetch } = {}) {
+async function play({ env = process.env, args = process.argv.slice(2), fetchImpl = fetch } = {}) {
   if (!env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN");
   const opts = options(args);
   const key = await loadKey(env);

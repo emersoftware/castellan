@@ -6,7 +6,7 @@ import { connectorVersion, launchConfiguration, reportConfiguration } from "../m
 import { promptOf } from "../turns.mjs";
 import { drivePlayer } from "./runtime.mjs";
 
-export async function play({ env = process.env, args = process.argv.slice(2), cwd = process.cwd(), ...runtime } = {}) {
+async function play({ env = process.env, args = process.argv.slice(2), cwd = process.cwd(), ...runtime } = {}) {
   if (!env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN");
   if (!env.CASTELLAN_AGY_PROJECT) throw new Error("Use antigravity/play.sh to prepare the player's project.");
   if (args.some(arg => /^(--conversation|--continue|--project|--new-project|--input-format|--print|--prompt|--prompt-interactive|-p|-i|-c)(=|$)/.test(arg))) {

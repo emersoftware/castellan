@@ -10,7 +10,7 @@ export const REEL_W = 540, REEL_H = 960;
  */
 export const SAFE = { top: 110, bottom: 200, side: 40 };
 /** Units come and go in the footage over this long; titles follow them. */
-export const FADE_S = 1;
+const FADE_S = 1;
 
 /** One game pixel of black around letters, so they read over the board. */
 const OUTLINE = "1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000";

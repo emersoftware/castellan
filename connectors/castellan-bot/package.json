@@ -6,9 +6,6 @@
   "bin": {
     "castellan-bot": "./bin/castellan-bot.mjs"
   },
-  "exports": {
-    ".": "./src/index.ts"
-  },
   "scripts": {
     "play": "tsx src/main.ts",
     "evidence": "tsx src/evidence.ts",

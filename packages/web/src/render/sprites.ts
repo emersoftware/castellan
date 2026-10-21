@@ -44,7 +44,7 @@ export interface SpriteArt {
 }
 
 /** The art to draw for a kind facing a screen direction, and whether to mirror it. */
-export interface Facing {
+interface Facing {
   art: SpriteArt;
   flip: boolean;
 }

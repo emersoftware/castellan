@@ -2,9 +2,12 @@
 // at execution as well as filtering the model-visible catalog.
 import { GAME_TOOLS } from "../../../packages/shared/src/http.ts";
 
+/** @public dsh discovers this plugin's name through its runtime loader. */
 export const name = "castellan-game-tools";
+/** @public dsh injects these services before invoking apply. */
 export const inject = ["tools"];
-export const TOOLS = GAME_TOOLS.map((t) => `mcp__castellan__${t}`);
+const TOOLS = GAME_TOOLS.map((t) => `mcp__castellan__${t}`);
+/** @public dsh invokes this plugin hook; there is no static application import. */
 export function apply(ctx) {
   ctx.tools.guard((call) => TOOLS.includes(call.name) ? undefined : "Only Castellan game tools are available to this player.");
   ctx.on("agent/created", ({ agent }) => {

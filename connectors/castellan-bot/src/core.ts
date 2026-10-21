@@ -49,7 +49,7 @@ export class CastellanBot {
     this.strategy.update(w, this.mem);
     this.joinAlly(w);
     const chat = this.diplomacy.update(w);
-    const orders = this.executor.orders(w, this.mem);
+    const orders = this.executor.orders(w);
     this.stats.ordersSent += orders.length + chat.length;
     return [...orders, ...chat];
   }

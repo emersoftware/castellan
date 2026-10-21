@@ -30,7 +30,7 @@ export async function loadTimeline(id: string): Promise<Timeline> {
 export const SPEED = 2;
 export const GAME_W = 720, GAME_H = 540, PIXEL = 2;
 export const INTRO_S = 3.5;
-export const OUTRO_HOLD_S = 3;
+const OUTRO_HOLD_S = 3;
 
 export const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
 /** Seconds of footage a highlight lasts (the final one holds the end screen). */

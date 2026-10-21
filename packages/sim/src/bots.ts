@@ -7,14 +7,14 @@ import { currentKind, rules, type EntityKind, type Order, type PlayerView, type 
 
 export type Bot = (view: PlayerView) => Order[];
 
-export const ATTACK_SCRIPT = `// Go for the enemy base. Fight units first; hit buildings only when no unit is near.
+const ATTACK_SCRIPT = `// Go for the enemy base. Fight units first; hit buildings only when no unit is near.
 const units = self.nearbyEnemies().filter((e) => !e.isBuilding);
 const target = units[0] || self.nearestEnemy();
 if (target) self.attack(target);
 else { const b = self.enemyBase(); if (b) self.moveTo(b.x, b.y); else self.hold(); }
 `;
 
-export const DEFEND_SCRIPT = `// Stay near home and fight intruders.
+const DEFEND_SCRIPT = `// Stay near home and fight intruders.
 const home = self.myBase();
 const e = self.nearestEnemy();
 if (e && self.distanceTo(e) <= self.range) self.attack(e);
@@ -23,7 +23,7 @@ else if (home && self.distanceToPos(home.x, home.y) > 3) self.moveTo(home.x, hom
 else self.hold();
 `;
 
-export const KITE_SCRIPT = `// Archers: shoot from range, step away from melee, never stand still next to a knight.
+const KITE_SCRIPT = `// Archers: shoot from range, step away from melee, never stand still next to a knight.
 const e = self.nearestEnemy();
 const b = self.enemyBase();
 if (e && !e.isBuilding && self.distanceTo(e) <= 2) self.flee(e);
@@ -96,7 +96,7 @@ function spend(v: PlayerView, r: Ruleset, workers: number, reserve = 0, army: En
 }
 
 /** Keeps the script for `kind` set to `code`. */
-function ensureScript(v: PlayerView, code: string, state: { set?: string }, kind: EntityKind = "knight"): Order[] {
+function ensureScript(code: string, state: { set?: string }, kind: EntityKind = "knight"): Order[] {
   if (state.set === code) return [];
   state.set = code;
   return [{ type: "script", kind, code }];
@@ -108,7 +108,7 @@ export function rush(r: Ruleset = rules): Bot {
   let committed = false;
   return (v) => {
     committed ||= count(v, "knight") >= 5;
-    return [...ensureScript(v, committed ? scouting(v, r, ATTACK_SCRIPT) : DEFEND_SCRIPT, s), ...spend(v, r, 6)];
+    return [...ensureScript(committed ? scouting(v, r, ATTACK_SCRIPT) : DEFEND_SCRIPT, s), ...spend(v, r, 6)];
   };
 }
 
@@ -117,11 +117,11 @@ export function eco(r: Ruleset = rules): Bot {
   return (v) => {
     const knights = count(v, "knight");
     const script = knights >= 8 ? scouting(v, r, ATTACK_SCRIPT) : DEFEND_SCRIPT;
-    return [...ensureScript(v, script, s), ...spend(v, r, 9)];
+    return [...ensureScript(script, s), ...spend(v, r, 9)];
   };
 }
 
-export function turtle(r: Ruleset = rules): Bot {
+function turtle(r: Ruleset = rules): Bot {
   const s: { set?: string } = {};
   const spots = [[7, 7], [7, 3], [3, 7]];
   return (v) => {
@@ -143,22 +143,22 @@ export function turtle(r: Ruleset = rules): Bot {
       }
     }
     const script = count(v, "knight") >= 8 ? scouting(v, r, ATTACK_SCRIPT) : DEFEND_SCRIPT;
-    return [...ensureScript(v, script, s), ...spend(v, r, 6, towers < spots.length ? towerCost : 0)];
+    return [...ensureScript(script, s), ...spend(v, r, 6, towers < spots.length ? towerCost : 0)];
   };
 }
 
 /** Eco into archers that kite: tests whether a good script beats raw numbers. */
-export function kite(r: Ruleset = rules): Bot {
+function kite(r: Ruleset = rules): Bot {
   const s: { set?: string } = {};
   return (v) => {
     const go = count(v, "archer") >= 8;
     const code = go ? scouting(v, r, KITE_SCRIPT.replace("self.memory.go", "true")) : KITE_SCRIPT;
-    return [...ensureScript(v, code, s, "archer"), ...spend(v, r, 9, 0, "archer")];
+    return [...ensureScript(code, s, "archer"), ...spend(v, r, 9, 0, "archer")];
   };
 }
 
 /** The same army with the built-in archer script (no micro), attacking with orders. */
-export function archers(r: Ruleset = rules): Bot {
+function archers(r: Ruleset = rules): Bot {
   const scouted = new Set<string>();
   return (v) => {
     const archers = v.mine.filter((e) => e.kind === "archer");

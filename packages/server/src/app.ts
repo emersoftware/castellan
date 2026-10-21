@@ -284,7 +284,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     if (!orders) return reply.code(400).send({ error: 'body must be {"orders":[...]} (max 50)' });
     const scripts = await Promise.all(orders.map((o) => (o?.type === "script" ? prepareScript(o.code, "js", ruleset) : null)));
     const prepared = orders.map((o, i) => (scripts[i]?.ok ? { ...o, code: scripts[i]!.code } : o)) as Order[];
-    const { results, tick } = await who.room.act(who.player, prepared);
+    const { results } = await who.room.act(who.player, prepared);
     (req as FastifyRequest & { toolFailed?: boolean }).toolFailed = results.some((r) => !r.ok);
     const view = who.room.view(who.player, body?.since);
     const mineral = { spent: results.reduce((n, r) => n + (r.mineral?.spent ?? 0), 0), remaining: view.players.find((p) => p.id === who.player)!.mineral };

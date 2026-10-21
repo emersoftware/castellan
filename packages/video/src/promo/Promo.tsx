@@ -52,12 +52,12 @@ export function excerpt(code: string, lines: number) {
  * map meet on the empty board: the units of one game dissolve, the camera rests on the middle, the next
  * game's units come in. Between maps the board dissolves too.
  */
-export const SHOTS = [
+const SHOTS = [
   { id: "pov", bars: 2 }, { id: "kite", bars: 3 }, { id: "truce", bars: 3 },
   { id: "towers", bars: 2 }, { id: "charge", bars: 4 }, { id: "end", bars: 1.5 },
 ] as const;
 /** Cuts fall on the music's bars: "Dos voces" runs at 84 BPM, four beats a bar. */
-export const BAR_S = (4 * 60) / 84;
+const BAR_S = (4 * 60) / 84;
 /** First frame of each shot (and the end), rounded from the bar grid so errors don't add up. */
 export function cutFrames(fps: number) {
   let bars = 0;

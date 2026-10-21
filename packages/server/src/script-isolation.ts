@@ -37,7 +37,7 @@ export interface IsolationLimits {
   /** OS scheduling before trusted worker code starts; not script execution. */
   dispatchTimeoutMs?: number;
 }
-export const ISOLATION_LIMITS: IsolationLimits = { timeoutMs: 250, startupTimeoutMs: 10_000, dispatchTimeoutMs: 1000 };
+const ISOLATION_LIMITS: IsolationLimits = { timeoutMs: 250, startupTimeoutMs: 10_000, dispatchTimeoutMs: 1000 };
 
 function worker(data: unknown) {
   // Only trusted repository sources are bundled. This removes runtime loader

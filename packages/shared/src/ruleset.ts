@@ -62,7 +62,7 @@ export interface Ruleset {
   legend: Record<string, string>;
 }
 
-export interface UpgradeSpec {
+interface UpgradeSpec {
   kind: RecordedKind;
   /** "unlock" makes the kind producible (see KindSpec.requires); its level value is unused. */
   stat: "atk" | "attackMs" | "moveMs" | "range" | "unlock";

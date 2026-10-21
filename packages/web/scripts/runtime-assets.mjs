@@ -1,7 +1,7 @@
 // @ts-check
 // Distribution copies only: source art/music remains untouched in public/ and assets/.
-import { readdir, readFile, writeFile, mkdir, copyFile, stat } from 'node:fs/promises';
-import { resolve, relative, dirname } from 'node:path';
+import { readFile, writeFile, mkdir, copyFile, stat } from 'node:fs/promises';
+import { resolve, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import sharp from 'sharp';

@@ -121,7 +121,7 @@ const quote = (s: string) => `'${s.replaceAll("'", "''")}'`;
 const STATEMENT_LIMIT = 100_000, CHUNK_BYTES = 80_000;
 
 /** A payload in pieces whose quoted SQL literal stays well under D1's statement limit. */
-export function chunks(payload: string): string[] {
+function chunks(payload: string): string[] {
   const out: string[] = [];
   let piece = "", bytes = 0;
   for (const char of payload) {
@@ -135,7 +135,7 @@ export function chunks(payload: string): string[] {
 /** What D1 already holds for a replay, to skip unchanged rows. */
 export type Published = Map<string, { contentHash: string; summaryJson: string }>;
 
-export const contentHash = (payload: string) => createHash("sha256").update(payload).digest("hex");
+const contentHash = (payload: string) => createHash("sha256").update(payload).digest("hex");
 
 export function publicationSQL(publication: Publication, published: Published = new Map()): string {
   const statements: string[] = [];

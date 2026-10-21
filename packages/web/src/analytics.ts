@@ -6,7 +6,7 @@ let lastPath: string | undefined;
 type Properties = Record<string, string | number | boolean | null | undefined>;
 
 /** Capabilities live in query strings/fragments; analytics only needs the path. */
-export function publicUrl(value: string): string {
+function publicUrl(value: string): string {
   try {
     const url = new URL(value);
     return `${url.origin}${url.pathname}`;
@@ -20,7 +20,7 @@ function scrubUrls(value: unknown): unknown {
   return value;
 }
 
-export const analyticsOptions: Partial<PostHogConfig> = {
+const analyticsOptions: Partial<PostHogConfig> = {
   defaults: "2026-01-30",
   // Router notifications below count path changes, not playback's replaceState calls.
   capture_pageview: false,

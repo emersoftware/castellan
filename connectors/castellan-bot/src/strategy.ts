@@ -4,7 +4,7 @@
  */
 import type { EntityKind, PlayerId } from "@castellan/shared";
 import { dist, ring, type DepositCluster, type Pt } from "./geometry";
-import { ARMY_KINDS, entityValue, type Memory, type World } from "./perception";
+import { entityValue, type Memory, type World } from "./perception";
 import type { BuildTask, DecisionSource, Episode, Expansion, ExpansionDefense, HomeThreatChoice, JournalEntry, Plan, ThreatGroup } from "./types";
 
 export interface StrategyOptions {
@@ -25,7 +25,7 @@ const RALLY: Pt = { x: 6, y: 6 };
 const TOWER_1: Pt = { x: 2, y: 3 };
 const TOWER_2: Pt = { x: 3, y: 1 };
 
-export const TICKS_PER_S = 10;
+const TICKS_PER_S = 10;
 const s = (n: number) => n * TICKS_PER_S;
 
 export function newPlan(): Plan {
@@ -165,7 +165,7 @@ export class Strategy {
   }
 
   private updateTargets(w: World) {
-    const live = (c: DepositCluster) => c.tiles.filter((t) => (w.deposits.find((d) => d.x === t.x && d.y === t.y)?.amount ?? initialAmount(c, t)) > 0).length;
+    const live = (c: DepositCluster) => c.tiles.filter((t) => (w.deposits.find((d) => d.x === t.x && d.y === t.y)?.amount ?? initialAmount(c)) > 0).length;
     const home = w.clusters.filter((c) => c.kind === "home");
     const homeTiles = home.reduce((n, c) => n + live(c), 0);
     let target = Math.min(9, Math.max(5, homeTiles + 1));
@@ -355,7 +355,6 @@ export class Strategy {
     if (!w.homeCastle) return;
     const f = w.frame;
     const fortress = (w.byKind.wall ?? []).length >= 10;
-    const enemySeen = w.sightings.some((x) => ARMY_KINDS.includes(x.kind));
     // First tower: covers the castle front and the north-east mines.
     // The keep: in a lull once the economy and a first army exist. Walls first, doors last.
     // After the first assault has been repelled (or by minute 3 if none came), while it is quiet.
@@ -394,7 +393,7 @@ export class Strategy {
     // A castle is 600 mineral and 30 s: only in a stable lull, with an army that can cover it.
     if (p.expansionsTried >= 3 || p.posture !== "boom" || w.tick - this.lastHomeThreatTick < s(45)) return;
     if (w.timeMs < 150_000 || w.timeLeftMs < 150_000 || w.workers.length < 7 || w.army.length < 8) return;
-    const homeLeft = w.clusters.filter((c) => c.kind === "home").reduce((n, c) => n + c.tiles.reduce((m, t) => m + (w.deposits.find((d) => d.x === t.x && d.y === t.y)?.amount ?? initialAmount(c, t)), 0), 0);
+    const homeLeft = w.clusters.filter((c) => c.kind === "home").reduce((n, c) => n + c.tiles.reduce((m, t) => m + (w.deposits.find((d) => d.x === t.x && d.y === t.y)?.amount ?? initialAmount(c)), 0), 0);
     const homeTotal = w.clusters.filter((c) => c.kind === "home").reduce((n, c) => n + c.mineral, 0);
     // Home mines run dry around minute 5 with nine workers: a second base has to be ready before that.
     const need = w.mineral >= 650 || homeLeft < homeTotal * 0.65 || w.timeMs >= 240_000;
@@ -409,7 +408,7 @@ export class Strategy {
   private expansionCandidates(w: World) {
     const bases = w.enemyBases.map((b) => b.pos);
     const out = w.clusters.filter((c) => c.kind === "flank").map((c) => {
-      const mineralLeft = c.tiles.reduce((n, t) => n + (w.deposits.find((d) => d.x === t.x && d.y === t.y)?.amount ?? initialAmount(c, t)), 0);
+      const mineralLeft = c.tiles.reduce((n, t) => n + (w.deposits.find((d) => d.x === t.x && d.y === t.y)?.amount ?? initialAmount(c)), 0);
       const danger = w.sightings.filter((x) => w.tick - x.tick <= s(90) && dist(x, c.center) <= 10).length;
       const enemyDist = bases.length ? Math.min(...bases.map((b) => dist(b, c.center))) : 30;
       const site = this.pickCastleSite(w, c);
@@ -608,6 +607,6 @@ const key = (p: Pt): string => `${p.x},${p.y}`;
 /** A lost or abandoned expansion can be replaced. */
 const ended = (e: Expansion) => e.status === "lost" || e.status === "abandoned";
 
-function initialAmount(c: DepositCluster, t: Pt): number {
+function initialAmount(c: DepositCluster): number {
   return Math.round(c.mineral / Math.max(1, c.tiles.length));
 }

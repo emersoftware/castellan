@@ -12,6 +12,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "paths": { "@castellan/shared": ["../shared/src/index.ts"] }
   },
   "include": ["src"],

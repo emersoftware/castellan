@@ -50,14 +50,6 @@ async function json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/** A replay dropped into the page (never uploaded anywhere). */
-let dropped: ReplayFile | null = null;
-let droppedSeries: SeriesReplay | null = null;
-export function setDroppedReplay(r: ReplayFile) {
-  dropped = r;
-}
-export function setDroppedSeries(r: SeriesReplay) { droppedSeries = r; }
-
 /** Per player, per kind: the script it runs (null for a kind without one). */
 export type LiveScripts = Record<string, Record<string, { code: string; custom: boolean } | null>>;
 
@@ -65,8 +57,8 @@ export const api = {
   /** A recorded match bundled with the landing, also available without an API. */
   showcase: (id: string) => fetch(`/showcase/${id}.json`).then((r) => json<ReplayFile>(r)),
   series: () => apiFetch(seriesPath()).then((r) => json<SeriesSummary[]>(r)),
-  seriesSummary: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries.series) : apiFetch(`${seriesPath()}/${id}`).then((r) => json<SeriesSummary>(r)),
-  seriesReplay: (id: string) => id === "dropped" && droppedSeries ? Promise.resolve(droppedSeries) : apiFetch(`${seriesPath()}/${id}/replay.json`).then((r) => json<SeriesReplay>(r)),
+  seriesSummary: (id: string) => apiFetch(`${seriesPath()}/${id}`).then((r) => json<SeriesSummary>(r)),
+  seriesReplay: (id: string) => apiFetch(`${seriesPath()}/${id}/replay.json`).then((r) => json<SeriesReplay>(r)),
   room: (id: string) => apiFetch(`${routes.rooms}/${id}`).then((r) => json<RoomSummary>(r)),
   /** Live room: the code each player's scriptable kinds run now. */
   roomScripts: (id: string) => apiFetch(`${routes.rooms}/${id}/scripts`, { headers: spectatorToken() ? { authorization: `Bearer ${spectatorToken()}` } : {} }).then((r) => json<LiveScripts>(r)),
@@ -89,12 +81,6 @@ export const api = {
   },
 
   async replay(id: string): Promise<ReplayFile> {
-    const seriesGame = droppedSeries?.games.find((g) => g.id === id);
-    if (seriesGame) return seriesGame;
-    if (id === "dropped") {
-      if (!dropped) throw new Error("no replay file loaded");
-      return dropped;
-    }
     if (published()) return apiFetch(`${publishedRoutes.replays}/${id}`).then((r) => json<ReplayFile>(r));
     try {
       return await fetch(`${replayArchive.featuredUrl}/${id}.json`).then((r) => json<ReplayFile>(r));
@@ -104,29 +90,13 @@ export const api = {
   },
 };
 
-/** Reads a replay file (.json or .json.gz) chosen or dropped by the user. */
-export async function readReplayFile(file: File): Promise<ReplayFile | SeriesReplay> {
-  let text: string;
-  if (file.name.endsWith(".gz")) {
-    const stream = file.stream().pipeThrough(new DecompressionStream("gzip"));
-    text = await new Response(stream).text();
-  } else text = await file.text();
-  const r = JSON.parse(text) as ReplayFile | SeriesReplay;
-  if (r.format === "castellan-series-v1") {
-    if (r.series?.totalGames !== 3 || r.series.status !== "finished" || !Array.isArray(r.games) || r.games.length !== 3 || r.games.some((g) => g.format !== 1 || !Array.isArray(g.orders))) throw new Error("not a complete three-game series replay");
-    return r;
-  }
-  if (r.format !== 1 || !Array.isArray(r.orders)) throw new Error("not an Castellan replay");
-  return r;
-}
-
 export function spectateUrl(id: string) {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   return `${proto}://${location.host}${routes.spectate}/${id}${spectatorToken() ? `?spectator=${encodeURIComponent(spectatorToken()!)}` : ""}`;
 }
 
 /** The host capability is in the fragment, so it is not sent in page requests/referrers. */
-export function spectatorToken(): string | null {
+function spectatorToken(): string | null {
   return new URLSearchParams(location.hash.slice(1)).get("spectator");
 }
 

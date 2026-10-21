@@ -100,7 +100,7 @@ export async function usage(root) {
  * One decision per dsh run, like the Codex keeper: the first run gets the shared first turn
  * and every later run resumes the same Session with the next observation.
  */
-export async function main(args = process.argv.slice(2), env = process.env, { fetchImpl = fetch, spawnImpl = spawn,
+async function main(args = process.argv.slice(2), env = process.env, { fetchImpl = fetch, spawnImpl = spawn,
   minIntervalMs = MIN_INTERVAL_MS, pollMs = 2000 } = {}) {
   const opts = options(args);
   if (!opts.check && !env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN (see castellan new or castellan run-series)");

@@ -6,7 +6,7 @@ import { createInterface } from "node:readline/promises";
 import { configFile } from "../game.mjs";
 import { Writable } from "node:stream";
 
-export function keyFile(env = process.env) {
+function keyFile(env = process.env) {
   return env.CASTELLAN_DEEPSEEK_KEY_FILE || configFile("deepseek-api-key");
 }
 export async function loadKey(env = process.env) {

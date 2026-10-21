@@ -38,7 +38,7 @@ export async function loadKey(env = process.env) {
 }
 
 // Anthropic key and workspace: env, then private castellan files. A key not scoped to a workspace needs the workspace id.
-export async function loadAnthropic(env = process.env) {
+async function loadAnthropic(env = process.env) {
   const read = async (value, file, what) => {
     if (value?.trim()) return value.trim();
     try {

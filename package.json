@@ -5,12 +5,12 @@
   "scripts": {
     "docs:rules": "tsx docs/generate-rules.mts",
     "docs:check": "tsx docs/generate-rules.mts --check",
-    "test": "pnpm docs:check && vitest run",
+    "test": "pnpm check:unused && pnpm docs:check && vitest run",
     "test:engine": "pnpm test --project engine --project sandbox --project sim",
     "test:integration": "pnpm test --project server --project connectors --project catalog",
     "test:agents": "pnpm test --project agents",
     "test:web": "pnpm test --project web",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json && pnpm --filter video typecheck",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json && tsc -p packages/web/tsconfig.json && pnpm --filter video typecheck",
     "design:audit": "tsx tools/design-audit/index.ts",
     "server": "pnpm --filter @castellan/server start",
     "web": "pnpm --filter @castellan/web dev",
@@ -26,14 +26,15 @@
     "publish:replays": "tsx cloudflare/publish.ts",
     "cloud:verify": "tsx cloudflare/verify.ts",
     "cloud:deploy": "pnpm build:cloudflare && pnpm cloud:typecheck && wrangler deploy",
-    "castellan-bot": "pnpm --filter @castellan/castellan-bot play"
+    "castellan-bot": "pnpm --filter @castellan/castellan-bot play",
+    "check:unused": "knip --treat-config-hints-as-errors --treat-tag-hints-as-errors"
   },
   "devDependencies": {
     "@castellan/cli": "workspace:*",
-    "@castellan/mcp": "workspace:*",
     "@cloudflare/workers-types": "^5.20261001.1",
     "@types/node": "^24.0.0",
     "jsdom": "^30.1.1",
+    "knip": "6.42.1",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0",

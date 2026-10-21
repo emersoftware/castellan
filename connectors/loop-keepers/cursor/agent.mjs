@@ -33,7 +33,7 @@ export function options(args) {
 
 // Reuse the user's existing login, without copying credentials into the match
 // directory or exposing them in arguments, stdout, metadata or game prompts.
-export async function loadCredential(env = process.env) {
+async function loadCredential(env = process.env) {
   if (env.CURSOR_AUTH_TOKEN?.trim()) return { CURSOR_AUTH_TOKEN: env.CURSOR_AUTH_TOKEN.trim() };
   if (env.CURSOR_API_KEY?.trim()) return { CURSOR_API_KEY: env.CURSOR_API_KEY.trim() };
   if (platform() === "darwin" && env.AGENT_CLI_CREDENTIAL_STORE !== "file") {

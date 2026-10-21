@@ -22,7 +22,7 @@ type Options = {
   /** The renderer's own sound cues (sword, arrow, pick…), as the game plays them. */
   onSound?: (name: string, pan: number, volume: number) => void;
 };
-export type Controller = {
+type Controller = {
   id: string; frames: SpectatorView[]; readonly tick: number; readonly playing: boolean;
   play(): void; pause(): void; setPaused(paused: boolean): void; seek(index: number): void; destroy(): void;
 };

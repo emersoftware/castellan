@@ -5,11 +5,11 @@
  */
 import { createMatch, type PlayerOrder } from "@castellan/engine";
 import { BOTS, type Bot } from "@castellan/sim";
-import { MAPS, rules as baseRules, type ChatMessage, type GameEvent, type Order, type Outcome, type PlayerView, type RoomMode, type Ruleset } from "@castellan/shared";
+import { MAPS, rules as baseRules, type ChatMessage, type GameEvent, type Order, type Outcome, type RoomMode, type Ruleset } from "@castellan/shared";
 import { CastellanBot } from "../src/core";
 import type { JournalEntry } from "../src/types";
 
-export interface Seat {
+interface Seat {
   kind: "castellan" | "bot";
   bot?: string;
   team?: number;
@@ -96,5 +96,3 @@ export async function playHeadless(o: HeadlessOptions): Promise<HeadlessResult> 
     m.dispose();
   }
 }
-
-export const countKind = (core: CastellanBot, kind: string) => core.world?.mine.filter((e) => e.kind === kind).length ?? 0;

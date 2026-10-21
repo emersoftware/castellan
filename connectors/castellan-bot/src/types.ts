@@ -2,9 +2,9 @@
 import type { PlayerId, RecordedKind } from "@castellan/shared";
 import type { Pt } from "./geometry";
 
-export type Posture = "boom" | "defend" | "attack" | "retreat";
+type Posture = "boom" | "defend" | "attack" | "retreat";
 
-export type TaskStatus = "pending" | "assigned" | "started" | "done" | "failed" | "cancelled";
+type TaskStatus = "pending" | "assigned" | "started" | "done" | "failed" | "cancelled";
 
 export interface BuildTask {
   id: string;
@@ -32,7 +32,7 @@ export interface BuildTask {
 /** Who made a decision: these rules, or an ally's request in team chat. */
 export type DecisionSource = "rules" | `ally:${string}`;
 
-export type EpisodeStatus = "active" | "completed" | "failed_execution" | "failed_outcome" | "abandoned";
+type EpisodeStatus = "active" | "completed" | "failed_execution" | "failed_outcome" | "abandoned";
 
 /** A plan with a goal, so the journal can tell execution failures from bad strategic outcomes. */
 export interface Episode {
@@ -83,7 +83,7 @@ export interface Expansion {
   workers: number;
 }
 
-export interface AttackPlan {
+interface AttackPlan {
   target: Pt;
   targetId?: string;
   owner?: PlayerId;

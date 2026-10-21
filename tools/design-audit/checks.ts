@@ -2,7 +2,7 @@ import ts from "typescript";
 
 export interface Source { path: string; abs: string; pkg: string; text: string; ast: ts.SourceFile }
 // `key` names the finding without its line, so it survives edits; acknowledged.ts refers to findings by it.
-export interface Finding { file: string; line: number; score: number; message: string; key: string; sites?: { file: string; line: number }[] }
+interface Finding { file: string; line: number; score: number; message: string; key: string; sites?: { file: string; line: number }[] }
 export interface Check { id: string; flag: string; chapter: number; hint: string; run(sources: Source[]): Finding[] }
 
 type Fn = ts.FunctionDeclaration | ts.MethodDeclaration | ts.ArrowFunction | ts.FunctionExpression;

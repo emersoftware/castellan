@@ -114,7 +114,7 @@ export function unitLook(unit: { kind: RecordedKind; x: number; y: number; gathe
   return { animation, heading, footfalls: walked === undefined ? undefined : Math.floor(walked * 2), pickDown };
 }
 
-export interface FireParticle { x: number; y: number; heat: number; size: number }
+interface FireParticle { x: number; y: number; heat: number; size: number }
 export interface FireLook { animation: AnimationFrame; particles: FireParticle[]; intensity: number }
 interface FireEmitter { x: number; y: number; radius: number }
 

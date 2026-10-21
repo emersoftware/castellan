@@ -2,7 +2,7 @@
  * The real-time loop over the HTTP API: wait for a fresh view, decide, act, repeat.
  */
 import { client, query, type Client } from "@castellan/cli";
-import type { MatchStatus, Order, OrderResult, Outcome, PlayerView, Ruleset } from "@castellan/shared";
+import type { MatchStatus, OrderResult, Outcome, PlayerView, Ruleset } from "@castellan/shared";
 import { outcomeText, routes } from "@castellan/shared";
 import { CastellanBot } from "./core";
 import { Journal } from "./journal";
@@ -23,7 +23,6 @@ export class Runtime {
   readonly client: Client;
   core!: CastellanBot;
   journal!: Journal;
-  private lastOrders: Order[] = [];
   private cycleStats = { waits: 0, acts: 0, errors: 0, maxComputeMs: 0, computeMs: 0, maxCycleMs: 0 };
 
   constructor(readonly opts: RuntimeOptions) {
@@ -70,7 +69,6 @@ export class Runtime {
           const r = await this.client.post<{ results: OrderResult[]; view: PlayerView }>(routes.act, { orders });
           this.cycleStats.acts++;
           this.core.report(orders, r.results);
-          this.lastOrders = orders;
           if (r.view.status === "finished") { this.core.step(r.view); break; }
         } catch (e) {
           this.cycleStats.errors++;

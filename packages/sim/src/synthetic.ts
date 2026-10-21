@@ -24,7 +24,7 @@ export interface Scenario {
 /** Clear win (60/40) and slight win (55/45), as ln of the loss ratio. */
 const WIN = Math.log(60 / 40), EDGE = Math.log(55 / 45);
 
-export const BUDGET = 1000;
+const BUDGET = 1000;
 /** Rock-paper-scissors without research (archers beat knights in the open, knights beat towers, towers beat
  *  archers; mixed beats pure). Research shifts it, paid with fewer units. */
 export const SCENARIOS: Scenario[] = [

@@ -127,6 +127,13 @@ Follow [TESTING.md](TESTING.md): test the observable contract at its owning
 boundary, demonstrate regressions for bug fixes, and clean up real resources.
 Avoid tests that merely repeat the implementation or duplicate existing coverage.
 
+Keep `pnpm check:unused` clean; it also runs before `pnpm test`. Remove confirmed
+dead code and unnecessary exports instead of leaving deprecated aliases or stubs.
+Trace runtime consumers, including historical replays and generated harness
+wrappers, before deletion. Register genuine external entry points in `knip.jsonc`
+with a reason; do not silence findings with broad ignores. TypeScript's unused
+local/parameter checks complement Knip's file, export and dependency checks.
+
 Before committing code, run `pnpm test` and `pnpm typecheck`; for application
 changes also run the relevant build (`pnpm build` for the web client). Do not edit
 source/tests while a runner is using this checkout. Keep the default worker limit

@@ -17,7 +17,7 @@ export type ObservedEvent = { timeMs: number; event: GameEvent };
 export type Rejection = { tick: number; player: string; order: Order; result: OrderResult };
 export type UnloadEvidence = { tick: number; owner: string; worker: string; amount: number; dropoff: string; x: number; y: number; builtDuringMatch: boolean };
 
-export async function sourceFingerprints() {
+async function sourceFingerprints() {
   const paths = ["src/player.ts", "src/scripts.ts", "validate.ts", "../../packages/shared/src/rules.ts", "../../packages/engine/src/match.ts"];
   return Object.fromEntries(await Promise.all(paths.map(async path => [path, createHash("sha256").update(await readFile(new URL(path, import.meta.url))).digest("hex")])));
 }
@@ -152,7 +152,7 @@ export function attachPlayer(experiment: Experiment, id: string, options: Constr
 }
 
 /** A full independent match, never a shortened timeout masquerading as a complete default game. */
-export async function fullMatch(map: string, opponent: "rush" | "eco" | "team" | "ffa", autonomousSeat = 0, seed = 17) {
+async function fullMatch(map: string, opponent: "rush" | "eco" | "team" | "ffa", autonomousSeat = 0, seed = 17) {
   const four = opponent === "team" || opponent === "ffa";
   const players: Participant[] = four
     ? Array.from({ length: 4 }, (_, side) => ({ id: `p${side + 1}`, name: "autonomous", side, team: opponent === "team" ? side % 2 : side }))

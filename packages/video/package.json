@@ -9,7 +9,6 @@
     "@castellan/shared": "workspace:*",
     "@remotion/cli": "4.0.533",
     "@remotion/media": "4.0.533",
-    "@remotion/transitions": "4.0.533",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "remotion": "4.0.533"
@@ -18,7 +17,6 @@
     "@remotion/eslint-config-flat": "4.0.533",
     "@types/react": "19.2.7",
     "eslint": "9.39.5",
-    "prettier": "3.8.1",
     "typescript": "5.9.3"
   },
   "scripts": {

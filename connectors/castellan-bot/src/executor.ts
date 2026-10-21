@@ -5,9 +5,9 @@
  */
 import type { EntityKind, EntityView, Order, OrderResult } from "@castellan/shared";
 import { dist, ring, type DepositCluster, type Pt } from "./geometry";
-import type { Memory, World } from "./perception";
+import type { World } from "./perception";
 import { STATIC_SCRIPT, SCRIPT_MAX_BYTES, kingScript, knightScript, archerScript, workerScript, type ArmyParams } from "./scripts";
-import type { BuildTask, JournalEntry, Plan } from "./types";
+import type { JournalEntry, Plan } from "./types";
 
 type Role = "g" | "a" | "r" | "s";
 const s = (n: number) => n * 10;
@@ -26,7 +26,6 @@ export class Executor {
   private evacuating = false;
   private turtling = false;
   private trainBlockedUntil = 0;
-  private pendingOrders: { order: Order; tick: number }[] = [];
   readonly rejected: Record<string, number> = {};
   rejectedTotal = 0;
   sent = 0;
@@ -37,7 +36,7 @@ export class Executor {
 
   private lastWorld: World | null = null;
 
-  orders(w: World, mem: Memory): Order[] {
+  orders(w: World): Order[] {
     const out: Order[] = [];
     this.lastWorld = w;
     if (w.threats.some((t) => w.homeCastle && dist(t, w.homeCastle) <= 14)) this.lastThreatTick = w.tick;
@@ -48,7 +47,6 @@ export class Executor {
     out.push(...this.production(w, research.length ? (w.rules.upgrades[this.plan.research[0]]?.levels[w.me.upgrades?.[this.plan.research[0]] ?? 0]?.cost ?? 0) : 0));
     if (this.postureChanged()) for (const u of w.army) if (u.order && this.roles.get(u.id) !== "s") out.push({ type: "stop", unit: u.id });
     this.lastPosture = this.posture();
-    this.pendingOrders = out.map((order) => ({ order, tick: w.tick }));
     this.sent += out.length;
     return out;
   }

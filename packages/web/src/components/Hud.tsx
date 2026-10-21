@@ -191,7 +191,7 @@ export function EventFeed({ events, names, colors, tickMs = 100 }: { events: Gam
 }
 
 /** True on phone-sized screens, where the side panel stacks under the map. */
-export function useNarrow(query = "(max-width: 720px)") {
+function useNarrow(query = "(max-width: 720px)") {
   const media = typeof window !== "undefined" && window.matchMedia ? window.matchMedia(query) : null;
   const [narrow, setNarrow] = useState(media?.matches ?? false);
   useEffect(() => {

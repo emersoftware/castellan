@@ -6,8 +6,8 @@ import { Writable } from "node:stream";
 import { configFile } from "../game.mjs";
 import { saveKey as savePrivateKey } from "../deepseek/key.mjs";
 
-export const keyFile = (env = process.env) => env.CASTELLAN_MINIMAX_KEY_FILE || configFile("minimax-api-key");
-export const saveKey = (key, path = keyFile()) => savePrivateKey(key, path);
+const keyFile = (env = process.env) => env.CASTELLAN_MINIMAX_KEY_FILE || configFile("minimax-api-key");
+const saveKey = (key, path = keyFile()) => savePrivateKey(key, path);
 export async function loadKey(env = process.env) {
   if (env.MINIMAX_API_KEY?.trim()) return env.MINIMAX_API_KEY.trim();
   const path = keyFile(env);

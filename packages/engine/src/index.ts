@@ -1,8 +1,7 @@
 import { initSandbox } from "@castellan/sandbox";
 import { Match, type MatchConfig } from "./match";
 
-export { Match, type MatchConfig, type PlayerOrder, type StepResult } from "./match";
-export { validateOrder } from "./validate";
+export { Match, type MatchConfig, type PlayerOrder } from "./match";
 export { findPath, dist } from "./grid";
 
 /** Creates a match. Async only because the script sandbox loads WASM the first time. */

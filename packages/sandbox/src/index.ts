@@ -41,7 +41,7 @@ export interface ScriptWorld {
 }
 
 /** Public combat information only; never includes an opponent's cooldowns or orders. */
-export interface ScriptVisibleStats {
+interface ScriptVisibleStats {
   atk: number; def: number; range: number; minRange: number; vision: number;
   attackMs: number; moveMs: number; ruin: boolean;
 }
@@ -54,7 +54,7 @@ export interface ScriptActionResult {
   reason?: string;
 }
 
-export interface ScriptUnit {
+interface ScriptUnit {
   id: string;
   type: string;
   x: number;

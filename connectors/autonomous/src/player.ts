@@ -61,12 +61,12 @@ export class AutonomousPlayer {
       this.strategy(v);this.memory.lastDecisionMs=v.timeMs;
     }
     this.emergencies(v);
-    this.ensureScript(v,'worker',workerScript);
-    this.ensureScript(v,'king',kingScript(safe));
+    this.ensureScript('worker',workerScript);
+    this.ensureScript('king',kingScript(safe));
     const goal=this.memory.goal??safe;
     const truces=Object.keys(this.memory.treaties).filter(id=>this.memory.treaties[id]>v.timeMs);
     const script=armyScript(safe,goal,this.memory.stance==='attack',truces,this.memory.stance==='evacuate');
-    for(const kind of ['knight','archer']) this.ensureScript(v,kind,script);
+    for(const kind of ['knight','archer']) this.ensureScript(kind,script);
     // Cancellation is a persistent intent until an observation confirms it. An ambiguous
     // stop response must not release money while the old builder can still spend it.
     let available=(me.mineral??0)-this.flushCancelledBuilds(v);
@@ -141,7 +141,7 @@ export class AutonomousPlayer {
     const p=bases.sort((a,b)=>this.threat(v,a)-this.threat(v,b))[0]??this.memory.home??v.mine[0]??{x:0,y:0};
     return {x:p.x,y:p.y};
   }
-  private ensureScript(v:PlayerView,kind:string,code:string){if(this.rules.kinds[kind]?.scriptable&&this.memory.scripts[kind]!==code)this.out.push({type:'script',kind,code});}
+  private ensureScript(kind:string,code:string){if(this.rules.kinds[kind]?.scriptable&&this.memory.scripts[kind]!==code)this.out.push({type:'script',kind,code});}
 
   private strategy(v:PlayerView) {
     const safe=this.safeHome(v), army=this.army(v), strength=army.reduce((n,e)=>n+this.power(e),0);

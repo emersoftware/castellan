@@ -2,16 +2,16 @@
  * The world model: everything the player knows, built only from its own view
  * (PlayerView) and the public rules, plus memory of what it saw before.
  */
-import type { DepositView, EntityView, GameEvent, PlayerId, PlayerStats, PlayerView, RecordedKind, Ruleset } from "@castellan/shared";
+import type { EntityView, GameEvent, PlayerId, PlayerStats, PlayerView, RecordedKind, Ruleset } from "@castellan/shared";
 import { Frame, dist, groupNearby, type DepositCluster, type Pt } from "./geometry";
 import type { Sighting, ThreatGroup } from "./types";
 
 /** Mineral-equivalent danger of a kind when it is on the move. */
-export const THREAT_VALUE: Record<string, number> = { knight: 100, archer: 100, worker: 10, king: 20 };
-export const ARMY_KINDS: RecordedKind[] = ["knight", "archer"];
-export const MOBILE_THREAT_KINDS: RecordedKind[] = ["knight", "archer", "king", "worker"];
+const THREAT_VALUE: Record<string, number> = { knight: 100, archer: 100, worker: 10, king: 20 };
+const ARMY_KINDS: RecordedKind[] = ["knight", "archer"];
+const MOBILE_THREAT_KINDS: RecordedKind[] = ["knight", "archer", "king", "worker"];
 
-export interface KnownDeposit { id: string; x: number; y: number; amount: number; seenTick: number; visible: boolean }
+interface KnownDeposit { id: string; x: number; y: number; amount: number; seenTick: number; visible: boolean }
 
 export interface Memory {
   /** Null until a castle or the king shows where my corner is. */

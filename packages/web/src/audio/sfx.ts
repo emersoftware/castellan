@@ -13,7 +13,7 @@ import { AMBIENT_GAIN, Mix } from "./mix";
 const MUSIC_GAIN: Record<Track, number> = { theme: 0.3, battle: 0.09 };
 const MUSIC_FADE_S = 1.5;
 
-export type Track = "theme" | "battle";
+type Track = "theme" | "battle";
 
 /** A seamless loop: `pad` seconds of the other end on each side of the file, `loop` long. */
 interface LoopInfo {

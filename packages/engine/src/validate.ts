@@ -29,5 +29,3 @@ export function validateOrder(o: unknown): string | null {
   for (const [k, ok] of Object.entries(FIELDS[r.type])) if (!ok(r[k])) return `${r.type}: bad or missing "${k}"`;
   return null;
 }
-
-export type { Order };

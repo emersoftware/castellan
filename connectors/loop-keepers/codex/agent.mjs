@@ -31,7 +31,7 @@ export async function isolatedHome(root, env = process.env) {
   return { home, workspace };
 }
 
-export function codexArgs({ workspace, session, args, prompt }) {
+function codexArgs({ workspace, session, args, prompt }) {
   return [...isolatedExec({ workspace, session }), "--json",
     "-c", 'mcp_servers.castellan.command="node"', "-c", `mcp_servers.castellan.args=${JSON.stringify([resolve(here, "../../mcp/bin/castellan-mcp.mjs")])}`,
     "-c", 'mcp_servers.castellan.env_vars=["CASTELLAN_SERVER","CASTELLAN_TOKEN"]',

@@ -1,8 +1,27 @@
 # Tests
 
-`pnpm test` checks the generated rules and runs every Vitest project. Tests
+`pnpm test` checks unused code, checks the generated rules and runs every Vitest project. Tests
 never call paid models. Real-model matches are balance experiments, not
 regression tests.
+
+## Code health
+
+`pnpm check:unused` runs [Knip](https://knip.dev/) across the workspaces, connectors,
+Cloudflare, tooling and the published deck sources. It fails on unused files,
+exports (including package barrels), dependencies, unresolved imports, and stale
+configuration exceptions. It runs before every `pnpm test`, including filtered runs.
+`pnpm typecheck` also rejects unused locals and parameters and includes the web client.
+
+Knip's normal mode includes tests and development tools: a tested helper is a
+consumer, not proof that a feature is still reachable in the product. Trace the
+runtime callers before removing a feature. Historical replay adapters are live
+consumers; a `legacy` name or a cache's `stale` state alone is not dead code.
+
+Keep `knip.jsonc` entry points explicit for shell commands, workers and browser
+scripts. Do not make all source files entry points or ignore whole packages to
+silence a finding. Generated bundles and local ignored drafts are excluded; their
+maintained sources are checked. External plugin hooks use narrowly documented
+`@public` tags naming the runtime caller. Remove the tag when that caller goes away.
 
 ## Run the relevant boundary
 

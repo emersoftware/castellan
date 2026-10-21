@@ -45,14 +45,14 @@ export type UnitOrder =
   | { type: "gather"; deposit?: string }
   | { type: "build"; kind: RecordedKind; x: number; y: number };
 
-export interface MineralChange { spent: number; remaining: number; pending?: number }
+interface MineralChange { spent: number; remaining: number; pending?: number }
 export type OrderResult = ({ ok: true; id?: string } | { ok: false; reason: string }) & { mineral?: MineralChange };
 
-export const MATCH_STATUSES = ["waiting", "prep", "running", "finished"] as const;
+const MATCH_STATUSES = ["waiting", "prep", "running", "finished"] as const;
 export type MatchStatus = (typeof MATCH_STATUSES)[number];
 
 /** Four-seat maps play in two teams of two unless the room asks for every player alone. */
-export const ROOM_MODES = ["teams", "ffa"] as const;
+const ROOM_MODES = ["teams", "ffa"] as const;
 export type RoomMode = (typeof ROOM_MODES)[number];
 /** Whether untrusted input names a room mode. */
 export const isRoomMode = (value: unknown): value is RoomMode => ROOM_MODES.some((mode) => mode === value);
