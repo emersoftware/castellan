@@ -320,8 +320,9 @@ export function Tooltip({ hover, names = {}, colors = {} }: { hover: HoverInfo |
  * script its kind runs for its owner. `entity` is null while it is not visible (or dead);
  * `last` is the last time it was seen.
  */
-export function UnitPanel({ entity, last, script, tickMs, names = {}, colors = {}, reactiveOrders = false, onClose }: {
+export function UnitPanel({ entity, last, script, scriptRuntime, tickMs, names = {}, colors = {}, reactiveOrders = false, onClose }: {
   entity: EntityView | null; last: EntityView; script: LoadedScript | null | undefined; tickMs: number;
+  scriptRuntime?: PlayerStats["scriptRuntime"];
   names?: Names; colors?: Colors; reactiveOrders?: boolean; onClose: () => void;
 }) {
   const e = entity ?? last;
@@ -342,13 +343,14 @@ export function UnitPanel({ entity, last, script, tickMs, names = {}, colors = {
         <span className="unit-hp"><span className={`unit-hp-bar${e.owner === NEUTRAL_OWNER ? "" : ` bg${colors[e.owner] ?? 0}`}`} style={{ width: `${pct}%`, ...(e.owner === NEUTRAL_OWNER ? { background: "var(--grey)" } : {}) }} /></span>{e.hp}/{e.maxHp} hp
       </div>
       {!entity && <div className="muted">not visible from this view</div>}
-      {entity && <div>{e.ruin ? "Inert, destructible ruin" : e.order ? <>order: <b>{e.order}</b>{e.orderSuspended ? " (suspended by script)" : ""}</> : "running its script"}{e.doing ? ` · now ${e.doing}` : e.heading ? ` · ${e.heading}` : ""}</div>}
+      {entity && <div>{e.ruin ? "Inert, destructible ruin" : e.order ? <>order: <b>{e.order}</b>{e.orderSuspended ? " (suspended by script)" : ""}</> : scriptRuntime ? "script stopped" : script === null ? "no script" : "running its script"}{e.doing ? ` · now ${e.doing}` : e.heading ? ` · ${e.heading}` : ""}</div>}
+      {!e.ruin && scriptRuntime && <div>Scripts stopped at {fmtTime(scriptRuntime.tick * tickMs)}: {scriptRuntime.message}</div>}
       {details.length > 0 && <div className="muted">{details.join(" · ")}</div>}
       {e.ruin ? null : script === undefined ? <div className="muted">loading script…</div> : script === null ? <div className="muted">no script</div> : (
         <div className="unit-script">
           <div className="muted">
             {e.kind} script of <Agent id={e.owner} name={names[e.owner]} color={colors[e.owner]} />: {`${scriptOrigin(script)}${script.custom && script.sinceTick !== undefined ? `, loaded at ${fmtTime(script.sinceTick * tickMs)}` : ""}`}
-            {!e.order ? "" : reactiveOrders ? " · runs during orders" : " · paused while the order runs"}
+            {scriptRuntime ? " · inactive: VM stopped" : !e.order ? "" : reactiveOrders ? " · runs during orders" : " · paused while the order runs"}
           </div>
           <pre><code>{highlightJs(script.code.trim())}</code></pre>
         </div>

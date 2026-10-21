@@ -188,8 +188,9 @@ export function ReplayPlayer({ id, onEnded, initialPlaying = true, series }: {
   const display = playerPerspective(frame, selectedPlayer);
   const unit = useUnitSelection(display?.entities, display?.deposits);
   const shownUnit = unit.entity ?? unit.last;
-  const unitScript = useMemo(() => shownUnit && replay.data && ruleset ? scriptAt(replay.data.orders, ruleset, shownUnit.owner, shownUnit.kind, frame?.tick ?? index) : undefined,
-    [shownUnit?.owner, shownUnit?.kind, replay.data, ruleset, frame?.tick, index]);
+  const unitRuntime = display?.players.find(p => p.id === shownUnit?.owner)?.scriptRuntime;
+  const unitScript = useMemo(() => shownUnit && replay.data && ruleset ? scriptAt(replay.data.orders, ruleset, shownUnit.owner, shownUnit.kind, frame?.tick ?? index, unitRuntime?.tick) : undefined,
+    [shownUnit?.owner, shownUnit?.kind, replay.data, ruleset, frame?.tick, index, unitRuntime?.tick]);
   const total = replay.data ? replay.data.finalTick + 1 : 0;
   const names = useMemo(() => Object.fromEntries((replay.data?.players ?? []).map((p) => [p.id, p.name])), [replay.data]);
   const colors = useMemo(() => playerColors(replay.data?.players ?? []), [replay.data]);
@@ -220,7 +221,7 @@ export function ReplayPlayer({ id, onEnded, initialPlaying = true, series }: {
         {!frame && <div className="load-state" role="status">{replay.isPending ? "Loading battle…" : "Preparing replay…"}</div>}
         {ruleset && <GameCanvas key={selectedPlayer ?? "all"} ruleset={ruleset} colors={colors} frame={display} tickMs={tickMs / speed} paused={!playing} jumpKey={jumpKey} onHover={setHover} selected={unit.selected} onSelect={unit.setSelected} sound={sound} />}
         {unit.deposit ? <DepositPanel deposit={unit.deposit} onClose={() => unit.setSelected(null)} />
-          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} tickMs={tickMs} names={names} colors={colors} reactiveOrders={ruleset?.reactiveOrders} onClose={() => unit.setSelected(null)} />
+          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} scriptRuntime={unitRuntime} tickMs={tickMs} names={names} colors={colors} reactiveOrders={ruleset?.reactiveOrders} onClose={() => unit.setSelected(null)} />
           : <Tooltip hover={hover} names={names} colors={colors} />}
         <ViewerTop view={display ?? null} />
         {frame && atEnd && <OutcomeBanner view={frame} names={names} colors={colors} dismissible />}

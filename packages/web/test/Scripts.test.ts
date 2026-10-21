@@ -20,3 +20,13 @@ it("reads a script order recorded under a former kind name", () => {
   const orders = [{ tick: 10, player: "p1", order: { type: "script", kind: "ranger", code: "self.hold(); // old" } }] as unknown as ReplayFile["orders"];
   expect(scriptAt(orders, rules, "p1", "archer", 20)?.code).toBe("self.hold(); // old");
 });
+
+it("keeps the last loaded script when a stopped VM rejects later uploads", () => {
+  const orders = [
+    { tick: 246, player: "p2", order: { type: "script", kind: "knight", code: "self.hold(); // loaded" } },
+    { tick: 1491, player: "p2", order: { type: "script", kind: "knight", code: "self.attack(self.nearestEnemy()); // rejected" } },
+  ] as ReplayFile["orders"];
+  expect(scriptAt(orders, rules, "p2", "knight", 2000, 1352)).toEqual({
+    code: "self.hold(); // loaded", custom: true, sinceTick: 246,
+  });
+});

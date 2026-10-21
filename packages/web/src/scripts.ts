@@ -7,11 +7,13 @@ export interface LoadedScript { code: string; custom: boolean; sinceTick?: numbe
  * From a replay's orders: the last accepted script order for that player and kind, else the default.
  * `ruleset` and `kind` use today's names (`currentRuleset`); old orders may still use former ones.
  */
-export function scriptAt(orders: ReplayFile["orders"], ruleset: Ruleset, owner: string, kind: RecordedKind, tick: number): LoadedScript | null {
+export function scriptAt(orders: ReplayFile["orders"], ruleset: Ruleset, owner: string, kind: RecordedKind, tick: number, stoppedAt?: number): LoadedScript | null {
   if (!ruleset.kinds[kind]?.scriptable) return null;
   let last: { tick: number; code: string | null } | undefined;
   for (const o of orders) {
     if (o.tick > tick) break;
+    // Replay orders include rejected uploads. A terminated VM cannot load replacements.
+    if (stoppedAt !== undefined && o.tick >= stoppedAt) continue;
     if (o.player === owner && o.order.type === "script" && currentKind(o.order.kind) === kind) last = { tick: o.tick, code: o.order.code };
   }
   return last?.code ? { code: last.code, custom: true, sinceTick: last.tick } : defaultScript(ruleset, kind);

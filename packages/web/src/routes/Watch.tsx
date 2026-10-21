@@ -105,7 +105,7 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series 
         {denied && <div className="banner small"><div className="big">Private live match</div><div className="sub">Open the spectator link provided when the match was created, or watch the replay after it finishes.</div></div>}
         {ruleset && Object.keys(colors).length > 0 && <GameCanvas key={selectedPlayer ?? "all"} ruleset={ruleset} colors={colors} frame={display} tickMs={tickMs} onHover={setHover} selected={unit.selected} onSelect={unit.setSelected} sound={sfx.play} />}
         {unit.deposit ? <DepositPanel deposit={unit.deposit} onClose={() => unit.setSelected(null)} />
-          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} tickMs={tickMs} names={names} colors={colors} reactiveOrders={ruleset?.reactiveOrders} onClose={() => unit.setSelected(null)} />
+          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} scriptRuntime={display?.players.find(p => p.id === unit.last?.owner)?.scriptRuntime} tickMs={tickMs} names={names} colors={colors} reactiveOrders={ruleset?.reactiveOrders} onClose={() => unit.setSelected(null)} />
           : <Tooltip hover={hover} names={names} colors={colors} />}
         <ViewerTop view={display ?? null} />
         {!denied && status === "waiting" && (

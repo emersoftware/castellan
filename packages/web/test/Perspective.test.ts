@@ -59,6 +59,25 @@ it("selects a player's view with the eye column and returns to all", async () =>
   } finally { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
 });
 
+it("shows a stopped VM instead of claiming its unit script is running", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div"); const root = createRoot(host);
+  const entity = { ...frame.entities[0], doing: "hold" };
+  const props = { entity, last: entity, script: { code: "self.hold();", custom: true },
+    scriptRuntime: { status: "stopped" as const, tick: 1352, message: "sandbox watchdog timeout after 250ms; player VM terminated" },
+    tickMs: 100, reactiveOrders: true, onClose() {} };
+  try {
+    await act(async () => root.render(createElement(UnitPanel, props)));
+    expect(host.textContent).toContain("script stopped · now hold");
+    expect(host.textContent).toContain("Scripts stopped at 2:15");
+    expect(host.textContent).toContain("inactive: VM stopped");
+    expect(host.textContent).not.toContain("running its script");
+    await act(async () => root.render(createElement(UnitPanel, { ...props, entity: { ...entity, order: "attack e9" } })));
+    expect(host.textContent).toContain("order: attack e9");
+    expect(host.textContent).not.toContain("runs during orders");
+  } finally { await act(async () => root.unmount()); vi.unstubAllGlobals(); }
+});
+
 it("switches conversation with the selected player and renders channel labels", async () => {
   const publicMessage = { tick: 1, from: "p1", name: "Blue", text: "hello" };
   const privateMessage = { tick: 2, from: "p2", name: "Red", text: "only blue and red, watch p1", channel: "private" as const, to: "p1" };
