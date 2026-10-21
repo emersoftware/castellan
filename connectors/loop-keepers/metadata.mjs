@@ -43,6 +43,7 @@ const policies = {
   "claude-code": ["auto-memory-disabled; isolated-workspace", `${shared}; stop-hook-session`],
   opencode: ["isolated-home; no-cross-match-session", `${shared}; resume-between-decisions`],
   "deepseek-harness": ["isolated-session-store; no-cross-match-session", `${shared}; resume-between-decisions`],
+  "minimax-code": ["isolated-home-and-session-store; no-cross-match-session", `${shared}; resume-between-decisions`],
   antigravity: ["fresh-player-conversation; own-tool-output-reads", `${shared}; one-agy-conversation`],
   jev: ["stateless-decisions; no-cross-match-memory", "fresh-state-summary-each-decision; last-5-decisions-in-state; goal-sha256"],
 };
