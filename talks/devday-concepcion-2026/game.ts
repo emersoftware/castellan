@@ -1,6 +1,5 @@
 /**
- * The game's own Pixi renderer for the talk: plays recorded board clips (assets/clips/*.json,
- * built by tools/build-clips.mts). No match server, no model calls, no player code runs here:
+ * The game's own Pixi renderer for the talk: plays recorded board clips (assets/clips/*.json). No match server, no model calls, no player code runs here:
  * the frames were produced by re-simulating the original replays.
  *
  * window.AOA.mountClip(host, url, options) → controller { play, pause, setPaused, seek, destroy }.

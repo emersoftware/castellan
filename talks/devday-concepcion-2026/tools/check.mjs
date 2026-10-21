@@ -41,7 +41,7 @@ const base = `http://127.0.0.1:${server.address().port}/`;
 
 // ───── sources: nothing remote ─────
 const problems = [];
-for (const file of ['index.html', 'slides.css', 'slides.js', 'scenes.js', 'presenter.html']) {
+for (const file of ['index.html', 'slides.css', 'slides.js', 'scenes.js']) {
   const text = await readFile(join(talk, file), 'utf8');
   for (const m of text.matchAll(/(?:src|href|url)\s*[=(]\s*["']?(https?:)?\/\//g)) problems.push({ kind: 'remote-url', file, at: m.index });
   for (const m of text.matchAll(/https?:\/\/(?!www\.w3\.org)[^\s"'<>)]+/g)) problems.push({ kind: 'remote-url', file, url: m[0] });

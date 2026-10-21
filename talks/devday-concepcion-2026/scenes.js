@@ -359,7 +359,7 @@
   // ═════════════ board clips (game.js: the game's renderer) ═════════════
   // ═════════════ who played each match on screen ═════════════
   /** Model · harness · effort for every player of every match the deck shows, by match id and player id.
-   *  Sources per match in contenido-v2.json; a player missing here shows the name the replay has. */
+   *  Recorded player names are kept in each clip; missing overrides use those names. */
   const CC = 'Claude Code', CX = 'Codex', DSH = 'DeepSeek Harness';
   const MATCH_PLAYERS = {
     'a21dc6cf': { p1: `Opus 5.5 · ${CC} · low`, p2: `Sol 6.1 · ${CX} · low`, p3: `Fable 5.1 · ${CC} · low`, p4: `Astra 6 · ${CX} · low` },

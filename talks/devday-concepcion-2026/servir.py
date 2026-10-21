@@ -87,7 +87,7 @@ def main():
     except OSError:
         server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     url = f'http://127.0.0.1:{server.server_port}/'
-    print(f'Presentación: {url}\nPresentador: {url}presenter.html (o tecla P)\nCtrl+C para cerrar.', flush=True)
+    print(f'Presentación: {url}\nCtrl+C para cerrar.', flush=True)
     if '--no-open' not in sys.argv:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
     try:

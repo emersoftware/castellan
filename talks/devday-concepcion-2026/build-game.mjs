@@ -1,5 +1,5 @@
 /** Bundle game.ts (the game's Pixi renderer + clip decoder) into game.js and copy the sprites it draws.
- *  Board clips are built separately: npx tsx tools/build-clips.mts
+ *  Board clips are committed runtime assets under assets/clips/.
  *    node build-game.mjs            (from this folder or the repo root) */
 import { createRequire } from 'node:module';
 import { cpSync, statSync } from 'node:fs';

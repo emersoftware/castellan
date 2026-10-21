@@ -17,8 +17,7 @@
 <main id="deck" aria-label="Presentación: Por y para agentes" aria-live="polite">
 
 <!-- ═════════════ 1 · INTRO (mundo blanco) ═════════════ -->
-<section class="scene white" id="intro" data-world="white" data-steps="5" data-title="Soy Emerson"
-  data-cues="Pantalla en blanco|Nombre · «más bacán decir software engineer»|BipBopLabs · Revi · CChC|17 municipalidades · meta 75 a fines de 2027|«un proyecto de fin de semana» (solo el rombo) → siguiente clic: portada">
+<section class="scene white" id="intro" data-world="white" data-steps="5" data-title="Soy Emerson">
   <div class="intro-who" data-in="1">
     <h1>Emerson Salazar</h1>
     <p class="intro-role">Software engineer</p>
@@ -47,8 +46,7 @@
 </section>
 
 <!-- ═════════════ 2 · PORTADA (entrada al mundo del juego) ═════════════ -->
-<section class="scene game cover" id="cover" data-enter="dissolve" data-steps="2" data-title="Por y para agentes"
-  data-cues="Portada · «este es el jueguito»|Espadazo a «Claude» · «como el evento es de Codex…»">
+<section class="scene game cover" id="cover" data-enter="dissolve" data-steps="2" data-title="Por y para agentes">
   <canvas class="cover-photo" data-hook="cover-photo" aria-label="Dos reyes en duelo: Claude y Codex"></canvas>
   <div class="cover-copy">
     <h1 class="cover-title dither-soft">Por y para agentes: construyendo un juego<br>de estrategia con Codex y <span class="slash-word"><span class="half top">Claude</span><span class="half bottom" aria-hidden="true">Claude</span></span></h1>
@@ -58,8 +56,7 @@
 </section>
 
 <!-- ═════════════ 3 · EL JUEGO (replay real, con la UI del visor) ═════════════ -->
-<section class="scene game" id="game" data-steps="2" data-title="Un juego de estrategia hecho por Codex y Claude"
-  data-cues="«Lo que ven es un juego de estrategia hecho por Codex y Claude»|«…y los jugadores son modelos de varios proveedores: Opus, Sol, Fable y Astra»">
+<section class="scene game" id="game" data-steps="2" data-title="Un juego de estrategia hecho por Codex y Claude">
   <div class="clip full" data-clip="assets/clips/a21dc6cf-2024.json" data-focus="map" data-loop="true"></div>
   <div class="replay-ui">
     <div class="scores">
@@ -75,8 +72,7 @@
 </section>
 
 <!-- ═════════════ 4 · INSIGHTS (expectativa) ═════════════ -->
-<section class="scene game" id="teaser" data-steps="3" data-title="Treguas, traiciones y mentiras"
-  data-cues="Hicieron treguas (796f00b9)|…y se traicionaron|Y mintieron (77e80cf4)">
+<section class="scene game" id="teaser" data-steps="3" data-title="Treguas, traiciones y mentiras">
   <div class="clip full" data-clip="assets/clips/796f00b9-4130.json" data-focus="map" data-out="1"></div>
   <div class="clip full" data-clip="assets/clips/796f00b9-4440.json" data-focus="8,22,22,36" data-in="1" data-out="2"></div>
   <div class="clip full" data-clip="assets/clips/77e80cf4-2290.json" data-focus="54,0,64,14" data-in="2"></div>
@@ -109,8 +105,7 @@
 </section>
 
 <!-- ═════════════ 5 · QUÉ ES UN RTS ═════════════ -->
-<section class="scene game" id="rts" data-steps="2" data-title="¿Qué es un RTS?"
-  data-cues="Ajedrez: por turnos · RTS: todos al mismo tiempo|Age of Empires II: economía y batalla">
+<section class="scene game" id="rts" data-steps="2" data-title="¿Qué es un RTS?">
   <div class="versus-turns" data-out="1">
     <figure><canvas data-hook="chess"></canvas><figcaption class="dither-soft"><b>Ajedrez</b> por turnos</figcaption></figure>
     <figure><canvas data-hook="lanes"></canvas><figcaption class="dither-soft"><b>RTS</b> todos al mismo tiempo</figcaption></figure>
@@ -123,8 +118,7 @@
 </section>
 
 <!-- ═════════════ QUÉ HACE UN JUGADOR (FFA a21dc6cf, base de Opus) ═════════════ -->
-<section class="scene game" id="basics" data-steps="8" data-title="Qué puede hacer un jugador"
-  data-cues="Recolectar: los trabajadores minan y llevan el mineral al castillo|Entrenar: el segundo castillo de Opus saca tres arqueros|Construir: un trabajador levanta un segundo castillo|Atacar: los arqueros de Opus entran a la base de Fable|Mejorar: otra partida; Sol llegó con 9 mejoras y Opus con ninguna. Sol pierde un arquero, Opus seis y un caballero|Subir código: cada tipo de unidad corre el script de su jugador|Chatear: Fable le ofrece tregua a Opus y después lo delata|Y no ven todo: niebla de guerra">
+<section class="scene game" id="basics" data-steps="8" data-title="Qué puede hacer un jugador">
   <div class="clip full" data-clip="assets/clips/a21dc6cf-380.json" data-focus="0,30,12,42" data-out="1"></div>
   <div class="clip full" data-clip="assets/clips/a21dc6cf-3250.json" data-focus="2,21,12,31" data-in="1" data-out="2"></div>
   <div class="clip full" data-clip="assets/clips/a21dc6cf-1130.json" data-focus="10,32,24,46" data-in="2" data-out="3"></div>
@@ -157,23 +151,20 @@
 </section>
 
 <!-- ═════════════ EL JUEGO, LO QUE VE UN JUGADOR Y SU STATE ═════════════ -->
-<section class="scene game" id="pov" data-steps="3" data-title="Lo que recibe un jugador"
-  data-cues="La partida, como la vemos nosotros|Lo que ve Opus: su niebla|El state que recibe Opus, el mismo segundo a segundo">
+<section class="scene game" id="pov" data-steps="3" data-title="Lo que recibe un jugador">
   <div class="clip pov-world" data-clip="assets/clips/a21dc6cf-2024.json" data-focus="map" data-loop="true"></div>
   <div class="clip pov-player" data-clip="assets/clips/a21dc6cf-2024-p1.json" data-focus="map" data-loop="true" data-in="1"></div>
   <pre class="pov-state" data-hook="pov-state" data-in="2"></pre>
 </section>
 
 <!-- ═════════════ MATAR AL REY (a21dc6cf: Opus mata al rey de Sol, t3342) ═════════════ -->
-<section class="scene game" id="king-down" data-steps="1" data-title="Matar al rey"
-  data-cues="Matan al rey: ese jugador queda fuera">
+<section class="scene game" id="king-down" data-steps="1" data-title="Matar al rey">
   <div class="clip full" data-clip="assets/clips/a21dc6cf-3250.json" data-focus="16,2,28,14" data-loop="true"></div>
   <h2 class="top-title outline dither-soft">Matar al rey</h2>
 </section>
 
 <!-- ═════════════ 6 · CÓMO SE CONECTA UN AGENTE ═════════════ -->
-<section class="scene game" id="harness" data-steps="4" data-title="Cómo se conecta un agente"
-  data-cues="El motor: estado del juego|API HTTP|Servidor MCP y sus tools|Agente = modelo + harness · observar → decidir → actuar">
+<section class="scene game" id="harness" data-steps="4" data-title="Cómo se conecta un agente">
   <h2 class="scene-title dither-soft">Cómo se conecta un agente</h2>
   <div class="stack">
     <div class="layer layer-engine" data-in="0">
@@ -197,8 +188,7 @@
 </section>
 
 <!-- ═════════════ LO QUE VE EL JUGADOR ═════════════ -->
-<section class="scene game" id="state" data-steps="2" data-title="Lo que ve el jugador"
-  data-cues="Nosotros vemos el mapa; el agente recibe este mapa de texto|Y el resto del estado: 12.298 caracteres en cada llamada">
+<section class="scene game" id="state" data-steps="2" data-title="Lo que ve el jugador">
   <div class="state-view">
     <div class="clip state-clip" data-clip="assets/clips/1b4b65c9-1490.json" data-focus="14,4,26,16" data-loop="true" data-out="1"></div>
     <pre class="ascii-map" data-out="1">   0         1         2         3 
@@ -260,8 +250,7 @@ events:
 </section>
 
 <!-- ═════════════ 9 · CUÁNDO PIENSA ═════════════ -->
-<section class="scene game" id="thinking" data-steps="1" data-title="Mientras piensa, el juego sigue"
-  data-cues="Piensa más vs. piensa menos: el juego sigue">
+<section class="scene game" id="thinking" data-steps="1" data-title="Mientras piensa, el juego sigue">
   <div class="think-race">
     <div class="race-labels"><p class="l-game">el juego</p><p class="l-long">piensa más</p><p class="l-short">piensa menos</p></div>
     <canvas data-hook="think-race"></canvas>
@@ -269,29 +258,25 @@ events:
 </section>
 
 <!-- ═════════════ 14 · EXPERIMENTOS ═════════════ -->
-<section class="scene game" id="experiments" data-steps="2" data-title="Ponerlos a jugar"
-  data-cues="Corrí muchas partidas · 250 están en la web|Iteré harto: reglas, balance, herramientas">
+<section class="scene game" id="experiments" data-steps="2" data-title="Ponerlos a jugar">
   <div class="corpus"><canvas data-hook="corpus"></canvas></div>
   <p class="exp-line dither-soft" data-out="1">Corrí muchas partidas</p>
 </section>
 
 <!-- ═════════════ 15 · TOWER RUSH ═════════════ -->
-<section class="scene game" id="balance" data-steps="1" data-title="Tower rush"
-  data-cues="Tower rush: avanzar construyendo torres encima del rival">
+<section class="scene game" id="balance" data-steps="1" data-title="Tower rush">
   <div class="clip full" data-clip="assets/clips/25fe89ae-640.json" data-focus="0,0,16,16" data-loop="true"></div>
   <h2 class="top-title outline dither-soft">Tower rush</h2>
 </section>
 
 <!-- ═════════════ 16 · TURTLING ═════════════ -->
-<section class="scene game" id="turtle" data-steps="1" data-title="Turtling"
-  data-cues="Turtling: encerrarse en su esquina con torres y esperar">
+<section class="scene game" id="turtle" data-steps="1" data-title="Turtling">
   <div class="clip full" data-clip="assets/clips/bd6acba5-7020.json" data-focus="0,0,16,18" data-loop="true"></div>
   <h2 class="top-title outline dither-soft">Turtling</h2>
 </section>
 
 <!-- ═════════════ 17 · DIPLOMACIA ═════════════ -->
-<section class="scene game" id="diplomacy" data-steps="2" data-title="Con cuatro jugadores aparece la diplomacia"
-  data-cues="Ejemplo real 77e80cf4: «te están usando… tregua»|8,5 s después: «tregua aceptada»">
+<section class="scene game" id="diplomacy" data-steps="2" data-title="Con cuatro jugadores aparece la diplomacia">
   <div class="chat-log big">
     <div class="msg p3"><p class="meta"><span class="t">04:53.3</span><span class="who">p3</span><span class="to">→ todos</span></p><p class="es">Te están usando. Mientras peleas contra mis torres, p4 sigue intacto. Hagamos una tregua y te ayudo contra p4.</p><p class="en">“p2, you're being played: p4 hid 6 knights + castle intact at 59,4 while you bleed on my turrets. If you kill me p4 wins 1v1 on eco. Truce now and I'll help you take p4.”</p></div>
     <div class="gap" data-in="1"><span>+8,5 s</span></div>
@@ -300,8 +285,7 @@ events:
 </section>
 
 <!-- ═════════════ 18 · ENGAÑO ═════════════ -->
-<section class="scene game" id="deception" data-steps="8" data-title="Mintieron"
-  data-cues="Pruebas pidiéndoles mentir|796f00b9: p4 acepta la tregua|p3: «tregua hasta el final; todo en casa»|2,8 s después sube este código|p3 terminó ganando|Pero muchas veces los pillaban · 77e80cf4: p3 y p4, la misma mentira en el mismo tick|p1: «Falso… están coordinados»|p4: «perdón, leí mal a un explorador» (tampoco tenía)">
+<section class="scene game" id="deception" data-steps="8" data-title="Mintieron">
   <div class="clip full" data-clip="assets/clips/796f00b9-4130.json" data-focus="map" data-in="1" data-out="4"></div>
   <div class="clip full final-clip" data-clip="assets/clips/796f00b9-4680.json" data-focus="0,26,20,44" data-loop="false" data-in="4" data-out="5"></div>
   <header class="center-title" data-out="1">
@@ -329,15 +313,13 @@ events:
 </section>
 
 <!-- ═════════════ 19 · ROMPER EL JUEGO ═════════════ -->
-<section class="scene game" id="hacks" data-steps="1" data-title="El intento de romper el juego"
-  data-cues="Escapar del sandbox / aprovechar el motor">
+<section class="scene game" id="hacks" data-steps="1" data-title="El intento de romper el juego">
   <h2 class="scene-title center dither-soft">El intento de romper el juego</h2>
   <div class="sandbox-box"><canvas data-hook="sandbox"></canvas><p class="sandbox-label mono">QuickJS</p></div>
 </section>
 
 <!-- ═════════════ SCRIPTS ═════════════ -->
-<section class="scene game" id="scripts" data-steps="3" data-title="Scripts de unidades"
-  data-cues="Script por defecto del arquero · corre cada tick, en un sandbox|Claude (Fable 5.1): un script normal, se lee|Codex (Sol 6.1): un rey que calcula por dónde pasa cada flecha (Math.hypot)">
+<section class="scene game" id="scripts" data-steps="3" data-title="Scripts de unidades">
   <div class="script-demo">
     <div class="code-stack">
       <div class="script-card s-default" data-out="1"><p class="code-meta"><b>Script por defecto del arquero</b><span>dispara al enemigo más débil a rango</span></p><pre class="code js">// Built-in: shoot the weakest enemy in range.
@@ -383,8 +365,7 @@ if(es.some(e=&gt;self.distanceTo(e)&lt;=e.range+2)||ps.length){
 </section>
 
 <!-- ═════════════ EL ÚLTIMO INSIGHT: CODEX LE GANA A CLAUDE CODE ═════════════ -->
-<section class="scene game" id="final-verdict" data-steps="1" data-title="En la última versión del motor"
-  data-cues="Motor 0.29.3, 16 duelos en low: Codex 13 · Claude Code 3">
+<section class="scene game" id="final-verdict" data-steps="1" data-title="En la última versión del motor">
   <div class="verdict-kings">
     <figure><canvas data-sprite="king:death:se:1" data-once data-hook="king-claude"></canvas><figcaption>Claude Code<b class="verdict-n">3</b><small>Opus 5.5 · Fable 5.1</small></figcaption></figure>
     <figure><canvas data-sprite="king:attack:sw:0" data-hook="king-gpt"></canvas><figcaption>Codex<b class="verdict-n">13</b><small>GPT-6.1 Sol · GPT-6 Astra</small></figcaption></figure>
@@ -393,14 +374,12 @@ if(es.some(e=&gt;self.distanceTo(e)&lt;=e.range+2)||ps.length){
 </section>
 
 <!-- ═════════════ UNA PARTIDA: TODO JUNTO ═════════════ -->
-<section class="scene game" id="gameplay" data-steps="1" data-title="Todo junto"
-  data-cues="Una partida real: todo junto, sin texto">
+<section class="scene game" id="gameplay" data-steps="1" data-title="Todo junto">
   <div class="clip full" data-clip="assets/clips/02eb6795-4700.json" data-focus="18,18,40,40" data-loop="true"></div>
 </section>
 
 <!-- ═════════════ 8 · BUILD ═════════════ -->
-<section class="scene game" id="build" data-steps="4" data-title="Unos .md y Claude Code"
-  data-cues="La idea, escrita en .md con otro modelo|Spec → código: sandbox.md y lo que Claude Code escribió con él|61 min después, MVP listo|Así se veía: gráficos de Opus 5.5">
+<section class="scene game" id="build" data-steps="4" data-title="Unos .md y Claude Code">
   <div class="build-row">
     <div class="build-left">
       <div class="doc-window">
@@ -434,16 +413,14 @@ hold: function () { act({ a: &quot;hold&quot; }); },</pre></div>
 </section>
 
 <!-- ═════════════ 9 · SPRITES ═════════════ -->
-<section class="scene game" id="sprites" data-steps="3" data-title="Primero, las imágenes"
-  data-cues="Codex: unidades sobre fondo rosado|Quitar el rosado|Claude: dithering">
+<section class="scene game" id="sprites" data-steps="3" data-title="Primero, las imágenes">
   <div class="sprite-lab"><canvas data-hook="sprite-lab"></canvas></div>
   <p class="tool-chip" data-out="2"><b>Codex</b> · image gen</p>
   <p class="tool-chip" data-in="2"><b>Claude Code</b> · dithering</p>
 </section>
 
 <!-- ═════════════ 10 · ANIMACIÓN ═════════════ -->
-<section class="scene game" id="art" data-steps="5" data-title="Después, hacerlos caminar"
-  data-cues="MiniMax en Hugging Face: imagen inicial + final|El video: script + CLI de hf|Codex lo deja listo: recorte, loop de 28 cuadros y el dithering del juego|Codex revisa los cuadros: rehacer o sirve|Caminar, disparar, espadazo, picar, derrumbe">
+<section class="scene game" id="art" data-steps="5" data-title="Después, hacerlos caminar">
   <div class="mm-frames" data-out="2">
     <img src="assets/pipeline/knight-walk-reference.png" alt="Imagen inicial del caballero">
     <span class="mm-arrow">→</span>
@@ -473,8 +450,7 @@ hold: function () { act({ a: &quot;hold&quot; }); },</pre></div>
 </section>
 
 <!-- ═════════════ 19 · REFERENCIAS DE LA MÚSICA ═════════════ -->
-<section class="scene game" id="music-refs" data-steps="2" data-title="La música: dos referencias"
-  data-cues="Dos referencias (clic en un video para escucharlo)|Claude investiga cómo están hechas">
+<section class="scene game" id="music-refs" data-steps="2" data-title="La música: dos referencias">
   <h2 class="scene-title center dither-soft">Música</h2>
   <div class="refs">
     <figure><video src="assets/music-refs/aoe2-menu.mp4" poster="assets/music-refs/aoe2-menu.jpg" playsinline preload="metadata" data-hook="ref-video"></video><figcaption>Tema del menú de <i>Age of Empires II</i></figcaption></figure>
@@ -487,8 +463,7 @@ hold: function () { act({ a: &quot;hold&quot; }); },</pre></div>
 </section>
 
 <!-- ═════════════ 20 · LA MÚSICA: RESULTADO ═════════════ -->
-<section class="scene game" id="music" data-steps="2" data-title="La música: el script y el resultado"
-  data-cues="Python: acordes, tempo, sintetizador|▶ El tema del juego, desde donde suenan las dos voces (clic o M para cortar)">
+<section class="scene game" id="music" data-steps="2" data-title="La música: el script y el resultado">
   <pre class="code compose" data-out="1"><span class="c"># assets/music/compose.py (extracto)</span>
 BPM = <span class="n">76</span>          <span class="c"># Re dórico</span>
 PLAN = [<span class="s">'Dm'</span>, <span class="s">'Dm'</span>, (<span class="s">'G'</span>, <span class="s">'Am'</span>), <span class="s">'Dm'</span>, <span class="s">'Dm'</span>, <span class="s">'C'</span>, <span class="s">'Dm'</span>, <span class="s">'Dm'</span>,
@@ -502,8 +477,7 @@ PLAN = [<span class="s">'Dm'</span>, <span class="s">'Dm'</span>, (<span class="
 </section>
 
 <!-- ═════════════ 12 · SONIDOS ═════════════ -->
-<section class="scene game" id="sounds" data-steps="1" data-title="Sonidos"
-  data-cues="MOSS-SoundEffect en Hugging Face · el prompt real de la espada">
+<section class="scene game" id="sounds" data-steps="1" data-title="Sonidos">
   <div class="moss">
     <p class="moss-model"><img class="hf" src="assets/brand/huggingface.svg" alt="">OpenMOSS-Team / MOSS-SoundEffect-v2.0</p>
     <p class="moss-prompt dither-soft">“A sword blow landing on a wooden shield, one soft deep thump… muffled, warm and creamy, no metal ring.”</p>
@@ -511,21 +485,18 @@ PLAN = [<span class="s">'Dm'</span>, <span class="s">'Dm'</span>, (<span class="
 </section>
 
 <!-- ═════════════ 22 · TODOS LOS SONIDOS, EN EL MOTOR ═════════════ -->
-<section class="scene game" id="sound-engine" data-steps="1" data-title="Los sonidos en una partida"
-  data-cues="Una partida chica: cada sonido aparece cuando el motor lo dispara">
+<section class="scene game" id="sound-engine" data-steps="1" data-title="Los sonidos en una partida">
   <div class="clip sound-clip" data-clip="assets/clips/1b4b65c9-1490.json" data-focus="14,4,26,16" data-loop="true"></div>
   <div class="sound-log" data-hook="sound-log"></div>
 </section>
 
 <!-- ═════════════ UNA BATALLA DE LOS EXPERIMENTOS ═════════════ -->
-<section class="scene game" id="fight" data-steps="1" data-title="Experimentos"
-  data-cues="Fable 5.1 vs Astra 6 en low, motor 0.29.3: acá cuento los experimentos">
+<section class="scene game" id="fight" data-steps="1" data-title="Experimentos">
   <div class="clip full" data-clip="assets/clips/9463fc7e-1700.json" data-focus="8,8,26,26" data-loop="true"></div>
 </section>
 
 <!-- ═════════════ EXPERIMENTOS (harness, effort) ═════════════ -->
-<section class="scene game" id="lab" data-steps="2" data-title="Experimentos"
-  data-cues="Su harness vs OpenCode: DeepSeek dsh 7–1 · Opus Claude Code 2–2|Low vs max: low 10 · max 0 · 2 por tiempo">
+<section class="scene game" id="lab" data-steps="2" data-title="Experimentos">
   <div class="lab-step" data-out="1">
     <h2 class="lab-head dither-soft">Su harness vs OpenCode</h2>
     <p class="lab-sub">mismo modelo, mismo proveedor</p>
@@ -551,8 +522,7 @@ PLAN = [<span class="s">'Dm'</span>, <span class="s">'Dm'</span>, (<span class="
 </section>
 
 <!-- ═════════════ 22 · CIERRE ═════════════ -->
-<section class="scene game" id="close" data-steps="2" data-title="Castellan"
-  data-cues="Castellan|Gracias · enlaces">
+<section class="scene game" id="close" data-steps="2" data-title="Castellan">
   <div class="clip full" data-clip="assets/clips/02eb6795-4774.json" data-focus="map"></div>
   <div class="close-copy">
     <p class="close-name outline dither-soft" data-game-name>Castellan</p>
@@ -574,7 +544,6 @@ PLAN = [<span class="s">'Dm'</span>, <span class="s">'Dm'</span>, (<span class="
   <output id="counter">1/22</output>
   <button id="next" type="button" title="Siguiente (→)">→</button>
   <button id="overview-toggle" type="button" title="Índice (O)">Índice</button>
-  <button id="presenter-open" type="button" title="Presentador (P)">Presentador</button>
   <button id="mute" type="button" title="Silencio (M)">Sonido: sí</button>
   <button id="fullscreen" type="button" title="Pantalla completa (F)">Pantalla completa</button>
   <button id="help-toggle" type="button" title="Ayuda (?)">?</button>
@@ -589,7 +558,6 @@ PLAN = [<span class="s">'Dm'</span>, <span class="s">'Dm'</span>, (<span class="
     <dt>F</dt><dd>pantalla completa</dd>
     <dt>B o . · W o ,</dt><dd>pantalla negra · blanca</dd>
     <dt>O</dt><dd>índice</dd>
-    <dt>P</dt><dd>vista del presentador (otra ventana)</dd>
     <dt>M</dt><dd>silencio</dd>
     <dt>R</dt><dd>repetir la animación del paso</dd>
     <dt>V</dt><dd>video de respaldo de partidas (si un replay no carga)</dd>
@@ -598,7 +566,6 @@ PLAN = [<span class="s">'Dm'</span>, <span class="s">'Dm'</span>, (<span class="
   <button type="button" data-close>Cerrar</button></dialog>
 <dialog id="backup-video"><video controls playsinline preload="none" src="assets/partida-promo.mp4" poster="assets/video-poster.jpg"></video><p>Video de respaldo · montaje local de partidas grabadas (47 s)</p><button type="button" data-close>Volver a la charla</button></dialog>
 <div id="screen" aria-hidden="true"></div>
-<script src="notes.js"></script>
 <script src="slides.js"></script>
 <script src="scenes.js"></script>
 <script src="game.js" defer></script>

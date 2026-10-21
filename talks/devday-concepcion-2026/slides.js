@@ -1,7 +1,7 @@
 /* Por y para agentes · DevDay Concepción 2026 — presentation engine.
  *
  * Scenes are <section class="scene"> in index.html. Each one has data-steps (clicks inside the
- * scene) and data-cues (one presenter cue per step, separated by "|"). Inside a scene,
+ * scene). Inside a scene,
  * [data-in="k"] shows from step k on and [data-out="k"] hides from step k on. The whole visual
  * state is a function of (scene, step): going back re-renders the earlier state, so ← and →
  * always agree. Scene behaviour (canvases, replays, audio) lives in scenes.js and receives the
@@ -13,9 +13,7 @@
 (() => {
   const deck = document.getElementById('deck');
   const scenes = [...deck.querySelectorAll(':scope > .scene')];
-  const notes = window.TALK_NOTES || [];
   const params = new URLSearchParams(location.search);
-  const channel = 'BroadcastChannel' in window ? new BroadcastChannel('aoa-devday-v2') : null;
   const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
   const hooks = () => window.TalkScenes || {};
   const state = { scene: 0, step: 0, dir: 1, muted: false, black: false, white: false };
@@ -23,7 +21,6 @@
 
   const reduced = () => params.get('motion') === 'reduce' || motionQuery.matches;
   const stepsOf = el => Math.max(1, Number(el.dataset.steps) || 1);
-  const cuesOf = el => (el.dataset.cues || '').split('|').map(s => s.trim());
 
   // ───────── layout ─────────
   function fit() {
@@ -124,7 +121,6 @@
     started = true;
     history.replaceState(null, '', `#${el.id}${step ? '/' + step : ''}`);
     updateChrome();
-    publish();
   }
 
   function next() {
@@ -215,7 +211,6 @@
     window.dispatchEvent(new CustomEvent('talk-mute', { detail: { muted: value } }));
     const b = document.getElementById('mute');
     if (b) b.textContent = value ? 'Sonido: no' : 'Sonido: sí';
-    publish();
   }
 
   // ───────── chrome: controls, overview, help, black/white screens ─────────
@@ -238,7 +233,6 @@
     state.white = kind === 'white' ? !state.white : false;
     document.body.classList.toggle('blackout', state.black);
     document.body.classList.toggle('whiteout', state.white);
-    publish();
   }
   function openBackupVideo() {
     const d = document.getElementById('backup-video');
@@ -249,16 +243,13 @@
     v.play().catch(() => {});
   }
   const fullscreen = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {});
-  // The published deck has no presenter view: without its button, P does nothing.
-  const openPresenter = () => { if (document.getElementById('presenter-open')) window.open('presenter.html', 'aoa-presenter', 'width=1280,height=860'); };
 
   function buildOverview() {
     const list = document.getElementById('overview-list');
     scenes.forEach((s, i) => {
       const b = document.createElement('button');
-      const note = notes.find(n => n.id === s.id);
-      b.innerHTML = `<span class="n">${String(i + 1).padStart(2, '0')}</span><span class="t"></span><span class="m">${note?.timing?.split(' · ')[0] ?? ''}</span>`;
-      b.querySelector('.t').textContent = s.dataset.title || note?.title || s.id;
+      b.innerHTML = `<span class="n">${String(i + 1).padStart(2, '0')}</span><span class="t"></span>`;
+      b.querySelector('.t').textContent = s.dataset.title || s.id;
       b.onclick = () => { toggleDialog('overview', false); go(i, 0); };
       list.append(b);
     });
@@ -290,7 +281,6 @@
       case 'b': case 'B': case '.': setScreen('black'); break;
       case 'w': case 'W': case ',': setScreen('white'); break;
       case 'o': case 'O': toggleDialog('overview'); break;
-      case 'p': case 'P': openPresenter(); break;
       case 'm': case 'M': setMuted(!state.muted); break;
       case 'r': case 'R': replayStep(); break;
       case '?': case 'h': case 'H': toggleDialog('help'); break;
@@ -299,36 +289,11 @@
     }
   }
 
-  // ───────── presenter channel ─────────
-  function publish() {
-    if (!channel || !started) return;
-    const el = scenes[state.scene];
-    const cues = cuesOf(el);
-    const nextEl = scenes[state.scene + 1];
-    channel.postMessage({
-      type: 'state', scene: state.scene, id: el.id, step: state.step, steps: stepsOf(el), total: scenes.length,
-      cue: cues[state.step] || '', nextCue: state.step < stepsOf(el) - 1 ? cues[state.step + 1] || `paso ${state.step + 2}` : null,
-      nextScene: nextEl ? { id: nextEl.id, title: nextEl.dataset.title, cue: cuesOf(nextEl)[0] || '' } : null,
-      muted: state.muted, black: state.black, white: state.white,
-      scenes: scenes.map(s => ({ id: s.id, title: s.dataset.title, steps: stepsOf(s), cues: cuesOf(s) })),
-    });
-  }
-  if (channel) channel.onmessage = ({ data }) => {
-    if (data.type === 'hello') publish();
-    else if (data.type === 'next') next();
-    else if (data.type === 'prev') prev();
-    else if (data.type === 'go') go(data.scene, data.step ?? 0);
-    else if (data.type === 'black') setScreen('black');
-    else if (data.type === 'white') setScreen('white');
-    else if (data.type === 'mute') setMuted(!state.muted);
-    else if (data.type === 'replay') replayStep();
-  };
-
   // ───────── wiring ─────────
   const api = {
     next, prev, go, replayStep, audio, setMuted, reduced,
     get state() { return { ...state, id: scenes[state.scene].id, steps: stepsOf(scenes[state.scene]), total: scenes.length }; },
-    scenes: scenes.map(s => ({ id: s.id, title: s.dataset.title, steps: stepsOf(s), cues: cuesOf(s) })),
+    scenes: scenes.map(s => ({ id: s.id, title: s.dataset.title, steps: stepsOf(s) })),
   };
   window.talk = api;
 
@@ -339,8 +304,6 @@
   document.getElementById('overview-toggle').onclick = () => toggleDialog('overview');
   document.getElementById('help-toggle').onclick = () => toggleDialog('help');
   document.getElementById('fullscreen').onclick = fullscreen;
-  const presenterButton = document.getElementById('presenter-open');
-  if (presenterButton) presenterButton.onclick = openPresenter;
   document.getElementById('mute').onclick = () => setMuted(!state.muted);
   document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
   // Focus never stays on a control: a clicker's space or Enter must move the talk, not press a button again.
