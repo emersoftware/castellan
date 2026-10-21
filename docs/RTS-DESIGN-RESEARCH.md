@@ -1,73 +1,73 @@
-# Investigación aplicada al diseño de Castellan
+# Research applied to Castellan's design
 
-Revisión: 7 de octubre de 2026, con fuentes primarias. Revisamos el código de **When Agents Rule (WAR)** en [`d6319a2`](https://github.com/asp67/when-agents-rule/tree/d6319a2e00cb43797d044f748cca9fdbc10b0980), aún su HEAD al consultar GitHub. Una implementación externa demuestra que una técnica existe, no que su juego tenga mejor balance. Los blogs de abajo son argumentos de diseño, no resultados experimentales sobre Castellan.
+Reviewed on 7 October 2026, with primary sources. We read the code of **When Agents Rule (WAR)** at [`d6319a2`](https://github.com/asp67/when-agents-rule/tree/d6319a2e00cb43797d044f748cca9fdbc10b0980), still its HEAD when we checked GitHub. An outside implementation shows that a technique exists. It does not show that its game has better balance. The blogs below are design arguments, not experimental results about Castellan.
 
-## Cambio implementado: economía fuera de la base
+## Implemented change: economy outside the base
 
-En [maps.ts](../packages/shared/src/maps.ts) cada asiento conserva sus 8 minas iniciales, ahora de 250 en vez de 500. Los 2.000 restantes van a 4 minas de 500, en 2 flancos exteriores. No cambian minas centrales, recursos totales, dimensiones ni fortificaciones.
+In [maps.ts](../packages/shared/src/maps.ts) each seat keeps its 8 starting mines, now with 250 instead of 500. The other 2,000 go to 4 mines of 500 on 2 outer flanks. Central mines, total resources, map sizes and fortifications stay the same.
 
-| Mapa | Total antes y después | Mineral en sectores iniciales antes → después | Mineral exterior después |
+| Map | Total before and after | Mineral in starting sectors before → after | Outer mineral after |
 | --- | ---: | ---: | ---: |
-| open, fortress, ridge, canyons | 9.600 | 8.000 → 4.000 (83,3% → 41,7%) | 5.600 |
-| fortress-quad | 21.600 | 16.000 → 8.000 (74,1% → 37,0%) | 13.600 |
-| quad | 26.400 | 16.000 → 8.000 (60,6% → 30,3%) | 18.400 |
+| open, fortress, ridge, canyons | 9,600 | 8,000 → 4,000 (83.3% → 41.7%) | 5,600 |
+| fortress-quad | 21,600 | 16,000 → 8,000 (74.1% → 37.0%) | 13,600 |
+| quad | 26,400 | 16,000 → 8,000 (60.6% → 30.3%) | 18,400 |
 
-“Sector inicial” es el cuadrado local `x < 13 && y < 13`: exactamente el interior de una fortaleza. “Exterior” incluye las expansiones laterales y las minas compartidas. **No significa que todo ese mineral sea igual de disputado**. `quad` conserva además sus 2 minas exteriores anteriores de 600 por asiento.
+The "starting sector" is the local square `x < 13 && y < 13`: exactly the inside of a fortress. "Outer" includes the side expansions and the shared mines. **It does not mean all that mineral is equally contested**. `quad` also keeps its 2 earlier outer mines of 600 per seat.
 
-El objetivo es una decisión concreta: explotar un flanco mientras el jugador disputa el centro, o atacar el transporte rival. Todo el mineral movido al centro habría creado un único punto de control. Las 8 minas iniciales mantienen sus posiciones y accesos; con menos reserva, se agotan antes.
+The goal is one concrete decision: mine a flank while the player fights over the center, or attack the rival's transport. Moving all the mineral to the center would have created a single control point. The 8 starting mines keep their positions and access; with smaller reserves, they run out sooner.
 
-**Verificado:** [map-resources.test.ts](../packages/engine/test/map-resources.test.ts) comprueba en los 6 mapas: mineral total, casillas válidas sin solaparse con rocas/edificios, costos de caminos iguales bajo rotación, acceso rival a todas las expansiones sin destruir murallas y reproducción de una distribución histórica embebida en el replay.
+**Verified:** [map-resources.test.ts](../packages/engine/test/map-resources.test.ts) checks all 6 maps for: total mineral, valid tiles that don't overlap rocks or buildings, equal path costs under rotation, rival access to every expansion without destroying walls, and replay of a historical layout embedded in the replay.
 
-Los replays guardan el mapa completo. No vuelven a buscar su nombre en `MAPS`.
+Replays store the whole map. They don't look up its name in `MAPS` again.
 
-**Todavía por medir en partidas:** primera extracción exterior, mineral entregado desde afuera, workers perdidos en transporte, duración del control de cada flanco y retorno económico de una segunda castle. Una castle cuesta 600 y cada nueva pareja de minas contiene 1.000. Para justificarla, quizá importen su defensa/producción o el acceso a más de una pareja. Simetría y acceso están probados. Que dé mejores partidas sigue siendo hipótesis. Compararla con el mapa histórico con los mismos agentes, semilla y reglas, y lados intercambiados. No atribuir a las minas efectos de cambiar también los stats.
+**Still to measure in matches:** first outer extraction, mineral delivered from outside, workers lost in transport, how long each flank stays under control, and the economic return of a second castle. A castle costs 600 and each new pair of mines holds 1,000. To justify it, its defense, its production or access to more than one pair may matter. Symmetry and access are tested. Whether it makes better matches is still a hypothesis. Compare it with the historical map using the same agents, seed and rules, with sides swapped. Don't credit the mines with effects that come from also changing the stats.
 
-## Qué tomar concretamente de When Agents Rule
+## What to take from When Agents Rule
 
-| Evidencia en WAR | Aplicación a Castellan y comprobación necesaria |
+| Evidence in WAR | Use in Castellan and the check it needs |
 | --- | --- |
-| [`wait` es una acción vacía](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/openai-ai.js#L6349-L6351); el [conductor vuelve a iniciar decisiones](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/openai-ai.js#L9648-L9663) por tiempo y disponibilidad. | Separar mantener órdenes de bloquear una llamada. Sin espera bloqueante, **cada conector** debe volver a entregar observaciones por su cuenta. Probar un agente que decide no cambiar nada y luego recibe un ataque: debe recuperar el control sin polling infinito y sin terminar su proceso. La simulación sigue durante la inferencia. |
-| [Daño y bajas se acumulan por encuentro](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/game.js#L2488-L2613), conservado hasta dos minutos. | Añadir un resumen factual de combates desde la última observación: daño, bajas, lugar y momento, aunque no quede ninguna unidad viva. Caso de aceptación: una pelea empieza y termina mientras el modelo piensa, y su siguiente observación le permite reconstruir qué perdió. No deducir una recomendación táctica automática ni revelar enemigos nunca vistos. |
-| [Clasifica órdenes como válidas, evitables o afectadas por cambios posteriores](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/openai-ai.js#L603-L651), usando información de la observación. | Registrar `observedAtTick`, `appliedAtTick` y un código estable para cada rechazo. Probar por separado un ID inventado y un objetivo visible que muere durante la inferencia. Ambos rechazos cuestan tiempo al jugador; su explicación experimental difiere. |
-| [Expone costos y `blockedBy`](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/openai-ai.js#L3757-L3793). | Mostrar disponibilidad derivada de las validaciones reales: mineral, población, cola y requisitos de las reglas de esa partida. El estado ya incluye producción. Falta evitar que el agente reconstruya todos los bloqueos. No mantener referencias a desbloqueos eliminados en v21d; los replays antiguos sí pueden tenerlas. |
-| [Compara contratos completos por hashes](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/conditions.js#L56-L79). Un componente desconocido impide declarar equivalencia. | Manifiesto por asiento: motor, reglas/mapa, prompt, herramientas, modelo/esfuerzo, conector y memoria. Los nombres visibles de jugadores no reemplazan esa evidencia. Una repetición debe declarar exactamente qué mantuvo y qué cambió. No guardar claves ni ajustes secretos de conexión. |
-| [Escenarios con solución y control negativo](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/tests/bench-scenarios.test.cjs#L18-L34) se prueban en rotaciones/reflejos. | Añadir escenarios pequeños de atasco, producción, defensa de una mina y retirada. Exigir que una referencia resuelva todos los lados y que quedarse quieto falle. Esto comprueba que contexto y comandos permiten ejecutar la decisión. No mezclar esta señal con la puntuación de balance. |
-| [Órdenes persistentes limitan persecuciones y retoman el encargo](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/standing-orders.js#L21-L95). | Ejemplo de script: defender workers, perseguir solo dentro de un radio y volver al puesto. Probar que un solo enemigo no arrastra toda la defensa. Castellan debe mantener la libertad de programarlo, sin imponer toda la automatización de WAR. |
+| [`wait` is an empty action](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/openai-ai.js#L6349-L6351); the [driver starts new decisions](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/openai-ai.js#L9648-L9663) based on time and availability. | Keep "hold the current orders" separate from "block a call". Without a blocking wait, **each connector** must deliver new observations on its own. Test an agent that decides to change nothing and then gets attacked: it must take back control without endless polling and without ending its process. The simulation keeps running during inference. |
+| [Damage and losses add up per encounter](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/game.js#L2488-L2613), kept for up to 2 minutes. | Add a factual summary of fights since the last observation: damage, losses, place and time, even if no unit is left alive. Acceptance case: a fight starts and ends while the model thinks, and its next observation lets it rebuild what it lost. Don't derive an automatic tactical suggestion, and never reveal enemies it hasn't seen. |
+| [It sorts orders into valid, avoidable, or affected by later changes](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/openai-ai.js#L603-L651), using what the observation showed. | Record `observedAtTick`, `appliedAtTick` and a stable code for each rejection. Test separately a made-up ID and a visible target that dies during inference. Both rejections cost the player time; their explanation in an experiment differs. |
+| [It shows costs and `blockedBy`](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/openai-ai.js#L3757-L3793). | Show availability derived from the real checks: mineral, population, queue and the requirements of that match's rules. The state already includes production. What's missing is sparing the agent from rebuilding every block itself. Don't keep references to unlocks removed in v21d; old replays may still have them. |
+| [It compares full contracts by hashes](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/conditions.js#L56-L79). One unknown component blocks a claim of equivalence. | A manifest per seat: engine, rules/map, prompt, tools, model/effort, connector and memory. Visible player names don't replace that evidence. A rerun must state exactly what it kept and what it changed. Don't store keys or secret connection settings. |
+| [Scenarios with a solution and a negative control](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/tests/bench-scenarios.test.cjs#L18-L34) are tested under rotations and mirrors. | Add small scenarios for a jam, production, defending a mine and a retreat. Require a reference to solve every side, and require standing still to fail. This checks that context and commands let the agent carry out the decision. Don't mix this signal with the balance score. |
+| [Standing orders limit chases and return to the task](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/standing-orders.js#L21-L95). | Example script: defend workers, chase only within a radius and return to the post. Test that a single enemy doesn't drag away the whole defense. Castellan must keep the freedom to program this, without imposing all of WAR's automation. |
 
-Su [generador de recursos](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/terrain.js#L171-L197) combina rotación con una separación buscada respecto de las bases. Precisión: hace hasta 60 intentos, así que ese fragmento por sí solo **no garantiza** la exclusión para cualquier semilla. Castellan tiene mapas fijos: podemos verificar todos sus asientos, en vez de suponer igualdad porque las cantidades coinciden.
+Its [resource generator](https://github.com/asp67/when-agents-rule/blob/d6319a2e00cb43797d044f748cca9fdbc10b0980/js/terrain.js#L171-L197) combines rotation with a target distance from the bases. To be precise: it makes up to 60 attempts, so that snippet alone **does not guarantee** the exclusion for every seed. Castellan has fixed maps: we can check every seat instead of assuming equality because the amounts match.
 
-Castellan ya recuerda los edificios y depósitos vistos entre decisiones (`Match.refreshVision` / memoria de visión). No es una carencia descubierta al comparar con WAR. Las propuestas de la tabla son pasos futuros, salvo las ya implementadas y documentadas en código y pruebas.
+Castellan already remembers buildings and deposits seen between decisions (`Match.refreshVision` / vision memory). This is not a gap we found by comparing with WAR. The proposals in the table are future steps, except the ones already implemented and documented in code and tests.
 
-## Lo que los blogs cambian en nuestro razonamiento
+## What the blogs change in our reasoning
 
-### 1. Un enfrentamiento no demuestra el valor completo de una opción
+### 1. One matchup doesn't show the full value of an option
 
-[Sirlin, Viable Options](https://www.sirlin.net/articles/balancing-multiplayer-games-part-2-viable-options) distingue el balance global de la igualdad en situaciones locales y propone buscar respuestas y contrarrespuestas. Para Castellan esto **no obliga a reemplazar la función del optimizador**. Obliga a limitar lo que concluimos de ella.
+[Sirlin, Viable Options](https://www.sirlin.net/articles/balancing-multiplayer-games-part-2-viable-options) separates global balance from equality in local situations, and suggests looking for answers and counter-answers. For Castellan this **doesn't force us to replace the optimizer's function**. It forces us to limit what we conclude from it.
 
-Experimento complementario: mismo presupuesto en knight/archer, con y sin espacio para replegarse, ante una tower y al atacar workers. Reportar supervivencia, daño y objetivo logrado por escenario, sin promediarlos en una nota nueva. Si una composición gana en todos, investigar una opción dominante. Si pierde en campo abierto y gana al irrumpir en una mina, conviene quizá conservar esa diferencia. La identidad de las 2 unidades sigue siendo una decisión del proyecto.
+Complementary experiment: the same budget in knight/archer, with and without room to fall back, against a tower and when attacking workers. Report survival, damage and goal reached per scenario, without averaging them into a new score. If one composition wins all of them, look for a dominant option. If it loses in the open but wins when breaking into a mine, that difference may be worth keeping. The identity of the 2 units is still a project decision.
 
-### 2. La retirada es parte del combate, no solo moverse hacia atrás
+### 2. Retreating is part of combat, not just moving back
 
-[Casteel, Control of Tactical Outcomes](https://waywardstrategy.com/2016/02/17/rts-design-thought-control-of-tactical-outcomes/) separa composición, posición, control durante la pelea y capacidad de salir de ella. En Castellan el archer tarda 400 ms por movimiento, el knight 500 ms, y disparar exige apuntar. Según los obstáculos, los enfriamientos y el script, esto puede permitir kitear o volver suicida una retirada.
+[Casteel, Control of Tactical Outcomes](https://waywardstrategy.com/2016/02/17/rts-design-thought-control-of-tactical-outcomes/) separates composition, position, control during the fight and the ability to leave it. In Castellan the archer takes 400 ms per move and the knight 500 ms, and shooting needs aiming. Depending on obstacles, cooldowns and the script, this can allow kiting or make a retreat suicidal.
 
-Experimento: repetir la misma pelea con retirada al 70%, 40% y 20% de HP, en terreno abierto y en un paso angosto. Medir mineral superviviente y tiempo con minas abandonadas. Si retirarse salva ejército pero cede ingreso, hay una decisión real. Si todas las retiradas mueren por órdenes bloqueadas, corregir primero la interfaz o el pathfinding. Sin esta evidencia, no agregar invulnerabilidad ni botón de retirada.
+Experiment: repeat the same fight with a retreat at 70%, 40% and 20% HP, in open ground and in a narrow pass. Measure surviving mineral and time with abandoned mines. If retreating saves the army but gives up income, there is a real decision. If every retreat dies to blocked orders, fix the interface or the pathfinding first. Without this evidence, don't add invulnerability or a retreat button.
 
-### 3. Unidades generalistas pueden borrar decisiones
+### 3. Generalist units can erase decisions
 
-[Casteel, In Defense of Hard Counters](https://waywardstrategy.com/2021/07/27/hard-counters/) advierte que una unidad demasiado eficiente contra todo puede dejar sin peso la composición y la posición. El texto no demuestra que Castellan necesite daños por clase ni una tercera unidad.
+[Casteel, In Defense of Hard Counters](https://waywardstrategy.com/2021/07/27/hard-counters/) warns that a unit that is too efficient against everything can make composition and position irrelevant. The text doesn't show that Castellan needs damage by class or a third unit.
 
-Experimento: enfrentar ejércitos 100/0, 75/25, 50/50, 25/75 y 0/100 con los mismos presupuestos, scripts competentes y escenarios separados. Cruzar con incursión económica y defensa. Solo si la misma composición domina siempre, revisar qué rol falta y después sus stats. “Mezclar siempre gana” tampoco debe ser meta impuesta.
+Experiment: pit armies of 100/0, 75/25, 50/50, 25/75 and 0/100 against each other with the same budgets, competent scripts and separate scenarios. Cross them with economic raids and defense. Only if the same composition always dominates, review which role is missing, and then its stats. "Mixing always wins" must not be an imposed goal either.
 
-### 4. Una expansión debe ofrecer beneficio y una vulnerabilidad elegible
+### 4. An expansion should offer a benefit and a vulnerability you can choose
 
-[Casteel, Progression and Equilibrium](https://waywardstrategy.com/2017/03/03/the-balance-of-power-progression-and-equilibrium-in-real-time-strategy-games/) analiza cómo las pérdidas militares, de ingreso y de producción se refuerzan entre sí. En Castellan una castle reúne defensa, depósito y producción. Perderla puede dañar las 3 capacidades a la vez.
+[Casteel, Progression and Equilibrium](https://waywardstrategy.com/2017/03/03/the-balance-of-power-progression-and-equilibrium-in-real-time-strategy-games/) looks at how military, income and production losses reinforce each other. In Castellan a castle combines defense, drop-off and production. Losing it can hurt all 3 at once.
 
-Ya aplicado: recursos exteriores en varios puntos. Experimento pendiente: comparar invertir primero en workers, en ejército o en una castle exterior. Después, repetir perdiendo una expansión. Medir ingreso neto, tiempo de recuperación de producción y posibilidad de cambiar de flanco. Si el primer ganador económico controla toda la renta posterior, reducir los recursos seguros podría **agravar** el efecto acumulativo. Más combate temprano no basta para dar el cambio por exitoso. Esta hipótesis no cambia la victoria, la condición de empate ni el costo de las unidades.
+Already applied: outer resources in several places. Pending experiment: compare investing first in workers, in army or in an outer castle. Then repeat while losing an expansion. Measure net income, time to recover production and the chance to switch flanks. If the first economic winner controls all later income, cutting the safe resources could **make** the snowball effect worse. More early combat alone doesn't make the change a success. This hypothesis doesn't change victory, the draw condition or unit costs.
 
-## Criterio para la siguiente iteración
+## Criteria for the next iteration
 
-1. Pasar las pruebas del motor/contexto y las referencias ejecutables.
-2. Ejecutar la comparación entre el mapa anterior y el nuevo con lados intercambiados, y registrar sus manifiestos.
-3. Elegir con los resultados de validación. Consultar una sola vez un conjunto de prueba final reservado.
+1. Pass the engine/context tests and the executable references.
+2. Run the comparison between the old and the new map with sides swapped, and record their manifests.
+3. Choose with the validation results. Check a reserved final test set only once.
 
-La latencia real del modelo es parte de la competición; la registramos para explicar resultados. Estas fuentes orientan **qué medir y qué alternativas probar**. No reemplazan la prueba de nuestras reglas.
+The model's real latency is part of the competition; we record it to explain results. These sources guide **what to measure and which alternatives to try**. They don't replace testing our rules.
