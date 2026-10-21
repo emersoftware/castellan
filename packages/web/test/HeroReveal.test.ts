@@ -14,7 +14,6 @@ function scene() {
     now(): number; sprites: SpriteSet; animate(): void; play(): void;
     root: Container; fx: Container; app: { renderer: { render(): void } };
     drawn: Map<string, { sprite: Sprite }>;
-    revealGroundFilter?: Filter & { shown: number };
   };
   internals.now = () => now;
   internals.play = () => {};
@@ -38,7 +37,7 @@ function scene() {
 it("holds until presented, assembles every position together, and removes all entrance effects", () => {
   const h = scene();
   h.renderer.prepareReveal();
-  const dissolve = h.internals.revealGroundFilter!;
+  const dissolve = h.internals.root.filters![0] as Filter & { shown: number };
   h.advance(3000); // A slow load must not consume the animation offscreen.
   expect(dissolve.shown).toBe(0);
   expect(h.sprite("north").alpha).toBe(0);
@@ -60,7 +59,6 @@ it("holds until presented, assembles every position together, and removes all en
   h.advance(4050);
   expect(h.sprite("worker").alpha).toBe(1);
   expect(h.internals.fx.alpha).toBe(1);
-  expect(h.internals.revealGroundFilter).toBeUndefined();
   expect(h.internals.root.filters).toHaveLength(0);
 });
 
@@ -74,7 +72,7 @@ it("reveals the full board immediately when reduced motion is enabled during ent
   expect(h.sprite("north").alpha).toBe(1);
   expect(h.sprite("worker").alpha).toBe(1);
   expect(h.internals.fx.alpha).toBe(1);
-  expect(h.internals.revealGroundFilter).toBeUndefined();
+  expect(h.internals.root.filters).toHaveLength(0);
 });
 
 it("preserves a unit's own death fade when it dies during entrance", () => {

@@ -5,21 +5,24 @@
  * interpolates movement, turns events into effects and sounds, and leaves
  * corpses on the field.
  */
-import { Application, Container, Graphics, RenderTexture, Sprite, Text, type Filter } from "pixi.js";
+import { Application, Container, Graphics, RenderTexture, Sprite, type Filter } from "pixi.js";
 import type { DepositView, EntityView, GameEvent, KindSpec, ProjectileView, Ruleset, SoundName, SpectatorView } from "@castellan/shared";
 import type { CameraBox } from "../showcaseCamera";
 import { TILE_H, TILE_W, loadSprites, screenDir, terrainTexture, type SpriteArt, type SpriteSet } from "./sprites";
 import type { ClipArt } from "./clips";
 import { createOutlineFilter, createXrayFilter, depthTint, occluderTint } from "./xray";
 import { createDitherFilter } from "./dither";
-import { createDissolveFilter } from "./dissolve";
 import { RAMPS, PLAYER_RAMPS, dim } from "./palette";
 import { depositSprite, initialDepositAmount } from "./deposits";
 
 import { barrierAxes, currentKind, NEUTRAL_OWNER } from "@castellan/shared";
 
 import { animatedUnit, buildingLook, fall, strikeMs, unitLook, type FireLook, type Strike } from "./look";
-import { corpseFade } from "./corpseFade";
+import { WorldCamera } from "./camera";
+import { SceneEffects, type Effect } from "./effects";
+import { SpritePicker, bindWorldInput } from "./input";
+import { iso } from "./projection";
+import { ScenePresentation } from "./presentation";
 
 export interface HoverInfo {
   x: number;
@@ -70,35 +73,6 @@ interface Drawn {
   collapseLayer?: Container;
 }
 
-interface Effect {
-  /** Returns false when finished. */
-  update(now: number): boolean;
-  /** Remove persistent remains when seeking away from their timeline. */
-  destroy?(): void;
-}
-
-/** Hero close-ups stop where the hero art (stored at 1.5×) would be enlarged. */
-const CLOSE_UP_ZOOM = 1.5;
-/** Seconds the hero camera takes to settle on a moving target: centre, then zoom (slower, so it eases in). */
-const FOLLOW_S = 1.4, ZOOM_S = 2.2;
-/** Handheld sway: screen pixels of drift and the fraction the zoom breathes. */
-const SWAY_PX = 7, BREATH = 0.012;
-/** Each full layer assembles through the game dither: terrain, structures, then units. */
-const REVEAL_LAYER_MS = 350;
-interface View { cx: number; cy: number; z: number }
-const sameBox = (a: CameraBox | null, b: CameraBox | null) =>
-  a === b || (!!a && !!b && a.x0 === b.x0 && a.y0 === b.y0 && a.x1 === b.x1 && a.y1 === b.y1);
-/** Critically damped approach (Unity's SmoothDamp): eases out without overshoot, and eases in when the target starts moving. */
-function smoothDamp(from: number, to: number, velocity: number, smoothS: number, dt: number) {
-  const omega = 2 / smoothS, x = omega * dt;
-  const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
-  const change = from - to, temp = (velocity + omega * change) * dt;
-  return { value: to + (change + temp) * decay, velocity: (velocity - omega * temp) * decay };
-}
-/** Smooth, non-repeating drift in [-1, 1] from incommensurate sines, like a hand holding the camera. */
-const sway = (t: number, phase: number) =>
-  (Math.sin(t * 0.69 + phase) + 0.6 * Math.sin(t * 1.43 + phase * 2.1) + 0.3 * Math.sin(t * 2.97 + phase * 3.7)) / 1.9;
-const iso = (x: number, y: number) => ({ sx: (x - y) * (TILE_W / 2), sy: (x + y) * (TILE_H / 2) });
 /** The piece a barrier shows: a door open or shut, a wall running along one axis (cut for doors beside it), or a post. */
 function barrierPiece(view: EntityView, axes: { alongX: boolean; alongY: boolean }, doorAt: (sign: number) => boolean): ClipArt {
   if (view.kind === "door") return view.open ? "door-open" : "door";
@@ -138,6 +112,7 @@ export class GameRenderer {
   private drawn = new Map<string, Drawn>();
   private deposits = new Map<string, { view: DepositView; sprite: Sprite; shadow: Graphics; depth: Sprite }>();
   private effects: Effect[] = [];
+  private transient = new SceneEffects(this.fx, () => this.presentationNow());
   private shots = new Map<string, { graphic: Graphics; from: { x: number; y: number }; to: ProjectileView;
     launchOffset?: { x: number; y: number; at: number } }>();
   private frameAt = 0;
@@ -148,19 +123,6 @@ export class GameRenderer {
   private lastTick = -1;
   private pausedAt?: number;
   private pauseOffset = 0;
-  private zoomLevel = 1;
-  private fitted = false;
-  /** Hero camera: tiles to frame (`null` the whole map); undefined when the view is the viewer's. */
-  private focusBox?: CameraBox | null;
-  /** Hero camera: the canvas region (CSS px) where shots are framed; the rest of the canvas shows what lies around them. */
-  private area?: { x: number; y: number; w: number; h: number };
-  /** Staged entrance: when it started (Infinity while waiting for the text). */
-  private revealAt?: number;
-  private revealGroundFilter?: ReturnType<typeof createDissolveFilter>;
-  /** Restore the real presentation alpha before advancing effects on the next frame. */
-  private revealAlphas = new Map<Container, number>();
-  /** The hero camera's smoothed view (before sway), its velocities and the last update time. */
-  private follow?: { view: View; vx: number; vy: number; vz: number; at: number };
   private hoverCb: (h: HoverInfo | null) => void = () => {};
   private selectCb: (id: string | null) => void = () => {};
   /** The entity the viewer clicked; kept across frames until another click or `select(null)`. */
@@ -170,18 +132,25 @@ export class GameRenderer {
   private pointer: { x: number; y: number } | null = null;
   /** The entity or deposit under the pointer, outlined on the ground like the selection. */
   private hoverId: string | null = null;
-  /** Readable copies of sprite sheets, to hit-test only opaque pixels. */
-  private alphaSources = new WeakMap<object, CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null>();
+  private picker = new SpritePicker();
   private resize?: ResizeObserver;
+  private presentation: ScenePresentation;
+  private viewCamera: WorldCamera;
   private width: number;
   private height: number;
   private sound: SoundSink = () => {};
   /** Wall clock by default; a virtual one while recording video. */
   private now: () => number = () => performance.now();
 
-  private constructor(private host: HTMLElement, private ruleset: Ruleset, private colors: Record<string, number>, private fitOnResize = false, private interactive = true, private spriteBase?: string) {
+  private constructor(private host: HTMLElement, private ruleset: Ruleset, private colors: Record<string, number>, fitOnResize = false, private interactive = true, private spriteBase?: string) {
     this.width = ruleset.map.width;
     this.height = ruleset.map.height;
+    this.presentation = new ScenePresentation(this.root, {
+      ground: this.ground, fog: this.fog,
+      units: [this.objects, this.shadows, this.outlineLayer, this.xrayLayer, this.fx, this.hoverMark, this.selectMark],
+      overlays: [this.fx, this.outlineLayer, this.xrayLayer, this.hoverMark, this.selectMark],
+    }, () => this.revealParts(), () => this.now());
+    this.viewCamera = new WorldCamera(this.world, this.width, this.height, () => this.now(), fitOnResize, interactive);
   }
 
   /** `colors`: each player's colour index (0..3). */
@@ -227,7 +196,26 @@ export class GameRenderer {
     this.fit();
     this.resize = new ResizeObserver(() => this.fit());
     this.resize.observe(this.host);
-    if (this.interactive) this.bindInput();
+    if (this.interactive) bindWorldInput(cv, this.world, this.app.renderer, {
+      zoom: (factor, x, y) => this.zoom(factor, x, y),
+      pointer: point => {
+        this.pointer = point;
+        this.hovered = null;
+        if (point) {
+          const px = (point.x - this.world.x) / this.world.scale.x;
+          const py = (point.y - this.world.y) / this.world.scale.y;
+          const x = Math.round((px / (TILE_W / 2) + py / (TILE_H / 2)) / 2);
+          const y = Math.round((py / (TILE_H / 2) - px / (TILE_W / 2)) / 2);
+          if (x >= 0 && y >= 0 && x < this.width && y < this.height) this.hovered = { x, y };
+        }
+        this.refreshHover();
+      },
+      select: () => {
+        const picked = this.pointer && this.picker.pick(this.pointer.x, this.pointer.y, this.drawn.values(), this.deposits.values());
+        this.selectedId = picked ? picked.view.id : null;
+        this.selectCb(this.selectedId);
+      },
+    });
     this.app.ticker.add(() => this.animate());
     this.app.start();
   }
@@ -260,178 +248,30 @@ export class GameRenderer {
   private presentationNow() { return (this.pausedAt ?? this.now()) - this.pauseOffset; }
   private animationMs(now: number) { return this.gameMs + this.alpha(now) * this.gameTickMs; }
 
-  /** Zoom by a factor around a point in renderer pixels, the screen center by default (0.35×–3×). */
-  zoom(factor: number, cx = this.app.renderer.width / 2, cy = this.app.renderer.height / 2) {
-    const next = Math.min(3, Math.max(0.35, this.zoomLevel * factor));
-    const wx = (cx - this.world.x) / this.zoomLevel;
-    const wy = (cy - this.world.y) / this.zoomLevel;
-    this.zoomLevel = next;
-    this.world.scale.set(next);
-    this.world.position.set(Math.round(cx - wx * next), Math.round(cy - wy * next));
-  }
+  /** Zoom around a renderer-pixel point, or the canvas centre. */
+  zoom(factor: number, cx?: number, cy?: number) { this.viewCamera.zoom(factor, cx, cy); }
 
-  /**
-   * Recordings: show units (and their shadows, marks and effects) or the whole world through a Bayer screen
-   * door, 0 hidden … 1 shown, so shots dissolve between games the way the game dithers. A player's fog can go
-   * with its units (`fog`).
-   */
-  dissolve(units: number, world = 1, fog = world) {
-    const set = (c: Container, shown: number) => {
-      if (shown >= 1) { if (c.filters?.length) c.filters = c.filters.filter((f) => !(f as { shown?: number }).hasOwnProperty("shown")); return; }
-      const f = (c.filters?.find((x) => Object.prototype.hasOwnProperty.call(x, "shown")) as (Filter & { shown: number }) | undefined) ?? createDissolveFilter();
-      f.shown = shown;
-      if (!c.filters?.includes(f)) c.filters = [...(c.filters ?? []), f];
+  /** Frame a tile for recordings; zoom is relative to the whole-map fit. */
+  camera(x: number, y: number, zoom: number, dy = 0) { this.viewCamera.frame(x, y, zoom, dy); }
+
+  /** Smoothly follow a tile box, or the whole map with null. */
+  focus(box: CameraBox | null) { this.viewCamera.focus(box); }
+
+  /** Restrict hero framing to this CSS-pixel area of the canvas. */
+  setFocusArea(area: { x: number; y: number; w: number; h: number } | undefined) { this.viewCamera.setFocusArea(area); }
+
+  /** Dither units/world/fog from hidden (0) to shown (1), for recording transitions. */
+  dissolve(units: number, world = 1, fog = world) { this.presentation.dissolve(units, world, fog); }
+
+  /** Hold the board hidden until reveal starts its staged entrance. */
+  prepareReveal() { this.presentation.prepareReveal(); }
+  reveal() { this.presentation.reveal(); }
+
+  private *revealParts() {
+    for (const d of this.drawn.values()) yield {
+      building: !!this.ruleset.kinds[d.view.kind]?.building,
+      parts: [d.sprite, d.shadow, d.flame, d.sparks],
     };
-    for (const c of [this.objects, this.shadows, this.outlineLayer, this.xrayLayer, this.fx, this.hoverMark, this.selectMark]) set(c, Math.min(units, world));
-    set(this.ground, world);
-    set(this.fog, Math.min(fog, world));
-  }
-
-  /** Camera for recordings: tile (x, y) at the screen centre (`dy` pixels lower), `zoom` relative to the whole map fitting the screen (1). */
-  camera(x: number, y: number, zoom: number, dy = 0) {
-    const w = this.app.renderer.width, h = this.app.renderer.height;
-    const mapW = (this.width + this.height) * (TILE_W / 2) + 40;
-    const mapH = (this.width + this.height) * (TILE_H / 2) + 110;
-    this.zoomLevel = Math.min(w / mapW, h / mapH) * zoom;
-    this.world.scale.set(this.zoomLevel);
-    const c = iso(x, y);
-    this.world.position.set(Math.round(w / 2 - c.sx * this.zoomLevel), Math.round(h / 2 + dy - c.sy * this.zoomLevel));
-  }
-
-  /**
-   * Hero camera: frame `box` (tiles) or, with `null`, the whole map. The box may
-   * change every tick; the camera follows it smoothly, with a handheld sway,
-   * unless motion is reduced.
-   */
-  focus(box: CameraBox | null) {
-    if (this.focusBox !== undefined && sameBox(this.focusBox, box)) return;
-    this.focusBox = box;
-    if (this.reducedMotion()) { this.follow = undefined; this.applyView(this.viewFor(box)); return; }
-    // The first shot starts framed: nothing glides in when the board appears.
-    if (!this.follow) {
-      const view = this.viewFor(box);
-      this.follow = { view, vx: 0, vy: 0, vz: 0, at: this.now() };
-      this.applyView(view);
-    }
-  }
-
-  /**
-   * Hero camera: frame shots inside `area` (canvas CSS px) instead of the whole
-   * canvas. The whole map fits the area; close-ups spill over the rest of the canvas.
-   */
-  setFocusArea(area: { x: number; y: number; w: number; h: number } | undefined) {
-    const same = area && this.area && area.x === this.area.x && area.y === this.area.y && area.w === this.area.w && area.h === this.area.h;
-    if (same || (!area && !this.area)) return;
-    this.area = area;
-    if (this.focusBox === undefined || !this.app?.renderer) return;
-    const view = this.viewFor(this.focusBox);
-    if (this.follow) this.follow = { ...this.follow, view, vx: 0, vy: 0, vz: 0 };
-    this.applyView(view);
-  }
-
-  /** Where views are framed: the focus area, or the whole canvas. */
-  private frameRect() {
-    return this.area ?? { x: 0, y: 0, w: this.app.renderer.width, h: this.app.renderer.height };
-  }
-
-  /** Prepare every layer while the preceding text is entering. */
-  prepareReveal() {
-    if (this.reducedMotion()) return;
-    this.revealAt = Number.POSITIVE_INFINITY;
-    this.revealGroundFilter = createDissolveFilter();
-    this.root.filters = [...(this.root.filters ?? []), this.revealGroundFilter];
-    this.applyReveal();
-  }
-
-  /** Reassemble the board through dither, reversing the game's corpse fade. */
-  reveal() {
-    if (this.revealAt === undefined) return;
-    this.revealAt = this.now();
-    this.applyReveal();
-  }
-
-  private restoreRevealAlphas() {
-    for (const [part, alpha] of this.revealAlphas) if (!part.destroyed) part.alpha = alpha;
-    this.revealAlphas.clear();
-  }
-
-  private applyReveal() {
-    if (this.revealAt === undefined) return;
-    this.restoreRevealAlphas();
-    const elapsed = this.reducedMotion() ? Infinity : this.now() - this.revealAt;
-    // The terrain has no opaque layer behind it, so alpha would be normalized
-    // away by the palette shader. Dissolve the whole view through its Bayer
-    // pattern until the terrain is complete, then remove this temporary pass.
-    if (this.revealGroundFilter) {
-      this.revealGroundFilter.shown = 1 - corpseFade(elapsed, 0, REVEAL_LAYER_MS).alpha;
-      if (elapsed >= REVEAL_LAYER_MS) {
-        this.root.filters = this.root.filters?.filter(f => f !== this.revealGroundFilter) ?? [];
-        this.revealGroundFilter.destroy();
-        this.revealGroundFilter = undefined;
-      }
-    }
-    if (elapsed >= REVEAL_LAYER_MS * 3) { this.revealAt = undefined; return; }
-    const show = (part: Container | null | undefined, amount: number) => {
-      if (!part || amount >= 1) return;
-      this.revealAlphas.set(part, part.alpha);
-      part.alpha *= amount;
-    };
-    for (const d of this.drawn.values()) {
-      const delay = REVEAL_LAYER_MS * (this.ruleset.kinds[d.view.kind]?.building ? 1 : 2);
-      const amount = 1 - corpseFade(elapsed, delay, REVEAL_LAYER_MS).alpha;
-      // Fade in key-colour space, before the existing palette dither: the same
-      // pixels as a corpse disappearing, played backwards. No per-unit filters.
-      for (const part of [d.sprite, d.shadow, d.flame, d.sparks]) show(part, amount);
-    }
-    const units = 1 - corpseFade(elapsed, REVEAL_LAYER_MS * 2, REVEAL_LAYER_MS).alpha;
-    for (const part of [this.fx, this.outlineLayer, this.xrayLayer, this.hoverMark, this.selectMark]) show(part, units);
-  }
-
-  private reducedMotion() {
-    return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  }
-
-  private viewFor(box: CameraBox | null): View {
-    const { w, h } = this.frameRect();
-    const mapW = (this.width + this.height) * (TILE_W / 2) + 40;
-    const mapH = (this.width + this.height) * (TILE_H / 2) + 110;
-    const whole = Math.min(2, Math.min(w / mapW, h / mapH));
-    if (!box) {
-      const c = iso((this.width - 1) / 2, (this.height - 1) / 2);
-      return { cx: c.sx, cy: c.sy - 18 / whole, z: whole };
-    }
-    const corners = [iso(box.x0, box.y0), iso(box.x1, box.y0), iso(box.x0, box.y1), iso(box.x1, box.y1)];
-    const left = Math.min(...corners.map(c => c.sx)), right = Math.max(...corners.map(c => c.sx));
-    // Room above the northern tiles for the units and buildings standing on them.
-    const top = Math.min(...corners.map(c => c.sy)) - 40, bottom = Math.max(...corners.map(c => c.sy));
-    const z = Math.max(whole, Math.min(CLOSE_UP_ZOOM, w / (right - left), h / (bottom - top)));
-    return { cx: (left + right) / 2, cy: (top + bottom) / 2, z };
-  }
-
-  private applyView(v: View) {
-    const { x, y, w, h } = this.frameRect();
-    this.zoomLevel = v.z;
-    this.world.scale.set(v.z);
-    this.world.position.set(Math.round(x + w / 2 - v.cx * v.z), Math.round(y + h / 2 - v.cy * v.z));
-  }
-
-  /**
-   * Advance the hero camera: damp the centre and the zoom (in log scale, so zooming
-   * in and out feel alike) towards the target, then add the handheld sway.
-   */
-  private moveCamera() {
-    const f = this.follow;
-    if (!f || this.focusBox === undefined) return;
-    const now = this.now(), dt = Math.min(0.1, Math.max(0, (now - f.at) / 1000));
-    f.at = now;
-    const to = this.viewFor(this.focusBox);
-    const x = smoothDamp(f.view.cx, to.cx, f.vx, FOLLOW_S, dt), y = smoothDamp(f.view.cy, to.cy, f.vy, FOLLOW_S, dt);
-    const z = smoothDamp(Math.log(f.view.z), Math.log(to.z), f.vz, ZOOM_S, dt);
-    f.view = { cx: x.value, cy: y.value, z: Math.exp(z.value) };
-    f.vx = x.velocity; f.vy = y.velocity; f.vz = z.velocity;
-    const t = now / 1000, { cx, cy, z: zoom } = f.view;
-    const swayed = zoom * (1 + BREATH * sway(t * 0.6, 4.2));
-    this.applyView({ cx: cx + SWAY_PX * sway(t, 0) / swayed, cy: cy + SWAY_PX * sway(t, 1.7) / swayed, z: swayed });
   }
 
   /**
@@ -570,7 +410,7 @@ export class GameRenderer {
     }
     for (const [id, d] of this.deposits) {
       if (depSeen.has(id)) continue;
-      if (!quiet && !v.visibility) this.effects.push(this.dust(d.view.x, d.view.y, RAMPS.neutral.key, 10));
+      if (!quiet && !v.visibility) this.effects.push(this.transient.dust(d.view.x, d.view.y, RAMPS.neutral.key, 10));
       d.sprite.destroy();
       d.shadow.destroy();
       d.depth.destroy();
@@ -611,8 +451,7 @@ export class GameRenderer {
   }
 
   destroy() {
-    this.revealGroundFilter?.destroy();
-    this.revealAlphas.clear();
+    this.presentation.destroy();
     this.resize?.disconnect();
     this.app.destroy(true, { children: true, texture: false });
   }
@@ -681,8 +520,6 @@ export class GameRenderer {
 
   /** Canvas at CSS size (the dither dot is one CSS pixel); zoom fits the map on first layout, and on each with `fitOnResize`. */
   private fit() {
-    const recenter = this.fitOnResize || !this.fitted;
-    this.fitted = true;
     const w = Math.max(64, this.host.clientWidth);
     const h = Math.max(64, this.host.clientHeight);
     this.app.renderer.resize(w, h);
@@ -706,22 +543,8 @@ export class GameRenderer {
       this.outlineFilter.resources.uDepth = this.depthRT.source;
       this.outlineFilter.resources.xrayUniforms.uniforms.uScreen = new Float32Array([w, h]);
     }
-    if (this.focusBox !== undefined) {
-      // A new size reframes the current shot at once.
-      const view = this.viewFor(this.focusBox);
-      if (this.follow) this.follow = { ...this.follow, view, vx: 0, vy: 0, vz: 0 };
-      this.applyView(view);
-      return;
-    }
-    if (!recenter) return;
-    const mapW = (this.width + this.height) * (TILE_W / 2) + 40;
-    const mapH = (this.width + this.height) * (TILE_H / 2) + 110;
-    // Decorative previews fit the whole map even on narrow phone screens.
-    const minZoom = this.interactive ? 0.35 : 0;
-    this.zoomLevel = Math.min(2, Math.max(minZoom, Math.min(w / mapW, h / mapH)));
-    this.world.scale.set(this.zoomLevel);
-    const c = iso((this.width - 1) / 2, (this.height - 1) / 2);
-    this.world.position.set(Math.round(w / 2 - c.sx * this.zoomLevel), Math.round(h / 2 + 18 - c.sy * this.zoomLevel));
+
+    this.viewCamera.resize(w, h);
   }
 
   private addEntity(e: EntityView) {
@@ -774,8 +597,8 @@ export class GameRenderer {
   }
 
   private animate() {
-    this.moveCamera();
-    this.restoreRevealAlphas();
+    this.viewCamera.update();
+    this.presentation.restore();
     const now = this.presentationNow();
     const a = this.alpha(now);
     const animationMs = this.animationMs(now);
@@ -867,7 +690,7 @@ export class GameRenderer {
     this.drawSelection(a, animationMs);
     this.effects = this.effects.filter((e) => e.update(now));
     // Apply after effects create their fire/sparks and update their own alpha.
-    this.applyReveal();
+    this.presentation.apply();
     // Depth pass for the x-ray: occluders only, in the world's current view.
     this.depthWorld.position.copyFrom(this.world.position);
     this.depthWorld.scale.copyFrom(this.world.scale);
@@ -945,7 +768,7 @@ export class GameRenderer {
           from.walkUntil = undefined;
           from.shot = { at: this.gameMs, dir: from.dir };
         }
-        if (!ev.projectile && to) this.effects.push(this.arrow(from, to));
+        if (!ev.projectile && to) this.effects.push(this.transient.arrow(from.sprite, to.sprite));
         this.play(spec?.building ? "tower" : "arrow", from.to.x, from.to.y, 0.35);
       } else if (targetPosition) {
         const animatedAttack = strikeMs(from.view.kind) !== undefined;
@@ -959,12 +782,12 @@ export class GameRenderer {
         from.lungeUntil = animatedAttack ? 0 : now + 140;
         from.lunge = { x: dx, y: Math.sign(b.sy - a.sy) };
         if (to) to.flashUntil = now + 90;
-        this.effects.push(this.dust(targetPosition.x, targetPosition.y, RAMPS.neutral.key, 3, 5));
+        this.effects.push(this.transient.dust(targetPosition.x, targetPosition.y, RAMPS.neutral.key, 3, 5));
         this.play("sword", targetPosition.x, targetPosition.y, 0.5);
       }
     } else if (ev.type === "projectile_end") {
       if (ev.reason !== "miss") {
-        this.effects.push(this.dust(ev.x, ev.y, RAMPS.neutral.key, 3, 5));
+        this.effects.push(this.transient.dust(ev.x, ev.y, RAMPS.neutral.key, 3, 5));
         this.play("hit", ev.x, ev.y, 0.5);
         const target = ev.target && this.drawn.get(ev.target);
         if (target) target.flashUntil = now + 90;
@@ -973,15 +796,15 @@ export class GameRenderer {
       const vital = this.ruleset.kinds[ev.kind]?.vital;
       const building = this.ruleset.kinds[ev.kind]?.building;
       this.play(vital ? "horn" : building ? "collapse" : "death", ev.x, ev.y, vital ? 0.8 : building ? 0.7 : 0.4);
-      if (vital) this.effects.push(this.floatText(currentKind(ev.kind) === "king" ? "KING DOWN" : `${ev.kind.toUpperCase()} DESTROYED`, ev.x, ev.y, RAMPS.neutral.key, 3200, 12));
+      if (vital) this.effects.push(this.transient.floatText(currentKind(ev.kind) === "king" ? "KING DOWN" : `${ev.kind.toUpperCase()} DESTROYED`, ev.x, ev.y, RAMPS.neutral.key, 3200, 12));
     } else if (ev.type === "spawn") {
       const building = this.ruleset.kinds[ev.kind]?.building;
-      this.effects.push(this.dust(ev.x, ev.y, 0xaaaaaa, building ? 14 : 6));
+      this.effects.push(this.transient.dust(ev.x, ev.y, 0xaaaaaa, building ? 14 : 6));
       this.play(building ? "build" : "spawn", ev.x, ev.y, 0.5);
     } else if (ev.type === "chat") {
       const king = [...this.drawn.values()].find((d) => d.view.owner === ev.owner && currentKind(d.view.kind) === "king");
       if (king) {
-        this.effects.push(this.bubble(`${ev.channel === "private" ? `[private → ${ev.to}] ` : ev.channel === "team" ? "[team] " : ""}${ev.text}`, king));
+        this.effects.push(this.transient.bubble(`${ev.channel === "private" ? `[private → ${ev.to}] ` : ev.channel === "team" ? "[team] " : ""}${ev.text}`, king.sprite, PLAYER_RAMPS[king.color].key));
         this.play("chat", king.to.x, king.to.y, 0.6);
       }
     } else if (ev.type === "match_end") {
@@ -992,8 +815,8 @@ export class GameRenderer {
   /** Pans with the screen position; quieter the farther off-screen, where footsteps and picks go silent. */
   private play(name: SoundName, x: number, y: number, volume: number) {
     const { sx, sy } = iso(x, y);
-    const px = this.world.x + sx * this.zoomLevel;
-    const py = this.world.y + sy * this.zoomLevel;
+    const px = this.world.x + sx * this.world.scale.x;
+    const py = this.world.y + sy * this.world.scale.x;
     const w = this.app.renderer.width;
     const h = this.app.renderer.height;
     const pan = Math.max(-1, Math.min(1, (px / w) * 2 - 1));
@@ -1012,7 +835,7 @@ export class GameRenderer {
     const barrierFlip = d.sprite.scale.x < 0;
     let previous = start, elapsed = 0;
     d.sprite.tint = collapsing ? this.ownerTint(d.view.owner) : dim(this.ownerTint(d.view.owner), 0.45);
-    if (way === "rubble") this.effects.push(this.dust(d.to.x, d.to.y, 0xaaaaaa, 24, 14));
+    if (way === "rubble") this.effects.push(this.transient.dust(d.to.x, d.to.y, 0xaaaaaa, 24, 14));
     else if (way === "corpse") {
       d.sprite.anchor.set(0.5, 0.5);
       d.sprite.rotation = (Math.PI / 2) * Math.sign(d.sprite.scale.x);
@@ -1085,226 +908,13 @@ export class GameRenderer {
     }
   }
 
-  private dust(x: number, y: number, color: number, n: number, spread = 8): Effect {
-    const { sx, sy } = iso(x, y);
-    const g = new Graphics();
-    this.fx.addChild(g);
-    const parts = Array.from({ length: n }, (_, i) => {
-      const ang = (i / n) * Math.PI * 2 + Math.random();
-      const sp = (0.2 + Math.random()) * (spread / 10);
-      return { x: sx, y: sy - 3, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp * 0.5 - 0.4, life: 24 + Math.random() * 16 };
-    });
-    return {
-      update: () => {
-        g.clear();
-        let alive = false;
-        for (const p of parts) {
-          if (p.life <= 0) continue;
-          p.life--;
-          p.vy += 0.03;
-          p.x += p.vx;
-          p.y += p.vy;
-          g.rect(p.x, p.y, 1, 1).fill({ color, alpha: Math.min(1, p.life / 16) });
-          alive = true;
-        }
-        if (!alive) g.destroy();
-        return alive;
-      },
-    };
-  }
-
-  /** An arrow on a shallow arc from shooter to target. */
-  private arrow(from: Drawn, to: Drawn): Effect {
-    const g = new Graphics();
-    this.fx.addChild(g);
-    const a = { x: from.sprite.x, y: from.sprite.y - from.sprite.height * 0.7 };
-    const b = { x: to.sprite.x, y: to.sprite.y - 6 };
-    const start = this.presentationNow();
-    const ms = 220;
-    const dist = Math.hypot(b.x - a.x, b.y - a.y);
-    return {
-      update: (now) => {
-        const k = (now - start) / ms;
-        g.clear();
-        if (k >= 1) {
-          g.destroy();
-          return false;
-        }
-        const pos = (t: number) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t - Math.sin(t * Math.PI) * dist * 0.18 });
-        const p = pos(k);
-        const q = pos(Math.max(0, k - 0.06));
-        g.moveTo(q.x, q.y).lineTo(p.x, p.y).stroke({ width: 1, color: 0xaaaaaa });
-        g.rect(p.x - 0.5, p.y - 0.5, 1, 1).fill(0xffffff);
-        return true;
-      },
-    };
-  }
-
-  private floatText(text: string, x: number, y: number, color: number, ms = 1000, size = 8): Effect {
-    const { sx, sy } = iso(x, y);
-    const t = new Text({ text, style: { fontFamily: size > 9 ? "Times New Roman, Times, serif" : "Arial, Helvetica, sans-serif", fontSize: size, fill: color, stroke: { color: 0x000000, width: 2 } }, resolution: 2 });
-    t.anchor.set(0.5, 1);
-    t.position.set(sx, sy - 18);
-    this.fx.addChild(t);
-    const start = this.presentationNow();
-    return {
-      update: (now) => {
-        const k = (now - start) / ms;
-        t.y = sy - 18 - k * 12;
-        t.alpha = 1 - Math.max(0, k - 0.7) / 0.3;
-        if (k < 1) return true;
-        t.destroy();
-        return false;
-      },
-    };
-  }
-
-  /** A speech scroll that follows the king for a few seconds. */
-  private bubble(text: string, d: Drawn): Effect {
-    const short = text.length > 80 ? text.slice(0, 77) + "…" : text;
-    const box = new Container();
-    const t = new Text({ text: short, style: { fontFamily: "Arial, Helvetica, sans-serif", fontSize: 8, fill: 0x000000, wordWrap: true, wordWrapWidth: 110 }, resolution: 2 });
-    t.position.set(4, 2);
-    const w = Math.ceil(t.width) + 8;
-    const h = Math.ceil(t.height) + 4;
-    const g = new Graphics();
-    g.rect(0, 0, w, h).fill(0xdddddd).stroke({ width: 1, color: PLAYER_RAMPS[d.color].key });
-    g.poly([w / 2 - 3, h, w / 2 + 3, h, w / 2, h + 4]).fill(0xdddddd);
-    box.addChild(g, t);
-    this.fx.addChild(box);
-    const start = this.presentationNow();
-    return {
-      update: (now) => {
-        const k = (now - start) / 6000;
-        if (k >= 1 || d.sprite.destroyed) {
-          box.destroy({ children: true });
-          return false;
-        }
-        box.position.set(Math.round(d.sprite.x - w / 2), Math.round(d.sprite.y - d.sprite.height - h - 6));
-        box.alpha = k > 0.85 ? (1 - k) / 0.15 : 1;
-        return true;
-      },
-    };
-  }
-
   // ───────────────────────── input ─────────────────────────
-
-  private bindInput() {
-    const cv = this.app.canvas;
-    // The map takes every touch: one finger pans, two pinch to zoom; the page must not zoom or scroll instead.
-    cv.style.touchAction = "none";
-    let drag: { x: number; y: number; wx: number; wy: number } | null = null;
-    const touches = new Map<number, { x: number; y: number }>();
-    let pinch: { distance: number; x: number; y: number } | null = null;
-    const pinchOf = () => {
-      const [a, b] = [...touches.values()];
-      return { distance: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-    };
-    cv.addEventListener("pointerdown", (e) => {
-      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      cv.setPointerCapture(e.pointerId);
-      if (touches.size === 2) { drag = null; pinch = pinchOf(); }
-      else if (touches.size === 1) drag = { x: e.clientX, y: e.clientY, wx: this.world.x, wy: this.world.y };
-    });
-    const release = (e: PointerEvent) => {
-      if (!touches.delete(e.pointerId)) return;
-      pinch = null;
-      // The finger left on the glass after a pinch keeps panning from where it is.
-      const [rest] = touches.values();
-      if (rest) drag = { x: rest.x, y: rest.y, wx: this.world.x, wy: this.world.y };
-    };
-    cv.addEventListener("pointerup", (e) => {
-      // A click (not a drag) selects the visible entity on that tile, or clears the selection.
-      if (touches.size === 1 && drag && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5) {
-        const picked = this.pointer && this.pickAt(this.pointer.x, this.pointer.y);
-        this.selectedId = picked ? picked.view.id : null;
-        this.selectCb(this.selectedId);
-      }
-      release(e);
-      if (!touches.size) drag = null;
-    });
-    cv.addEventListener("pointercancel", (e) => { release(e); if (!touches.size) drag = null; });
-    cv.addEventListener("pointerleave", () => {
-      this.hovered = null;
-      this.pointer = null;
-      this.hoverId = null;
-      this.refreshHover();
-    });
-    cv.addEventListener("pointermove", (e) => {
-      const rect = cv.getBoundingClientRect();
-      const k = rect.width / this.app.renderer.width;
-      if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pinch && touches.size === 2) {
-        const now = pinchOf();
-        this.world.position.set(Math.round(this.world.x + (now.x - pinch.x) / k), Math.round(this.world.y + (now.y - pinch.y) / k));
-        if (pinch.distance > 0) this.zoom(now.distance / pinch.distance, (now.x - rect.left) / k, (now.y - rect.top) / k);
-        pinch = now;
-        return;
-      }
-      if (drag) this.world.position.set(Math.round(drag.wx + (e.clientX - drag.x) / k), Math.round(drag.wy + (e.clientY - drag.y) / k));
-      const px = ((e.clientX - rect.left) / k - this.world.x) / this.zoomLevel;
-      const py = ((e.clientY - rect.top) / k - this.world.y) / this.zoomLevel;
-      const gx = Math.round((px / (TILE_W / 2) + py / (TILE_H / 2)) / 2);
-      const gy = Math.round((py / (TILE_H / 2) - px / (TILE_W / 2)) / 2);
-      this.hovered = gx >= 0 && gy >= 0 && gx < this.width && gy < this.height ? { x: gx, y: gy } : null;
-      this.pointer = { x: (e.clientX - rect.left) / k, y: (e.clientY - rect.top) / k };
-      this.refreshHover();
-    });
-    cv.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      this.zoom(e.deltaY < 0 ? 1.15 : 1 / 1.15);
-    }, { passive: false });
-  }
-
-  /**
-   * The entity or deposit drawn under a canvas point (renderer pixels): among the sprites
-   * whose box holds it, the one drawn in front (highest depth), then the smallest. Only
-   * what is drawn (and so visible from the current view) can be picked.
-   */
-  private pickAt(px: number, py: number): { kind: "entity"; view: EntityView } | { kind: "deposit"; view: DepositView } | null {
-    let best: { kind: "entity"; view: EntityView } | { kind: "deposit"; view: DepositView } | null = null;
-    let front = -Infinity, area = Infinity;
-    const consider = (sprite: Sprite, item: NonNullable<typeof best>) => {
-      if (!sprite.visible || !sprite.parent) return;
-      const b = sprite.getBounds();
-      if (px < b.x || px > b.x + b.width || py < b.y || py > b.y + b.height || !this.opaqueAt(sprite, px, py)) return;
-      const a = b.width * b.height;
-      if (sprite.zIndex < front || (sprite.zIndex === front && a >= area)) return;
-      front = sprite.zIndex; area = a;
-      best = item;
-    };
-    for (const d of this.drawn.values()) consider(d.sprite, { kind: "entity", view: d.view });
-    for (const d of this.deposits.values()) consider(d.sprite, { kind: "deposit", view: d.view });
-    return best;
-  }
-
-  /** Whether the sprite's own pixel under a canvas point is opaque (not its transparent margin). */
-  private opaqueAt(sprite: Sprite, px: number, py: number): boolean {
-    const tex = sprite.texture;
-    const res = (tex.source as { resource?: unknown }).resource as (CanvasImageSource & { width?: number; height?: number }) | undefined;
-    if (!res || typeof res.width !== "number" || typeof res.height !== "number") return true;
-    let ctx = this.alphaSources.get(res);
-    if (ctx === undefined) {
-      try {
-        const canvas = typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(res.width, res.height) : Object.assign(document.createElement("canvas"), { width: res.width, height: res.height });
-        ctx = canvas.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
-        ctx?.drawImage(res, 0, 0);
-      } catch { ctx = null; }
-      this.alphaSources.set(res, ctx);
-    }
-    if (!ctx) return true;
-    const local = sprite.toLocal({ x: px, y: py });
-    const u = Math.floor(local.x + sprite.anchor.x * tex.orig.width - (tex.trim?.x ?? 0));
-    const v = Math.floor(local.y + sprite.anchor.y * tex.orig.height - (tex.trim?.y ?? 0));
-    if (u < 0 || v < 0 || u >= tex.frame.width || v >= tex.frame.height) return false;
-    return ctx.getImageData(tex.frame.x + u, tex.frame.y + v, 1, 1).data[3] > 40;
-  }
 
   private hoverShown = true;
   private refreshHover() {
     this.hoverMark.clear();
     // The sprite under the pointer first (bodies stand above their tile), else the tile itself.
-    const picked = this.pointer ? this.pickAt(this.pointer.x, this.pointer.y) : null;
+    const picked = this.pointer ? this.picker.pick(this.pointer.x, this.pointer.y, this.drawn.values(), this.deposits.values()) : null;
     this.hoverId = picked ? picked.view.id : null;
     const h = picked ? { x: picked.kind === "entity" ? this.drawn.get(picked.view.id)!.to.x : picked.view.x, y: picked.kind === "entity" ? this.drawn.get(picked.view.id)!.to.y : picked.view.y } : this.hovered;
     if (!h || (!picked && this.visibility && this.visibility[h.y]?.[h.x] !== "2")) {
