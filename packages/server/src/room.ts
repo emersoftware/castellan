@@ -101,6 +101,7 @@ export class Room {
   private status: MatchStatus = "waiting";
   private prepEndsAt = 0;
   private match!: Match;
+  private matchDisposed = false;
   private queue: Pending[] = [];
   private waiters: Waiter[] = [];
   private spectators = new Set<Spectator>();
@@ -196,7 +197,10 @@ export class Room {
     room.seen = new Map(saved.cursors);
     room.lastChat = new Map(saved.lastChat);
     for (const [player, timing] of Object.entries(saved.timing)) room.timing.set(player, { ...timing, answeredAt: null });
-    if (room.match.outcome) room.status = "finished";
+    if (room.match.outcome) {
+      room.status = "finished";
+      room.disposeMatch();
+    }
     return room;
   }
 
@@ -457,6 +461,12 @@ export class Room {
     this.suspend();
     for (const w of [...this.waiters]) w.resolve();
     if (this.outcome) this.publishFinish();
+    this.disposeMatch();
+  }
+
+  private disposeMatch() {
+    if (this.matchDisposed) return;
+    this.matchDisposed = true;
     this.match.dispose();
   }
 
@@ -518,6 +528,9 @@ export class Room {
       t.maxActionGapMs = Math.max(t.maxActionGapMs ?? 0, Date.now() - (this.lastActionAt.get(p.id) ?? this.runningSince));
     }
     this.hashes[this.match.tick] = this.match.hash();
+    // Finished rooms remain readable in the lobby/history, but their player
+    // VMs no longer execute. Release workers now, not only at server shutdown.
+    this.disposeMatch();
     this.setStatus("finished");
     if (this.timer) clearTimeout(this.timer);
     // Resolve waits/orders first, then capture their final responses. A stalled
