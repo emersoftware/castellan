@@ -249,7 +249,8 @@
     v.play().catch(() => {});
   }
   const fullscreen = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {});
-  const openPresenter = () => window.open('presenter.html', 'aoa-presenter', 'width=1280,height=860');
+  // The published deck has no presenter view: without its button, P does nothing.
+  const openPresenter = () => { if (document.getElementById('presenter-open')) window.open('presenter.html', 'aoa-presenter', 'width=1280,height=860'); };
 
   function buildOverview() {
     const list = document.getElementById('overview-list');
@@ -338,7 +339,8 @@
   document.getElementById('overview-toggle').onclick = () => toggleDialog('overview');
   document.getElementById('help-toggle').onclick = () => toggleDialog('help');
   document.getElementById('fullscreen').onclick = fullscreen;
-  document.getElementById('presenter-open').onclick = openPresenter;
+  const presenterButton = document.getElementById('presenter-open');
+  if (presenterButton) presenterButton.onclick = openPresenter;
   document.getElementById('mute').onclick = () => setMuted(!state.muted);
   document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
   // Focus never stays on a control: a clicker's space or Enter must move the talk, not press a button again.
