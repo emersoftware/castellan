@@ -69,7 +69,11 @@ export class Runtime {
           const r = await this.client.post<{ results: OrderResult[]; view: PlayerView }>(routes.act, { orders });
           this.cycleStats.acts++;
           this.core.report(orders, r.results);
-          if (r.view.status === "finished") { this.core.step(r.view); break; }
+          if (r.view.status === "finished") {
+            view = r.view;
+            this.core.step(view);
+            break;
+          }
         } catch (e) {
           this.cycleStats.errors++;
           this.journal.write({ t: Date.now(), tick: view.tick, type: "runtime_error", message: (e as Error).message, orders: orders.length });
