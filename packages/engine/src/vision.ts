@@ -2,7 +2,7 @@ import type { CombatSummary, GameEvent, LastSeen, PlayerId, RecordedKind, Rulese
 import { eventOwner } from "@castellan/shared";
 import type { Entity, Deposit } from "./entities";
 import type { SimulationClock } from "./clock";
-import { dist } from "./grid";
+import { dist } from "@castellan/shared";
 
 /** An enemy entity as last seen, and the tick it was. */
 type Sighting = Extract<LastSeen, { owner: PlayerId }> & { tick: number };

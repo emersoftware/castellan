@@ -1,6 +1,6 @@
 /**
  * Parameterised unit scripts (public script API only). They are compact on
- * purpose: the rules cap a script at 4096 bytes including its baked-in JSON.
+ * purpose: the rules cap a script's size (`script.maxBytes`) including its baked-in JSON.
  */
 import type { Pt } from "./geometry";
 
@@ -99,5 +99,3 @@ export const STATIC_SCRIPT = `// castellan static: prefer fighters, then workers
 const sc=e=>(e.isBuilding?1000:e.type=="worker"?500:0)+e.hp,t=self.enemiesInRange().filter(e=>!e.ruin);
 if(!t.length)self.hold();else self.attack(t.reduce((a,b)=>sc(b)<sc(a)?b:a));
 `;
-
-export const SCRIPT_MAX_BYTES = 4096;

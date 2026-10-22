@@ -1,7 +1,6 @@
 /** The game's ramp dither on the CPU, for static images (portraits). */
 import type { Ramp } from "./palette";
-
-const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+import { BAYER_4X4 } from "./bayer";
 
 /** Three-tone ordered dither of RGBA pixels: brightness along `ramp`; transparent stays transparent. */
 export function ditherPixels(d: Uint8ClampedArray, w: number, h: number, ramp: Ramp, lift = 1): void {
@@ -14,7 +13,7 @@ export function ditherPixels(d: Uint8ClampedArray, w: number, h: number, ramp: R
         continue;
       }
       const L = (Math.max(d[i], d[i + 1], d[i + 2]) / 255) * lift;
-      const t = (BAYER[(y % 4) * 4 + (x % 4)] + 0.5) / 16;
+      const t = (BAYER_4X4[(y % 4) * 4 + (x % 4)] + 0.5) / 16;
       const scaled = Math.min(1, Math.max(0, L)) * 2;
       const lower = Math.floor(scaled);
       const k = Math.min(2, lower + (scaled - lower >= t ? 1 : 0));

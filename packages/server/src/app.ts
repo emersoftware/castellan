@@ -11,8 +11,8 @@ import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { transform } from "esbuild";
-import { HISTORY_SECTIONS, MAPS, declaredAgent, isChatChannel, isRoomMode, playerGuide, publishedApi, replayArchive, replayPlayerSummaries, routes, rules, viewToText,
-  type ExperimentManifest, type HistorySection, type KindSpec, type Order, type ReplayFile, type ReplayPlayerSummary, type ResponseFormat, type RoomMode, type Ruleset } from "@castellan/shared";
+import { API_LIMITS, HISTORY_SECTIONS, MAPS, chatLine, declaredAgent, isChatChannel, isRoomMode, playerGuide, publishedApi, replayArchive, replayPlayerSummaries, routes, rules, viewToText,
+  type ExperimentManifest, type HistorySection, type KindSpec, type Order, type OrderResult, type ReplayFile, type ReplayPlayerSummary, type ResponseFormat, type RoomMode, type Ruleset } from "@castellan/shared";
 import { BOTS } from "@castellan/sim";
 import { Room, type RoomOptions } from "./room";
 import { SeriesStore } from "./series";
@@ -149,7 +149,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
       analytics.capture(req, "series_created", `series:${created.id}`, { ...properties, series_id: created.id });
       return created;
     }
-    const room = await Room.create({ ...config, onFinish: (replay) => void saveReplay(opts.replayDir, replay) });
+    const room = await Room.create({ ...config, onFinish: (replay) => saveReplay(opts.replayDir, replay) });
     register(room);
     analytics.capture(req, "match_created", `room:${room.id}`, { ...properties, room_id: room.id });
     return {
@@ -265,13 +265,14 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     if (!section) return reply.code(400).send({ error: "section must be summary, events, chat, scripts or orders" });
     const game = q.game === undefined ? undefined : Number(q.game);
     const offset = q.offset === undefined ? 0 : Number(q.offset);
-    const limit = q.limit === undefined ? 50 : Number(q.limit);
-    if ((game !== undefined && (!Number.isInteger(game) || game < 1 || game > 3)) || !Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) return reply.code(400).send({ error: "game must be 1..3, offset >= 0, limit 1..100 (integers)" });
+    const limit = q.limit === undefined ? API_LIMITS.historyPage : Number(q.limit);
+    if ((game !== undefined && (!Number.isInteger(game) || game < 1 || game > 3)) || !Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > API_LIMITS.historyPageMax) return reply.code(400).send({ error: `game must be 1..3, offset >= 0, limit 1..${API_LIMITS.historyPageMax} (integers)` });
     try {
       const history = await series.history(who.room.id, who.player, game, section, offset, limit);
       return wantsText(req) ? JSON.stringify(history, null, 2) : history;
     } catch (error) {
-      if (error instanceof Error && error.message.startsWith("only completed previous")) return reply.code(403).send({ error: error.message });
+      const status = (error as { status?: number }).status;
+      if (status) return reply.code(status).send({ error: (error as Error).message });
       throw error;
     }
   });
@@ -280,11 +281,13 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const who = auth(req, reply);
     if (!who) return;
     const body = req.body as { orders?: unknown; since?: number } | undefined;
-    const orders = Array.isArray(body?.orders) ? (body!.orders as Order[]).slice(0, 50) : null;
-    if (!orders) return reply.code(400).send({ error: 'body must be {"orders":[...]} (max 50)' });
+    if (!Array.isArray(body?.orders)) return reply.code(400).send({ error: `body must be {"orders":[...]} (max ${API_LIMITS.orders})` });
+    // Orders past the cap are answered too, so a client never mistakes a dropped order for an applied one.
+    const orders = (body!.orders as Order[]).slice(0, API_LIMITS.orders);
     const scripts = await Promise.all(orders.map((o) => (o?.type === "script" ? prepareScript(o.code, "js", ruleset) : null)));
     const prepared = orders.map((o, i) => (scripts[i]?.ok ? { ...o, code: scripts[i]!.code } : o)) as Order[];
-    const { results } = await who.room.act(who.player, prepared);
+    const { results: applied } = await who.room.act(who.player, prepared);
+    const results: OrderResult[] = [...applied, ...body!.orders.slice(API_LIMITS.orders).map(() => ({ ok: false as const, reason: `over ${API_LIMITS.orders} orders per call` }))];
     (req as FastifyRequest & { toolFailed?: boolean }).toolFailed = results.some((r) => !r.ok);
     const view = who.room.view(who.player, body?.since);
     const mineral = { spent: results.reduce((n, r) => n + (r.mineral?.spent ?? 0), 0), remaining: view.players.find((p) => p.id === who.player)!.mineral };
@@ -300,8 +303,9 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     if (typeof body?.code !== "string" || !body.code.trim()) return reply.code(400).send({ error: 'body must be {"code":"...","lang"?:"js"|"ts"}' });
     let code = body.code;
     if (body.lang === "ts") {
-      try { code = (await transform(code, { loader: "ts", format: "esm" })).code; }
-      catch (e) { return reply.code(400).send({ error: String((e as Error).message).slice(0, 300) }); }
+      const stripped = await stripTypes(code);
+      if (!stripped.ok) return reply.code(400).send({ error: stripped.error });
+      code = stripped.code;
     }
     const view = who.room.view(who.player);
     const out = await runOnceIsolated(code, { view, rules: who.room.ruleset ?? ruleset });
@@ -327,7 +331,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const log = who.room.conversation(who.player);
     if (!wantsText(req)) return { chat: who.room.chat, messages: log };
     if (!who.room.chat) return "chat is off in this room";
-    return log.length ? log.map((m) => `[${m.tick}] ${m.from}${m.name === m.from ? "" : ` ${m.name}`}${m.from === who.player ? " (you)" : ""}${m.channel === "private" ? ` [private to ${m.to}]` : m.channel === "team" ? " [team]" : ""}: ${m.text}`).join("\n") : "no messages yet";
+    return log.length ? log.map((m) => chatLine(m, who.player)).join("\n") : "no messages yet";
   });
 
   app.post(routes.chat, async (req, reply) => {
@@ -392,7 +396,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
 
   app.addHook("onClose", async () => {
     await series.close();
-    for (const r of rooms.values()) r.close();
+    await Promise.all([...rooms.values()].map((r) => r.close()));
   });
   return app;
 }
@@ -400,19 +404,25 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
 /** Strips TypeScript types (never type-checks) and compile-checks the result. */
 async function prepareScript(code: string | null, lang: "js" | "ts", ruleset: Ruleset): Promise<{ ok: true; code: string | null } | { ok: false; error: string }> {
   if (code === null) return { ok: true, code: null };
-  let js = code;
-  if (lang === "ts") {
-    try {
-      const out = await transform(`(function (self: any) {\n${code}\n});`, { loader: "ts", format: "esm" });
-      const m = /^\(function\s*\(self\)\s*\{\n?([\s\S]*)\n?\}\);?\s*$/.exec(out.code.trim());
-      if (!m) return { ok: false, error: "could not strip TypeScript types" };
-      js = m[1];
-    } catch (e) {
-      return { ok: false, error: String((e as Error).message).slice(0, 300) };
-    }
+  const js = lang === "ts" ? await stripTypes(code) : { ok: true as const, code };
+  if (!js.ok) return js;
+  const check = await validateScriptIsolated(js.code, ruleset.script);
+  return check.ok ? js : { ok: false, error: check.error };
+}
+
+/**
+ * Removes TypeScript syntax from a function body without type-checking it. Unit
+ * scripts and /run code are both bodies, so they may `return` at the top level;
+ * a module transform would turn that into CommonJS the sandbox cannot run.
+ */
+async function stripTypes(body: string): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
+  try {
+    const out = await transform(`(function () {\n${body}\n});`, { loader: "ts", format: "esm" });
+    const m = /^\(function\s*\(\)\s*\{\n?([\s\S]*)\n?\}\);?\s*$/.exec(out.code.trim());
+    return m ? { ok: true, code: m[1] } : { ok: false, error: "could not strip TypeScript types" };
+  } catch (e) {
+    return { ok: false, error: String((e as Error).message).slice(0, 300) };
   }
-  const check = await validateScriptIsolated(js, ruleset.script);
-  return check.ok ? { ok: true, code: js } : { ok: false, error: check.error };
 }
 
 interface ReplayIndexEntry {
@@ -443,11 +453,13 @@ export function saveReplay(dir: string, replay: ReplayFile): Promise<void> {
   return write;
 }
 
+/** The archive's catalog; only a missing one is empty. An unreadable catalog is an error, never rewritten from scratch. */
 async function readIndex(dir: string): Promise<ReplayIndexEntry[]> {
   try {
     return JSON.parse(await readFile(join(dir, replayArchive.index), "utf8"));
-  } catch {
-    return [];
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
   }
 }
 

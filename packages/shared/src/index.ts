@@ -8,6 +8,7 @@ export * from "./moment";
 export * from "./http";
 export * from "./analytics";
 export * from "./text";
+export * from "./geometry";
 export type { SoundName } from "./sounds";
 export { rules } from "./rules";
 export { playerGuide } from "./guide";

@@ -1,4 +1,5 @@
 /** Grid geometry and deterministic weighted pathfinding. */
+import { dist } from "@castellan/shared";
 
 export const DIRS: Record<string, [number, number]> = {
   N: [0, -1], NE: [1, -1], E: [1, 0], SE: [1, 1], S: [0, 1], SW: [-1, 1], W: [-1, 0], NW: [-1, -1],
@@ -8,7 +9,7 @@ export const DIR_LIST = Object.values(DIRS);
 const DIR_LIST_ROTATED = DIR_LIST.map(([dx, dy]) => [-dx, -dy] as [number, number]);
 
 /**
- * Direction order for each seat (see `seatToMap`): DIR_LIST turned with the
+ * Direction order for each seat (see shared `seatToMap`): DIR_LIST turned with the
  * seat, so tie-breaks look the same from every corner.
  */
 export const SEAT_DIRS: [number, number][][] = [
@@ -17,40 +18,6 @@ export const SEAT_DIRS: [number, number][][] = [
   DIR_LIST.map(([dx, dy]) => [-dy, dx] as [number, number]),
   DIR_LIST.map(([dx, dy]) => [dy, -dx] as [number, number]),
 ];
-
-/**
- * Where a tile of the map's layout lands for seat 0..3: as listed, rotated
- * 180°, 90° clockwise, 270°. Seats 2 and 3 need a square map.
- */
-export function seatToMap(x: number, y: number, seat: number, w: number, h: number): [number, number] {
-  switch (seat) {
-    case 1: return [w - 1 - x, h - 1 - y];
-    case 2: return [w - 1 - y, x];
-    case 3: return [y, h - 1 - x];
-    default: return [x, y];
-  }
-}
-
-/** The inverse of `seatToMap`: a map tile in the seat's own layout coordinates. */
-export function mapToSeat(x: number, y: number, seat: number, w: number, h: number): [number, number] {
-  switch (seat) {
-    case 1: return [w - 1 - x, h - 1 - y];
-    case 2: return [y, w - 1 - x];
-    case 3: return [h - 1 - y, x];
-    default: return [x, y];
-  }
-}
-
-/**
- * Game distance for range, vision and proximity: Euclidean, rounded to the nearest
- * whole tile, so range r covers a disc and a diagonal neighbour is at distance 1.
- * Exact integer arithmetic (no floating point), shared with the script sandbox.
- */
-export function dist(ax: number, ay: number, bx: number, by: number): number {
-  const n = (ax - bx) ** 2 + (ay - by) ** 2;
-  const r = Math.floor(Math.sqrt(n));
-  return n - r * r > r ? r + 1 : r;
-}
 
 /**
  * Math.hypot as V8 computes it: squares scaled by the larger side (with two

@@ -22,8 +22,8 @@ else self.hold();`;
 
 export function armyScript(home: Point, goal: Point, attacking: boolean, truces: string[], retreating=false): string {
   return `const home=${JSON.stringify({x:home.x,y:home.y})},goal=${JSON.stringify({x:goal.x,y:goal.y})},go=${attacking},retreat=${retreating},truces=${JSON.stringify(truces)};
-const distance=(a,b)=>Math.max(Math.abs(a.x-b.x),Math.abs(a.y-b.y));
-const enemies=self.nearbyEnemies().filter(e=>!e.ruin && (!truces.includes(e.owner)||distance(e,home)<9||self.distanceTo(e)<3));
+const steps=(a,b)=>Math.max(Math.abs(a.x-b.x),Math.abs(a.y-b.y));
+const enemies=self.nearbyEnemies().filter(e=>!e.ruin && (!truces.includes(e.owner)||steps(e,home)<9||self.distanceTo(e)<3));
 const near=enemies.filter(e=>self.distanceTo(e)<=Math.max(self.range,e.range)+2);
 const target=(near.length?near:enemies).sort((a,b)=>(a.type==='king'?-8:0)+(a.isBuilding?4:0)+self.distanceTo(a)-(b.type==='king'?-8:0)-(b.isBuilding?4:0)-self.distanceTo(b))[0];
 const close=near.filter(e=>!e.isBuilding).sort((a,b)=>self.distanceTo(a)-self.distanceTo(b))[0];
@@ -31,7 +31,7 @@ if(retreat && self.distanceToPos(home.x,home.y)>3) self.moveTo(home.x,home.y);
 else if(self.hp<self.maxHp*0.25 && close && self.distanceToPos(home.x,home.y)>3) self.flee(close);
 else if(self.type==='archer' && close && close.range<3 && self.distanceTo(close)<=2 && self.moveReadyInTicks===0) self.flee(close);
 else if(target && self.distanceTo(target)<=self.range && self.distanceTo(target)>=self.minRange) self.attack(target);
-else if(target && (go || distance(target,goal)<7)) self.attack(target);
+else if(target && (go || steps(target,goal)<7)) self.attack(target);
 else if(self.distanceToPos(goal.x,goal.y)>2) self.moveTo(goal.x,goal.y);
 else self.hold();`;
 }

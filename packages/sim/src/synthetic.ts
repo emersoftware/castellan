@@ -4,7 +4,7 @@
  * fields more bodies, and a side that researched pays for it with fewer units. Each scenario is fought from
  * both sides and with several script sets: standard, the built-in defaults, group tactics and scripts players wrote.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { HOLD_SCRIPT, type EntityKind, type Ruleset } from "@castellan/shared";
 import type { Snapshot } from "./battles";
 
@@ -47,15 +47,23 @@ export const SCENARIOS: Scenario[] = [
     upA: { knight_damage: 1, knight_cadence: 1 }, target: -EDGE },
 ];
 
-/** Script sets by kind. 0: standard, 1: built-in defaults, 2: tactical (below), then sets players wrote (script-sets.json:
- *  first the knight and archer scripts from the v18–v19 games, then older ones). */
+/** Script sets by kind. 0: standard, 1: built-in defaults, 2: tactical (below), then sets players wrote. */
 type ScriptSet = Record<string, string>;
-const recorded: ScriptSet[] = (() => {
-  const file = process.env.SCRIPTS ?? "/tmp/castellan-opt/script-sets.json";
-  return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : [];
-})();
+/**
+ * Sets players wrote, only when SCRIPTS names the file script-sets.mts produced (first the knight and archer
+ * scripts from the v18–v19 games, then older ones). They change how many designed battles there are, so they
+ * are never picked up implicitly; the first six fight as three pairs (side A, side B).
+ */
+export const RECORDED_SCRIPTS = recordedScripts(process.env.SCRIPTS);
+function recordedScripts(file: string | undefined): { source: string | null; sets: ScriptSet[] } {
+  if (!file) return { source: null, sets: [] };
+  const sets: ScriptSet[] = JSON.parse(readFileSync(file, "utf8")).slice(0, 6);
+  if (sets.length % 2) throw new Error(`${file}: recorded script sets fight in pairs; ${sets.length} cannot`);
+  return { source: file, sets };
+}
+const recorded = RECORDED_SCRIPTS.sets;
 /** Pairs of script sets (side A, side B) every scenario is fought with. */
-const PAIRS: [number, number][] = [[0, 0], [1, 1], [2, 2], ...recorded.slice(0, 6).flatMap((_, i) => (i % 2 ? [] : [[3 + i, 4 + i] as [number, number]]))];
+const PAIRS: [number, number][] = [[0, 0], [1, 1], [2, 2], ...recorded.flatMap((_, i) => (i % 2 ? [] : [[3 + i, 4 + i] as [number, number]]))];
 export const SYNTHETIC_COUNT = SCENARIOS.length * 2 * PAIRS.length;
 /** Scenario (position in SCENARIOS) of designed battle `i`. */
 export const scenarioOf = (i: number) => Math.floor(i / (2 * PAIRS.length));

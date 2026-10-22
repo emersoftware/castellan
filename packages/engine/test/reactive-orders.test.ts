@@ -75,6 +75,15 @@ it("new manual orders replace suspended ones and reset suspension", async () => 
   expect(unit(m).orderSuspended).toBeUndefined();
 });
 
+it("keeps a suspended order when the script's own action cannot be performed", async () => {
+  const m = await setup({ map: { ...rules.map, width: 8, height: 8, walls: [], deposits: [], sharedDeposits: [],
+    start: [{ kind: "king", x: 0, y: 0 }, { kind: "worker", x: 3, y: 3 }] } });
+  const w = unit(m, "a", "worker");
+  const { events } = m.step([script("self.suspendOrder(); self.gather();", "worker"), { player: "a", order: { type: "move", unit: w.id, x: 0, y: 3 } }]);
+  expect(unit(m, "a", "worker")).toMatchObject({ x: 3, y: 3, order: "move 0,3", orderSuspended: true });
+  expect(events.filter(e => e.type === "order_end")).toEqual([]);
+});
+
 it("emits enemy sightings on entry and re-entry, without leaking hidden enemies", async () => {
   const m = await setup({ kinds: { ...rules.kinds, king: { ...rules.kinds.king, vision: 0 }, knight: { ...rules.kinds.knight, vision: 1, moveMs: 100 } } });
   const b = unit(m, "b");

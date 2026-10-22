@@ -4,34 +4,36 @@
 //   npx tsx src/video-timeline.mts <replayId> [out.json]
 import { readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
-import { createMatch, type PlayerOrder } from "@castellan/engine";
-import type { RecordedKind, ReplayFile } from "@castellan/shared";
+import { recordingWithShutdowns, resimulate } from "@castellan/engine";
+import type { GameEvent, RecordedKind, ReplayFile } from "@castellan/shared";
 
 const id = process.argv[2];
 if (!id) throw new Error("usage: video-timeline.mts <replayId> [out.json]");
 const out = process.argv[3] ?? `../video/public/${id}.json`;
 const r: ReplayFile = JSON.parse(gunzipSync(readFileSync(new URL(`../../../replays/${id}.json.gz`, import.meta.url))).toString());
 const tickMs = 1000 / r.tickRate;
-const m = await createMatch({ ruleset: r.ruleset, seed: r.seed, tickRate: r.tickRate, players: r.players });
-const byTick = new Map<number, PlayerOrder[]>();
-for (const o of r.orders) (byTick.get(o.tick) ?? byTick.set(o.tick, []).get(o.tick)!).push(o);
 
 const hits: number[] = [], deaths: { ms: number; owner: string; kind: RecordedKind }[] = [], chat: { ms: number; from: string; text: string; to?: string }[] = [];
 const built: Record<string, Record<string, number>> = Object.fromEntries(r.players.map((p) => [p.id, {}]));
-const stats: { timeMs: number; players: unknown[] }[] = [], feed: any[] = [];
-while (m.tick < r.finalTick) {
-  const t = m.tick;
-  if (t % r.tickRate === 0) stats.push({ timeMs: t * tickMs, players: m.spectate().players });
-  for (const e of m.step(byTick.get(t) ?? []).events) {
-    if (e.type !== "attack" && e.type !== "projectile_end") feed.push(e);
-    const s = Math.floor((t * tickMs) / 1000);
-    if ((e.type === "attack" || e.type === "projectile_end") && e.dmg) hits[s] = (hits[s] ?? 0) + 1;
-    else if (e.type === "death") deaths.push({ ms: t * tickMs, owner: e.owner, kind: e.kind });
-    else if (e.type === "spawn" && t > 0) built[e.owner][e.kind] = (built[e.owner][e.kind] ?? 0) + 1;
-    else if (e.type === "chat") chat.push({ ms: t * tickMs, from: e.owner, text: e.text, ...(e.to ? { to: e.to } : {}) });
-  }
-}
-m.dispose();
+const stats: { timeMs: number; players: unknown[] }[] = [], feed: GameEvent[] = [];
+/** Uploads the engine installed; rejected ones never ran. */
+const scripts: { ms: number; player: string; kind: string; code: string | null }[] = [];
+const { match, check } = await resimulate(recordingWithShutdowns(r), {
+  before: (m) => { if (m.tick % r.tickRate === 0) stats.push({ timeMs: m.tick * tickMs, players: m.spectate().players }); },
+  after: (_m, { tick: t, input, results, events }) => {
+    input.forEach(({ player, order }, i) => { if (order.type === "script" && results[i].ok) scripts.push({ ms: t * tickMs, player, kind: order.kind, code: order.code }); });
+    for (const e of events) {
+      if (e.type !== "attack" && e.type !== "projectile_end") feed.push(e);
+      const s = Math.floor((t * tickMs) / 1000);
+      if ((e.type === "attack" || e.type === "projectile_end") && e.dmg) hits[s] = (hits[s] ?? 0) + 1;
+      else if (e.type === "death") deaths.push({ ms: t * tickMs, owner: e.owner, kind: e.kind });
+      else if (e.type === "spawn" && t > 0) built[e.owner][e.kind] = (built[e.owner][e.kind] ?? 0) + 1;
+      else if (e.type === "chat") chat.push({ ms: t * tickMs, from: e.owner, text: e.text, ...(e.to ? { to: e.to } : {}) });
+    }
+  },
+});
+match.dispose();
+if (!check.verified) throw new Error(`replay ${id} does not reproduce from tick ${check.desyncAt}; its timeline would show a different match`);
 
 // Fights: runs of seconds with 3+ hits, merged across gaps under 8 s; scored by hits and fighting deaths.
 const fights: { from: number; to: number; score: number }[] = [];
@@ -60,7 +62,7 @@ const timeline = {
   winners, reason: r.outcome.reason,
   kingDeathMs: deaths.find((d) => d.kind === "king")?.ms ?? null,
   highlights,
-  scripts: r.orders.flatMap(({ tick, player, order }) => order.type === "script" ? [{ ms: tick * tickMs, player, kind: order.kind, code: order.code }] : []),
+  scripts,
   chat,
   deaths: deaths.filter((d) => d.kind !== "worker"),
   matchMs: (r.ruleset.map.seats === 4 ? r.ruleset.fourSeatMatchMs : r.ruleset.matchMs) ?? r.ruleset.matchMs,

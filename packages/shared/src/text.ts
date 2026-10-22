@@ -1,6 +1,7 @@
-import type { EntityView, GameEvent, PlayerView } from "./protocol";
+import type { ChatMessage, EntityView, GameEvent, PlayerId, PlayerView } from "./protocol";
 import { NEUTRAL_OWNER } from "./protocol";
-import { playerResult } from "./outcome";
+import { playerResult, winnersOf } from "./outcome";
+import { ENTITY_KINDS } from "./ruleset";
 
 /** How a kind's script reads to its player: `custom` once uploaded, else `default`. */
 export const scriptOrigin = (script: { custom: boolean }) => (script.custom ? "custom" : "default");
@@ -16,6 +17,7 @@ export function viewToText(v: PlayerView): string {
   const lines: string[] = [];
   const secs = (ms: number) => (ms / 1000).toFixed(1);
   const left = v.status === "finished" ? "" : ` · ${secs(Math.max(0, v.matchMs - v.timeMs))}s left`;
+  // Keepers read this header and the YOU line's OUT back with observedSeat (protocol.ts).
   lines.push(`tick ${v.tick} · ${secs(v.timeMs)}s/${secs(v.matchMs)}s${left} · ${v.status} · you are ${v.you}`);
   if (v.series) lines.push(`series ${v.series.id} · game ${v.series.gameNumber}/3 · ${v.series.status} · wins ${JSON.stringify(v.series.score)}${v.series.losses ? ` · losses ${JSON.stringify(v.series.losses)}` : ""} · previous games ${v.series.previousGames.join(", ") || "none"} (use history)`);
   const myTeam = v.players.find((p) => p.id === v.you)?.team;
@@ -27,7 +29,7 @@ export function viewToText(v: PlayerView): string {
     if (p.scriptRuntime) lines.push(`  SCRIPTS STOPPED at tick ${p.scriptRuntime.tick}: ${p.scriptRuntime.message}`);
   }
   if (v.outcome) {
-    const winners = v.outcome.winners ?? (v.outcome.winner ? [v.outcome.winner] : []);
+    const winners = winnersOf(v.outcome);
     lines.push(`OUTCOME result=${playerResult(v.outcome, v.you)} winner=${winners.length ? winners.join("+") : "none"}${v.outcome.allDefeated ? " · all defeated" : ""} reason=${v.outcome.reason}`);
   }
   // Put failures ahead of the map: a stopped script must not look like a
@@ -36,8 +38,10 @@ export function viewToText(v: PlayerView): string {
   const errors = Object.entries(v.scripts).filter(([, s]) => s.errors.length);
   if (errors.length) lines.push("", "script errors (latest recorded):",
     ...errors.map(([kind, s]) => `  ${kind}: ${s.errors.at(-1)}`));
-  // The same idle count for every mobile kind, so no unit type is singled out.
-  const mobile = ["worker", "knight", "archer"].map(kind => [kind, v.mine.filter(e => e.kind === kind && !e.ruin)] as const).filter(([, units]) => units.length);
+  // The same idle count for every kind of unit that moves and is not vital (the king defends by holding),
+  // in the rules' kind order, so no unit type is singled out.
+  const mobile = ENTITY_KINDS.map(kind => [kind, v.mine.filter(e => e.kind === kind && !e.ruin && !e.vital && !!e.stats?.moveMs)] as const)
+    .filter(([, units]) => units.length);
   if (v.status === "running" && mobile.length) {
     const idle = mobile.map(([kind, units]) => {
       const holding = units.filter(e => e.doing === "hold" && !e.order && !e.construction);
@@ -73,9 +77,7 @@ export function viewToText(v: PlayerView): string {
     lines.push("", v.chat.enabled ? "chat (last 5 visible messages):" : "chat: off");
     if (v.chat.enabled) {
       if (!v.chat.messages.length) lines.push("  no messages yet");
-      for (const m of v.chat.messages) {
-        lines.push(`  [${m.tick}] ${m.from}${m.name === m.from ? "" : ` ${JSON.stringify(m.name)}`}${m.from === v.you ? " (you)" : ""}${m.channel === "private" ? ` [private to ${m.to}]` : m.channel === "team" ? " [team]" : " [all]"}: ${JSON.stringify(m.text)}`);
-      }
+      for (const m of v.chat.messages) lines.push(`  ${chatLine(m, v.you)}`);
       lines.push("  Use chat without text to read the full visible history.");
     }
   }
@@ -142,6 +144,11 @@ function orderProgressText(p: NonNullable<EntityView["orderProgress"]>): string 
     actions ? `script actions ${actions}` : "",
     p.blockedMs ? `blocked ${seconds(p.blockedMs)}` : "",
   ].filter(Boolean).join("; ");
+}
+
+/** One chat message as `you` read it. Names and text are quoted, so a message cannot pass for other lines. */
+export function chatLine(m: ChatMessage, you: PlayerId): string {
+  return `[${m.tick}] ${m.from}${m.name === m.from ? "" : ` ${JSON.stringify(m.name)}`}${m.from === you ? " (you)" : ""}${m.channel === "private" ? ` [private to ${m.to}]` : m.channel === "team" ? " [team]" : " [all]"}: ${JSON.stringify(m.text)}`;
 }
 
 export function eventLine(e: GameEvent): string {

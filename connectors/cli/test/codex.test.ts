@@ -60,3 +60,25 @@ it("cancels an in-flight inference when the match finishes", async () => {
   expect(await play({ env: { CASTELLAN_TOKEN: "test", CASTELLAN_CONNECTOR_VERSION: "test" }, args: [], fetchImpl, spawnImpl, pollMs: 20 })).toBe(0);
   expect(killed).toHaveBeenCalled();
 });
+
+it("tells a relaunched player that its earlier conversation is gone", async () => {
+  vi.spyOn(process.stdout, "write").mockReturnValue(true);
+  const prompts: string[] = [];
+  const fetchImpl = async (url: string) => url.includes("/state?")
+    ? { ok: true, text: async () => `tick 1 · 0.1s/10s · ${prompts.length ? "finished" : "running"} · you are p1\nYOU   p1: mineral 200` }
+    : { ok: true, json: async () => ({ status: "running" }) };
+  const spawnImpl = (_bin: string, args: string[]) => {
+    prompts.push(args.at(-1)!);
+    const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), kill: vi.fn() });
+    setImmediate(() => {
+      child.stdout.write(JSON.stringify({ type: "thread.started", thread_id: thread }) + "\n");
+      child.stdout.write(JSON.stringify({ type: "turn.completed" }) + "\n");
+      child.emit("close", 0);
+    });
+    return child;
+  };
+  expect(await play({ env: { CASTELLAN_TOKEN: "test", CASTELLAN_SERVER: "http://game", CASTELLAN_CONNECTOR_VERSION: "test", CASTELLAN_RESUME: "1" },
+    args: [], fetchImpl, spawnImpl, minIntervalMs: 0 })).toBe(0);
+  expect(prompts).toHaveLength(1);
+  expect(prompts[0]).toContain("Your connector restarted; your earlier conversation is gone.");
+});

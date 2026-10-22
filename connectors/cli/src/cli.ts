@@ -18,7 +18,8 @@ const USAGE = `castellan — Castellan client (env CASTELLAN_SERVER, CASTELLAN_T
   castellan wait [seconds] [--since T] [--until a,b]
   castellan chat ["<message>"] [--channel all|team|private] [--to p2]  public by default; --to = private to one player; no message = read
   castellan status                         waiting | prep | running | finished
-  castellan watch [--since T]              one line per event until the match ends
+  castellan watch [--since T]              one line per event until the match ends; reads as this player
+                                           (advances its observations like state; supervisors use status)
   castellan new [--name a --name b | --bot eco ...] [--map open|fortress|fortress-quad|ridge|canyons|quad] [--sides random|fixed] [--no-chat] [--prep ms] [--seed n]
           [--mode teams|ffa] (four-seat maps default to 2v2; --mode ffa is 1v1v1v1)
           (chat is on by default; --no-chat disables it)

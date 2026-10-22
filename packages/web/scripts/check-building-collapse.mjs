@@ -65,7 +65,7 @@ try {
   await page.evaluate(review => review.step(15000), review);
   assert.ok((await page.evaluate(review => review.cells(), review)).every(c => c.destroyed));
   await page.screenshot({ path: `${output}/disappeared.png` });
-  await page.evaluate(review => review.renderer.setFrame(review.frame(1), 100, true), review);
+  await page.evaluate(review => review.renderer.seek(review.frame(1), 100), review);
   assert.ok((await page.evaluate(review => review.cells(), review)).every(c => c.destroyed));
   await page.screenshot({ path: `${output}/seek.png` });
   if (process.argv.includes('--record')) {

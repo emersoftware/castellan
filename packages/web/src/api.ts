@@ -109,8 +109,3 @@ export const fmtTime = (ms: number) => {
 export function playerColors(players: { id: string }[]): Record<string, number> {
   return Object.fromEntries(players.map((p, i) => [p.id, i % 4]));
 }
-
-/** The winning players (empty = no winner), for outcomes with or without teams. */
-export function winnersOf(o: Outcome): string[] {
-  return o.winners ?? (o.winner ? [o.winner] : []);
-}

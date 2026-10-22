@@ -13,6 +13,7 @@ import { CLIP_ART } from "./clips";
 import { spriteMasks } from "./xray";
 import { averageTerrainPatches } from "./terrain";
 import { isCharacter, normalizeCharacterContrast } from "./characterContrast";
+import { sharedLoad } from "../sharedLoad";
 
 export const TILE_W = 32;
 export const TILE_H = 16;
@@ -88,12 +89,7 @@ export function cropSpriteArt(art: SpriteArt, frame: { x: number; y: number; wid
 // sources are shared; rebuilding their masks on each mount wastes memory.
 const spriteLoads = new Map<string, Promise<SpriteSet>>();
 export function loadSprites(base = defaultSpriteBase()): Promise<SpriteSet> {
-  let pending = spriteLoads.get(base);
-  if (!pending) {
-    pending = buildSprites(base).catch((error) => { spriteLoads.delete(base); throw error; });
-    spriteLoads.set(base, pending);
-  }
-  return pending;
+  return sharedLoad(spriteLoads, base, () => buildSprites(base));
 }
 
 async function buildSprites(base: string): Promise<SpriteSet> {

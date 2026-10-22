@@ -3,7 +3,8 @@ import { blindSpotOnPath } from "@castellan/shared";
 import type { ScriptActionResult } from "@castellan/sandbox";
 import type { Entity, Intent } from "./entities";
 import type { SimulationClock } from "./clock";
-import { dist, hypot } from "./grid";
+import { dist } from "@castellan/shared";
+import { hypot } from "./grid";
 import { segmentCircleHit } from "./projectiles";
 
 interface Projectile extends ProjectileView { attack: number; launchedAt: number; source: string; aimedAt: string; fromX: number; fromY: number; minRange: number }

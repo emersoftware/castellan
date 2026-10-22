@@ -13,7 +13,9 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 import { launchConfiguration, reportActivity, reportConfiguration } from "../metadata.mjs";
-import { seat, seatOver, serverUrl } from "../game.mjs";
+import { observedSeat, seat, seatOver, serverUrl } from "../game.mjs";
+import { promptOf } from "../turns.mjs";
+import { dist as tileDistance } from "../../../packages/shared/src/geometry.ts";
 import { loadKey } from "../opencode/agent.mjs";
 
 const DEFAULT_JEV = "typesafe/jev-1.14";
@@ -34,7 +36,8 @@ function options(args) {
   return { jev: values.jev, planner: values.planner, effort: values.effort, intervalMs: Math.max(0, Number(values.interval) || 0) };
 }
 
-const dist = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+/** The game distance the model's ranges use. */
+const dist = (a, b) => tileDistance(a.x, a.y, b.x, b.y);
 const nearest = (list, p) => list.reduce((a, b) => (dist(b, p) < dist(a, p) ? b : a), list[0]);
 const tally = list => list.reduce((c, k) => ({ ...c, [k]: (c[k] ?? 0) + 1 }), /** @type {Record<string, number>} */ ({}));
 
@@ -65,7 +68,7 @@ function buildSites(view) {
   for (const c of anchor) {
     const best = new Map();
     for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
-      const x = c.x + dx, y = c.y + dy, d = Math.max(Math.abs(dx), Math.abs(dy));
+      const x = c.x + dx, y = c.y + dy, d = dist(c, { x, y });
       if (d < 2 || !free(x, y)) continue;
       const dir = `${dy < 0 ? "N" : dy > 0 ? "S" : ""}${dx < 0 ? "W" : dx > 0 ? "E" : ""}`;
       if (!best.has(dir) || best.get(dir).d > d) best.set(dir, { x, y, d, dir });
@@ -212,7 +215,7 @@ export function parsePlan(text) {
     scripts: plan.scripts && typeof plan.scripts === "object" ? Object.fromEntries(Object.entries(plan.scripts).filter(([k, c]) => SCRIPTABLE.includes(k) && typeof c === "string")) : {} };
 }
 
-async function play({ env = process.env, args = process.argv.slice(2), fetchImpl = fetch } = {}) {
+export async function play({ env = process.env, args = process.argv.slice(2), fetchImpl = fetch } = {}) {
   if (!env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN");
   const opts = options(args);
   const key = await loadKey(env);
@@ -220,7 +223,7 @@ async function play({ env = process.env, args = process.argv.slice(2), fetchImpl
   const runs = join(homedir(), ".local", "state", "castellan", "jev");
   await mkdir(runs, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(join(runs, "run-"));
-  const goal = env.CASTELLAN_PROMPT || "Win the match.";
+  const goal = promptOf(env);
   console.error(`castellan jev: ${opts.planner} (${opts.effort}) plans, ${opts.jev} chooses; logs ${root}`);
   await reportConfiguration(launchConfiguration({ connector: "jev", model: `${opts.planner}+${opts.jev}`, effort: opts.effort, prompt: goal, env }), { env, fetchImpl });
 
@@ -242,15 +245,25 @@ async function play({ env = process.env, args = process.argv.slice(2), fetchImpl
   /** @type {ReturnType<typeof plannerSession> | undefined} */
   let planner;
   let plan = null, planning = null, lastPlanAt = 0, plans = 0;
+  // The chooser and the planner each read events since their own previous observation;
+  // the server's default cursor would hand each one only what the other had not consumed.
+  let chooserSince = 0, plannerSince = 0;
   const stop = () => { stopped = true; abort.abort(); };
   process.on("SIGINT", stop); process.on("SIGTERM", stop);
+
+  const plannerObservation = async () => {
+    const observation = await game.observation(plannerSince);
+    const { tick } = observedSeat(observation);
+    if (Number.isFinite(tick)) plannerSince = tick;
+    return observation;
+  };
 
   /** Asks for a plan beside the loop; the plan's message and scripts are carried out by code. */
   const replan = (view, reason, menu) => {
     lastPlanAt = Date.now();
     planning = (async () => {
       planner ??= plannerSession({ key, model: opts.planner, effort: opts.effort, rules: await game.guide(), you: view.you, goal, fetchImpl });
-      const next = await planner.plan(`Review reason: ${reason}\nYour previous plan: ${JSON.stringify(plan && { objective: plan.objective, targets: plan.targets, waypoint: plan.waypoint })}\nRecent actions and results: ${JSON.stringify(recent.slice(-10))}\nActions currently available to the chooser: ${JSON.stringify(menu.map(o => o.description))}\n\nCurrent observation:\n${await game.observation()}`);
+      const next = await planner.plan(`Review reason: ${reason}\nYour previous plan: ${JSON.stringify(plan && { objective: plan.objective, targets: plan.targets, waypoint: plan.waypoint })}\nRecent actions and results: ${JSON.stringify(recent.slice(-10))}\nActions currently available to the chooser: ${JSON.stringify(menu.map(o => o.description))}\n\nCurrent observation:\n${await plannerObservation()}`);
       plan = next; plans++;
       console.log(`[${view.tick}] PLAN (${reason}): ${next.objective} · targets ${JSON.stringify(next.targets)}${next.waypoint ? ` · waypoint ${next.waypoint.x},${next.waypoint.y}` : ""}`);
       await journal({ tick: view.tick, plan: next, reason });
@@ -271,7 +284,8 @@ async function play({ env = process.env, args = process.argv.slice(2), fetchImpl
     while (!stopped) {
       const started = Date.now();
       try {
-        const view = await api("GET", "/state");
+        const view = await api("GET", `/state?since=${chooserSince}`);
+        chooserSince = view.tick;
         if (seatOver({ status: view.status, alive: view.players.find(p => p.id === view.you)?.alive })) { finished = true; break; }
         if (view.status !== "running") { await sleep(1000, undefined, { signal: abort.signal }); continue; }
         const menu = candidates(view, plan, failed);

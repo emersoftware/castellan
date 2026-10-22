@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@castellan/engine": "workspace:*",
-    "@castellan/sandbox": "workspace:*",
     "@castellan/shared": "workspace:*",
     "@posthog/react": "^1.11.3",
     "@tanstack/react-query": "^5.104.0",

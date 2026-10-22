@@ -5,9 +5,8 @@
 import type { ChatChannel, ChatMessage, Order, PlayerId } from "@castellan/shared";
 import type { World } from "./perception";
 import { TRUCE_UNTIL_MS } from "./strategy";
-import type { JournalEntry, Plan } from "./types";
+import type { AllyRequest, JournalEntry, Plan } from "./types";
 
-const s = (n: number) => n * 10;
 const ACCEPT = /\b(truce|peace|pact|allian|non-?aggression|deal|agree|accept|ok(ay)?|yes|sure|fine)\b/i;
 const REFUSE = /\b(no|never|decline|refuse|reject|not interested|won'?t)\b/i;
 const COORD = /\((\d{1,2})\s*,\s*(\d{1,2})\)|\b(\d{1,2})\s*,\s*(\d{1,2})\b/;
@@ -27,17 +26,23 @@ export class Diplomacy {
   sent = 0;
   received = 0;
   /** Ally requests parsed from team chat. */
-  allyRequests: { kind: "help" | "attack"; at: { x: number; y: number }; tick: number; from: PlayerId }[] = [];
+  private allyRequests: AllyRequest[] = [];
 
   constructor(private plan: Plan, private opts: DiplomacyOptions) {}
+
+  /** Requests an ally made in the last 5 s of game time; older ones are forgotten. */
+  recentAllyRequests(w: World): AllyRequest[] {
+    this.allyRequests = this.allyRequests.filter((r) => w.tick - r.tick < w.clock.ticks(5));
+    return this.allyRequests;
+  }
 
   update(w: World): Order[] {
     if (!w.view.chat?.enabled) return [];
     const out: Order[] = [];
     const send = (text: string, topic: string, extra: { to?: PlayerId; channel?: Exclude<ChatChannel, "private"> } = {}, everyS = 20) => {
-      if (w.tick - this.lastSentTick < s(3.2)) return false;
+      if (w.tick - this.lastSentTick < w.clock.ticks(3.2)) return false;
       const last = this.lastTopic.get(topic) ?? -10_000;
-      if (w.tick - last < s(everyS)) return false;
+      if (w.tick - last < w.clock.ticks(everyS)) return false;
       out.push({ type: "chat", text: text.slice(0, 200), ...(extra.to ? { to: extra.to } : extra.channel ? { channel: extra.channel } : {}) });
       this.lastSentTick = w.tick; this.lastTopic.set(topic, w.tick); this.sent++;
       const channel: ChatChannel = extra.channel ?? (extra.to ? "private" : "all");

@@ -72,7 +72,7 @@ it("restores three player credentials, corners and queued production without add
   const replays: ReplayFile[] = [];
   room = await Room.create({ ruleset: { ...rules, map: MAPS["fortress-quad"], fourSeatMatchMs: 2000 }, players,
     mode: "ffa", tickRate: 10, seed: 419, sides: "random", prepMs: 0, botLatencyMs: 1000, chat: true,
-    onFinish: replay => replays.push(replay),
+    onFinish: replay => { replays.push(replay); },
   });
   vi.useFakeTimers();
   for (const p of room.players) room.touch(p.id);
@@ -84,7 +84,7 @@ it("restores three player credentials, corners and queued production without add
   const before = room.view("p1");
   const saved: RoomCheckpoint = JSON.parse(JSON.stringify(room.checkpoint()));
   room.close(); room = undefined;
-  room = await Room.restore(saved, replay => replays.push(replay));
+  room = await Room.restore(saved, replay => { replays.push(replay); });
   const restored = room.checkpoint();
   expect(restored.players).toEqual(saved.players);
   expect(restored.hash).toBe(saved.hash);

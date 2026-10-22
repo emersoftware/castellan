@@ -13,9 +13,7 @@
  * the same pixel size as the board.
  */
 import { useEffect, useState } from "react";
-
-
-const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+import { BAYER_4X4 as BAYER } from "../render/bayer";
 
 /** Displacement scale, in CSS pixels, for the pixelation map. */
 const SHIFT = 2;

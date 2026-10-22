@@ -1,6 +1,6 @@
 // Picks script sets players wrote (knight, archer, tower; one per player and game, newest rules first) that
 // run without errors and fight in a designed battle, for synthetic.ts.
-//   npx tsx src/script-sets.mts [count]   → /tmp/castellan-opt/script-sets.json
+//   npx tsx src/script-sets.mts [count]   → /tmp/castellan-opt/script-sets.json; the optimizer uses it with SCRIPTS=<that file>
 import { readFileSync, writeFileSync } from "node:fs";
 import type { EntityKind } from "@castellan/shared";
 import { runBattle, type Snapshot } from "./battles";

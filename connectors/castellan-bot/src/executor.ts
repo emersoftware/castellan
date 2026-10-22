@@ -6,11 +6,10 @@
 import type { EntityKind, EntityView, Order, OrderResult } from "@castellan/shared";
 import { dist, ring, type DepositCluster, type Pt } from "./geometry";
 import type { World } from "./perception";
-import { STATIC_SCRIPT, SCRIPT_MAX_BYTES, kingScript, knightScript, archerScript, workerScript, type ArmyParams } from "./scripts";
+import { STATIC_SCRIPT, kingScript, knightScript, archerScript, workerScript, type ArmyParams } from "./scripts";
 import type { JournalEntry, Plan } from "./types";
 
 type Role = "g" | "a" | "r" | "s";
-const s = (n: number) => n * 10;
 
 export interface ExecutorOptions { log: (e: Omit<JournalEntry, "t">) => void }
 
@@ -56,18 +55,21 @@ export class Executor {
   private postureChanged(): boolean { return this.posture() !== this.lastPosture; }
 
   /** Learn from rejections: adjust tasks and back off where the engine said no. */
-  onResults(orders: Order[], results: OrderResult[], tick: number): void {
+  onResults(orders: Order[], results: OrderResult[]): void {
+    const w = this.lastWorld;
+    if (!w) return;
+    const tick = w.tick;
     results.forEach((r, i) => {
       if (r.ok) return;
       const o = orders[i];
       const reason = r.reason.replace(/\d+/g, "N").slice(0, 60);
       this.rejected[reason] = (this.rejected[reason] ?? 0) + 1;
       this.rejectedTotal++;
-      if (o?.type === "train" && /population cap/.test(r.reason)) this.trainBlockedUntil = tick + s(10);
+      if (o?.type === "train" && /population cap/.test(r.reason)) this.trainBlockedUntil = tick + w.clock.ticks(10);
       if (o?.type === "build") {
         const task = this.plan.builds.find((t) => t.x === o.x && t.y === o.y && t.kind === o.kind && t.status !== "done");
         if (!task) return;
-        const mine = this.plan.builds.some((t) => t !== task && t.x === o.x && t.y === o.y) || (this.lastWorld?.workers.some((u) => u.construction && u.construction.x === o.x && u.construction.y === o.y) ?? false);
+        const mine = this.plan.builds.some((t) => t !== task && t.x === o.x && t.y === o.y) || w.workers.some((u) => u.construction && u.construction.x === o.x && u.construction.y === o.y);
         if (/occupied/.test(r.reason) && mine) { task.status = "pending"; task.worker = undefined; }
         else if (/occupied|outside|cannot build|corner|junction/.test(r.reason)) { task.status = "failed"; task.reason = r.reason; this.opts.log({ tick, type: "build_failed", task: task.id, label: task.label, reason: r.reason, phase: "order" }); }
         else if (/(?:mineral|capital)/.test(r.reason)) { task.status = "pending"; task.worker = undefined; }
@@ -85,24 +87,24 @@ export class Executor {
     const out: Order[] = [];
     const upload = (kind: EntityKind, code: string, urgent = false) => {
       if (!w.rules.kinds[kind]?.scriptable) return;
-      if (code.length > SCRIPT_MAX_BYTES) { this.opts.log({ tick: w.tick, type: "script_too_long", kind, bytes: code.length }); return; }
+      if (code.length > w.rules.script.maxBytes) { this.opts.log({ tick: w.tick, type: "script_too_long", kind, bytes: code.length }); return; }
       const last = this.installedTick.get(kind) ?? -1000;
       if (this.installed.get(kind) === code) return;
-      if (!urgent && w.tick - last < s(2)) return;
+      if (!urgent && w.tick - last < w.clock.ticks(2)) return;
       this.installed.set(kind, code);
       this.installedTick.set(kind, w.tick);
       out.push({ type: "script", kind, code });
     };
     const p = this.plan;
     const exp = p.expansion;
-    const defendingExpansion = exp && p.expansionDefense?.choice === "army" && w.tick - p.expansionDefense.since < s(60);
+    const defendingExpansion = exp && p.expansionDefense?.choice === "army" && w.tick - p.expansionDefense.since < w.clock.ticks(60);
     const evac = this.evacuation(w);
     const evacuating = Object.keys(evac).length > 0;
     const big = w.threats.find((t) => w.homeCastle && dist(t, w.homeCastle) <= 12 && t.strength >= w.myStrength * 0.9);
     const turtle = evacuating && !!big && p.keep.status === "built";
     if (turtle !== this.turtling) { this.turtling = turtle; this.opts.log({ tick: w.tick, type: "turtle", on: turtle, threat: big ? Math.round(big.strength) : 0, strength: Math.round(w.myStrength) }); }
     const guardPost = defendingExpansion ? exp!.site : p.rally;
-    const recentSeen = w.sightings.filter((x) => w.tick - x.tick <= s(90));
+    const recentSeen = w.sightings.filter((x) => w.tick - x.tick <= w.clock.ticks(90));
     const archerHeavy = recentSeen.length >= 3 && recentSeen.filter((x) => x.kind === "archer").length > recentSeen.filter((x) => x.kind === "knight").length * 2;
     const roles: ArmyParams["roles"] = {};
     const posts: ArmyParams["posts"] = {};
@@ -145,7 +147,7 @@ export class Executor {
     const p = this.plan;
     if (p.keep.status !== "built" || !w.homeCastle) return {};
     const threat = w.threats.find((t) => (t.strength >= 250 || t.units.length >= 3) && dist(t, w.homeCastle!) <= 12);
-    if (threat) this.evacUntil = w.tick + s(15);
+    if (threat) this.evacUntil = w.tick + w.clock.ticks(15);
     if (w.tick >= this.evacUntil) return {};
     const cell = p.keep.cell;
     const pocket = p.keep.interior.filter((t) => w.placeable(t));
@@ -165,11 +167,11 @@ export class Executor {
 
   private assignWorkers(w: World) {
     // Mines with fighters next to them are unsafe for a while; their workers mine elsewhere.
-    for (const c of w.clusters) if (w.threats.some((t) => dist(t, c.center) <= 7)) this.unsafeUntil.set(c.id, w.tick + s(20));
+    for (const c of w.clusters) if (w.threats.some((t) => dist(t, c.center) <= 7)) this.unsafeUntil.set(c.id, w.tick + w.clock.ticks(20));
     const unsafe = new Set([...this.unsafeUntil].filter(([, until]) => until > w.tick).map(([id]) => id));
     const unsafeKey = [...unsafe].sort().join(",");
     const changed = unsafeKey !== this.lastUnsafe || w.events.some((e) => (e.type === "spawn" && e.owner === w.view.you && e.kind === "worker") || e.type === "depleted" || (e.type === "death" && e.owner === w.view.you));
-    if (!changed && w.tick - this.lastAssignTick < s(4)) return;
+    if (!changed && w.tick - this.lastAssignTick < w.clock.ticks(4)) return;
     if (unsafeKey !== this.lastUnsafe) this.opts.log({ tick: w.tick, type: "mines_unsafe", clusters: [...unsafe] });
     this.lastUnsafe = unsafeKey;
     this.lastAssignTick = w.tick;
@@ -185,7 +187,7 @@ export class Executor {
     // Everything unsafe: mine anyway, as far from the threats as possible.
     if (!live.size) for (const [id, d] of allLive) live.set(id, d);
     const p = this.plan;
-    const expansionUnsafe = !!p.expansionDefense && p.expansionDefense.choice !== "army" && w.tick - p.expansionDefense.since < s(45);
+    const expansionUnsafe = !!p.expansionDefense && p.expansionDefense.choice !== "army" && w.tick - p.expansionDefense.since < w.clock.ticks(45);
     const expCluster = p.expansion && p.expansion.status === "built" && !expansionUnsafe ? p.expansion.clusterId : null;
     const homeIds = new Set(w.clusters.filter((c) => c.kind === "home").map((c) => c.id));
     const builders = new Set(p.builds.filter((t) => t.worker && (t.status === "assigned" || t.status === "started")).map((t) => t.worker!));
@@ -305,7 +307,7 @@ export class Executor {
   private research(w: World): Order[] {
     const id = this.plan.research[0];
     // Research pays off once there is an army to apply it to, never while a fight is on.
-    const quiet = this.plan.posture === "boom" && !w.threats.some((t) => w.homeCastle && dist(t, w.homeCastle) <= 14) && w.tick - this.lastThreatTick > s(30);
+    const quiet = this.plan.posture === "boom" && !w.threats.some((t) => w.homeCastle && dist(t, w.homeCastle) <= 14) && w.tick - this.lastThreatTick > w.clock.ticks(30);
     if (!id || w.me.research || w.army.length < 8 || !quiet) return [];
     const spec = w.rules.upgrades[id];
     const level = (w.me.upgrades?.[id] ?? 0);
@@ -379,7 +381,7 @@ export class Executor {
       slots++;
       const wantOrder = `build ${t.kind} ${t.x},${t.y}`;
       if (worker.order === wantOrder) {
-        if (t.status === "assigned" && w.tick - t.updatedTick > s(45)) { t.attempts++; t.updatedTick = w.tick; t.worker = undefined; t.status = "pending"; this.opts.log({ tick: w.tick, type: "build_interrupted", task: t.id, label: t.label, reason: "no progress in 45 s", attempts: t.attempts }); }
+        if (t.status === "assigned" && w.tick - t.updatedTick > w.clock.ticks(45)) { t.attempts++; t.updatedTick = w.tick; t.worker = undefined; t.status = "pending"; this.opts.log({ tick: w.tick, type: "build_interrupted", task: t.id, label: t.label, reason: "no progress in 45 s", attempts: t.attempts }); }
         continue;
       }
       if (!w.visible(t)) {
@@ -389,7 +391,7 @@ export class Executor {
       }
       const cost = w.rules.kinds[t.kind]?.cost ?? 0;
       if (w.mineral < cost) continue;
-      if (t.orderedTick !== undefined && w.tick - t.orderedTick < s(2)) continue;
+      if (t.orderedTick !== undefined && w.tick - t.orderedTick < w.clock.ticks(2)) continue;
       t.orderedTick = w.tick;
       out.push({ type: "build", unit: worker.id, kind: t.kind, x: t.x, y: t.y });
     }

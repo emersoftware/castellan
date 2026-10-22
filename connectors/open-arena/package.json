@@ -1,0 +1,6 @@
+{
+  "name": "@castellan/open-arena",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@castellan/server": "workspace:*", "@castellan/shared": "workspace:*", "ws": "^8.18.3" }
+}

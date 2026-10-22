@@ -39,7 +39,7 @@ it("keeps walls neutral through animation, fog, damage and replay seeks", () => 
   const frame = { tick: 0, entities: [wall, { ...wall, id: "owned", owner: "p1", x: 13, ruin: undefined }],
     deposits: [], events: [], projectiles: [] } as unknown as SpectatorView;
   for (const tick of [0, 1, 0]) {
-    renderer.setFrame({ ...frame, tick }, 100, true);
+    renderer.seek({ ...frame, tick }, 100);
     internals.animate();
     const d = internals.drawn.get(wall.id)!;
     expect(d.sprite.tint).toBe(RAMPS.neutral.key);
@@ -48,12 +48,12 @@ it("keeps walls neutral through animation, fog, damage and replay seeks", () => 
     expect(internals.drawn.get("owned")!.sprite.tint).toBe(PLAYER_RAMPS[0].key);
   }
   const visibility = Array.from({ length: 32 }, () => "1".repeat(32));
-  renderer.setFrame({ ...frame, tick: 2, visibility, entities: [{ ...wall, hp: 200 }] }, 100, true);
+  renderer.seek({ ...frame, tick: 2, visibility, entities: [{ ...wall, hp: 200 }] }, 100);
   internals.animate();
   const tint = internals.drawn.get(wall.id)!.sprite.tint;
   expect((tint >> 16) & 255).toBe((tint >> 8) & 255);
   expect((tint >> 8) & 255).toBe(tint & 255);
-  renderer.setFrame({ ...frame, tick: 0 }, 100, true);
+  renderer.seek({ ...frame, tick: 0 }, 100);
   internals.animate();
   expect(internals.drawn.get(wall.id)!.sprite.tint).toBe(RAMPS.neutral.key);
 });

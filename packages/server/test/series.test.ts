@@ -6,6 +6,7 @@ import type { FastifyInstance } from "fastify";
 import { rules, type SeriesSummary } from "@castellan/shared";
 import { runReplay } from "@castellan/engine";
 import { buildServer } from "../src/app";
+import * as isolation from "../src/script-isolation";
 import { waitForStatus } from "./support/readiness";
 
 let app: FastifyInstance;
@@ -151,4 +152,34 @@ describe("three-game series", () => {
     expect((await request("/history?game=1&section=chat", second.game.token)).body.items).toContainEqual(expect.objectContaining({ text: "remember after restart" }));
     expect((await request("/replays")).body.filter((r: any) => r.id === joins[0].game.id)).toHaveLength(1);
   }, 15000);
+});
+
+describe("series history across sandbox failures", () => {
+  it("shows a game whose /run request timed out, and explains one it cannot reconstruct", async () => {
+    await start();
+    const created = await request("/series", undefined, { players: [{ name: "a" }, { name: "b" }] });
+    const invites: string[] = created.body.players.map((p: { token: string }) => p.token);
+    const tokens = (await Promise.all(invites.map(current))).map((j) => j.game.token);
+    await connect(tokens);
+    // A /run whose disposable VM hit the watchdog: recorded, but it changed nothing in the match.
+    const run = vi.spyOn(isolation, "runOnceIsolated").mockResolvedValueOnce({ orders: [], logs: [], value: null,
+      error: "sandbox watchdog timeout after 250ms; request terminated", operationalFailure: true });
+    expect((await request("/run", tokens[0], { code: "return 1" })).body.error).toMatch(/request terminated/);
+    run.mockRestore();
+    const second = await poll(() => current(invites[0]), (j) => j.game.number === 2);
+    const history = await request("/history?game=1&section=events", second.game.token);
+    expect(history.status).toBe(200);
+    expect(history.body.total).toBeGreaterThan(0);
+    // A failure whose effect on the match was not recorded cannot be replayed: say so, not a server error.
+    const secondTokens = (await Promise.all(invites.map(current))).map((j) => j.game.token);
+    await connect(secondTokens);
+    const broken = vi.spyOn(isolation, "runOnceIsolated").mockResolvedValueOnce({ orders: [], logs: [], value: null,
+      error: "sandbox worker failed", operationalFailure: true });
+    await request("/run", secondTokens[0], { code: "return 1" });
+    broken.mockRestore();
+    const third = await poll(() => current(invites[0]), (j) => j.game.number === 3);
+    const refused = await request("/history?game=2&section=events", third.game.token);
+    expect(refused.status).toBe(409);
+    expect(refused.body.error).toMatch(/^game 2 cannot be shown: .*cannot be reconstructed safely/);
+  });
 });

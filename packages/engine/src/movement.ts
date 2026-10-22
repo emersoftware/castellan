@@ -2,15 +2,24 @@ import type { OrderEndReason, PlayerId, Ruleset, UnitOrder } from "@castellan/sh
 import type { ScriptActionResult } from "@castellan/sandbox";
 import type { Entity, Intent } from "./entities";
 import type { SimulationClock } from "./clock";
-import { DIR_LIST, SEAT_DIRS, canStep, dist, findPath, inBounds, mapToSeat, type Grid } from "./grid";
+import type { Board } from "./board";
+import { dist, mapToSeat } from "@castellan/shared";
+import { DIR_LIST, SEAT_DIRS, canStep, findPath, inBounds, type Grid } from "./grid";
 
-/** Owns routes, arrival allocation and seat-relative spatial choices; commits moves to shared occupancy. */
+/** Owns routes, arrival and its allocation, and seat-relative spatial choices; commits moves to the board. */
 export class Movement {
-  constructor(private rules: () => Ruleset, private clock: Readonly<SimulationClock>, private world: {
-    grid: Grid; occupancy: (string | null)[];
-    entities: ReadonlyMap<string, Entity>; doors: ReadonlyMap<number, string>;
-    version(): number;
-  }, private sideOf: (owner: PlayerId) => number, private hostile: (a: PlayerId, b: PlayerId) => boolean) {}
+  constructor(private rules: () => Ruleset, private clock: Readonly<SimulationClock>, private board: Board,
+    private entities: ReadonlyMap<string, Entity>,
+    private sideOf: (owner: PlayerId) => number, private hostile: (a: PlayerId, b: PlayerId) => boolean) {}
+
+  /** How near (x, y) counts as there: a static tile cannot be entered, so standing next to it arrives. */
+  arrivalRange(owner: PlayerId, x: number, y: number, range: number): number {
+    return range === 0 && this.gridFor(owner).isStatic(x, y) ? 1 : range;
+  }
+
+  arrived(e: Entity, x: number, y: number, range: number): boolean {
+    return dist(e.x, e.y, x, y) <= this.arrivalRange(e.owner, x, y, range);
+  }
 
   /** Commit movement once per entity, preserving priority and simultaneous-order feedback. */
   advance(ordered: readonly Entity[], intents: ReadonlyMap<string, Intent>, feedback: {
@@ -26,11 +35,11 @@ export class Movement {
       if (!it || (it.t !== "goto" && it.t !== "dir")) return;
       visiting.add(e.id);
       if (this.rules().coordinatedMovement && e.spec.moveMs && T >= e.nextMove) {
-        const next = it.t === "dir" ? (e.y + it.dy) * this.world.grid.width + e.x + it.dx : this.route(e, it.x, it.y, it.range)?.[0];
-        const nx = it.t === "dir" ? e.x + it.dx : next === undefined ? e.x : next % this.world.grid.width;
-        const ny = it.t === "dir" ? e.y + it.dy : next === undefined ? e.y : Math.floor(next / this.world.grid.width);
+        const next = it.t === "dir" ? (e.y + it.dy) * this.board.width + e.x + it.dx : this.route(e, it.x, it.y, it.range)?.[0];
+        const nx = it.t === "dir" ? e.x + it.dx : next === undefined ? e.x : next % this.board.width;
+        const ny = it.t === "dir" ? e.y + it.dy : next === undefined ? e.y : Math.floor(next / this.board.width);
         const grid = this.gridFor(e.owner);
-        const occupant = next === undefined ? undefined : this.world.entities.get(this.world.occupancy[next] ?? "");
+        const occupant = next === undefined ? undefined : this.entities.get(this.board.occupant(next % this.board.width, Math.floor(next / this.board.width)) ?? "");
         // Never push idle units, borrow an enemy's turn, or exchange occupied tiles.
         if (occupant && occupant.id !== e.id && !this.hostile(e.owner, occupant.owner) && canStep(grid, e.x, e.y, nx - e.x, ny - e.y)) move(occupant);
       }
@@ -45,7 +54,7 @@ export class Movement {
         feedback.endOrder(e, "unreachable");
       }
       if (before.x !== e.x || before.y !== e.y) feedback.result(e, "acted", "move");
-      else if (it.t === "goto" && dist(e.x, e.y, it.x, it.y) <= (it.range || (this.gridFor(e.owner).isStatic(it.x, it.y) ? 1 : 0))) feedback.result(e, "arrived");
+      else if (it.t === "goto" && this.arrived(e, it.x, it.y, it.range)) feedback.result(e, "arrived");
       else feedback.result(e, "blocked", undefined, "step blocked or destination unreachable");
     };
     for (const e of ordered) move(e);
@@ -53,12 +62,11 @@ export class Movement {
 
   /** Doors remain solid for placement, but pathfinding depends on the moving side. */
   gridFor(owner: PlayerId): Grid {
-    if (!this.world.doors.size) return this.world.grid;
-    return { width: this.world.grid.width, height: this.world.grid.height, isStatic: (x, y) => {
-      const tile = y * this.world.grid.width + x;
-      const door = this.world.doors.get(tile);
-      if (door) return this.hostile(owner, this.world.entities.get(door)!.owner);
-      return this.world.grid.isStatic(x, y);
+    if (!this.board.hasDoors()) return this.board;
+    return { width: this.board.width, height: this.board.height, isStatic: (x, y) => {
+      const door = this.board.door(x, y);
+      if (door) return this.hostile(owner, this.entities.get(door)!.owner);
+      return this.board.isStatic(x, y);
     } };
   }
 
@@ -72,26 +80,24 @@ export class Movement {
 
   canStep(e: Entity, x: number, y: number): boolean {
     const grid = this.gridFor(e.owner);
-    return canStep(grid, e.x, e.y, x - e.x, y - e.y) && this.world.occupancy[y * grid.width + x] === null;
+    return canStep(grid, e.x, e.y, x - e.x, y - e.y) && this.board.occupant(x, y) === null;
   }
 
   private moveTo(e: Entity, x: number, y: number) {
-    const W = this.world.grid.width;
-    this.world.occupancy[e.y * W + e.x] = null;
+    this.board.move(e, x, y);
     const diagonal = x !== e.x && y !== e.y;
     e.lastStep = { dx: x - e.x, dy: y - e.y, tick: this.clock.tick };
     e.x = x;
     e.y = y;
-    this.world.occupancy[y * W + x] = e.id;
     e.nextMove = this.clock.tick + this.clock.ticks(e.spec.moveMs! * (diagonal ? this.rules().diagonalMove : 1));
   }
 
   private route(e: Entity, gx: number, gy: number, range: number): number[] | null {
     const grid = this.gridFor(e.owner);
-    if (range === 0 && grid.isStatic(gx, gy)) range = 1;
+    range = this.arrivalRange(e.owner, gx, gy, range);
     if (dist(e.x, e.y, gx, gy) <= range) return [];
     const W = grid.width;
-    const key = `${gx},${gy},${range},${this.world.version()}` + (this.rules().tickPathCosts ? `,${this.pathStraightCost(e)},${this.pathDiagonalCost(e)}` : "");
+    const key = `${gx},${gy},${range},${this.board.version()}` + (this.rules().tickPathCosts ? `,${this.pathStraightCost(e)},${this.pathDiagonalCost(e)}` : "");
     const adjacent = (i: number) => dist(e.x, e.y, i % W, (i / W) | 0) === 1;
     // A cached null means "unreachable" and stays valid until the key changes.
     const stale = e.pathKey !== key || (e.path !== null && (e.path.length === 0 || !adjacent(e.path[0])));
@@ -105,7 +111,7 @@ export class Movement {
   /** Assign only explicit same-owner move orders; scripts keep exact destinations. */
   assignTargets() {
     const groups = new Map<string, Entity[]>();
-    for (const e of this.world.entities.values()) {
+    for (const e of this.entities.values()) {
       if (e.order?.type !== "move") continue;
       const key = `${e.owner},${e.order.x},${e.order.y}`;
       const group = groups.get(key) ?? []; group.push(e); groups.set(key, group);
@@ -154,7 +160,7 @@ export class Movement {
       const candidates: { x: number; y: number }[] = [];
       for (let y = Math.max(0, goal.y - radius); y <= Math.min(grid.height - 1, goal.y + radius); y++) {
         for (let x = Math.max(0, goal.x - radius); x <= Math.min(W - 1, goal.x + radius); x++) {
-          const occupant = this.world.occupancy[y * W + x];
+          const occupant = this.board.occupant(x, y);
           if (!grid.isStatic(x, y) && (occupant === null || members.has(occupant))) candidates.push({ x, y });
         }
       }
@@ -178,11 +184,10 @@ export class Movement {
 
   /** One step toward being within `range` of (gx,gy). False if unreachable. */
   private walk(e: Entity, gx: number, gy: number, range: number): boolean {
-    // A static goal tile can't be entered: standing next to it is arriving.
     const grid = this.gridFor(e.owner);
-    if (range === 0 && grid.isStatic(gx, gy)) range = 1;
+    range = this.arrivalRange(e.owner, gx, gy, range);
     if (dist(e.x, e.y, gx, gy) <= range) return true;
-    const W = this.world.grid.width;
+    const W = this.board.width;
     this.route(e, gx, gy, range);
     if (!e.path) return false;
     if (e.path.length === 0) return true;
@@ -211,7 +216,7 @@ export class Movement {
       for (const [dx, dy] of DIR_LIST) {
         const x = e.x + dx;
         const y = e.y + dy;
-        if (inBounds(this.world.grid, x, y) && this.world.occupancy[y * W + x] !== null) avoid.add(y * W + x);
+        if (inBounds(this.board, x, y) && this.board.occupant(x, y) !== null) avoid.add(y * W + x);
       }
       const detour = findPath(grid, e.x, e.y, gx, gy, range, this.directions(e.owner), avoid, this.pathDiagonalCost(e), this.pathStraightCost(e));
       if (detour && detour.length > 0 && this.canStep(e, detour[0] % W, (detour[0] / W) | 0)) best = [detour[0] % W, (detour[0] / W) | 0];
@@ -249,7 +254,7 @@ export class Movement {
     for (const [dx, dy] of this.directions(owner)) {
       const nx = x + dx;
       const ny = y + dy;
-      if (inBounds(this.world.grid, nx, ny) && !this.gridFor(owner).isStatic(nx, ny) && this.world.occupancy[ny * this.world.grid.width + nx] === null) return [nx, ny];
+      if (inBounds(this.board, nx, ny) && !this.gridFor(owner).isStatic(nx, ny) && this.board.occupant(nx, ny) === null) return [nx, ny];
     }
     return null;
   }

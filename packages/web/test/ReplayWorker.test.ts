@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import type { ReplayFile, SpectatorView } from "@castellan/shared";
 import type { WorkerIn, WorkerOut } from "../src/replay.worker";
 
-vi.mock("../src/replayPlayback", () => ({ playRecordedReplay: vi.fn() }));
+vi.mock("@castellan/engine", () => ({ playRecording: vi.fn(), recordingWithShutdowns: vi.fn((replay: unknown) => replay) }));
 afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
 
 it("delivers the opening and first casualty before simulation continues, then preserves every frame", async () => {
@@ -10,10 +10,10 @@ it("delivers the opening and first casualty before simulation continues, then pr
   const deliveredAtBoundary: number[] = [];
   const worker = { onmessage: null as null | ((event: MessageEvent<WorkerIn>) => Promise<void>), postMessage: (message: WorkerOut) => messages.push(structuredClone(message)) };
   vi.stubGlobal("self", worker);
-  const { playRecordedReplay } = await import("../src/replayPlayback");
+  const { playRecording } = await import("@castellan/engine");
   const replay = { experiment: { agentActivity: [] } } as unknown as ReplayFile;
   const options = { includePerspectives: false };
-  vi.mocked(playRecordedReplay).mockImplementation(async (_, emit) => {
+  vi.mocked(playRecording).mockImplementation(async (_, emit) => {
     for (let tick = 0; tick < 405; tick++) {
       emit({ tick, players: [], entities: [], events: tick === 73 || tick === 74 ? [{ type: "death" }] : [] } as unknown as SpectatorView);
       // Observe delivery while the simulation is still inside its producer callback.
@@ -27,7 +27,7 @@ it("delivers the opening and first casualty before simulation continues, then pr
   await import("../src/replay.worker");
   await worker.onmessage!({ data: { replay, options } } as MessageEvent<WorkerIn>);
   expect(deliveredAtBoundary).toEqual([0, 73]);
-  expect(vi.mocked(playRecordedReplay).mock.calls[0][2]).toEqual(options);
+  expect(vi.mocked(playRecording).mock.calls[0][2]).toEqual(options);
   const batches = messages.flatMap(m => m.type === "frames" ? [m.frames] : []);
   expect(batches.flat().map(f => f.tick)).toEqual(Array.from({ length: 405 }, (_, i) => i));
   expect(batches.every(batch => batch.length <= 200)).toBe(true);

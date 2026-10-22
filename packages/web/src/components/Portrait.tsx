@@ -3,6 +3,8 @@ import type { EntityKind } from "@castellan/shared";
 import { PLAYER_RAMPS } from "../render/palette";
 import { ditherPixels } from "../render/cpuDither";
 import { isCharacter, normalizeCharacterContrast } from "../render/characterContrast";
+import { trackError } from "../analytics";
+import { sharedLoad } from "../sharedLoad";
 
 /** Still portraits: a character's south-east view; other kinds are their own file. */
 const FILES: Partial<Record<EntityKind, string>> = { king: "king_1", worker: "worker_1", knight: "knight_1", archer: "archer_1" };
@@ -10,19 +12,12 @@ const FILES: Partial<Record<EntityKind, string>> = { king: "king_1", worker: "wo
 const IDLE = new Set<EntityKind>(["king", "knight", "archer", "worker", "castle", "tower"]);
 interface Idle { image: string; frameCount: number; fps: number; frameWidth: number; frameHeight: number; rows: string[] }
 const imageLoads = new Map<string, Promise<HTMLImageElement>>();
-function loadImage(src: string) {
-  let image = imageLoads.get(src);
-  if (!image) {
-    image = new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = src;
-    });
-    imageLoads.set(src, image);
-  }
-  return image;
-}
+const loadImage = (src: string) => sharedLoad(imageLoads, src, () => new Promise<HTMLImageElement>((resolve, reject) => {
+  const img = new Image();
+  img.onload = () => resolve(img);
+  img.onerror = () => reject(new Error(`image ${src} did not load`));
+  img.src = src;
+}));
 
 /** The same source atlases and team ramps as the battlefield, at portrait size. */
 export function Portrait({ kind, team = 0, height = 120, idle = false, spriteBase = "/game-assets/sprites" }: { kind: EntityKind; team?: number; height?: number; idle?: boolean; spriteBase?: string }) {
@@ -40,7 +35,8 @@ export function Portrait({ kind, team = 0, height = 120, idle = false, spriteBas
       if (!entry.isIntersecting || started || disposed) return;
       started = true;
       preload.disconnect();
-      void prepare().catch(() => {});
+      // A portrait is decoration: without its art it stays empty, and the failure is reported.
+      prepare().catch(() => trackError("show a portrait", { kind }));
     }, { rootMargin: "200px" });
     preload.observe(cv);
     const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; });

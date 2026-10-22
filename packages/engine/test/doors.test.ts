@@ -1,6 +1,10 @@
 import { afterEach, expect, it } from "vitest";
-import { rules, MAPS, playerGuide, viewToText, type Ruleset, type ReplayFile } from "@castellan/shared";
+import { rules, MAPS, playerGuide, viewToText, type RecordedKind, type Ruleset, type ReplayFile } from "@castellan/shared";
 import { createMatch, runReplay, type Match, type PlayerOrder } from "../src";
+import { Board } from "../src/board";
+import { SimulationClock } from "../src/clock";
+import type { Entity } from "../src/entities";
+import { Movement } from "../src/movement";
 
 const live: Match[] = [];
 afterEach(() => { for (const m of live.splice(0)) m.dispose(); });
@@ -8,6 +12,8 @@ const players = [{ id: "a", name: "A", side: 0, team: 0 }, { id: "b", name: "B",
 const entity = (m: Match, kind: string, owner = "a") => m.spectate().entities.find(e => e.kind === kind && e.owner === owner)!;
 const step = (m: Match, n = 1) => { for (let i = 0; i < n; i++) m.step([]); };
 const move = (m: Match, id: string, x: number, y: number, player = "a") => m.step([{ player, order: { type: "move", unit: id, x, y } }]);
+const spawn = (m: Match, kind: RecordedKind, owner: string, x: number, y: number) => { let id = ""; m.stage(s => { id = s.spawn(kind, owner, x, y); }); return id; };
+const weaken = (m: Match, id: string) => m.stage(s => s.setHealth(id, 1));
 async function setup(team = false, corridor = true) {
   // Instant walls and doors: these tests are about passage, not construction time.
   const ruleset: Ruleset = { ...rules, matchMs: 10000, startMineral: 1000,
@@ -57,41 +63,38 @@ it("blocks hostile pathfinding while allowing same-team passage", async () => {
   m.step([build]);
   const worker = entity(m,"worker");
   move(m,worker.id,4,4); step(m,10);
-  const internals = m as unknown as { spawn(kind:string,owner:string,x:number,y:number):{id:string} };
-  const ally = internals.spawn("worker","ally",1,4);
-  move(m,ally.id,3,4,"ally");
-  expect(m.spectate().entities.find(e=>e.id===ally.id)!.x).toBe(2);
+  const ally = spawn(m,"worker","ally",1,4);
+  move(m,ally,3,4,"ally");
+  expect(m.inspect(ally)!.x).toBe(2);
   const enemy = entity(m,"worker","b");
   move(m,enemy.id,1,4,"b"); step(m,10);
   expect(entity(m,"worker","b").x).toBeGreaterThan(2);
-  expect(m.spectate().entities.find(e=>e.id===ally.id)!.x).toBe(3);
+  expect(m.inspect(ally)!.x).toBe(3);
 });
 
 it("keeps the occupant when a door is destroyed, then opens the route to enemies", async () => {
   const { m, build } = await setup(); m.step([build]);
   const worker = entity(m,"worker"), door = entity(m,"door");
   move(m,worker.id,2,4);
-  const internals = m as unknown as { ents: Map<string,{hp:number}>; spawn(kind:string,owner:string,x:number,y:number):{id:string}; occ:(string|null)[] };
-  internals.ents.get(door.id)!.hp=1;
-  const knight=internals.spawn("knight","b",3,4);
-  m.step([{player:"b",order:{type:"attack",unit:knight.id,target:door.id}}]);
+  weaken(m,door.id);
+  const knight=spawn(m,"knight","b",3,4);
+  m.step([{player:"b",order:{type:"attack",unit:knight,target:door.id}}]);
   expect(entity(m,"door")).toBeUndefined();
-  expect(internals.occ[4*9+2]).toBe(worker.id);
+  expect(m.inspect(worker.id)).toMatchObject({ x:2, y:4 });
   move(m,worker.id,1,4); step(m,5);
-  move(m,knight.id,2,4,"b"); step(m,5);
-  expect(m.spectate().entities.find(e=>e.id===knight.id)!.x).toBe(2);
+  move(m,knight,2,4,"b"); step(m,5);
+  expect(m.inspect(knight)!.x).toBe(2);
 });
 
 it("retains the door when a unit on it dies; another ally can enter", async () => {
   const {m,build}=await setup();m.step([build]);const worker=entity(m,"worker"), door=entity(m,"door");
   move(m,worker.id,2,4);
-  const internals=m as unknown as {ents:Map<string,{hp:number}>;spawn(kind:string,owner:string,x:number,y:number):{id:string}};
-  internals.ents.get(worker.id)!.hp=1;
-  const knight=internals.spawn("knight","b",3,4);
-  m.step([{player:"b",order:{type:"attack",unit:knight.id,target:worker.id}}]);
+  weaken(m,worker.id);
+  const knight=spawn(m,"knight","b",3,4);
+  m.step([{player:"b",order:{type:"attack",unit:knight,target:worker.id}}]);
   expect(entity(m,"door")).toMatchObject({id:door.id,open:false});
-  const replacement=internals.spawn("worker","a",1,4);
-  move(m,replacement.id,2,4);
+  const replacement=spawn(m,"worker","a",1,4);
+  move(m,replacement,2,4);
   expect(entity(m,"door").open).toBe(true);
 });
 
@@ -103,16 +106,21 @@ it("prevents overlapping construction even when a door's passage is empty", asyn
   expect(m.spectate().entities.filter(e=>e.x===2&&e.y===4)).toHaveLength(1);
 });
 
-it("keeps diagonal corner checks owner-aware around a door", async () => {
-  const {m,build}=await setup(false,false);m.step([build]);
-  const internals=m as unknown as {ents:Map<string,unknown>;movement:{canStep(e:unknown,x:number,y:number):boolean};spawn(kind:string,owner:string,x:number,y:number):{id:string}};
-  // Door is the east neighbour of the worker, diagonal target is otherwise free.
-  expect(internals.movement.canStep(internals.ents.get(entity(m,"worker").id),2,3)).toBe(true);
-  const enemy=internals.spawn("worker","b",1,5);
-  expect(internals.movement.canStep(internals.ents.get(enemy.id),2,4)).toBe(false);
-  // From (1,4), attempting (2,3) across the hostile door corner is also blocked.
-  const hostile={...internals.ents.get(entity(m,"worker").id) as object,owner:"b"};
-  expect(internals.movement.canStep(hostile,2,3)).toBe(false);
+it("keeps diagonal corner checks owner-aware around a door", () => {
+  // Movement owns stepping; a board with one door at (2,4) east of a unit at (1,4).
+  const units = new Map<string, Entity>();
+  const board = new Board(9, 9, id => units.get(id)?.spec.building ?? false);
+  const piece = (id: string, kind: "worker" | "door", owner: string, x: number, y: number) => {
+    const e = { id, kind, owner, x, y, spec: rules.kinds[kind] } as Entity;
+    units.set(id, e); board.place(e); return e;
+  };
+  piece("door", "door", "a", 2, 4);
+  const worker = piece("worker", "worker", "a", 1, 4), enemy = piece("enemy", "worker", "b", 1, 5);
+  const movement = new Movement(() => rules, new SimulationClock(10), board, units, () => 0, (x, y) => x !== y);
+  expect(movement.canStep(worker, 2, 3)).toBe(true);
+  expect(movement.canStep(enemy, 2, 4)).toBe(false);
+  // From (1,4), the step to (2,3) cuts the door's corner: blocked for an enemy.
+  expect(movement.canStep({ ...worker, owner: "b" }, 2, 3)).toBe(false);
 });
 
 it("serializes doors and their shared tiles through deterministic replay", async () => {

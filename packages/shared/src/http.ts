@@ -26,6 +26,25 @@ export const routes = {
   wait: "/wait",
 };
 
+/** Limits of the player API, the same in every room and for every connector; the guide states them from here. */
+export const API_LIMITS = {
+  /** Orders a player can queue for one tick, however many requests carry them; one /act or /run call carries at most this many. */
+  orders: 50,
+  /** Characters in one chat message. */
+  chatChars: 200,
+  /** Time between a player's chat messages, across channels. */
+  chatEveryMs: 3000,
+  /** Chat messages each observation shows. */
+  chatShown: 5,
+  /** GET /history paging: items per page by default, and at most. */
+  historyPage: 50,
+  historyPageMax: 100,
+} as const;
+
+/** Budgets of one /run call: its code, heap, stack, gas (QuickJS interrupt cycles), orders and returned JSON. */
+export interface RunLimits { maxBytes: number; heapBytes: number; stackBytes: number; gas: number; maxOrders: number; maxOutputBytes: number }
+export const RUN_LIMITS: RunLimits = { maxBytes: 16 * 1024, heapBytes: 32 * 1024 * 1024, stackBytes: 512 * 1024, gas: 2_500, maxOrders: API_LIMITS.orders, maxOutputBytes: 32 * 1024 };
+
 /** Player routes answer JSON, or compact text with `?format=text`. */
 export type ResponseFormat = "json" | "text";
 

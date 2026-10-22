@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it, vi } from "vitest";
 import { createMatch, type MatchConfig, type PlayerOrder } from "@castellan/engine";
 import { MAPS, rules, type ExperimentManifest, type Ruleset } from "@castellan/shared";
 import { BOTS, simulate } from "../src";
@@ -161,4 +164,23 @@ describe("optimizer dataset partitions", () => {
     expect(split.size).toBe(10);
     expect(() => splitReplays(["one#0", "one#1", "two#0"])).toThrow("3 independent replays");
   });
+});
+
+it("adds player-written script pairs to the designed battles only when SCRIPTS names them", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "castellan-scripts-")), file = join(dir, "script-sets.json");
+  try {
+    const builtIn = (await import("../src/synthetic")).SYNTHETIC_COUNT;
+    vi.stubEnv("SCRIPTS", file);
+    writeFileSync(file, JSON.stringify([{ knight: "self.hold();" }]));
+    vi.resetModules();
+    await expect(import("../src/synthetic")).rejects.toThrow("fight in pairs");
+    writeFileSync(file, JSON.stringify([{ knight: "self.hold();" }, { archer: "self.hold();" }]));
+    vi.resetModules();
+    const withPair = await import("../src/synthetic");
+    expect(withPair.RECORDED_SCRIPTS.source).toBe(file);
+    expect(withPair.SYNTHETIC_COUNT).toBe((builtIn / 3) * 4);
+  } finally {
+    vi.unstubAllEnvs(); vi.resetModules();
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

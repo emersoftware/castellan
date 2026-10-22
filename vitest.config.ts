@@ -10,7 +10,7 @@ export default defineConfig({
         extends: true as const,
         test: { name, include: [`packages/${name}/test/**/*.test.ts`] },
       })),
-      { extends: true, test: { name: "connectors", include: ["connectors/{cli,loop-keepers}/test/**/*.test.ts"] } },
+      { extends: true, test: { name: "connectors", include: ["connectors/{cli,loop-keepers,open-arena}/test/**/*.test.ts"] } },
       { extends: true, test: { name: "agents", include: ["connectors/{autonomous,castellan-bot}/test/**/*.test.ts"] } },
       { extends: true, test: { name: "catalog", include: ["cloudflare/test/**/*.test.ts"] } },
     ],

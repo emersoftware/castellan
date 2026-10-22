@@ -1,7 +1,8 @@
 import { expect, it } from "vitest";
 import { MAPS, rules, type MapSpec, type ReplayFile, type SpectatorView } from "@castellan/shared";
 import { createMatch, findPath, runReplay } from "../src";
-import { SEAT_DIRS, seatToMap, type Grid } from "../src/grid";
+import { seatToMap } from "@castellan/shared";
+import { SEAT_DIRS, type Grid } from "../src/grid";
 
 const home = (x: number, y: number) => x < 13 && y < 13;
 const sum = (mines: { amount: number }[]) => mines.reduce((n, d) => n + d.amount, 0);

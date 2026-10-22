@@ -90,7 +90,7 @@ export function ReplayPlayer({ id, onEnded, initialPlaying = true, series }: {
   const syncUrl = location.pathname === pagePath(pages.replay, id);
   const replay = useQuery({ queryKey: ["replay", id], queryFn: () => api.replay(id), staleTime: Infinity, retry: false });
   const [attempt, setAttempt] = useState(0);
-  const { frames, ruleset, loaded, check, error } = useReplayFrames(replay.data, attempt);
+  const { frames, scripts, ruleset, loaded, check, error } = useReplayFrames(replay.data, attempt);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(moment.player);
   useEffect(() => sfx.holdAmbient(), []);
   useEffect(() => sfx.holdMusic("battle"), []);
@@ -188,8 +188,9 @@ export function ReplayPlayer({ id, onEnded, initialPlaying = true, series }: {
   const unit = useUnitSelection(display?.entities, display?.deposits);
   const shownUnit = unit.entity ?? unit.last;
   const unitRuntime = display?.players.find(p => p.id === shownUnit?.owner)?.scriptRuntime;
-  const unitScript = useMemo(() => shownUnit && replay.data && ruleset ? scriptAt(replay.data.orders, ruleset, shownUnit.owner, shownUnit.kind, frame?.tick ?? index, unitRuntime?.tick) : undefined,
-    [shownUnit?.owner, shownUnit?.kind, replay.data, ruleset, frame?.tick, index, unitRuntime?.tick]);
+  // Frames up to `loaded` came with the uploads the engine installed for them.
+  const unitScript = useMemo(() => shownUnit && ruleset ? scriptAt(scripts.current, ruleset, shownUnit.owner, shownUnit.kind, frame?.tick ?? index) : undefined,
+    [shownUnit?.owner, shownUnit?.kind, scripts, ruleset, frame?.tick, index, loaded]);
   const total = replay.data ? replay.data.finalTick + 1 : 0;
   const names = useMemo(() => Object.fromEntries((replay.data?.players ?? []).map((p) => [p.id, p.name])), [replay.data]);
   const colors = useMemo(() => playerColors(replay.data?.players ?? []), [replay.data]);

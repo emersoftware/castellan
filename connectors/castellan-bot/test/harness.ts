@@ -19,6 +19,8 @@ export interface HeadlessOptions {
   seats: Seat[];
   map?: string;
   seed?: number;
+  /** Simulated ticks per second (the server's rooms choose it). */
+  tickRate?: number;
   maxTicks?: number;
   everyTicks?: number;
   botEveryTicks?: number;
@@ -40,7 +42,7 @@ export async function playHeadless(o: HeadlessOptions): Promise<HeadlessResult> 
   const n = o.seats.length;
   const players = o.seats.map((s, i) => ({ id: `p${i + 1}`, name: s.kind === "bot" ? `bot:${s.bot}` : "castellan", side: n === 4 ? i : i % 2,
     team: o.mode === "ffa" ? i : s.team ?? (n === 4 ? (i < 2 ? 0 : 1) : i) }));
-  const m = await createMatch({ ruleset, seed: o.seed ?? 1, tickRate: 10, players });
+  const m = await createMatch({ ruleset, seed: o.seed ?? 1, tickRate: o.tickRate ?? 10, players });
   const every = o.everyTicks ?? 10, botEvery = o.botEveryTicks ?? 30;
   const result: HeadlessResult = { outcome: { winner: null, winners: [], reason: "timeout", scores: {} }, ticks: 0, players: {}, events: [] };
   const cores = new Map<string, CastellanBot>();

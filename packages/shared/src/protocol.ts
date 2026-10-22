@@ -59,13 +59,18 @@ export const isRoomMode = (value: unknown): value is RoomMode => ROOM_MODES.some
 
 /** What GET /status tells a harness about its seat, without counting as a player call. */
 export interface SeatStatus { room: string; player: PlayerId; status: MatchStatus; tick: number; alive: boolean }
-type SeatState = { status?: MatchStatus; alive?: boolean };
+/** What a harness knows about its seat, from /status or from a text observation. */
+export type SeatState = { status?: MatchStatus; alive?: boolean };
 /** Nothing is left to play for the seat: its match finished or the seat is out. */
 export const seatOver = (seat: SeatState) => seat.status === "finished" || seat.alive === false;
 /** The seat's match takes orders. */
 export const seatPlaying = (seat: SeatState) => seat.status === "running";
+/** The header line viewToText writes (text.ts): its tick, then its status among the dotted fields. */
 const HEADER = new RegExp(`^tick (\\d+)(?:.*? · (${MATCH_STATUSES.join("|")}) · )?`);
-/** The seat as a text observation (`?format=text`) shows it: its header line, and YOU marked OUT. `tick` is NaN without a header. */
+/**
+ * The seat as a text observation (`?format=text`) shows it: its header line, and YOU marked OUT. `tick` is NaN
+ * without a header. It lives here, without runtime imports, so keepers can load it straight from Node.
+ */
 export function observedSeat(observation: string): SeatState & { tick: number } {
   const header = HEADER.exec(observation);
   return { status: MATCH_STATUSES.find((s) => s === header?.[2]), tick: Number(header?.[1]), alive: !/^YOU\s+.* · OUT$/m.test(observation) };

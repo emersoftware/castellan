@@ -3,8 +3,8 @@
  * unit memory, timers, vision, projectiles, production, and orders. Synthetic fixtures are
  * deliberately new matches. The old view-only recordings cannot reproduce those states.
  */
-import { createMatch, type Match, type MatchConfig, type PlayerOrder } from "@castellan/engine";
-import { rules as baseRules, currentKind, kindSpec, type EntityKind, type GameEvent, type KindSpec, type Order, type RecordedKind, type ReplayFile, type Ruleset } from "@castellan/shared";
+import { createMatch, resimulate, type Match, type MatchConfig, type PlayerOrder } from "@castellan/engine";
+import { rules as baseRules, currentKind, kindSpec, type EntityKind, type GameEvent, type Order, type RecordedKind, type ReplayFile, type Ruleset } from "@castellan/shared";
 import { candidateForRecordedNames } from "./names";
 
 export interface Snapshot {
@@ -79,22 +79,9 @@ const TARGETS: EntityKind[] = ["knight", "archer", "tower", "castle"];
 const armyValue = (r: Ruleset, kind: EntityKind) => (kind === "castle" ? mineralValue(r, "tower") : TARGETS.includes(kind) ? mineralValue(r, kind) : 0);
 const mineralValue = (r: Ruleset, kind: EntityKind) => (kind === "king" ? KING_VALUE : kindSpec(r, kind)?.cost ?? 0);
 
-/** The sim owns this adapter to engine internals: staging a battle and swapping in candidate stats. */
-interface Internals {
-  ruleset: Ruleset;
-  ents: Map<string, { id: string; kind: RecordedKind; owner: string; hp: number; spec: KindSpec; x: number; y: number; path: number[] | null; pathKey: string }>;
-  occ: (string | null)[];
-  doors: Map<number, string>;
-  buildSites: Map<number, string>;
-  staticVersion: number;
-  combat: { projectiles: Map<string, { id: string; source: string; owner: string }> };
-  spawn(kind: RecordedKind, owner: string, x: number, y: number): { id: string; hp: number; spec: { hp: number } };
-  player(id: string): { upgrades: Record<string, number> };
-  effectiveSpec(p: unknown, kind: string): KindSpec;
-  vision: { refresh(): void };
-}
-
-const historyKinds = new WeakMap<Match, Map<string, EntityKind>>();
+/** What the replayed prefix of a battle left behind: entity kinds and owners, and shots still in flight with their shooter. */
+interface BattleHistory { kinds: Map<string, EntityKind>; owners: Map<string, string>; shots: Map<string, string> }
+const histories = new WeakMap<Match, BattleHistory>();
 
 /** The variant's deterministic random sequence. */
 function seeded(seed: number) {
@@ -116,51 +103,36 @@ export async function resumeBattle(s: Snapshot, ruleset?: Ruleset, variant: Vari
   if (s.format !== "castellan-battle-v2" || !s.continuation) throw new Error(`Battle ${s.id} is a lossy legacy snapshot; re-extract it with extract-recent.mts`);
   const c = s.continuation;
   if (c.operationalFailures?.length) throw new Error(`Battle ${s.id} has operational sandbox failures; wall-clock watchdog outcomes are not reproducible balance samples`);
-  const m = await createMatch(c.config);
+  if (c.orders.some((o) => o.tick >= c.tick || o.tick < 0)) throw new Error(`Battle ${s.id}: order outside replay prefix`);
+  const history: BattleHistory = { kinds: new Map(), owners: new Map(), shots: new Map() };
+  const met = (id: string, kind: RecordedKind, owner: string) => { history.kinds.set(id, currentKind(kind)); history.owners.set(id, owner); };
+  const { match: m, check } = await resimulate({ config: c.config, orders: c.orders, hashes: { [c.tick]: c.hash }, until: c.tick }, {
+    start: (match) => { for (const e of match.spectate().entities) met(e.id, e.kind, e.owner); },
+    after: (_match, { events }) => {
+      for (const e of events) {
+        if (e.type === "spawn") met(e.id, e.kind, e.owner);
+        else if (e.type === "attack" && e.projectile) history.shots.set(e.projectile, e.from);
+        else if (e.type === "projectile_end") history.shots.delete(e.id);
+      }
+    },
+  });
   try {
-    const kinds = new Map(m.spectate().entities.map((e) => [e.id, currentKind(e.kind)]));
-    const byTick = new Map<number, PlayerOrder[]>();
-    for (const o of c.orders) {
-      if (o.tick >= c.tick || o.tick < 0) throw new Error(`Battle ${s.id}: order outside replay prefix`);
-      const input = byTick.get(o.tick) ?? [];
-      input.push(o); byTick.set(o.tick, input);
-    }
-    while (m.tick < c.tick && !m.outcome) {
-      for (const e of m.step(byTick.get(m.tick) ?? []).events) if (e.type === "spawn") kinds.set(e.id, currentKind(e.kind));
-    }
-    if (m.tick !== c.tick || m.hash() !== c.hash) throw new Error(`Battle ${s.id}: replay prefix does not reproduce at tick ${c.tick}`);
+    if (!check.verified) throw new Error(`Battle ${s.id}: replay prefix does not reproduce at tick ${c.tick}`);
     // Candidate stats change only at the boundary; historical economy, cooldown deadlines
     // and in-flight shots stay historical.
-    const internal = m as unknown as Internals;
-    if (ruleset) {
-      internal.ruleset = { ...m.ruleset, version: ruleset.version, ...candidateForRecordedNames(ruleset, m.ruleset) };
-      for (const e of internal.ents.values()) {
-        const spec = internal.effectiveSpec(internal.player(e.owner), e.kind);
-        e.hp = Math.max(1, Math.round(e.hp / e.spec.hp * spec.hp)); e.spec = spec;
-      }
-    }
-    const { map } = m.ruleset, width = map.width;
-    const barriers = variant.open ? [...internal.ents.values()].filter((e) => e.kind === "wall" || e.kind === "door") : [];
-    for (const e of barriers) {
-      const tile = e.y * width + e.x;
-      if (internal.occ[tile] === e.id) internal.occ[tile] = null;
-      internal.doors.delete(tile); internal.ents.delete(e.id);
-    }
+    const { map } = m.ruleset;
     const random = seeded(variant.seed ?? 1);
-    const free = (x: number, y: number) => internal.occ[y * width + x] === null && !internal.doors.has(y * width + x) && !internal.buildSites.has(y * width + x);
-    if (variant.jitter) for (const e of internal.ents.values()) {
-      const to = !e.spec.building && jittered(e.x, e.y, variant.jitter, map, random, free);
-      if (!to) continue;
-      const old = e.y * width + e.x;
-      internal.occ[old] = internal.doors.get(old) ?? null;
-      internal.occ[to.y * width + to.x] = e.id; e.x = to.x; e.y = to.y;
-    }
-    if (variant.open || variant.jitter) {
-      internal.staticVersion++;
-      for (const e of internal.ents.values()) { e.path = null; e.pathKey = ""; }
-      internal.vision.refresh();
-    }
-    historyKinds.set(m, kinds);
+    m.stage((stage) => {
+      if (ruleset) stage.useRuleset({ ...m.ruleset, version: ruleset.version, ...candidateForRecordedNames(ruleset, m.ruleset) });
+      const entities = m.spectate(undefined, { includePerspectives: false }).entities;
+      if (variant.open) for (const e of entities) if (e.kind === "wall" || e.kind === "door") stage.remove(e.id);
+      if (variant.jitter) for (const e of entities) {
+        if (kindSpec(m.ruleset, currentKind(e.kind))?.building || !m.inspect(e.id)) continue;
+        const to = jittered(e.x, e.y, variant.jitter, map, random, stage.isFree);
+        if (to) stage.relocate(e.id, to.x, to.y);
+      }
+    });
+    histories.set(m, history);
     return m;
   } catch (error) { m.dispose(); throw error; }
 }
@@ -174,35 +146,40 @@ export async function runBattle(s: Snapshot, ruleset: Ruleset = baseRules, varia
   const m: Match = s.continuation ? await resumeBattle(s, ruleset, variant) : await createMatch({ ruleset: r, seed: variant.seed ?? 1, tickRate: 10,
     players: s.players.map((p, i) => ({ id: p.id, name: p.id, side: i, team: p.team })) });
   try {
-    const internal = m as unknown as Internals;
-    for (const p of s.continuation ? [] : s.players) {
-      const upgrades = internal.player(p.id).upgrades;
-      for (const [id, level] of Object.entries(p.upgrades)) if (r.upgrades[id]) upgrades[id] = Math.min(level, r.upgrades[id].levels.length);
-    }
     const random = seeded(variant.seed ?? 1);
     const taken = new Set(s.map.walls.map((w) => `${w.x},${w.y}`));
     const ids = new Map<string, string>();
     const kindOf = new Map<string, EntityKind>();
     const fielded: Record<string, number> = {}, ownerOf = new Map<string, string>(), hp = new Map<string, number>();
-    const initialEntities = s.continuation ? m.spectate().entities : s.entities;
     const maxHp = new Map<string, number>();
-    for (const e of initialEntities) {
-      const kind = currentKind(e.kind);
-      if (!kindSpec(r, kind)) continue;
-      if (!s.continuation && variant.open && (e.kind === "wall" || e.kind === "door")) continue;
-      const { x, y } = !s.continuation && variant.jitter && !kindSpec(r, kind)!.building
-        ? jittered(e.x, e.y, variant.jitter, s.map, random, (x, y) => !taken.has(`${x},${y}`)) ?? e : e;
-      if (!s.continuation && taken.has(`${x},${y}`)) continue;
-      taken.add(`${x},${y}`);
-      const spawned = s.continuation ? { id: e.id, hp: e.hp, spec: { hp: e.maxHp } } : internal.spawn(e.kind, e.owner, x, y);
-      if (!s.continuation) spawned.hp = Math.max(1, Math.round((e.hp / Math.max(1, e.maxHp)) * spawned.spec.hp));
-      ids.set(e.id, spawned.id);
-      kindOf.set(spawned.id, kind);
+    // A designed battle is staged on an empty map; a recorded one already stands where its replay left it.
+    const field = (id: string, e: { id: string; kind: RecordedKind; owner: string }, kind: EntityKind) => {
+      const view = m.inspect(id)!;
+      ids.set(e.id, id);
+      kindOf.set(id, kind);
       fielded[kind] = (fielded[kind] ?? 0) + mineralValue(r, kind);
-      ownerOf.set(spawned.id, e.owner);
-      hp.set(spawned.id, spawned.hp);
-      maxHp.set(spawned.id, spawned.spec.hp);
-    }
+      ownerOf.set(id, e.owner);
+      hp.set(id, view.hp);
+      maxHp.set(id, view.maxHp);
+    };
+    if (s.continuation) {
+      for (const e of m.spectate(undefined, { includePerspectives: false }).entities) {
+        const kind = currentKind(e.kind);
+        if (kindSpec(r, kind)) field(e.id, e, kind);
+      }
+    } else m.stage((stage) => {
+      for (const p of s.players) for (const [id, level] of Object.entries(p.upgrades)) if (r.upgrades[id]) stage.setResearch(p.id, id, Math.min(level, r.upgrades[id].levels.length));
+      for (const e of s.entities) {
+        const kind = currentKind(e.kind);
+        if (!kindSpec(r, kind)) continue;
+        if (variant.open && (e.kind === "wall" || e.kind === "door")) continue;
+        const { x, y } = variant.jitter && !kindSpec(r, kind)!.building
+          ? jittered(e.x, e.y, variant.jitter, s.map, random, (x, y) => !taken.has(`${x},${y}`)) ?? e : e;
+        if (taken.has(`${x},${y}`)) continue;
+        taken.add(`${x},${y}`);
+        field(stage.spawn(e.kind, e.owner, x, y, e.hp / Math.max(1, e.maxHp)), e, kind);
+      }
+    });
     // The scripts each player had loaded, then the orders that were running.
     const setup = Object.entries(s.scripts).flatMap(([player, kinds]) => Object.entries(kinds)
       .filter(([kind]) => r.kinds[kind]?.scriptable).map(([kind, code]) => ({ player, order: { type: "script" as const, kind, code } })));
@@ -213,13 +190,13 @@ export async function runBattle(s: Snapshot, ruleset: Ruleset = baseRules, varia
       if (id && move) return [{ player: e.owner, order: { type: "move" as const, unit: id, x: Number(move[1] ?? move[3]), y: Number(move[2] ?? move[4]) } }];
       return [];
     });
-    if (!s.continuation) internal.vision.refresh();
     const firstInput = s.continuation ? [] : [...setup, ...orders];
     const shotKind = new Map<string, EntityKind>(), shotOwner = new Map<string, string>(), lastHit = new Map<string, EntityKind>();
     // Shots already in flight at the boundary still belong to their original attacker.
-    if (s.continuation) for (const p of internal.combat.projectiles.values()) {
-      const kind = kindOf.get(p.source) ?? historyKinds.get(m)?.get(p.source); if (kind) shotKind.set(p.id, kind);
-      shotOwner.set(p.id, p.owner);
+    const history = histories.get(m);
+    if (history) for (const [shot, source] of history.shots) {
+      const kind = kindOf.get(source) ?? history.kinds.get(source); if (kind) shotKind.set(shot, kind);
+      const owner = history.owners.get(source); if (owner) shotOwner.set(shot, owner);
     }
     const teamOf = new Map(s.players.map((p) => [p.id, String(p.team)]));
     const sides: Record<string, Side> = {};
@@ -242,8 +219,9 @@ export async function runBattle(s: Snapshot, ruleset: Ruleset = baseRules, varia
       if (e.type === "script_error") errors++;
       else if (e.type === "spawn") {
         kindOf.set(e.id, currentKind(e.kind)); ownerOf.set(e.id, e.owner);
-        const spec = internal.effectiveSpec(internal.player(e.owner), e.kind);
-        hp.set(e.id, spec.hp); maxHp.set(e.id, spec.hp);
+        // Full health, even if the unit already fell in the tick it appeared.
+        const full = m.inspect(e.id)?.maxHp ?? kindSpec(r, currentKind(e.kind))!.hp;
+        hp.set(e.id, full); maxHp.set(e.id, full);
       }
       else if (e.type === "attack") {
         quiet = 0;

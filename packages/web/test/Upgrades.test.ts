@@ -51,7 +51,8 @@ it("shows current labels and animations for legacy replay data read through the 
   expect(host.textContent).not.toMatch(/capital|ranger|turret/);
   const { events } = currentFrame({ players: [], entities: [], events: [
     { type: "spawn", tick: 10, id: "e1", owner: "p1", kind: "ranger", x: 3, y: 3 },
-    { type: "spawn", tick: 10, id: "e2", owner: "p1", kind: "turret", x: 4, y: 3 },
+    // The engine names the builder of everything built, also under a recording's former kind names.
+    { type: "spawn", tick: 10, id: "e2", owner: "p1", kind: "turret", x: 4, y: 3, builder: "e9" },
   ] as GameEvent[] });
   await act(async () => root!.render(createElement(EventFeed, { names: {}, colors: {}, events })));
   expect(host.textContent).toContain("trained an archer");

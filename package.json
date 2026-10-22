@@ -27,6 +27,7 @@
     "cloud:verify": "tsx cloudflare/verify.ts",
     "cloud:deploy": "pnpm build:cloudflare && pnpm cloud:typecheck && wrangler deploy",
     "castellan-bot": "pnpm --filter @castellan/castellan-bot play",
+    "arena": "tsx connectors/open-arena/src/cli.mjs",
     "check:unused": "knip --treat-config-hints-as-errors --treat-tag-hints-as-errors"
   },
   "devDependencies": {

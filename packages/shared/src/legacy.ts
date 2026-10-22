@@ -15,6 +15,17 @@ export function withMineralNames(ruleset: Ruleset): Ruleset {
   return { ...rest, startMineral, score: { ...score, mineral } };
 }
 
+/**
+ * What a ruleset recorded before a field existed meant by leaving it out: the kind named wall formed
+ * wall lines, `lastAttacker()` looked back 5 s and player VMs had a 256 KiB stack.
+ */
+export function withRecordedDefaults(ruleset: Ruleset): Ruleset {
+  const kinds = ruleset.kinds as Record<string, KindSpec>;
+  const walls = Object.values(kinds).some((spec) => spec.barrier) || !kinds.wall ? ruleset.kinds : { ...ruleset.kinds, wall: { ...kinds.wall, barrier: true } };
+  return { ...ruleset, kinds: walls, lastAttackerMs: ruleset.lastAttackerMs ?? 5000,
+    script: { ...ruleset.script, stackBytes: ruleset.script.stackBytes ?? 256 * 1024 } };
+}
+
 /** Whether shots skip entities inside the shooter's minimum range; 0.29.0 recordings predate the field. */
 export function blindSpotOnPath(ruleset: Ruleset): boolean {
   if (ruleset.projectiles.blindSpot !== undefined) return ruleset.projectiles.blindSpot;

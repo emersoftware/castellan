@@ -36,14 +36,14 @@ function scene() {
 
 it("holds until presented, assembles every position together, and removes all entrance effects", () => {
   const h = scene();
-  h.renderer.prepareReveal();
+  h.renderer.scene.prepareReveal();
   const dissolve = h.internals.root.filters![0] as Filter & { shown: number };
   h.advance(3000); // A slow load must not consume the animation offscreen.
   expect(dissolve.shown).toBe(0);
   expect(h.sprite("north").alpha).toBe(0);
   expect(h.sprite("worker").alpha).toBe(0);
 
-  h.renderer.reveal();
+  h.renderer.scene.reveal();
   h.advance(3175);
   expect(dissolve.shown).toBe(.5);
   expect(h.sprite("north").alpha).toBe(0);
@@ -66,7 +66,7 @@ it("reveals the full board immediately when reduced motion is enabled during ent
   let reduced = false;
   vi.stubGlobal("matchMedia", () => ({ matches: reduced }));
   const h = scene();
-  h.renderer.prepareReveal(); h.renderer.reveal(); h.advance(100);
+  h.renderer.scene.prepareReveal(); h.renderer.scene.reveal(); h.advance(100);
   expect(h.sprite("north").alpha).toBe(0);
   reduced = true; h.advance(101);
   expect(h.sprite("north").alpha).toBe(1);
@@ -77,7 +77,7 @@ it("reveals the full board immediately when reduced motion is enabled during ent
 
 it("preserves a unit's own death fade when it dies during entrance", () => {
   const h = scene();
-  h.renderer.prepareReveal(); h.renderer.reveal(); h.advance(875);
+  h.renderer.scene.prepareReveal(); h.renderer.scene.reveal(); h.advance(875);
   const worker = h.sprite("worker");
   expect(worker.alpha).toBe(.5);
   h.renderer.setFrame({ ...h.frame, tick: 1, entities: h.frame.entities.filter(e => e.id !== "worker"),

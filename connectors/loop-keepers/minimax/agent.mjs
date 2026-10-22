@@ -1,16 +1,16 @@
 // @ts-check
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { setTimeout as sleep } from "node:timers/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { cli, VERSION, verifyRuntime } from "./runtime.mjs";
 import { loadKey } from "./key.mjs";
-import { launchConfiguration, reportActivity, reportConfiguration } from "../metadata.mjs";
-import { observedSeat, seat, seatOver, serverUrl } from "../game.mjs";
-import { MIN_INTERVAL_MS, promptOf, turnFor } from "../turns.mjs";
+import { launchConfiguration, reportConfiguration } from "../metadata.mjs";
+import { serverUrl } from "../game.mjs";
+import { MIN_INTERVAL_MS, promptOf } from "../turns.mjs";
+import { exitOf, lineReader, playSeat } from "../decisions.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_MODEL = "MiniMax-M3.1-Flash";
@@ -76,20 +76,19 @@ export async function preparePlayer({ root, token, server = serverUrl(), key = "
       "--effort", effort, "--permission", "full", "--output-format", "stream-json"] };
 }
 
-export function decisionEvents(onEvent = (_event) => {}) {
-  let pending = "", session, result;
+/** The session and result of one mcode run, from its stream-json output (`push` chunks or complete `line`s). */
+export function decisionEvents() {
+  let session, result;
+  /** @param {string} raw */
   const line = raw => {
     if (!raw.trim()) return;
     let event; try { event = JSON.parse(raw); } catch { return; }
     if (event.schemaVersion !== 1) return;
     if (event.sessionId) session = event.sessionId;
     if (event.type === "exec.completed") result = event.result;
-    onEvent(event);
   };
-  return {
-    push(chunk) { const lines = (pending + chunk).split("\n"); pending = lines.pop() ?? ""; lines.forEach(line); },
-    finish() { line(pending); pending = ""; return { session, result }; },
-  };
+  const lines = lineReader(line);
+  return { push: lines.push, line, finish() { lines.end(); return { session, result }; } };
 }
 
 export async function main(args = process.argv.slice(2), env = process.env, { fetchImpl = fetch, spawnImpl = spawn,
@@ -115,37 +114,16 @@ export async function main(args = process.argv.slice(2), env = process.env, { fe
   console.error(`castellan minimax: ${opts.model} (${opts.effort}), mcode ${VERSION}; logs ${root}`);
   await reportConfiguration(launchConfiguration({ connector: "minimax-code", model: opts.model, effort: opts.effort, connectorVersion: VERSION, prompt, env }), { env, fetchImpl });
   const totals = { decisions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, incomplete: false };
-  let child, session, watcher, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0;
-  const abort = new AbortController();
-  const stop = () => { stopped = true; abort.abort(); child?.kill("SIGTERM"); };
-  const game = seat({ env, fetchImpl, signal: abort.signal });
-  const delay = ms => sleep(ms, undefined, { signal: abort.signal });
-  process.on("SIGINT", stop); process.on("SIGTERM", stop);
-  const watch = async () => {
-    if (stopped) return;
-    try { if (seatOver(await game.status())) { finished = true; stop(); return; } } catch { /* next poll */ }
-    if (!stopped) watcher = setTimeout(watch, pollMs);
-  };
-  watcher = setTimeout(watch, pollMs);
   try {
-    while (!stopped) {
-      const started = Date.now();
-      try {
-        const observation = await game.observation(lastDeliveredTick);
-        const seen = observedSeat(observation);
-        if (seatOver(seen)) { finished = true; break; }
-        const turn = turnFor(observation, { delivered: Boolean(session), prompt, resumed: Boolean(env.CASTELLAN_RESUME) });
-        if (!turn) { await delay(1000); continue; }
-        await reportActivity("deciding", { env, fetchImpl });
+    return await playSeat({ name: "minimax", prompt, env, fetchImpl, minIntervalMs, pollMs, maxFailures: 3, backoffMs: failures => 2000 * failures,
+      decide: async (turn, { session, signal }) => {
         const events = decisionEvents();
-        child = spawnImpl(process.execPath, [...player.args, ...(session ? ["--session", session] : []), "--input", "-"],
+        const child = spawnImpl(process.execPath, [...player.args, ...(session ? ["--session", session] : []), "--input", "-"],
           { cwd: player.workspace, env: player.env, stdio: ["pipe", "pipe", "inherit"] });
         child.stdin.on("error", () => {}); // Early CLI failure may close stdin.
         child.stdin.end(turn);
-        child.stdout.on("data", chunk => { process.stdout.write(chunk); events.push(chunk); });
-        const code = await new Promise((done, reject) => { child.on("error", reject); child.on("close", done); });
-        const decision = events.finish(); child = undefined;
-        session = decision.session || session;
+        const code = await exitOf(child, signal, events.line);
+        const decision = events.finish();
         const result = decision.result;
         if (result) {
           totals.decisions++;
@@ -153,27 +131,13 @@ export async function main(args = process.argv.slice(2), env = process.env, { fe
           if (result.usageIncomplete || !result.usage) totals.incomplete = true;
         } else totals.incomplete = true;
         await writeFile(join(root, "usage.json"), JSON.stringify(totals, null, 2), { mode: 0o600 });
-        if (stopped) break;
-        if (code !== 0 || result?.status !== "succeeded" || !session) throw new Error(`mcode decision incomplete (exit ${code}, status ${result?.status ?? "missing"})`);
-        if (Number.isFinite(seen.tick)) lastDeliveredTick = seen.tick;
-        failures = 0;
-        await reportActivity("between_decisions", { env, fetchImpl });
-        await delay(Math.max(0, minIntervalMs - (Date.now() - started)));
-      } catch (error) {
-        if (stopped) break;
-        if (++failures >= 3) throw new Error("MiniMax failed three consecutive decisions; stopping this attempt.");
-        const ms = 2000 * failures;
-        console.error(`castellan minimax: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
-        await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + ms).toISOString() });
-        await delay(ms).catch(() => {});
-      }
-    }
-    return finished ? 0 : 1;
+        const kept = decision.session || session;
+        if (code !== 0 || result?.status !== "succeeded" || !kept) throw Object.assign(new Error(`mcode decision incomplete (exit ${code}, status ${result?.status ?? "missing"})`), { session: kept });
+        return { session: kept };
+      } });
   } finally {
-    stop(); clearTimeout(watcher);
-    process.off("SIGINT", stop); process.off("SIGTERM", stop);
     console.error(`castellan minimax usage: ${JSON.stringify(totals)}`);
-    await reportActivity("stopped", { env, fetchImpl });
   }
 }
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().then(code => { process.exitCode = code; }, error => { console.error(error.message); process.exitCode = 1; });

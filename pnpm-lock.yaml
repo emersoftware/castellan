@@ -97,6 +97,18 @@ importers:
         specifier: ^4.0.0
         version: 4.6.5
 
+  connectors/open-arena:
+    dependencies:
+      '@castellan/server':
+        specifier: workspace:*
+        version: link:../../packages/server
+      '@castellan/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      ws:
+        specifier: ^8.18.3
+        version: 8.21.3
+
   packages/engine:
     dependencies:
       '@castellan/sandbox':
@@ -205,9 +217,6 @@ importers:
       '@castellan/engine':
         specifier: workspace:*
         version: link:../engine
-      '@castellan/sandbox':
-        specifier: workspace:*
-        version: link:../sandbox
       '@castellan/shared':
         specifier: workspace:*
         version: link:../shared
@@ -5372,13 +5381,13 @@ snapshots:
       '@remotion/timeline-utils': 4.0.533(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@rspack/core': 1.7.11
       '@rspack/plugin-react-refresh': 1.6.1(react-refresh@0.18.0)
-      css-loader: 7.1.4(@rspack/core@1.7.11)(webpack@5.105.0(lightningcss@1.33.0)(postcss@8.5.28))
+      css-loader: 7.1.4(@rspack/core@1.7.11)(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.33.0)(postcss@8.5.28))
       esbuild: 0.28.1
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
       react-refresh: 0.18.0
       remotion: 4.0.533(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      style-loader: 4.0.0(webpack@5.105.0(lightningcss@1.33.0)(postcss@8.5.28))
+      style-loader: 4.0.0(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.33.0)(postcss@8.5.28))
       webpack: 5.105.0(esbuild@0.28.1)(lightningcss@1.33.0)(postcss@8.5.28)
     transitivePeerDependencies:
       - '@minify-html/node'
@@ -6447,7 +6456,7 @@ snapshots:
       shebang-command: 2.0.0
       which: 2.0.2
 
-  css-loader@7.1.4(@rspack/core@1.7.11)(webpack@5.105.0(lightningcss@1.33.0)(postcss@8.5.28)):
+  css-loader@7.1.4(@rspack/core@1.7.11)(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.33.0)(postcss@8.5.28)):
     dependencies:
       icss-utils: 5.1.0(postcss@8.5.28)
       postcss: 8.5.28
@@ -7970,7 +7979,7 @@ snapshots:
     dependencies:
       js-tokens: 9.0.1
 
-  style-loader@4.0.0(webpack@5.105.0(lightningcss@1.33.0)(postcss@8.5.28)):
+  style-loader@4.0.0(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.33.0)(postcss@8.5.28)):
     dependencies:
       webpack: 5.105.0(esbuild@0.28.1)(lightningcss@1.33.0)(postcss@8.5.28)
 

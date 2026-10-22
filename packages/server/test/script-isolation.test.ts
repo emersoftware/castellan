@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { rules } from "@castellan/shared";
-import { RUN_LIMITS, type ScriptWorld } from "@castellan/sandbox";
+import { RUN_LIMITS } from "@castellan/shared";
+import type { ScriptWorld } from "@castellan/sandbox";
 import { createMatch, type MatchConfig } from "@castellan/engine";
 import { createIsolatedScriptHost, runOnceIsolated, validateScriptIsolated, waitForStateChange } from "../src/script-isolation";
 

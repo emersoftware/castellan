@@ -1,32 +1,45 @@
 import { expect, it } from "vitest";
+import { createMatch, playRecording, recordingOf } from "@castellan/engine";
 import { rules, type ReplayFile } from "@castellan/shared";
-import { scriptAt } from "../src/scripts";
+import { acceptedScripts, scriptAt, type ScriptLoad } from "../src/scripts";
 
 it("finds the script a unit runs at a given moment of a replay", () => {
-  const replay = { orders: [
-    { tick: 10, player: "p1", order: { type: "script", kind: "knight", code: "self.hold(); // v1" } },
-    { tick: 20, player: "p2", order: { type: "script", kind: "knight", code: "self.hold(); // rival" } },
-    { tick: 30, player: "p1", order: { type: "script", kind: "knight", code: null } },
-  ] } as unknown as ReplayFile;
-  expect(scriptAt(replay.orders, rules, "p1", "knight", 5)).toEqual({ code: rules.defaultScripts.knight, custom: false });
-  expect(scriptAt(replay.orders, rules, "p1", "knight", 10)).toEqual({ code: "self.hold(); // v1", custom: true, sinceTick: 10 });
-  expect(scriptAt(replay.orders, rules, "p1", "knight", 29)?.code).toBe("self.hold(); // v1");
-  expect(scriptAt(replay.orders, rules, "p1", "knight", 30)).toEqual({ code: rules.defaultScripts.knight, custom: false }); // reset to default
-  expect(scriptAt(replay.orders, rules, "p2", "knight", 25)?.code).toBe("self.hold(); // rival");
-  expect(scriptAt(replay.orders, rules, "p1", "wall", 25)).toBeNull();
+  const loads: ScriptLoad[] = [
+    { tick: 10, player: "p1", kind: "knight", code: "self.hold(); // v1" },
+    { tick: 20, player: "p2", kind: "knight", code: "self.hold(); // rival" },
+    { tick: 30, player: "p1", kind: "knight", code: null },
+  ];
+  expect(scriptAt(loads, rules, "p1", "knight", 5)).toEqual({ code: rules.defaultScripts.knight, custom: false });
+  expect(scriptAt(loads, rules, "p1", "knight", 10)).toEqual({ code: "self.hold(); // v1", custom: true, sinceTick: 10 });
+  expect(scriptAt(loads, rules, "p1", "knight", 29)?.code).toBe("self.hold(); // v1");
+  expect(scriptAt(loads, rules, "p1", "knight", 30)).toEqual({ code: rules.defaultScripts.knight, custom: false }); // reset to default
+  expect(scriptAt(loads, rules, "p2", "knight", 25)?.code).toBe("self.hold(); // rival");
+  expect(scriptAt(loads, rules, "p1", "wall", 25)).toBeNull();
 });
 
-it("reads a script order recorded under a former kind name", () => {
-  const orders = [{ tick: 10, player: "p1", order: { type: "script", kind: "ranger", code: "self.hold(); // old" } }] as unknown as ReplayFile["orders"];
-  expect(scriptAt(orders, rules, "p1", "archer", 20)?.code).toBe("self.hold(); // old");
+it("reads an upload recorded under a former kind name", () => {
+  const loads = acceptedScripts({ tick: 10, input: [{ player: "p1", order: { type: "script", kind: "ranger", code: "self.hold(); // old" } }], results: [{ ok: true }], events: [] });
+  expect(scriptAt(loads, rules, "p1", "archer", 20)?.code).toBe("self.hold(); // old");
 });
 
-it("keeps the last loaded script when a stopped VM rejects later uploads", () => {
-  const orders = [
-    { tick: 246, player: "p2", order: { type: "script", kind: "knight", code: "self.hold(); // loaded" } },
-    { tick: 1491, player: "p2", order: { type: "script", kind: "knight", code: "self.attack(self.nearestEnemy()); // rejected" } },
-  ] as ReplayFile["orders"];
-  expect(scriptAt(orders, rules, "p2", "knight", 2000, 1352)).toEqual({
-    code: "self.hold(); // loaded", custom: true, sinceTick: 246,
-  });
+/** A real recording: orders applied by the engine, so its results decide what each player runs. */
+async function record(orders: ReplayFile["orders"], finalTick: number): Promise<ReplayFile> {
+  const players = [{ id: "p1", name: "a", side: 0, team: 0 }, { id: "p2", name: "b", side: 1, team: 1 }];
+  const match = await createMatch({ ruleset: rules, seed: 1, tickRate: 10, players });
+  try {
+    while (match.tick < finalTick) match.step(orders.filter(o => o.tick === match.tick).map(({ player, order }) => ({ player, order })));
+    return { format: 1, id: "rejected-upload", createdAt: new Date(0).toISOString(), ruleset: rules, seed: 1, tickRate: 10, players, orders,
+      hashes: { [match.tick]: match.hash() }, finalTick: match.tick, outcome: { winner: null, reason: "timeout", scores: {} } };
+  } finally { match.dispose(); }
+}
+
+it("shows the script the engine accepted, not a later upload it rejected", async () => {
+  const replay = await record([
+    { tick: 1, player: "p1", order: { type: "script", kind: "knight", code: "self.hold(); // v1" } },
+    { tick: 3, player: "p1", order: { type: "script", kind: "knight", code: "self.hold( // does not compile" } },
+  ], 6);
+  const loads: ScriptLoad[] = [];
+  const check = await playRecording(recordingOf(replay), () => {}, { includePerspectives: false }, (tick) => loads.push(...acceptedScripts(tick)));
+  expect(check.verified).toBe(true);
+  expect(scriptAt(loads, rules, "p1", "knight", 5)).toEqual({ code: "self.hold(); // v1", custom: true, sinceTick: 1 });
 });

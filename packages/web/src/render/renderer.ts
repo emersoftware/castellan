@@ -7,7 +7,6 @@
  */
 import { Application, Container, Graphics, RenderTexture, Sprite, type Filter } from "pixi.js";
 import type { DepositView, EntityView, GameEvent, KindSpec, ProjectileView, Ruleset, SoundName, SpectatorView } from "@castellan/shared";
-import type { CameraBox } from "../showcaseCamera";
 import { TILE_H, TILE_W, loadSprites, screenDir, terrainTexture, type SpriteArt, type SpriteSet } from "./sprites";
 import type { ClipArt } from "./clips";
 import { createOutlineFilter, createXrayFilter, depthTint, occluderTint } from "./xray";
@@ -136,6 +135,10 @@ export class GameRenderer {
   private resize?: ResizeObserver;
   private presentation: ScenePresentation;
   private viewCamera: WorldCamera;
+  /** Where the board looks: zoom, recording frames, followed tile boxes and the area hero framing keeps clear. */
+  readonly camera: Pick<WorldCamera, "zoom" | "frame" | "focus" | "setFocusArea">;
+  /** How the board appears: dissolves for recordings and the hero's staged entrance. */
+  readonly scene: Pick<ScenePresentation, "dissolve" | "prepareReveal" | "reveal">;
   private width: number;
   private height: number;
   private sound: SoundSink = () => {};
@@ -151,6 +154,8 @@ export class GameRenderer {
       overlays: [this.fx, this.outlineLayer, this.xrayLayer, this.hoverMark, this.selectMark],
     }, () => this.revealParts(), () => this.now());
     this.viewCamera = new WorldCamera(this.world, this.width, this.height, () => this.now(), fitOnResize, interactive);
+    this.camera = this.viewCamera;
+    this.scene = this.presentation;
   }
 
   /** `colors`: each player's colour index (0..3). */
@@ -197,7 +202,7 @@ export class GameRenderer {
     this.resize = new ResizeObserver(() => this.fit());
     this.resize.observe(this.host);
     if (this.interactive) bindWorldInput(cv, this.world, this.app.renderer, {
-      zoom: (factor, x, y) => this.zoom(factor, x, y),
+      zoom: (factor, x, y) => this.viewCamera.zoom(factor, x, y),
       pointer: point => {
         this.pointer = point;
         this.hovered = null;
@@ -248,25 +253,6 @@ export class GameRenderer {
   private presentationNow() { return (this.pausedAt ?? this.now()) - this.pauseOffset; }
   private animationMs(now: number) { return this.gameMs + this.alpha(now) * this.gameTickMs; }
 
-  /** Zoom around a renderer-pixel point, or the canvas centre. */
-  zoom(factor: number, cx?: number, cy?: number) { this.viewCamera.zoom(factor, cx, cy); }
-
-  /** Frame a tile for recordings; zoom is relative to the whole-map fit. */
-  camera(x: number, y: number, zoom: number, dy = 0) { this.viewCamera.frame(x, y, zoom, dy); }
-
-  /** Smoothly follow a tile box, or the whole map with null. */
-  focus(box: CameraBox | null) { this.viewCamera.focus(box); }
-
-  /** Restrict hero framing to this CSS-pixel area of the canvas. */
-  setFocusArea(area: { x: number; y: number; w: number; h: number } | undefined) { this.viewCamera.setFocusArea(area); }
-
-  /** Dither units/world/fog from hidden (0) to shown (1), for recording transitions. */
-  dissolve(units: number, world = 1, fog = world) { this.presentation.dissolve(units, world, fog); }
-
-  /** Hold the board hidden until reveal starts its staged entrance. */
-  prepareReveal() { this.presentation.prepareReveal(); }
-  reveal() { this.presentation.reveal(); }
-
   private *revealParts() {
     for (const d of this.drawn.values()) yield {
       building: !!this.ruleset.kinds[d.view.kind]?.building,
@@ -291,11 +277,17 @@ export class GameRenderer {
     };
   }
 
-  /**
-   * A new game state. `tickMs` is how long until the next one (for interpolation).
-   * `jump` (seeking a replay) snaps to the state without animations, effects or sounds.
-   */
-  setFrame(v: SpectatorView, tickMs: number, jump = false) {
+  /** The next game state, animated from the last one. `tickMs` is how long until the state after it (for interpolation). */
+  setFrame(v: SpectatorView, tickMs: number) {
+    this.present(v, tickMs, false);
+  }
+
+  /** A state elsewhere in the game (seeking a replay): shown at once, without animations, effects or sounds. */
+  seek(v: SpectatorView, tickMs: number) {
+    this.present(v, tickMs, true);
+  }
+
+  private present(v: SpectatorView, tickMs: number, jump: boolean) {
     const now = this.presentationNow();
     const alpha = this.alpha(now);
     const previousGameMs = this.animationMs(now);

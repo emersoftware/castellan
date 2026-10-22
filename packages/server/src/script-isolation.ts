@@ -1,8 +1,8 @@
 import { Worker } from "node:worker_threads";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
-import type { ScriptLimits } from "@castellan/shared";
-import { RUN_LIMITS, type RunLimits, type RunResult, type ScriptHost, type ScriptWorld, type UnitRun } from "@castellan/sandbox";
+import { RUN_LIMITS, type RunLimits, type ScriptLimits } from "@castellan/shared";
+import type { RunResult, ScriptHost, ScriptWorld, UnitRun } from "@castellan/sandbox";
 
 const STARTING = 0, IDLE = 1, REQUEST = 2, RESPONSE = 3, FAILED = 4, RUNNING = 5;
 const HEADER_BYTES = 16;

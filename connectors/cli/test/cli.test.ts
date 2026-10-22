@@ -38,7 +38,7 @@ describe("castellan commands", () => {
       env: { ...process.env, CASTELLAN_SERVER: srv.url, CASTELLAN_TOKEN: room.players[0].token },
     });
     expect(stdout).toContain('p1 (you) [private to p2]: "just for you"');
-    expect(await chat(clients[1])).toContain("[private to p2]: just for you");
+    expect(await chat(clients[1])).toContain(`[private to p2]: "just for you"`);
     for (const c of clients.slice(2)) {
       expect(JSON.parse(await chat(c, undefined, { json: true })).messages).toEqual([]);
       expect(await state(c, { since: 0 })).not.toContain("just for you");
@@ -63,7 +63,7 @@ describe("castellan commands", () => {
     });
     expect(stdout).toContain("message sent");
     expect(stdout).toContain('p1 (you) [team]: "secret plan"');
-    expect(await chat(clients[1])).toContain("[team]: secret plan");
+    expect(await chat(clients[1])).toContain(`[team]: "secret plan"`);
     expect(await state(clients[1], { since: 0 })).toContain("secret plan");
     for (const c of clients.slice(2)) {
       expect(JSON.parse(await chat(c, undefined, { json: true })).messages).toEqual([]);
@@ -123,6 +123,15 @@ describe("castellan commands", () => {
       env: { ...process.env, CASTELLAN_SERVER: srv.url },
     });
     expect(JSON.parse(stdout).chat).toBe(false);
+  });
+
+  it("reports an agent command that cannot start instead of relaunching it", async () => {
+    const room = JSON.parse(await newRoom(client({ server: srv.url }), { json: true, names: ["a", "b"] }));
+    const c = client({ server: srv.url, token: room.players[0].token });
+    const log: string[] = [];
+    expect(await run(c, ["/nonexistent/castellan-agent"], { fastMs: 60_000, maxFastFailures: 3, backoffMs: 1, log: (l) => log.push(l) })).toBe(1);
+    expect(log.join("\n")).toContain("ENOENT");
+    expect(log.join("\n")).not.toContain("relaunching");
   });
 
   it("reports API errors", async () => {

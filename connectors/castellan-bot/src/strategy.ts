@@ -5,7 +5,7 @@
 import type { EntityKind, PlayerId } from "@castellan/shared";
 import { dist, ring, type DepositCluster, type Pt } from "./geometry";
 import { entityValue, type Memory, type World } from "./perception";
-import type { BuildTask, DecisionSource, Episode, Expansion, ExpansionDefense, HomeThreatChoice, JournalEntry, Plan, ThreatGroup } from "./types";
+import type { AllyRequest, BuildTask, DecisionSource, Episode, Expansion, ExpansionDefense, HomeThreatChoice, JournalEntry, Plan, ThreatGroup } from "./types";
 
 export interface StrategyOptions {
   log: (e: Omit<JournalEntry, "t">) => void;
@@ -25,8 +25,6 @@ const RALLY: Pt = { x: 6, y: 6 };
 const TOWER_1: Pt = { x: 2, y: 3 };
 const TOWER_2: Pt = { x: 3, y: 1 };
 
-const TICKS_PER_S = 10;
-const s = (n: number) => n * TICKS_PER_S;
 
 export function newPlan(): Plan {
   return {
@@ -94,7 +92,7 @@ export class Strategy {
     const e = this.episodes.find((x) => x.id === id);
     if (!e || e.status !== "active") return;
     e.status = status; e.endedTick = w.tick; e.result = result;
-    this.log(w, "episode_end", { episode: e.id, kind: e.kind, label: e.label, status, result, durationS: (w.tick - e.startedTick) / TICKS_PER_S });
+    this.log(w, "episode_end", { episode: e.id, kind: e.kind, label: e.label, status, result, durationS: w.clock.seconds(w.tick - e.startedTick) });
   }
 
   private note(id: string | undefined, text: string) {
@@ -132,7 +130,7 @@ export class Strategy {
         this.plan.expansion.castleId = ev.id;
         this.plan.expansion.since = w.tick;
         this.note(this.plan.expansion.episode, `castle ${ev.id} completed at tick ${ev.tick}`);
-        this.log(w, "expansion_built", { castle: ev.id, x: ev.x, y: ev.y, atS: ev.tick / TICKS_PER_S });
+        this.log(w, "expansion_built", { castle: ev.id, x: ev.x, y: ev.y, atS: w.clock.seconds(ev.tick) });
         if (this.plan.expansion.fortify) {
           const site = this.pickTowerSite(w, { x: ev.x, y: ev.y });
           if (site) this.task(w, "tower", site, 4, "expansion tower", this.plan.expansion.episode);
@@ -176,7 +174,7 @@ export class Strategy {
     if (homeTiles === 0 && this.plan.expansion?.status !== "built") target = Math.max(4, Math.min(target, w.workers.length));
     this.plan.workersTarget = Math.min(target, 14);
     // Composition follows what the enemy fields: more archers against knights, more knights against archers.
-    const recent = w.sightings.filter((x) => w.tick - x.tick <= s(90));
+    const recent = w.sightings.filter((x) => w.tick - x.tick <= w.clock.ticks(90));
     const kn = recent.filter((x) => x.kind === "knight").length, rg = recent.filter((x) => x.kind === "archer").length;
     let archerShare = 0.35;
     if (kn + rg >= 3) archerShare = Math.min(0.6, Math.max(0.2, 0.4 - 0.2 * (kn - rg) / (kn + rg)));
@@ -196,7 +194,7 @@ export class Strategy {
       const recentAggressor = [...mem.aggressors.entries()].filter(([p]) => w.enemyPlayers.some((e) => e.id === p)).sort((a, b) => b[1] - a[1])[0];
       this.plan.primaryEnemy = recentAggressor?.[0] ?? w.enemyPlayers[0]?.id;
     } else {
-      const recentAggressor = [...mem.aggressors.entries()].filter(([p, t]) => w.tick - t < s(60) && w.enemyPlayers.some((e) => e.id === p)).sort((a, b) => b[1] - a[1])[0];
+      const recentAggressor = [...mem.aggressors.entries()].filter(([p, t]) => w.tick - t < w.clock.ticks(60) && w.enemyPlayers.some((e) => e.id === p)).sort((a, b) => b[1] - a[1])[0];
       if (recentAggressor) this.plan.primaryEnemy = recentAggressor[0];
     }
   }
@@ -245,23 +243,23 @@ export class Strategy {
       if (p.posture === "attack" && p.attack) {
         const guards = w.army.filter((u) => this.roles.get(u.id) === "g").reduce((n, u) => n + entityValue(u), 0);
         const threat = home?.strength ?? 150;
-        if (!p.homeThreatChoice || w.tick - p.homeThreatChoice.since > s(40)) this.applyHomeThreatChoice(w, threat >= guards * 1.2 || kingDanger ? "recall" : "continue", "rules");
+        if (!p.homeThreatChoice || w.tick - p.homeThreatChoice.since > w.clock.ticks(40)) this.applyHomeThreatChoice(w, threat >= guards * 1.2 || kingDanger ? "recall" : "continue", "rules");
       } else {
         this.setPosture(w, "defend", home ? `${home.units.length} enemy units (~${Math.round(home.strength)}) of ${home.owner} at (${home.x},${home.y}) near home` : "enemy next to the king");
       }
     } else if (p.posture === "defend") {
-      if (w.tick - this.lastHomeThreatTick > s(8) && w.tick - this.lastExpansionThreatTick > s(8)) this.setPosture(w, "boom", "no threat for 8 s");
+      if (w.tick - this.lastHomeThreatTick > w.clock.ticks(8) && w.tick - this.lastExpansionThreatTick > w.clock.ticks(8)) this.setPosture(w, "boom", "no threat for 8 s");
     } else if (p.posture === "attack") {
       this.checkRetreat(w);
     } else if (p.posture === "retreat") {
       const back = w.army.filter((u) => this.roles.get(u.id) === "r");
       const home = back.filter((u) => dist(u, p.rally) <= 4).length;
-      if (!back.length || home >= back.length * 0.7 || w.tick - p.postureSince > s(40)) {
+      if (!back.length || home >= back.length * 0.7 || w.tick - p.postureSince > w.clock.ticks(40)) {
         this.setPosture(w, "boom", "army regrouped");
       }
     }
     if (exp && this.plan.expansion) this.defendExpansion(w, exp);
-    else if (this.plan.expansionDefense && w.tick - this.lastExpansionThreatTick > s(10)) {
+    else if (this.plan.expansionDefense && w.tick - this.lastExpansionThreatTick > w.clock.ticks(10)) {
       this.log(w, "expansion_threat_over", { choice: this.plan.expansionDefense.choice, lostCastle: this.plan.expansion?.status === "lost" });
       this.plan.expansionDefense = undefined;
     }
@@ -270,7 +268,7 @@ export class Strategy {
   private defendExpansion(w: World, threat: ThreatGroup) {
     const p = this.plan;
     const exp = p.expansion!;
-    if (p.expansionDefense && w.tick - p.expansionDefense.since < s(45) && p.expansionDefense.threatOwner === threat.owner) return;
+    if (p.expansionDefense && w.tick - p.expansionDefense.since < w.clock.ticks(45) && p.expansionDefense.threatOwner === threat.owner) return;
     const ratio = w.myStrength / Math.max(1, threat.strength);
     const canCounter = !!this.pickTarget(w, threat.owner);
     const fallback: ExpansionDefense = ratio >= 1.2 && p.posture !== "attack" ? "army" : "evacuate";
@@ -319,7 +317,7 @@ export class Strategy {
     if (p.scout && !p.scout.done) {
       const alive = w.army.some((u) => u.id === p.scout!.unit);
       const known = w.enemyBases.filter((b) => b.known).length;
-      if (!alive || w.tick - p.scout.since > s(100) || (known >= Math.min(1, w.enemyPlayers.length) && w.tick - p.scout.since > s(30))) {
+      if (!alive || w.tick - p.scout.since > w.clock.ticks(100) || (known >= Math.min(1, w.enemyPlayers.length) && w.tick - p.scout.since > w.clock.ticks(30))) {
         p.scout.done = true;
         this.roles.delete(p.scout.unit);
         const ep = this.episodes.find((e) => e.kind === "scout" && e.status === "active");
@@ -358,7 +356,7 @@ export class Strategy {
     // First tower: covers the castle front and the north-east mines.
     // The keep: in a lull once the economy and a first army exist. Walls first, doors last.
     // After the first assault has been repelled (or by minute 3 if none came), while it is quiet.
-    const lull = p.posture === "boom" && w.tick - this.lastHomeThreatTick > s(12);
+    const lull = p.posture === "boom" && w.tick - this.lastHomeThreatTick > w.clock.ticks(12);
     const afterFirstFight = this.lastHomeThreatTick > 0 || w.timeMs >= 180_000;
     if (p.keep.status === "none" && w.timeMs >= 95_000 && lull && afterFirstFight && w.workers.length >= 6 && w.army.length >= 3) {
       const ep = this.episode(w, "keep", "corner keep: 8 walls and 2 doors around king and castle");
@@ -389,9 +387,9 @@ export class Strategy {
 
   private planExpansion(w: World) {
     const p = this.plan;
-    if (p.expansion && !(ended(p.expansion) && w.tick - p.expansion.since > s(60))) return;
+    if (p.expansion && !(ended(p.expansion) && w.tick - p.expansion.since > w.clock.ticks(60))) return;
     // A castle is 600 mineral and 30 s: only in a stable lull, with an army that can cover it.
-    if (p.expansionsTried >= 3 || p.posture !== "boom" || w.tick - this.lastHomeThreatTick < s(45)) return;
+    if (p.expansionsTried >= 3 || p.posture !== "boom" || w.tick - this.lastHomeThreatTick < w.clock.ticks(45)) return;
     if (w.timeMs < 150_000 || w.timeLeftMs < 150_000 || w.workers.length < 7 || w.army.length < 8) return;
     const homeLeft = w.clusters.filter((c) => c.kind === "home").reduce((n, c) => n + c.tiles.reduce((m, t) => m + (w.deposits.find((d) => d.x === t.x && d.y === t.y)?.amount ?? initialAmount(c)), 0), 0);
     const homeTotal = w.clusters.filter((c) => c.kind === "home").reduce((n, c) => n + c.mineral, 0);
@@ -409,7 +407,7 @@ export class Strategy {
     const bases = w.enemyBases.map((b) => b.pos);
     const out = w.clusters.filter((c) => c.kind === "flank").map((c) => {
       const mineralLeft = c.tiles.reduce((n, t) => n + (w.deposits.find((d) => d.x === t.x && d.y === t.y)?.amount ?? initialAmount(c)), 0);
-      const danger = w.sightings.filter((x) => w.tick - x.tick <= s(90) && dist(x, c.center) <= 10).length;
+      const danger = w.sightings.filter((x) => w.tick - x.tick <= w.clock.ticks(90) && dist(x, c.center) <= 10).length;
       const enemyDist = bases.length ? Math.min(...bases.map((b) => dist(b, c.center))) : 30;
       const site = this.pickCastleSite(w, c);
       const local = w.frame.toLocal(c.center);
@@ -451,7 +449,7 @@ export class Strategy {
     if (w.army.length < 4) return;
     const main: EntityKind = p.composition.archer >= 0.5 ? "archer" : "knight";
     const other: EntityKind = main === "archer" ? "knight" : "archer";
-    const recent = w.sightings.filter((x) => w.tick - x.tick <= s(90));
+    const recent = w.sightings.filter((x) => w.tick - x.tick <= w.clock.ticks(90));
     const archerHeavy = recent.filter((x) => x.kind === "archer").length > recent.filter((x) => x.kind === "knight").length * 2 && recent.length >= 3;
     const want = archerHeavy ? ["tower_range", "archer_damage", "archer_cadence", "knight_mobility", "archer_damage", "tower_range"]
       : [`${main}_damage`, `${main}_cadence`, `${other}_damage`, `${main}_mobility`, `${main}_damage`, `${main}_cadence`];
@@ -487,7 +485,7 @@ export class Strategy {
   private planAttack(w: World, home: ThreatGroup | null) {
     const p = this.plan;
     if (p.posture !== "boom" || home || w.tick < this.attackHoldUntil) return;
-    if (w.tick - p.lastRetreatTick < s(30) || w.timeLeftMs < 45_000) return;
+    if (w.tick - p.lastRetreatTick < w.clock.ticks(30) || w.timeLeftMs < 45_000) return;
     const late = w.timeLeftMs < 240_000;
     const size = late ? 6 : Math.min(8, p.armyTarget);
     const enemy = Math.max(w.enemyKnownStrength, late ? 200 : 400);
@@ -508,6 +506,16 @@ export class Strategy {
 
   private guardCount(w: World): number {
     return Math.max(2, Math.ceil(w.army.length * 0.25));
+  }
+
+  /** Joins an ally's attack when the army is idle and large enough; a call for help is only noted. */
+  answerAlly(w: World, r: AllyRequest): "join attack" | "noted" | null {
+    if (this.plan.posture !== "boom") return null;
+    if (r.kind === "attack" && w.army.length >= 5 && !this.plan.attack) {
+      this.startAttack(w, { pos: r.at }, `ally ${r.from} asked`, `ally:${r.from}`);
+      return "join attack";
+    }
+    return r.kind === "help" && w.army.length >= 4 ? "noted" : null;
   }
 
   private startAttack(w: World, target: { pos: Pt; id?: string; owner?: PlayerId }, reason: string, source: DecisionSource, guardsOverride?: number) {
@@ -532,11 +540,11 @@ export class Strategy {
     const strength = attackers.reduce((n, u) => n + entityValue(u), 0);
     if (!a.staged) {
       const near = attackers.filter((u) => dist(u, p.rally) <= 4).length;
-      if (near >= attackers.length * 0.8 || w.tick - a.since > s(25)) { a.staged = true; a.since = w.tick; a.startStrength = strength; this.log(w, "attack_march", { units: attackers.length, strength: Math.round(strength) }); }
+      if (near >= attackers.length * 0.8 || w.tick - a.since > w.clock.ticks(25)) { a.staged = true; a.since = w.tick; a.startStrength = strength; this.log(w, "attack_march", { units: attackers.length, strength: Math.round(strength) }); }
       return;
     }
     // Reinforce every 20 s with units that have gathered at home beyond the guard count.
-    if (w.tick - this.lastReinforceTick > s(20)) {
+    if (w.tick - this.lastReinforceTick > w.clock.ticks(20)) {
       this.lastReinforceTick = w.tick;
       const home = w.army.filter((u) => !a.units.includes(u.id) && this.roles.get(u.id) !== "s");
       const spare = home.length - this.guardCount(w);
@@ -560,7 +568,7 @@ export class Strategy {
     let reason: string | null = null;
     if (strength < a.startStrength * 0.5) reason = `lost ${Math.round(losses * 100)}% of the attacking strength`;
     else if (local >= strength * 1.3 && losses > 0.1) reason = `outnumbered at the target (~${Math.round(local)} vs ~${Math.round(strength)})`;
-    else if (w.tick - a.since > s(150) && w.tick - a.lastProgressTick > s(90)) reason = "no progress for 90 s";
+    else if (w.tick - a.since > w.clock.ticks(150) && w.tick - a.lastProgressTick > w.clock.ticks(90)) reason = "no progress for 90 s";
     if (!reason) return;
     this.close(w, a.episode, losses >= 0.4 ? "failed_outcome" : "abandoned", `retreat: ${reason}`);
     this.log(w, "retreat", { reason, losses: Math.round(losses * 100), units: attackers.length });
@@ -582,7 +590,7 @@ export class Strategy {
     if (choice === "all_in") {
       const target = this.pickTarget(w);
       if (target) { this.attackHoldUntil = -1; this.startAttack(w, target, "endgame all-in", source); }
-    } else this.attackHoldUntil = w.tick + s(600);
+    } else this.attackHoldUntil = w.tick + w.clock.ticks(600);
   }
 
   // ───────────────────────── roles ─────────────────────────

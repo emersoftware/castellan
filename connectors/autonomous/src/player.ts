@@ -1,5 +1,8 @@
-import type { EntityView, Order, OrderResult, PlayerView, Ruleset } from '../../../packages/shared/src/index';
+import { dist as tileDistance, type EntityView, type Order, type OrderEndReason, type OrderResult, type PlayerView, type Ruleset } from '../../../packages/shared/src/index';
 import { armyScript, kingScript, workerScript, type Point } from './scripts';
+
+/** Order ends that finished the order or were the player's own choice; any other end interrupted execution. */
+const OWN_ENDS = new Set<OrderEndReason>(['arrived', 'completed', 'replaced', 'stopped', 'cancelled by script']);
 
 export type Purpose = 'expansion' | 'defense' | 'rebuild';
 export interface BuildTask extends Point { kind: string; worker?: string; issuedMs?: number; attempts: number; done?: boolean }
@@ -19,7 +22,10 @@ export interface PlayerOptions {
   log?: (event: Record<string,unknown>)=>void;
   strategicIntervalMs?:number; memory?:PlayerMemory;
 }
-const dist=(a:Point,b:Point)=>Math.max(Math.abs(a.x-b.x),Math.abs(a.y-b.y));
+/** Steps in 8 directions, ignoring the diagonal cost: this player's own nearness heuristic, never a game range. */
+const steps=(a:Point,b:Point)=>Math.max(Math.abs(a.x-b.x),Math.abs(a.y-b.y));
+/** The rules' game distance, for comparisons with ranges. */
+const gameDistance=(a:Point,b:Point)=>tileDistance(a.x,a.y,b.x,b.y);
 const key=(p:Point)=>`${p.x},${p.y}`;
 const initialMemory=():PlayerMemory=>({version:1,lastTick:-1,lastTimeMs:0,lastDecisionMs:-1e9,serial:0,stance:'hold',composition:'balanced',plans:[],scripts:{},sightings:{},cooldowns:{},chatSeen:[],lastChatMs:-1e9,treaties:{},metrics:{income:0,losses:0,rejections:0,completed:{}}});
 
@@ -127,14 +133,14 @@ export class AutonomousPlayer {
       if(event.type==='unload'&&event.owner===v.you)this.memory.metrics.income+=event.amount;
       if(event.type==='spawn'&&event.owner===v.you&&event.builder) this.memory.metrics.completed[event.kind]=(this.memory.metrics.completed[event.kind]??0)+1;
       if(event.type==='death'&&event.owner===v.you){this.memory.metrics.losses++;this.log('loss',v,{event,planId:this.memory.plan?.id});}
-      if(event.type==='order_end'&&event.owner===v.you&&!['arrived','built'].includes(event.reason))this.log('execution-interrupted',v,{event,planId:this.memory.plan?.id});
+      if(event.type==='order_end'&&event.owner===v.you&&!OWN_ENDS.has(event.reason))this.log('execution-interrupted',v,{event,planId:this.memory.plan?.id});
       if(event.type==='script_error'&&event.owner===v.you)this.log('execution-failure',v,{event});
     }
     this.memory.lastTick=v.tick;this.memory.lastTimeMs=v.timeMs;
   }
   private enemies(v:PlayerView) {return Object.values(this.memory.sightings).filter(e=>!e.ruin && v.players.find(p=>p.id===e.owner)?.alive);}
   private power(e:EntityView) {const s=e.stats??this.rules.kinds[e.kind];return ((s.atk??0)*e.hp/e.maxHp)*(e.kind==='worker'?0.15:1)*(e.kind==='king'?0.2:1);}
-  private threat(v:PlayerView,p:Point,radius=9) {return this.enemies(v).filter(e=>dist(e,p)<=radius).reduce((n,e)=>n+this.power(e),0);}
+  private threat(v:PlayerView,p:Point,radius=9) {return this.enemies(v).filter(e=>steps(e,p)<=radius).reduce((n,e)=>n+this.power(e),0);}
   private army(v:PlayerView){return v.mine.filter(e=>e.kind==='knight'||e.kind==='archer');}
   private safeHome(v:PlayerView):Point {
     const bases=v.mine.filter(e=>e.kind==='castle');
@@ -158,7 +164,7 @@ export class AutonomousPlayer {
     else if(army.length>=7 && strength>localThreat*1.2) {
       this.memory.stance='attack';
       const enemies=this.enemies(v).filter(e=>(this.memory.treaties[e.owner]??0)<=v.timeMs);
-      const target=enemies.sort((a,b)=>(a.kind==='king'?-20:0)+dist(a,safe)-(b.kind==='king'?-20:0)-dist(b,safe))[0];
+      const target=enemies.sort((a,b)=>(a.kind==='king'?-20:0)+steps(a,safe)-(b.kind==='king'?-20:0)-steps(b,safe))[0];
       this.memory.goal=target??this.frontier(v,safe);
     } else {this.memory.stance='hold';this.memory.goal=this.memory.plan?.status==='active'?this.memory.plan.anchor:safe;}
     const composition=this.enemies(v).filter(e=>e.kind==='knight').length>this.enemies(v).filter(e=>e.kind==='archer').length?'ranged':'balanced';
@@ -212,7 +218,7 @@ export class AutonomousPlayer {
       if(t.attempts>=3){this.abandon(v,'repeated execution failure; replan site');return;}
     }
     if(p.tasks.every(t=>t.done)){p.status='completed';this.log('plan-completed',v,{planId:p.id,purpose:p.purpose});return;}
-    const defenders=this.army(v).filter(e=>dist(e,p.anchor)<12).reduce((n,e)=>n+this.power(e),0);
+    const defenders=this.army(v).filter(e=>steps(e,p.anchor)<12).reduce((n,e)=>n+this.power(e),0);
     if(this.threat(v,p.anchor,7)>defenders+30){this.abandon(v,'site overrun; preserve builders and economy');this.log('strategic-failure',v,{planId:p.id,reason:'site no longer defensible'});}
     else if(v.timeMs-p.createdMs>150000)this.abandon(v,'plan exceeded economic/travel deadline');
   }
@@ -224,23 +230,23 @@ export class AutonomousPlayer {
     }
     const pressure=this.threat(v,home);
     const me=v.players.find(p=>p.id===v.you)!;
-    const completedExpansion=this.memory.plans.find(p=>p.purpose==='expansion'&&p.status==='completed'&&castles.some(c=>dist(c,p.anchor)<2));
+    const completedExpansion=this.memory.plans.find(p=>p.purpose==='expansion'&&p.status==='completed'&&castles.some(c=>steps(c,p.anchor)<2));
     const anchor=completedExpansion?.anchor??home;
-    const defended=v.mine.some(e=>e.kind==='tower'&&dist(e,anchor)<6);
+    const defended=v.mine.some(e=>e.kind==='tower'&&steps(e,anchor)<6);
     if(!defended && (pressure>0||completedExpansion||((me.mineral??0)>1000)) && (this.memory.cooldowns.defense??0)<=v.timeMs) {
       const layout=this.defenseLayout(v,anchor);
       if(layout.length){this.planConstruction(v,'defense',anchor,layout,pressure?'cover threatened economy':'protect expansion with tower and gated wall');return;}
     }
     if(castles.length<2&&workers.length>=7&&this.army(v).length>=3&&pressure===0&&(this.memory.cooldowns.expansion??0)<=v.timeMs) {
-      const deps=[...v.deposits,...v.lastSeen.filter(d=>'amount'in d)].filter(d=>d.amount>=300&&castles.every(c=>dist(c,d)>7)&&this.threat(v,d,9)<15);
-      const dep=deps.sort((a,b)=>dist(a,home)-dist(b,home))[0];
+      const deps=[...v.deposits,...v.lastSeen.filter(d=>'amount'in d)].filter(d=>d.amount>=300&&castles.every(c=>steps(c,d)>7)&&this.threat(v,d,9)<15);
+      const dep=deps.sort((a,b)=>steps(a,home)-steps(b,home))[0];
       if(dep){const site=this.site(v,dep,2);if(site)this.planConstruction(v,'expansion',site,[{kind:'castle',...site}],'known rich deposit far from existing dropoff');}
     }
   }
   private site(v:PlayerView,p:Point,radius:number):Point|undefined {
     const sites:Point[]=[];
     for(let y=p.y-radius;y<=p.y+radius;y++)for(let x=p.x-radius;x<=p.x+radius;x++)if(this.free(v,{x,y}))sites.push({x,y});
-    return sites.sort((a,b)=>dist(a,p)-dist(b,p)||dist(a,this.memory.home??p)-dist(b,this.memory.home??p))[0];
+    return sites.sort((a,b)=>steps(a,p)-steps(b,p)||steps(a,this.memory.home??p)-steps(b,this.memory.home??p))[0];
   }
   private free(v:PlayerView,p:Point) {
     return v.visibility[p.y]?.[p.x]==='2' && v.grid[p.y]?.[p.x]==='·' && !v.mine.concat(v.allies,v.enemy).some(e=>e.x===p.x&&e.y===p.y) && !v.deposits.some(d=>d.x===p.x&&d.y===p.y);
@@ -261,7 +267,7 @@ export class AutonomousPlayer {
   private executeConstruction(v:PlayerView,t:BuildTask) {
     if(t.worker||(this.memory.cooldowns[`site:${key(t)}`]??0)>v.timeMs)return;
     if(v.visibility[t.y]?.[t.x]!=='2')return; // scout reveals, never probe hidden occupancy by issuing builds
-    const worker=v.mine.filter(e=>e.kind==='worker'&&!e.order?.startsWith('build')&&!this.out.some(o=>'unit'in o&&o.unit===e.id)).sort((a,b)=>dist(a,t)-dist(b,t))[0];
+    const worker=v.mine.filter(e=>e.kind==='worker'&&!e.order?.startsWith('build')&&!this.out.some(o=>'unit'in o&&o.unit===e.id)).sort((a,b)=>steps(a,t)-steps(b,t))[0];
     if(worker)this.out.push({type:'build',unit:worker.id,kind:t.kind,x:t.x,y:t.y});
   }
 
@@ -298,7 +304,7 @@ export class AutonomousPlayer {
       this.log('king-defense',v,{king:king.id,threat:this.threat(v,king,7)});
     }
     for(const w of v.mine.filter(e=>e.kind==='worker'&&e.order?.startsWith('build'))) {
-      if(this.enemies(v).some(e=>this.power(e)>3&&dist(w,e)<=Math.max(e.stats?.range??this.rules.kinds[e.kind]?.range??1,3))) {
+      if(this.enemies(v).some(e=>this.power(e)>3&&gameDistance(w,e)<=Math.max(e.stats?.range??this.rules.kinds[e.kind]?.range??1,3))) {
         if(!this.out.some(o=>'unit'in o&&o.unit===w.id))this.out.push({type:'stop',unit:w.id});
         this.abandon(v,'builder under attack; routine escape resumes');
       }
@@ -311,7 +317,7 @@ export class AutonomousPlayer {
     for(let y=1;y<v.grid.length-1;y++)for(let x=1;x<v.grid[y].length-1;x++) {
       if(v.visibility[y][x]==='0'&&[[x-1,y],[x+1,y],[x,y-1],[x,y+1]].some(([a,b])=>v.visibility[b]?.[a]!=='0') && v.grid[y][x]!=='^')points.push({x,y});
     }
-    return points.sort((a,b)=>dist(a,from)-dist(b,from)||a.y-b.y)[0]??{x:Math.floor(v.grid[0].length/2),y:Math.floor(v.grid.length/2)};
+    return points.sort((a,b)=>steps(a,from)-steps(b,from)||a.y-b.y)[0]??{x:Math.floor(v.grid[0].length/2),y:Math.floor(v.grid.length/2)};
   }
   private scout(v:PlayerView) {
     if((this.memory.cooldowns.scout??0)>v.timeMs||['attack','evacuate'].includes(this.memory.stance)||this.threat(v,this.safeHome(v))>0)return;
@@ -321,7 +327,7 @@ export class AutonomousPlayer {
       delete this.memory.scout;
     }
     const scout=this.army(v).find(e=>!e.order);if(!scout)return;
-    const goal=this.frontier(v,scout);if(dist(goal,scout)<2)return;
+    const goal=this.frontier(v,scout);if(steps(goal,scout)<2)return;
     this.memory.scout={id:scout.id,goal,sinceMs:v.timeMs};this.out.push({type:'move',unit:scout.id,...goal});
   }
 
@@ -336,7 +342,7 @@ export class AutonomousPlayer {
       if(sender.team===me.team&&command) {
         const point={x:Number(command[2]),y:Number(command[3])};
         if(point.x>=v.grid[0].length||point.y>=v.grid.length)continue;
-        if(command[1]==='defend'&&!v.allies.some(e=>dist(e,point)<=8))continue;
+        if(command[1]==='defend'&&!v.allies.some(e=>steps(e,point)<=8))continue;
         this.memory.coordination={from:m.from,point,action:command[1],untilMs:v.timeMs+30000};this.memory.lastDecisionMs=-1e9;
         this.log('coordination-adopted',v,{from:m.from,action:command[1],point});
       }
@@ -350,7 +356,7 @@ export class AutonomousPlayer {
     }
     for(const id of Object.keys(this.memory.treaties))if(this.threatFrom(v,id,this.safeHome(v))>0){delete this.memory.treaties[id];this.log('treaty-broken',v,{with:id,reason:'armed incursion near home'});}
   }
-  private threatFrom(v:PlayerView,id:string,p:Point){return v.enemy.filter(e=>e.owner===id&&dist(e,p)<9).reduce((n,e)=>n+this.power(e),0);}
+  private threatFrom(v:PlayerView,id:string,p:Point){return v.enemy.filter(e=>e.owner===id&&steps(e,p)<9).reduce((n,e)=>n+this.power(e),0);}
   private communicate(v:PlayerView) {
     if(!v.chat?.enabled||v.timeMs-this.memory.lastChatMs<10000)return;
     const me=v.players.find(p=>p.id===v.you)!,ally=v.players.find(p=>p.id!==v.you&&p.team===me.team&&p.alive);

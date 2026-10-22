@@ -83,7 +83,9 @@ export async function status(c: Client): Promise<MatchStatus> {
 
 /**
  * Long-polls /wait and prints one line per new event (and per status change)
- * until the match finishes. Built for line-based monitors.
+ * until the match finishes. Built for line-based monitors run by the player
+ * itself: it reads as the seat, so the events it prints are no longer new to the
+ * seat's next state. A supervisor checks `status`, which reads nothing.
  */
 export async function watch(c: Client, print: (line: string) => void, o: Fmt & { since?: number } = {}): Promise<Outcome | undefined> {
   let since = o.since ?? (await c.get<PlayerView>(`${routes.state}?since=999999999`)).tick;
@@ -167,7 +169,10 @@ export async function run(c: Client, cmd: string[], o: RunOptions = {}): Promise
   for (let attempt = 0; ; attempt++) {
     const started = Date.now();
     const env = o.env ?? process.env;
-    const code = await exec(cmd, attempt ? { ...env, CASTELLAN_RESUME: "1" } : env);
+    const exit = await exec(cmd, attempt ? { ...env, CASTELLAN_RESUME: "1" } : env);
+    // A command that cannot start (missing, not executable) will not start next time either.
+    if ("error" in exit) { log(`castellan run: cannot start ${cmd[0]}: ${exit.error.message}`); return 1; }
+    const { code } = exit;
     let s: MatchStatus | "unreachable";
     try {
       const current = await c.get<{ status: MatchStatus; alive?: boolean }>(routes.status);
@@ -220,10 +225,11 @@ export async function runSeries(c: Client, cmd: string[], o: RunOptions = {}): P
   }
 }
 
-function exec(cmd: string[], env: NodeJS.ProcessEnv): Promise<number> {
+/** The agent's exit code, or why it could not be started. */
+function exec(cmd: string[], env: NodeJS.ProcessEnv): Promise<{ code: number } | { error: Error }> {
   return new Promise((resolve) => {
     const child = spawn(cmd[0], cmd.slice(1), { stdio: "inherit", env });
-    child.on("error", () => resolve(-1));
-    child.on("exit", (code) => resolve(code ?? -1));
+    child.on("error", (error) => resolve({ error }));
+    child.on("exit", (code) => resolve({ code: code ?? -1 }));
   });
 }

@@ -1,10 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createMatch } from "@castellan/engine";
+import { recordingWithShutdowns, resimulate } from "@castellan/engine";
 import type { GameEvent, HistorySection, ReplayFile, SeriesProgress, SeriesReplay, SeriesSummary } from "@castellan/shared";
-import { playerResult } from "@castellan/shared";
+import { seriesStandings } from "@castellan/shared";
 import { Room, type RoomCheckpoint, type RoomOptions } from "./room";
+
+/** A history request the server answers with `status` and the reason, instead of a server error. */
+const historyRefusal = (status: 403 | 409, message: string) => Object.assign(new Error(message), { status });
 
 type Config = Omit<RoomOptions, "onFinish" | "deferredStart">;
 interface StoredSeries {
@@ -140,19 +143,10 @@ export class SeriesStore {
   summary(id: string): SeriesSummary | undefined {
     const entry = this.entries.get(id);
     if (!entry) return;
-    const score = Object.fromEntries(entry.participants.map((p) => [p.id, 0]));
-    const losses = Object.fromEntries(entry.participants.map((p) => [p.id, 0]));
-    const games = entry.games.map((room, i) => {
-      const outcome = room.outcome ?? undefined;
-      for (const p of outcome?.winners ?? (outcome?.winner ? [outcome.winner] : [])) score[p]++;
-      if (outcome) for (const p of entry.participants) if (playerResult(outcome, p.id) === "loss") losses[p.id]++;
-      return { number: i + 1, roomId: room.id, status: room.state, outcome };
-    });
+    const games = entry.games.map((room, i) => ({ number: i + 1, roomId: room.id, status: room.state, outcome: room.outcome ?? undefined }));
+    const { score, losses, leaders } = seriesStandings(entry.participants, games.map((g) => g.outcome));
     const finished = entry.committedGames === 3 && games.length === 3 && games.every((g) => g.status === "finished");
-    const max = Math.max(0, ...Object.values(score));
-    const leaders = entry.participants.filter((p) => score[p.id] === max);
-    // Teammates win together; tied opposing sides have no series winner.
-    const winners = !finished ? undefined : new Set(leaders.map((p) => p.team)).size === 1 ? leaders.map((p) => p.id) : [];
+    const winners = finished ? leaders : undefined;
     return { id, createdAt: entry.createdAt, totalGames: 3, currentGame: games.length,
       status: entry.error ? "error" : finished ? "finished" : "running", score, losses, winners,
       ...(finished && !winners?.length && entry.config.ruleset.drawsAreLosses ? { allDefeated: true as const } : {}),
@@ -185,14 +179,16 @@ export class SeriesStore {
     const progress = this.progress(roomId)!;
     const available = membership.entry.games.filter((r, i) => i + 1 < membership.gameNumber && r.state === "finished");
     if (game === undefined) return { series: progress, games: available.map((r, i) => ({ game: i + 1, roomId: r.id, outcome: r.summary().outcome, durationMs: r.summary().timeMs })) };
-    if (!progress.previousGames.includes(game)) throw new Error("only completed previous games in your series are available");
+    if (!progress.previousGames.includes(game)) throw historyRefusal(403, "only completed previous games in your series are available");
     const replay = available[game - 1].replay()!;
     if (section === "summary") return { game, roomId: replay.id, outcome: replay.outcome, durationMs: replay.finalTick * 1000 / replay.tickRate,
       players: replay.players.map(({ id, side, team }) => ({ id, side, team })), ordersSent: replay.orders.filter((o) => o.player === player).length };
     const key = `${replay.id}:${player}`;
     let cached = this.historyCache.get(key);
     if (!cached) {
-      cached = this.buildHistory(replay, player);
+      cached = this.buildHistory(replay, player).catch((error: unknown) => {
+        throw historyRefusal(409, `game ${game} cannot be shown: ${error instanceof Error ? error.message : String(error)}`);
+      });
       this.historyCache.set(key, cached);
       cached.catch(() => this.historyCache.delete(key));
     }
@@ -201,22 +197,19 @@ export class SeriesStore {
       next: offset + limit < items.length ? offset + limit : null };
   }
 
+  /** What `player` saw and did in a finished game, rebuilt from its recording; refused if that recording does not reproduce. */
   private async buildHistory(replay: ReplayFile, player: string): Promise<Record<string, unknown[]>> {
-    const match = await createMatch({ ruleset: replay.ruleset, seed: replay.seed, tickRate: replay.tickRate, players: replay.players });
     const events: GameEvent[] = [], chat: GameEvent[] = [], orders: unknown[] = [];
-    const byTick = new Map<number, ReplayFile["orders"]>();
-    for (const o of replay.orders) { const list = byTick.get(o.tick) ?? []; list.push(o); byTick.set(o.tick, list); }
-    try {
-      while (match.tick < replay.finalTick && !match.outcome) {
-        const tick = match.tick, input = byTick.get(tick) ?? [];
-        const step = match.step(input);
-        input.forEach((o, i) => { if (o.player === player) orders.push({ tick, order: o.order, result: step.results[i] }); });
-        // The engine's player visibility policy filters private/team chat and private logs.
-        for (const event of match.events(player, tick)) {
-          if (event.type === "chat") chat.push(event);
-          else events.push(event);
-        }
+    const { match, check } = await resimulate(recordingWithShutdowns(replay), { after: (m, { tick, input, results }) => {
+      input.forEach((o, i) => { if (o.player === player) orders.push({ tick, order: o.order, result: results[i] }); });
+      // The engine's player visibility policy filters private/team chat and private logs.
+      for (const event of m.events(player, tick)) {
+        if (event.type === "chat") chat.push(event);
+        else events.push(event);
       }
+    } });
+    try {
+      if (!check.verified) throw new Error(`game ${replay.id} does not reproduce its recording (from tick ${check.desyncAt})`);
       const scripts = Object.keys(replay.ruleset.defaultScripts).flatMap((kind) => {
         const script = match.scriptSource(player, kind);
         return script ? [{ kind, ...script }] : [];

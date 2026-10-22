@@ -3,6 +3,7 @@
  * (PlayerView) and the public rules, plus memory of what it saw before.
  */
 import type { EntityView, GameEvent, PlayerId, PlayerStats, PlayerView, RecordedKind, Ruleset } from "@castellan/shared";
+import { ObservedClock } from "./clock";
 import { Frame, dist, groupNearby, type DepositCluster, type Pt } from "./geometry";
 import type { Sighting, ThreatGroup } from "./types";
 
@@ -14,6 +15,8 @@ const MOBILE_THREAT_KINDS: RecordedKind[] = ["knight", "archer", "king", "worker
 interface KnownDeposit { id: string; x: number; y: number; amount: number; seenTick: number; visible: boolean }
 
 export interface Memory {
+  /** Tick length learned from the views. */
+  clock: ObservedClock;
   /** Null until a castle or the king shows where my corner is. */
   frame: Frame | null;
   clusters: DepositCluster[];
@@ -33,13 +36,15 @@ export interface Memory {
 }
 
 export function newMemory(): Memory {
-  return { frame: null, clusters: [], sightings: new Map(), enemyBuildings: new Map(), deposits: new Map(), aggressors: new Map(),
+  return { clock: new ObservedClock(), frame: null, clusters: [], sightings: new Map(), enemyBuildings: new Map(), deposits: new Map(), aggressors: new Map(),
     firstTick: null, lastViewTick: -1, delivered: new Map(), seenMine: new Map(), kills: [] };
 }
 
 export interface World {
   view: PlayerView;
   rules: Ruleset;
+  /** Converts game seconds to ticks at this room's tick rate. */
+  clock: ObservedClock;
   tick: number;
   timeMs: number;
   timeLeftMs: number;
@@ -89,6 +94,8 @@ export const entityValue = (e: { kind: string; hp: number; maxHp: number }) => (
 
 export function perceive(view: PlayerView, rules: Ruleset, mem: Memory): World {
   const tick = view.tick;
+  mem.clock.observe(view);
+  const ticks = (seconds: number) => mem.clock.ticks(seconds);
   if (mem.firstTick === null) mem.firstTick = tick;
   const me = view.players.find((p) => p.id === view.you)!;
   const mine = view.mine;
@@ -119,12 +126,12 @@ export function perceive(view: PlayerView, rules: Ruleset, mem: Memory): World {
   }
   for (const l of view.lastSeen) {
     if (l.kind === "deposit" || l.ruin) continue;
-    mem.enemyBuildings.set(l.id, { id: l.id, kind: l.kind, owner: l.owner, x: l.x, y: l.y, hp: l.hp, maxHp: l.maxHp, tick: Math.round(l.seenMs * 10), building: true });
+    mem.enemyBuildings.set(l.id, { id: l.id, kind: l.kind, owner: l.owner, x: l.x, y: l.y, hp: l.hp, maxHp: l.maxHp, tick: mem.clock.tickAt(l.seenMs), building: true });
   }
   const vis = (p: Pt) => view.visibility[p.y]?.[p.x] === "2";
   for (const [id, s] of mem.sightings) {
     // A unit remembered at a visible tile and not there now has moved on; drop it. Old sightings fade.
-    if (!view.enemy.some((e) => e.id === id) && (vis(s) || tick - s.tick > 600)) mem.sightings.delete(id);
+    if (!view.enemy.some((e) => e.id === id) && (vis(s) || tick - s.tick > ticks(60))) mem.sightings.delete(id);
   }
   for (const [id, b] of mem.enemyBuildings) {
     if (!view.enemy.some((e) => e.id === id) && !view.lastSeen.some((l) => l.id === id) && vis(b)) mem.enemyBuildings.delete(id);
@@ -140,7 +147,7 @@ export function perceive(view: PlayerView, rules: Ruleset, mem: Memory): World {
   // Aggression means their units hit mine; walking into a castle's or tower's range is my own doing.
   for (const a of view.underAttack ?? []) for (const at of a.attackers) if (at.owner !== view.you && !rules.kinds[at.kind]?.building) mem.aggressors.set(at.owner, tick);
   for (const ev of view.events) if (ev.type === "death" && ev.by === view.you && ev.owner !== view.you && !rules.kinds[ev.kind]?.building) mem.kills.push({ tick: ev.tick, value: rules.kinds[ev.kind]?.cost || 50 });
-  mem.kills = mem.kills.filter((k) => tick - k.tick <= 600);
+  mem.kills = mem.kills.filter((k) => tick - k.tick <= ticks(60));
 
   // Deposits: visible amounts now, remembered amounts otherwise, initial amounts when never seen.
   for (const d of view.deposits) mem.deposits.set(d.id, { id: d.id, x: d.x, y: d.y, amount: d.amount, seenTick: tick, visible: true });
@@ -154,13 +161,13 @@ export function perceive(view: PlayerView, rules: Ruleset, mem: Memory): World {
 
   const army = mine.filter((e) => ARMY_KINDS.includes(e.kind));
   const myStrength = army.reduce((n, e) => n + entityValue(e), 0);
-  const recent = [...mem.sightings.values()].filter((s) => tick - s.tick <= 450 && s.kind !== "worker" && s.kind !== "king");
+  const recent = [...mem.sightings.values()].filter((s) => tick - s.tick <= ticks(45) && s.kind !== "worker" && s.kind !== "king");
   const enemyStrength: Record<PlayerId, number> = {};
   for (const s of recent) enemyStrength[s.owner] = (enemyStrength[s.owner] ?? 0) + entityValue(s);
   const enemyKnownStrength = Object.values(enemyStrength).reduce((a, b) => a + b, 0);
 
   const assets = [...castles, ...(byKind.king ?? []), ...(byKind.worker ?? []), ...(byKind.tower ?? [])];
-  const threats = clusterThreats([...mem.sightings.values()].filter((s) => tick - s.tick <= 150 && MOBILE_THREAT_KINDS.includes(s.kind)), assets, tick, mem);
+  const threats = clusterThreats([...mem.sightings.values()].filter((s) => tick - s.tick <= ticks(15) && MOBILE_THREAT_KINDS.includes(s.kind)), assets, tick, mem);
 
   const grid = view.grid;
   const BLOCK = new Set(["$", "#", "%", "T", "t", "C", "c", "D", "d", "=", "^"]);
@@ -185,7 +192,7 @@ export function perceive(view: PlayerView, rules: Ruleset, mem: Memory): World {
   for (const e of mine) mem.seenMine.set(e.id, { kind: e.kind, tick });
   mem.lastViewTick = tick;
   return {
-    view, rules, tick, timeMs: view.timeMs, timeLeftMs: Math.max(0, view.matchMs - view.timeMs), me,
+    view, rules, clock: mem.clock, tick, timeMs: view.timeMs, timeLeftMs: Math.max(0, view.matchMs - view.timeMs), me,
     mineral: me.mineral ?? 0, pop: me.pop ?? 0, popCap: me.popCap, queuedPop: me.queuedPop ?? 0,
     frame, seat, clusters: mem.clusters, mine, byKind, castles, workers: byKind.worker ?? [], army, king: byKind.king?.[0], towers: byKind.tower ?? [],
     allies: view.allies, allyPlayers, enemyPlayers, teams, enemyVisible: view.enemy.filter((e) => !e.ruin),
@@ -201,7 +208,7 @@ function clusterThreats(units: Sighting[], assets: EntityView[], tick: number, m
   const out: ThreatGroup[] = [];
   for (const members of groupNearby(units, 4, (a, b) => a.owner === b.owner)) {
     // Workers only count as a threat if their owner has been hitting us.
-    const strength = members.reduce((n, u) => n + (u.kind === "worker" && !(mem.aggressors.has(u.owner) && tick - (mem.aggressors.get(u.owner) ?? 0) < 300) ? 0 : entityValue(u)), 0);
+    const strength = members.reduce((n, u) => n + (u.kind === "worker" && !(mem.aggressors.has(u.owner) && tick - (mem.aggressors.get(u.owner) ?? 0) < mem.clock.ticks(30)) ? 0 : entityValue(u)), 0);
     if (strength <= 0) continue;
     const x = Math.round(members.reduce((n, u) => n + u.x, 0) / members.length);
     const y = Math.round(members.reduce((n, u) => n + u.y, 0) / members.length);

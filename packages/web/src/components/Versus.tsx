@@ -1,6 +1,6 @@
-import type { Outcome } from "@castellan/shared";
+import { winnersOf, type Outcome } from "@castellan/shared";
 import type { ReactNode } from "react";
-import { playerColors, winnersOf } from "../api";
+import { playerColors } from "../api";
 import { Agent, Agents } from "./Agent";
 
 type P = { id: string; name: string; team?: number; effort?: string | null };

@@ -88,7 +88,7 @@ it("switches mineral art and occlusion at fixed scale, including when seeking ba
   internal.now = () => 1000;
   const source = rules.map.deposits[0];
   for (const [fraction, stage] of [[1, "minerals-full"], [0.6, "minerals-half"], [0.2, "minerals-low"], [0.9, "minerals-full"]] as const) {
-    renderer.setFrame({ tick: 1, entities: [], events: [], deposits: [{ ...source, id: "d1", amount: source.amount * fraction }] } as unknown as SpectatorView, 100, true);
+    renderer.seek({ tick: 1, entities: [], events: [], deposits: [{ ...source, id: "d1", amount: source.amount * fraction }] } as unknown as SpectatorView, 100);
     const d = internal.deposits.get("d1")!;
     expect(d.sprite.texture).toBe(arts[stage].texture);
     expect(d.depth.texture).toBe(arts[stage].silhouette);
@@ -152,7 +152,7 @@ it("renders real projectile state on seeks, interpolates it, and removes it on i
   internal.app = { renderer: { render: () => {} } };
   const p = { id: "p1", owner: "a", x: 3, y: 4, vx: 6, vy: 0, endX: 6, endY: 4 };
   const frame = { tick: 2, entities: [], deposits: [], events: [], projectiles: [p] } as unknown as SpectatorView;
-  renderer.setFrame(frame, 100, true);
+  renderer.seek(frame, 100);
   const shot = internal.shots.get("p1")!;
   const line = vi.spyOn(shot.graphic, "lineTo");
   renderer.setFrame({ ...frame, projectiles: [{ ...p, x: 3.6 }] }, 100);
@@ -162,7 +162,7 @@ it("renders real projectile state on seeks, interpolates it, and removes it on i
   renderer.setFrame({ ...frame, projectiles: [], events: [{ type: "projectile_end", tick: 2, id: "p1", x: 5.65, y: 4, dmg: 12, reason: "hit" }] }, 100);
   expect(internal.shots.size).toBe(0);
   expect(shot.graphic.destroyed).toBe(true);
-  renderer.setFrame(frame, 100, true);
+  renderer.seek(frame, 100);
   expect(internal.shots.get("p1")!.to.x).toBe(3);
   renderer.setFrame({ ...frame, projectiles: [] }, 100);
   expect(internal.shots.size).toBe(0);

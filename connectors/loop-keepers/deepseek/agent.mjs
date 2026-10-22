@@ -1,16 +1,16 @@
 // @ts-check
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
-import { setTimeout as sleep } from "node:timers/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { cli, runtimeDir, VERSION, verifyRuntime } from "./runtime.mjs";
 import { loadKey } from "./key.mjs";
-import { launchConfiguration, reportActivity, reportConfiguration } from "../metadata.mjs";
-import { observedSeat, seat, seatOver, serverUrl } from "../game.mjs";
-import { MIN_INTERVAL_MS, promptOf, turnFor } from "../turns.mjs";
+import { launchConfiguration, reportConfiguration } from "../metadata.mjs";
+import { serverUrl } from "../game.mjs";
+import { MIN_INTERVAL_MS, promptOf } from "../turns.mjs";
+import { exitOf, playSeat } from "../decisions.mjs";
 /** @import { Effort } from "../../../packages/shared/src/replayMetadata.ts" */
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -123,65 +123,23 @@ async function main(args = process.argv.slice(2), env = process.env, { fetchImpl
   console.error(`castellan deepseek: ${opts.model} (${opts.effort}), dsh ${VERSION}; logs ${root}${env.CASTELLAN_DIRECTIVE ? `; directive: ${env.CASTELLAN_DIRECTIVE}` : ""}`);
   await reportConfiguration(launchConfiguration({ connector: "deepseek-harness", model: opts.model,
     effort: opts.effort, connectorVersion: VERSION, prompt, env }), { env, fetchImpl });
-  let child, session, watcher, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0;
-  const abort = new AbortController();
-  const stop = () => { stopped = true; abort.abort(); child?.kill("SIGTERM"); };
-  const game = seat({ env, fetchImpl, signal: abort.signal });
-  const delay = ms => sleep(ms, undefined, { signal: abort.signal });
-  process.on("SIGINT", stop); process.on("SIGTERM", stop);
-  const watch = async () => {
-    if (stopped) return;
-    try { if (seatOver(await game.status())) { finished = true; stop(); return; } } catch { /* next poll */ }
-    if (!stopped) watcher = setTimeout(watch, pollMs);
-  };
-  watcher = setTimeout(watch, pollMs);
   try {
-    while (!stopped) {
-      const started = Date.now();
-      try {
-        const observation = await game.observation(lastDeliveredTick);
-        const seen = observedSeat(observation);
-        if (seatOver(seen)) { finished = true; break; }
-        const turn = turnFor(observation, { delivered: Boolean(session), prompt, resumed: Boolean(env.CASTELLAN_RESUME) });
-        if (!turn) { await delay(1000); continue; }
-        await reportActivity("deciding", { env, fetchImpl });
-        child = spawnImpl(process.execPath, [...player.args, "--json", ...(session ? ["--session-id", session] : []), turn],
-          { cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "inherit"] });
-        let pending = "", final = false;
-        const line = raw => {
-          try {
-            const event = JSON.parse(raw);
-            if (event.type === "session" && typeof event.sessionId === "string") session = event.sessionId;
-            if (event.type === "final") final = true;
-          } catch { /* diagnostics */ }
-        };
-        child.stdout.on("data", chunk => {
-          process.stdout.write(chunk);
-          const lines = (pending + chunk).split("\n"); pending = lines.pop() ?? ""; lines.forEach(line);
-        });
-        const code = await new Promise((resolveCode, reject) => { child.on("error", reject); child.on("close", resolveCode); });
-        line(pending); child = undefined;
-        if (stopped) break;
-        if (code !== 0 || !final || !session) throw new Error(`dsh decision incomplete (exit ${code})`);
-        if (Number.isFinite(seen.tick)) lastDeliveredTick = seen.tick;
-        failures = 0;
-        await reportActivity("between_decisions", { env, fetchImpl });
-        await delay(Math.max(0, minIntervalMs - (Date.now() - started)));
-      } catch (error) {
-        if (stopped) break;
-        failures++;
-        const ms = Math.min(30_000, 2000 * failures);
-        console.error(`castellan deepseek: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
-        await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + ms).toISOString() });
-        await delay(ms).catch(() => {});
-      }
-    }
-    return finished ? 0 : 1;
+    return await playSeat({ name: "deepseek", prompt, env, fetchImpl, minIntervalMs, pollMs, decide: async (turn, { session, signal }) => {
+      const child = spawnImpl(process.execPath, [...player.args, "--json", ...(session ? ["--session-id", session] : []), turn],
+        { cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "inherit"] });
+      let id = session, final = false;
+      const code = await exitOf(child, signal, raw => {
+        try {
+          const event = JSON.parse(raw);
+          if (event.type === "session" && typeof event.sessionId === "string") id = event.sessionId;
+          if (event.type === "final") final = true;
+        } catch { /* diagnostics */ }
+      });
+      if (code !== 0 || !final || !id) throw Object.assign(new Error(`dsh decision incomplete (exit ${code})`), { session: id });
+      return { session: id };
+    } });
   } finally {
-    stop(); clearTimeout(watcher);
-    process.off("SIGINT", stop); process.off("SIGTERM", stop);
     console.error(`castellan deepseek usage: ${JSON.stringify(await usage(root))}`);
-    await reportActivity("stopped", { env, fetchImpl });
   }
 }
 

@@ -43,6 +43,11 @@
     "packages/shared": {
       "entry": ["src/index.{ts,js}"]
     },
+    "connectors/open-arena": {
+      "entry": ["src/{cli,seed,server,auditor,egress,agent,fixture}.mjs", "test/**/*.test.ts"],
+      // util-linux in the arena image drops privileges before starting a harness.
+      "ignoreBinaries": ["setpriv"]
+    },
     "connectors/mcp": {
       "entry": ["src/tools.{ts,js}"]
     },

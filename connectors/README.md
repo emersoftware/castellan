@@ -41,7 +41,7 @@ castellan chat "a private proposal" --to p2  # only sender and p2 see it during 
 castellan chat "coordinate" --channel team  # teammates only, requires a team match
 castellan chat                       # all messages visible to you
 castellan status                    # waiting | prep | running | finished
-castellan watch                     # one line per event until the match ends (for Claude Code's Monitor tool)
+castellan watch                     # one line per event until the match ends (for the player's own Claude Code Monitor tool; it consumes the seat's observations, so supervisors use status)
 castellan run -- <agent command>    # relaunches the agent with CASTELLAN_RESUME=1 until the match is finished
 ```
 
@@ -75,7 +75,7 @@ Short successful decisions don't trip the fast-failure breaker. MCP has no `wait
 
 ## Loop keepers
 
-Every keeper talks to its model the same way, through `loop-keepers/turns.mjs`. Harnesses differ only in their system prompts.
+Every keeper talks to its model the same way, through `loop-keepers/turns.mjs`, and the CLI keepers run their seat through one loop, `loop-keepers/decisions.mjs` (observation cursor, pacing, retries, provider waits, activity reports); each supplies only how one decision runs. Harnesses differ only in their system prompts.
 
 - **First turn**, sent once the room reaches prep (every seat connected): the instruction, a blank line, then the text observation. The instruction is `PLAY` unless `CASTELLAN_PROMPT` replaces it; the game tools and `guide` explain the rest.
 - **Later turns**: only while the match runs, at most 1 every 1.5 s from the start of the previous decision, with only the text observation.
@@ -106,3 +106,12 @@ CASTELLAN_DIRECTIVE="TOWER RUSH: open with an aggressive tower rush." CASTELLAN_
   2. Save your key: `node connectors/loop-keepers/minimax/key.mjs`.
   3. `CASTELLAN_TOKEN=<token> connectors/loop-keepers/minimax/play.sh`.
 - **OpenCode**: `opencode run` headless with any `provider/model` it knows. 1 decision per observation in a continued session, limited to the Castellan MCP tools. Uses your OpenRouter key (env, `~/.config/castellan/openrouter-api-key` or `opencode auth login`): `CASTELLAN_TOKEN=<token> connectors/loop-keepers/opencode/play.sh --model openrouter/~deepseek/deepseek-flash-latest`. Supports `castellan run-series`. See [key, isolation and usage](loop-keepers/opencode/README.md).
+
+## Open arena experiments
+
+[Open arena](open-arena/README.md) runs the official Claude Code and Codex CLIs
+with native tools inside disposable Docker containers. It uses dedicated
+experiment credentials, a restricted network proxy and an independent auditor.
+The experimental gateway owns its planted capabilities; ordinary rooms and
+keepers retain the isolation described above. Start with `pnpm arena smoke`
+(local fixtures, no model calls), then run a separately authorized pilot.

@@ -60,19 +60,19 @@ else self.hold();
     let cap = v.players.find((p) => p.id === v.you)!.mineral ?? 0;
     const building = hasBuildOrder(v);
     const builder = v.mine.find((e) => e.kind === "worker");
+    const cost = (kind: EntityKind) => rules.kinds[kind].cost;
     if (count(v, "tower") === 0 && !building && builder && count(v, "worker") >= workers) {
-      if (cap < 200) return out;
+      if (cap < cost("tower")) return out;
       out.push({ type: "build", unit: builder.id, kind: "tower", x: flip ? 24 : 7, y: flip ? 24 : 7 });
-      cap -= 200;
+      cap -= cost("tower");
     }
-    for (let w = count(v, "worker"); w < workers && cap >= 50; w++, cap -= 50) out.push({ type: "train", building: home.id, kind: "worker" });
+    for (let w = count(v, "worker"); w < workers && cap >= cost("worker"); w++, cap -= cost("worker")) out.push({ type: "train", building: home.id, kind: "worker" });
     if (count(v, "worker") < workers) return out;
     for (let n = army; n < maxArmy; n++) {
       const kind = kinds[next % kinds.length];
-      const cost = kind === "archer" ? 110 : 100;
-      if (cap < cost) break;
+      if (cap < cost(kind)) break;
       out.push({ type: "train", building: home.id, kind });
-      cap -= cost;
+      cap -= cost(kind);
       next++;
     }
     return out;

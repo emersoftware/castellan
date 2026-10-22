@@ -1,4 +1,4 @@
-import { isChatChannel, type Order } from "@castellan/shared";
+import { API_LIMITS, isChatChannel, type Order } from "@castellan/shared";
 
 const isInt = (n: unknown) => typeof n === "number" && Number.isInteger(n);
 const isStr = (s: unknown) => typeof s === "string" && s.length > 0 && s.length < 64;
@@ -14,7 +14,7 @@ const FIELDS: Record<Order["type"], Record<string, (v: unknown) => boolean>> = {
   stop: { unit: isStr },
   script: { kind: isStr, code: (v) => v === null || typeof v === "string" },
   chat: {
-    text: (v) => typeof v === "string" && v.trim().length > 0 && v.length <= 200,
+    text: (v) => typeof v === "string" && v.trim().length > 0 && v.length <= API_LIMITS.chatChars,
     channel: (v) => v === undefined || isChatChannel(v),
     to: (v) => v === undefined || isStr(v),
   },

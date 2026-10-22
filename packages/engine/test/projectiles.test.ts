@@ -24,6 +24,9 @@ async function setup(options: { speed?: number; range?: number; wall?: boolean; 
 }
 const hp = (m: Match, id: string) => m.spectate().entities.find(e => e.id === id)?.hp;
 const advance = (m: Match, n: number) => Array.from({ length: n }, () => m.step([])).flatMap(s => s.events);
+/** From now on every unit sees only its own tile. */
+const blind = (m: Match) => m.stage(s => s.useRuleset({ ...m.ruleset,
+  kinds: Object.fromEntries(Object.entries(m.ruleset.kinds).map(([kind, spec]) => [kind, { ...spec, vision: 0 }])) }));
 
 it("launches without damage, then damages on collision at the simulated location", async () => {
   const { m, a, b, fire } = await setup();
@@ -87,9 +90,7 @@ it("keeps shots alive after the shooter dies and records the owner of the kill",
   const { m, a, b, fire } = await setup({ start: [
     { kind: "archer", x: 2, y: 4 }, { kind: "worker", x: 6, y: 5 }, { kind: "king", x: 0, y: 0 },
   ] });
-  const internals = m as unknown as { ents: Map<string, { hp: number }> };
-  internals.ents.get(a.id)!.hp = 1;
-  internals.ents.get(b.id)!.hp = 1;
+  m.stage(s => { s.setHealth(a.id, 1); s.setHealth(b.id, 1); });
   m.step(fire);
   const killer = m.view("b").mine.find(e => e.kind === "worker")!;
   m.step([{ player: "b", order: { type: "attack", unit: killer.id, target: a.id } }]);
@@ -101,8 +102,7 @@ it("keeps shots alive after the shooter dies and records the owner of the kill",
 it("filters projectile state by current team vision", async () => {
   const { m, fire } = await setup();
   m.step(fire);
-  const internals = m as unknown as { vision: { visible: Map<string, Set<number>> } };
-  internals.vision.visible.set("b", new Set());
+  blind(m);
   expect(m.view("b").projectiles).toEqual([]);
   expect(m.spectate().perspectives!.b.projectiles).toEqual([]);
   expect(m.spectate().projectiles).toHaveLength(1);
@@ -127,8 +127,7 @@ it("uses swept collision rather than testing only the segment endpoint", () => {
 it("does not leak hidden impact events to the shooter", async () => {
   const { m, fire } = await setup();
   m.step(fire);
-  const internals = m as unknown as { ents: Map<string, { owner: string; spec: { vision: number } }> };
-  for (const e of internals.ents.values()) if (e.owner === "a") e.spec = { ...e.spec, vision: 0 };
+  blind(m);
   advance(m, 4);
   expect(m.spectate().events.some(e => e.type === "projectile_end")).toBe(true);
   expect(m.spectate().perspectives!.a.events.some(e => e.type === "projectile_end")).toBe(false);

@@ -182,15 +182,17 @@ export const PRELUDE = String.raw`
     } catch (e) {
       err = String((e && e.message) || e).slice(0, 300);
     }
-    let size = 0;
+    let reset = "";
     try {
-      size = stringify(self.memory === memory[id] ? memory[id] : (memory[id] = self.memory)).length;
+      const size = stringify(self.memory === memory[id] ? memory[id] : (memory[id] = self.memory)).length;
+      if (size > MEMLIMIT) reset = "self.memory over " + MEMLIMIT + " bytes, reset";
     } catch (e) {
-      size = MEMLIMIT + 1;
+      reset = "self.memory is not serializable, reset";
     }
-    if (size > MEMLIMIT) {
+    // A reset is reported even when the script also failed: the unit loses what it remembered.
+    if (reset) {
       memory[id] = {};
-      err = err || "self.memory over " + MEMLIMIT + " bytes, reset";
+      err = err ? err + "; " + reset : reset;
     }
     return stringify({ a: action || { a: "hold" }, orderControl: orderControl, err: err, log: log });
   }

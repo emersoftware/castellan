@@ -1,6 +1,7 @@
 import { matchLengthMs, type Ruleset } from "./ruleset";
 import type { SeriesProgress } from "./protocol";
-import { kindSpec, withMineralNames } from "./legacy";
+import { kindSpec, withMineralNames, withRecordedDefaults } from "./legacy";
+import { API_LIMITS } from "./http";
 
 /**
  * The rules in prose for an LLM player: what exists and how it works, never what to do.
@@ -8,7 +9,7 @@ import { kindSpec, withMineralNames } from "./legacy";
  * `room` describes the match; a series game also gets the series standings, the only part that changes during a match.
  */
 export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean; playerCount?: number; tickRate?: number } = {}, series?: SeriesProgress): string {
-  r = withMineralNames(r);
+  r = withRecordedDefaults(withMineralNames(r));
   const k = r.kinds;
   const tickRate = room.tickRate ?? 10;
   const effectiveMs = (ms: number) => Math.round(Math.max(1, Math.round(ms * tickRate / 1000)) * 1000 / tickRate);
@@ -44,7 +45,7 @@ ${series ? `
 Game ${series.gameNumber} of 3 in series ${series.id}; all three are played. Units, resources and scripts reset each game; player ids stay, positions can change.
 Game wins: ${JSON.stringify(series.score)}.${series.losses ? ` Game losses: ${JSON.stringify(series.losses)}.` : ""} Completed previous games: ${series.previousGames.join(", ") || "none"}.
 The side with the most game wins wins the series.${r.drawsAreLosses ? " If opposing sides tie for the most wins, everyone loses the series." : " Tied opposing sides draw the series."}
-GET /history (MCP history, castellan history) lists them; game=N with section=summary|events|chat|scripts|orders shows one (offset and limit paginate: default 50, max 100).
+GET /history (MCP history, castellan history) lists them; game=N with section=summary|events|chat|scripts|orders shows one (offset and limit paginate: default ${API_LIMITS.historyPage}, max ${API_LIMITS.historyPageMax}).
 History has results, the events and chat you could see, and your own orders and scripts; never other players' private messages or opponents' scripts.
 ` : ""}
 ## Match
@@ -132,7 +133,7 @@ movement: canMove(direction) is local passability at decision time, ignoring coo
 perception: nearbyEnemies() nearbyAllies() nearestEnemy() nearestAlly() enemiesInRange() (within range and minRange; check readiness separately) distanceTo(u) distanceToPos(x,y) enemyBase() myBase()
   (each seen unit: {id,type,owner,mine,${teams ? "ally," : ""}x,y,hp,maxHp,isBuilding,atk,def,range,minRange,vision,attackMs,moveMs,ruin}; everything you can see, not only within this unit's vision${teams ? "; allies = yours and your ally's" : ""})
 actions: move("N"|"NE"|"E"|"SE"|"S"|"SW"|"W"|"NW") moveTo(x,y) attack(u) shootAt(x,y) flee(u) hold(). shootAt (ranged kinds) launches a shot toward a visible point within range, decimals allowed; it hits the first hostile entity on its path, with attack's cooldown and aim.
-reaction: lastAttackedTick (null until hit), lastAttacker() (a visible hostile that hit this unit in the last 5 s, or null). Damage shows on the next tick; a launch alone is not damage.
+reaction: lastAttackedTick (null until hit), lastAttacker() (a visible hostile that hit this unit in the last ${r.lastAttackerMs / 1000} s, or null). Damage shows on the next tick; a launch alone is not damage.
 workers: carrying carryCapacity deposits() nearestDeposit() gather(deposit?) unload(). gather() runs the whole cycle: walks to a known deposit, mines a full load (${r.gather.carry}), carries it to the nearest Castle and goes back; gather(deposit) picks the deposit. unload() delivers what the worker carries before the load is full. Deposits are the known ones, {id,x,y,amount}, nearest first; hidden amounts may be stale.
 Defaults: workers gather, also under attack; the King hits a recent attacker in reach and never chases. stop clears an order and resumes the script.
 other: random() (seeded), log(msg) (appears in your events). No Date or I/O; CPU is metered, and ${r.reactiveOrders ? "an out-of-gas script supplies hold; an active order still continues" : "a unit out of gas holds"}. Standard globals and their prototypes are read-only; keep persistent state in self.memory.
@@ -166,7 +167,7 @@ ${r.defaultScripts.knight.trim()}
 \`\`\`
 
 ## Player scripts (POST /run, MCP \`run\`, castellan exec)
-A one-shot function body run once on the server, with \`view\` (your state as JSON, including underAttack and lastSeen), \`game\` (this room's settings as JSON: kinds, costs, stats, upgrades, map), \`act(order)\` (the /act shapes except script and chat; max 50) and \`log(...)\` in scope.
+A one-shot function body run once on the server, with \`view\` (your state as JSON, including underAttack and lastSeen), \`game\` (this room's settings as JSON: kinds, costs, stats, upgrades, map), \`act(order)\` (the /act shapes except script and chat; max ${API_LIMITS.orders}) and \`log(...)\` in scope.
 Queued orders apply together when it returns, none if it throws. The response has each order's result, the return value (JSON) and the logs. CPU and memory are metered; no network, timers or I/O.
 \`\`\`js
 return {
@@ -176,11 +177,11 @@ return {
 \`\`\`
 ${room.chat ? `
 ## Chat
-POST /chat {"text":"..."} (MCP \`chat\`) reaches every player: max 200 chars, one message per 3 s across all channels.
+POST /chat {"text":"..."} (MCP \`chat\`) reaches every player: max ${API_LIMITS.chatChars} chars, one message per ${API_LIMITS.chatEveryMs / 1000} s across all channels.
 {"text":"...","to":"p2"} (MCP chat to="p2", castellan chat "..." --to p2) is private between you and p2, marked [private to p2]; it works with any player.${teams ? `
 {"text":"...","channel":"team"} (MCP chat channel="team", castellan chat "..." --channel team) reaches only your team, marked [team]; it can't be combined with to.` : ""}
 Private and team messages are hidden from other players and live spectators, and appear in the replay after the match. Explicit channel="private" requires to.
-State shows the last 5 messages you can see; GET /chat (chat without text) returns them all. New messages appear in subsequent observations. Enemy entities carry owner ids for addressing.
+State shows the last ${API_LIMITS.chatShown} messages you can see; GET /chat (chat without text) returns them all. New messages appear in subsequent observations. Enemy entities carry owner ids for addressing.
 ` : ""}
 ## Phases
 waiting and prep: the clock is stopped and nothing can be sent. running: the clock runs, and orders can be sent at any time; no state call is required between them. The match is over at status finished.

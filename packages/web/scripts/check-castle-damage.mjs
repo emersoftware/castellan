@@ -54,9 +54,9 @@ try {
   const paused=await page.screenshot();
   await page.evaluate(review=>review.step(9000),review);
   assert.deepEqual(await page.screenshot(),paused);
-  await page.evaluate(review=>{review.renderer.setPaused(false);review.renderer.setFrame(review.frame(3,true,100),100,true);review.step(9100);},review);
+  await page.evaluate(review=>{review.renderer.setPaused(false);review.renderer.seek(review.frame(3,true,100),100);review.step(9100);},review);
   assert.ok((await page.evaluate(review=>review.cells(),review)).every(c=>!c.flame&&!c.particles));
-  await page.evaluate(review=>{review.renderer.setFrame(review.frame(1),100,true);review.step(9200);},review);
+  await page.evaluate(review=>{review.renderer.seek(review.frame(1),100);review.step(9200);},review);
   if(process.argv.includes('--record')) {
     await mkdir(`${output}/movie-frames`,{recursive:true});
     for(let n=0;n<126;n++) {

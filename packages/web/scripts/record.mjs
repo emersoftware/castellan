@@ -64,9 +64,11 @@ try {
     ...(o["world-in"] ? { worldIn: gms(o["world-in"]) } : {}), ...(o["world-out"] ? { worldOut: gms(o["world-out"]) } : {}),
   }).toString();
   await page.goto(`${o.server}/record/${id}${query ? `?${query}` : ""}`);
-  await page.waitForFunction(() => window.__record?.ready, { timeout: 600_000 });
-  const { ticks, verified } = await page.evaluate(() => ({ ticks: window.__record.ticks, verified: window.__record.verified }));
-  const endMs = (ticks - 1) * 100;
+  await page.waitForFunction(() => window.__record, { timeout: 600_000 });
+  const clock = await page.evaluate(() => window.__record);
+  if (!clock.ready) throw new Error(`replay ${id} cannot be recorded: ${clock.error}`);
+  const { ticks, tickMs, verified } = clock;
+  const endMs = (ticks - 1) * tickMs;
   const fromMs = o.from ? Number(o.from) * 1000 : 0, gameMs = o.to ? Math.min(endMs, Number(o.to) * 1000) : endMs;
   const step = (1000 / fps) * speed;
   // The last frame lands on `to` (where fades end); at the end of the game, the final screen holds 4 s.

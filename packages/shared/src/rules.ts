@@ -23,6 +23,7 @@ export const rules: Ruleset = {
   coordinatedMovement: true,
   tickPathCosts: true,
   revealAttackerMs: 2000,
+  lastAttackerMs: 5000,
   scriptSight: "player",
   reactiveOrders: true,
   projectiles: { speed: 16, unitRadius: 0.35, buildingRadius: 0.5, flyOver: ["wall", "door"], blindSpot: true },
@@ -91,7 +92,7 @@ export const rules: Ruleset = {
       scriptable: true,
       buildMs: 10000,
     },
-    wall: { building: true, symbol: "#", enemySymbol: "%", hp: 300, def: 10, vision: 1, cost: 25, buildMs: 3000 },
+    wall: { building: true, symbol: "#", enemySymbol: "%", hp: 300, def: 10, vision: 1, cost: 25, buildMs: 3000, barrier: true },
     castle: {
       building: true,
       symbol: "C",
@@ -176,7 +177,7 @@ export const rules: Ruleset = {
     },
   },
   score: { unit: 10, building: 25, mineral: 1, kill: 15, buildingKill: 30 },
-  script: { maxBytes: 4096, memoryBytes: 1024, gasPerUnit: 20, gasPerPlayer: 300, heapBytes: 8388608 },
+  script: { maxBytes: 4096, memoryBytes: 1024, gasPerUnit: 20, gasPerPlayer: 300, heapBytes: 8388608, stackBytes: 262144 },
   defaultScripts: {
     knight: `// Built-in: fight what comes close, otherwise stay.
 const e = self.nearestEnemy();

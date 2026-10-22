@@ -39,6 +39,8 @@ export interface Ruleset {
   tickPathCosts?: boolean;
   /** An enemy that damages one of your entities stays visible to you this long, wherever it is (absent in older rules: 0). */
   revealAttackerMs: number;
+  /** A unit's `lastAttacker()` names an enemy that hit it within this time. */
+  lastAttackerMs: number;
   /** Scripts perceive everything the player sees ("player"), or only within the unit's own vision ("unit", older rules). */
   scriptSight: "player" | "unit";
   /** Run scripts during orders, with explicit interruption controls and event callbacks. Absent in older replays. */
@@ -82,6 +84,8 @@ export interface KindSpec {
   building: boolean;
   /** One-tile door: allied units may share its tile, enemies may not. */
   alliedPassage?: boolean;
+  /** A piece of wall line: doors must sit straight along these (and other doors), never on a corner or junction. */
+  barrier?: boolean;
   /** ASCII symbol for the owner's view; the enemy sees `enemySymbol`. */
   symbol: string;
   enemySymbol: string;
@@ -153,6 +157,8 @@ export interface ScriptLimits {
   /** Interrupt cycles for all of a player's units in one tick. */
   gasPerPlayer: number;
   heapBytes: number;
+  /** QuickJS stack per player VM: how deep a script may recurse. */
+  stackBytes: number;
 }
 
 /** What a kind runs without a script of its own: it stays put. */

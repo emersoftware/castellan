@@ -44,7 +44,7 @@ it.each(['knight','king','agent','worker'])('keeps %s walking between tile updat
   }
   h.renderer.setPaused(true);const before=h.last()[2];h.time(9000);h.internal.animate();expect(h.last()[2]).toEqual(before);
   h.renderer.setPaused(false);h.renderer.setFrame(h.frame(7,[moved,h.target]),100);h.internal.animate();expect(h.last()[2]?.action).toBe('idle');
-  h.renderer.setFrame(h.frame(1),100,true);h.internal.animate();expect(h.last()[2]?.action).toBe('idle');
+  h.renderer.seek(h.frame(1),100);h.internal.animate();expect(h.last()[2]?.action).toBe('idle');
 });
 
 it.each(['archer','knight','king','worker'])('ties %s foot motion to traveled distance rather than elapsed time',kind=>{
@@ -70,7 +70,7 @@ it.each([false,true])('faces the melee target immediately, including lethal hits
   expect(h.last().slice(1)).toEqual([6,{action:'attack',frame:atlas.attack.impactFrames[2]}]);
   h.time(1100);h.renderer.setFrame(h.frame(3,[{...h.unit,x:5,y:3}]),100);h.internal.animate();
   expect(h.last()[1]).toBe(6); // target direction stays locked despite movement
-  h.renderer.setFrame(h.frame(1),100,true);h.internal.animate();expect(h.internal.drawn.get('u')!.shot).toBeUndefined();
+  h.renderer.seek(h.frame(1),100);h.internal.animate();expect(h.internal.drawn.get('u')!.shot).toBeUndefined();
 });
 
 it.each([50,100,200])('keeps a diagonal melee approach at constant speed with %i ms replay ticks',tickMs=>{
@@ -112,7 +112,7 @@ it('freezes a melee approach on pause and discards it on seek',()=>{
   h.renderer.setPaused(true);h.time(5000);h.internal.animate();
   expect({x:sprite.x,y:sprite.y,animation:h.last()[2]}).toEqual(before);
   h.renderer.setPaused(false);
-  h.renderer.setFrame(h.frame(1),100,true);h.internal.animate();
+  h.renderer.seek(h.frame(1),100);h.internal.animate();
   expect(sprite.x).toBe(0);
   expect(sprite.y).toBe(4*TILE_H+3);
   expect(h.last()[2]?.action).toBe('idle');
@@ -168,7 +168,7 @@ it('removes the old corpse when seeking back to a living unit',()=>{
   const oldSprite=h.internal.drawn.get('u')!.sprite;
   h.renderer.setFrame({...h.frame(2,[h.target]),events:[{tick:1,type:'death',id:'u',kind:'archer',owner:'a',x:4,y:4}]},100);
   h.internal.animate();expect(oldSprite.destroyed).toBe(false);
-  h.renderer.setFrame(h.frame(1),100,true);h.internal.animate();
+  h.renderer.seek(h.frame(1),100);h.internal.animate();
   expect(oldSprite.destroyed).toBe(true);
   expect(h.internal.drawn.get('u')!.sprite.destroyed).toBe(false);
   expect(h.last()[2]?.action).toBe('idle');

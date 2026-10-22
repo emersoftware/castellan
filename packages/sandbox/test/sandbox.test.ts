@@ -146,6 +146,15 @@ describe("sandbox", () => {
     h.dispose();
   });
 
+  it("reports a memory reset even when the script also failed", () => {
+    const h = createScriptHost(rules.script, 1);
+    h.setScript("knight", "self.memory.n = (self.memory.n || 0) + 1; self.memory.big = 'x'.repeat(5000); throw new Error('boom');");
+    expect(h.run(world, ["e1"]).e1.error).toMatch(/boom.*self\.memory over \d+ bytes, reset/);
+    h.setScript("knight", "self.memory.loop = self.memory; self.hold();");
+    expect(h.run(world, ["e1"]).e1.error).toMatch(/self\.memory is not serializable, reset/);
+    h.dispose();
+  });
+
   it("caps memory and heap", () => {
     const h = createScriptHost(rules.script, 1);
     h.setScript("knight", "self.memory.big = 'x'.repeat(5000); self.hold();");

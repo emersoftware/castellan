@@ -1,9 +1,9 @@
 import { useSyncExternalStore, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { ChatChannel, ChatMessage, DepositView, EntityView, GameEvent, Outcome, PlayerStats, RecordedKind, SpectatorView } from "@castellan/shared";
-import { eventKind, eventOwner, NEUTRAL_OWNER, scriptOrigin } from "@castellan/shared";
+import type { ChatChannel, ChatMessage, DepositView, EntityView, GameEvent, Outcome, PlayerStats, SpectatorView } from "@castellan/shared";
+import { eventKind, eventOwner, NEUTRAL_OWNER, scriptOrigin, winnersOf } from "@castellan/shared";
 import { Link } from "@tanstack/react-router";
 import type { HoverInfo } from "../render/renderer";
-import { fmtTime, winnersOf } from "../api";
+import { fmtTime } from "../api";
 import { Agent, Agents, agentText } from "./Agent";
 import { Arrow } from "./Arrow";
 import { sfx } from "../audio/sfx";
@@ -138,9 +138,6 @@ function Who({ id, names, colors }: { id: string; names: Names; colors: Colors }
   return <Agent id={id} name={names[id]} color={colors[id]} />;
 }
 
-/** Units are trained; the rest is built. */
-const TRAINED = new Set<RecordedKind>(["knight", "archer", "worker"]);
-
 function EventText({ e, names, colors }: { e: GameEvent; names: Names; colors: Colors }) {
   const owner = eventOwner(e);
   const who = owner !== undefined ? <Who id={owner} names={names} colors={colors} /> : null;
@@ -148,7 +145,8 @@ function EventText({ e, names, colors }: { e: GameEvent; names: Names; colors: C
   const namedKind = `${/^[aeiou]/i.test(kind) ? "an" : "a"} ${kind}`;
   switch (e.type) {
     case "death": return e.owner === NEUTRAL_OWNER ? <>Neutral wall destroyed</> : <>{who} lost {namedKind}</>;
-    case "spawn": return <>{who} {TRAINED.has(e.kind) ? "trained" : "built"} {namedKind}</>;
+    // A spawn comes from a builder's construction or from a building's training.
+    case "spawn": return <>{who} {e.builder ? "built" : "trained"} {namedKind}</>;
     case "chat": return <ChatText from={e.owner} text={e.text} channel={e.channel} to={e.to} names={names} colors={colors} />;
     case "eliminated": return <>{who} is out</>;
     case "match_end": return <b>The battle is over</b>;

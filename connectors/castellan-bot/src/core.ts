@@ -56,8 +56,7 @@ export class CastellanBot {
 
   /** Results of the last orders: the executor adapts, the journal keeps the rejections. */
   report(orders: Order[], results: OrderResult[]): void {
-    const tick = this.world?.tick ?? 0;
-    this.executor.onResults(orders, results, tick);
+    this.executor.onResults(orders, results);
     results.forEach((r) => { if (!r.ok) { this.stats.ordersRejected++; const k = r.reason.replace(/\d+/g, "N").slice(0, 60); this.stats.rejectedByReason[k] = (this.stats.rejectedByReason[k] ?? 0) + 1; } });
   }
 
@@ -77,17 +76,10 @@ export class CastellanBot {
 
   /** Team play: answer an ally's "help (x,y)" or "attack (x,y)" when it is reasonable. */
   private joinAlly(w: World) {
-    const reqs = this.diplomacy.allyRequests.filter((r) => w.tick - r.tick < 50);
-    for (const r of reqs) {
-      if (r.kind === "attack" && this.plan.posture === "boom" && w.army.length >= 5 && !this.plan.attack) {
-        const target = { pos: r.at, owner: undefined };
-        this.logger({ t: this.now(), tick: w.tick, type: "ally_request", kind: r.kind, at: r.at, from: r.from, action: "join attack" });
-        (this.strategy as unknown as { startAttack: (w: World, t: { pos: { x: number; y: number } }, reason: string, source: string) => void }).startAttack(w, target, `ally ${r.from} asked`, `ally:${r.from}`);
-      } else if (r.kind === "help" && this.plan.posture === "boom" && w.army.length >= 4) {
-        this.logger({ t: this.now(), tick: w.tick, type: "ally_request", kind: r.kind, at: r.at, from: r.from, action: "noted" });
-      }
+    for (const r of this.diplomacy.recentAllyRequests(w)) {
+      const action = this.strategy.answerAlly(w, r);
+      if (action) this.logger({ t: this.now(), tick: w.tick, type: "ally_request", kind: r.kind, at: r.at, from: r.from, action });
     }
-    this.diplomacy.allyRequests = this.diplomacy.allyRequests.filter((r) => w.tick - r.tick < 50);
   }
 
   /** What happened, for the journal summary. */

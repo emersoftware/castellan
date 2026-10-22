@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { rules, MAPS } from "@castellan/shared";
+import { rules, MAPS, seatToMap } from "@castellan/shared";
 import { createMatch, findPath } from "../src";
 import type { Grid } from "../src/grid";
 
@@ -35,7 +35,6 @@ it("starts both players in symmetric, sealed corner fortresses with two allied e
 });
 
 it("rotates four sealed fortresses without overlaps and lets each player exit its own gates", async () => {
-  const { seatToMap } = await import("../src/grid");
   const map = MAPS["fortress-quad"];
   const W = map.width;
   const players = Array.from({length:4},(_,side)=>({id:`p${side}`,name:`P${side}`,side,team:side}));

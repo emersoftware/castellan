@@ -15,11 +15,16 @@ import { api, playerColors } from "../api";
 import { EventFeed, OutcomeBanner, PlayerList } from "../components/Hud";
 import { playerPerspective } from "../perspective";
 import { GameRenderer } from "../render/renderer";
-import type { WorkerIn, WorkerOut } from "../replay.worker";
+import { useReplayFrames } from "../useReplay";
+
+/** What the recorder drives: a ready virtual clock, or why the shot cannot be recorded. */
+type RecordClock =
+  | { ready: true; ticks: number; tickMs: number; verified: boolean; frame(gameMs: number): Promise<void>; sounds: RecordedSound[] }
+  | { ready: false; error: string };
 
 declare global {
   interface Window {
-    __record?: { ready: boolean; ticks: number; verified?: boolean; frame(gameMs: number): Promise<void>; sounds: RecordedSound[] };
+    __record?: RecordClock;
   }
 }
 
@@ -79,44 +84,51 @@ export function Record() {
   const { id } = useParams({ from: pages.record });
   const host = useRef<HTMLDivElement>(null);
   const [replay, setReplay] = useState<ReplayFile | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
   const [view, setView] = useState<SpectatorView | null>(null);
   const [events, setEvents] = useState<GameEvent[]>([]);
+  const { frames, check, error } = useReplayFrames(replay);
 
   useEffect(() => {
-    api.replay(id).then(setReplay);
+    api.replay(id).then(setReplay, (e: unknown) => setFailure(`replay ${id} could not be loaded: ${String((e as Error)?.message ?? e)}`));
   }, [id]);
 
+  // The recorder waits for a ready clock or for the reason there is none.
   useEffect(() => {
-    if (!replay || !host.current) return;
-    const frames: SpectatorView[] = [];
-    let renderer: GameRenderer | null = null;
-    const w = new Worker(new URL("../replay.worker.ts", import.meta.url), { type: "module" });
-    w.onmessage = async (e: MessageEvent<WorkerOut>) => {
-      if (e.data.type === "frames") frames.push(...e.data.frames);
-      if (e.data.type !== "done") return;
-      renderer = await GameRenderer.create(host.current!, currentRuleset(replay.ruleset), playerColors(replay.players));
+    const reason = failure ?? error;
+    if (reason) window.__record = { ready: false, error: reason };
+  }, [failure, error]);
+
+  useEffect(() => {
+    if (!replay || !check || !host.current) return;
+    const shot = frames.current;
+    let renderer: GameRenderer | null = null, cancelled = false;
+    GameRenderer.create(host.current, currentRuleset(replay.ruleset), playerColors(replay.players)).then((created) => {
+      if (cancelled) { created.destroy(); return; }
+      renderer = created;
       const clock = renderer.manualClock();
       const tickMs = 1000 / replay.tickRate;
       let shown = -1;
       // A player's view follows only what that player sees.
-      const track = AUTO_CAMERA ? cameraTrack(POV ? frames.map((f) => playerPerspective(f, POV)!) : frames, replay.ruleset.map.width, replay.ruleset.map.height) : null;
+      const track = AUTO_CAMERA ? cameraTrack(POV ? shot.map((f) => playerPerspective(f, POV)!) : shot, replay.ruleset.map.width, replay.ruleset.map.height) : null;
       // Sounds of the shot, as loud as its units are shown (none while they are dissolved).
       const sounds: RecordedSound[] = [];
       let soundMs = 0, shownUnits = 0;
       renderer.onSound((name, pan, volume) => { if (soundMs >= FROM) sounds.push({ ms: soundMs, name, pan, volume: volume * shownUnits }); });
       window.__record = {
         ready: true,
-        ticks: frames.length,
-        verified: e.data.verified,
+        ticks: shot.length,
+        tickMs,
+        verified: check.verified,
         sounds,
         frame: async (gameMs) => {
-          const i = Math.min(frames.length - 1, Math.floor(gameMs / tickMs));
+          const i = Math.min(shot.length - 1, Math.floor(gameMs / tickMs));
           while (shown < i) {
             shown++;
             clock.setTime(shown * tickMs);
             soundMs = shown * tickMs;
-            const f = POV ? playerPerspective(frames[shown], POV)! : frames[shown];
-            renderer!.setFrame(f, tickMs);
+            const f = POV ? playerPerspective(shot[shown], POV)! : shot[shown];
+            created.setFrame(f, tickMs);
             flushSync(() => {
               setView(f);
               if (f.events.length) setEvents((old) => [...old, ...f.events.filter((x) => x.type !== "attack")].slice(-60));
@@ -125,11 +137,11 @@ export function Record() {
           clock.setTime(gameMs);
           // Units dissolve in and out at the ends of the shot (the whole world when the map changes), and the
           // camera glides from and to the middle of the map while they are gone.
-          const end = Math.min(TO, (frames.length - 1) * tickMs);
+          const end = Math.min(TO, (shot.length - 1) * tickMs);
           // The map comes in before the units and goes after them.
           const units = Math.min(ramp(gameMs, FROM + WORLD_IN, FADE_IN), ramp(end - WORLD_OUT, gameMs, FADE_OUT));
           const world = Math.min(ramp(gameMs, FROM, WORLD_IN), ramp(end, gameMs, WORLD_OUT));
-          renderer!.dissolve(units, world, POV ? units : world);
+          created.scene.dissolve(units, world, POV ? units : world);
           shownUnits = units;
           const mid = { x: (replay.ruleset.map.width - 1) / 2, y: (replay.ruleset.map.height - 1) / 2 };
           let look = mid;
@@ -140,17 +152,16 @@ export function Record() {
             look = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
           }
           const k = FADE_IN || FADE_OUT ? ease(units) : 1;
-          renderer!.camera(mid.x + (look.x - mid.x) * k, mid.y + (look.y - mid.y) * k, ZOOM, DY);
+          created.camera.frame(mid.x + (look.x - mid.x) * k, mid.y + (look.y - mid.y) * k, ZOOM, DY);
           clock.draw();
         },
       };
-    };
-    w.postMessage({ replay } satisfies WorkerIn);
+    }, (e: unknown) => setFailure(`the board could not be drawn: ${String((e as Error)?.message ?? e)}`));
     return () => {
-      w.terminate();
+      cancelled = true;
       renderer?.destroy();
     };
-  }, [replay]);
+  }, [replay, check, frames]);
 
   const names = useMemo(() => Object.fromEntries((replay?.players ?? []).map((p) => [p.id, p.name])), [replay]);
   const colors = useMemo(() => playerColors(replay?.players ?? []), [replay]);

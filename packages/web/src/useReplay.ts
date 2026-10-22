@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { currentRuleset, type ReplayFile, type SpectatorView } from "@castellan/shared";
 import type { WorkerIn, WorkerOut } from "./replay.worker";
+import type { ScriptLoad } from "./scripts";
 import type { ReplayOptions } from "@castellan/engine";
 import { frameCompactor } from "./compactFrames";
 
 /**
- * Re-simulates a replay in a worker. `frames` fills progressively; `check`
- * arrives at the end (did the browser reproduce the recorded state hashes?).
+ * Re-simulates a replay in a worker. `frames` fills progressively, with `scripts`
+ * (the uploads the engine installed so far); `check` arrives at the end (did the
+ * browser reproduce the recorded state hashes?).
  * Frames and `ruleset` show today's names; the simulation keeps the recorded rules.
  */
 export function useReplayFrames(replay: ReplayFile | undefined | null, attempt = 0, { includePerspectives = true }: ReplayOptions = {}) {
   const frames = useRef<SpectatorView[]>([]);
+  const scripts = useRef<ScriptLoad[]>([]);
   const [loaded, setLoaded] = useState(0);
   const [check, setCheck] = useState<{ verified: boolean; desyncAt?: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -18,6 +21,7 @@ export function useReplayFrames(replay: ReplayFile | undefined | null, attempt =
   useEffect(() => {
     if (!replay) return;
     frames.current = [];
+    scripts.current = [];
     setLoaded(0);
     setCheck(null);
     setError(null);
@@ -31,6 +35,7 @@ export function useReplayFrames(replay: ReplayFile | undefined | null, attempt =
       if (m.type === "frames") {
         const first = !frames.current.length;
         frames.current.push(...m.frames.map(compact));
+        scripts.current.push(...m.scripts);
         if (first) publish();
         else pending ??= setTimeout(publish, 250);
       } else if (m.type === "done") {
@@ -42,5 +47,5 @@ export function useReplayFrames(replay: ReplayFile | undefined | null, attempt =
     w.postMessage({ replay, options: { includePerspectives } } satisfies WorkerIn);
     return () => { clearTimeout(pending); w.terminate(); };
   }, [replay, attempt, includePerspectives]);
-  return { frames, ruleset, loaded, check, error };
+  return { frames, scripts, ruleset, loaded, check, error };
 }

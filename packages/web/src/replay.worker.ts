@@ -3,30 +3,35 @@
  * Re-simulates a replay off the main thread with the real engine and sandbox,
  * streaming frames back in batches, under today's names, and checking the recorded state hashes.
  */
-import { playRecordedReplay } from "./replayPlayback";
+import { acceptedScripts, type ScriptLoad } from "./scripts";
 import { currentFrame, type ReplayFile, type SpectatorView } from "@castellan/shared";
-import type { ReplayOptions } from "@castellan/engine";
+import { playRecording, recordingWithShutdowns, type ReplayOptions } from "@castellan/engine";
 
 export type WorkerIn = { replay: ReplayFile; options?: ReplayOptions };
 
 export type WorkerOut =
-  | { type: "frames"; frames: SpectatorView[] }
+  /** `scripts`: uploads the engine installed during these frames. */
+  | { type: "frames"; frames: SpectatorView[]; scripts: ScriptLoad[] }
   | { type: "done"; verified: boolean; desyncAt?: number }
   | { type: "error"; message: string };
 
+/** This worker's port back to the page (the DOM lib types `self` as a window). */
+const page = self as unknown as { postMessage(message: WorkerOut): void };
+
 self.onmessage = async (e: MessageEvent<WorkerIn>) => {
   const { replay, options } = e.data;
-  let batch: SpectatorView[] = [];
+  let batch: SpectatorView[] = [], scripts: ScriptLoad[] = [];
   const flush = () => {
-    if (batch.length) (self as unknown as Worker).postMessage({ type: "frames", frames: batch } satisfies WorkerOut);
-    batch = [];
+    if (batch.length) page.postMessage({ type: "frames", frames: batch, scripts });
+    batch = []; scripts = [];
   };
   let activityIndex = 0;
   let sentFirstCasualty = false;
   const activity = replay.experiment?.agentActivity ?? [];
   const currentActivity = new Map();
   try {
-    const check = await playRecordedReplay(replay, (v) => {
+    // Viewers reproduce recorded VM shutdowns; the strict runReplay refuses them for balance.
+    const check = await playRecording(recordingWithShutdowns(replay), (v) => {
       while (activityIndex < activity.length && activity[activityIndex].tick <= v.tick) {
         const entry = activity[activityIndex++]; currentActivity.set(entry.player, entry.activity);
       }
@@ -42,10 +47,10 @@ self.onmessage = async (e: MessageEvent<WorkerIn>) => {
       if (firstCasualty) sentFirstCasualty = true;
       // Each batch is decoded and compacted on the main thread at once; small ones fit between animation frames.
       if (v.tick === 0 || firstCasualty || batch.length >= 25) flush();
-    }, options);
+    }, options, (tick) => scripts.push(...acceptedScripts(tick)));
     flush();
-    (self as unknown as Worker).postMessage({ type: "done", ...check } satisfies WorkerOut);
+    page.postMessage({ type: "done", ...check });
   } catch (err) {
-    (self as unknown as Worker).postMessage({ type: "error", message: String((err as Error).message ?? err) } satisfies WorkerOut);
+    page.postMessage({ type: "error", message: String((err as Error).message ?? err) });
   }
 };

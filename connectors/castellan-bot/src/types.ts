@@ -32,6 +32,9 @@ export interface BuildTask {
 /** Who made a decision: these rules, or an ally's request in team chat. */
 export type DecisionSource = "rules" | `ally:${string}`;
 
+/** An ally's "help (x,y)" or "attack (x,y)" in team chat. */
+export interface AllyRequest { kind: "help" | "attack"; at: Pt; tick: number; from: PlayerId }
+
 type EpisodeStatus = "active" | "completed" | "failed_execution" | "failed_outcome" | "abandoned";
 
 /** A plan with a goal, so the journal can tell execution failures from bad strategic outcomes. */

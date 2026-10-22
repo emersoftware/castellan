@@ -6,7 +6,7 @@ import { McpServer, type ToolCallback } from "@modelcontextprotocol/sdk/server/m
 import type { ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { z } from "zod";
 import * as castellan from "@castellan/cli";
-import { CHAT_CHANNELS, HISTORY_SECTIONS, scriptOrigin, type GameTool, type GenericConnector } from "@castellan/shared";
+import { API_LIMITS, CHAT_CHANNELS, HISTORY_SECTIONS, RUN_LIMITS, rules, scriptOrigin, type GameTool, type GenericConnector } from "@castellan/shared";
 
 type Result = { content: { type: "text"; text: string }[]; isError?: boolean };
 
@@ -66,11 +66,11 @@ export function createServer(c: castellan.Client = castellan.client({ connector 
     act: tool(
       {
         description:
-          "Send a batch of orders (max 50), applied next tick; only while running. Shapes: " +
+          `Send a batch of orders (max ${API_LIMITS.orders}), applied next tick;` + " only while running. Shapes: " +
           "{type:'train',building,kind:'worker'|'knight'|'archer'} {type:'build',unit,kind:'tower'|'wall'|'door'|'castle',x,y} {type:'move',unit,x,y} " +
           "{type:'attack',unit,target} {type:'gather',unit,deposit?} {type:'stop',unit} {type:'upgrade',upgrade:'<id from guide>'}. " +
           "Returns ok/FAILED per order, mineral spent and remaining, and your view. A queued unit gets its id when it spawns; durations and limits are in guide.",
-        inputSchema: { orders: z.array(order).min(1).max(50) },
+        inputSchema: { orders: z.array(order).min(1).max(API_LIMITS.orders) },
       },
       ({ orders }) => reply(() => castellan.act(c, orders)),
     ),
@@ -79,7 +79,7 @@ export function createServer(c: castellan.Client = castellan.client({ connector 
       {
         description:
           "Read (omit code) or replace the script every unit of `kind` (worker, king, knight, archer, tower, castle; see guide) runs each tick. " +
-          "code = JS function body with `self` in scope, max 4 KB; callbacks and explicit order suspension are available (see guide for this match's precedence). Only while running. Uploading returns the result and your view.",
+          `code = JS function body with \`self\` in scope, max ${rules.script.maxBytes / 1024} KB; callbacks and explicit order suspension are available (see guide for this match's precedence). Only while running. Uploading returns the result and your view.`,
         inputSchema: {
           kind: z.string().describe("worker | king | knight | archer | tower | castle (availability depends on the room; see guide)"),
           code: z.string().optional(),
@@ -100,11 +100,11 @@ export function createServer(c: castellan.Client = castellan.client({ connector 
           "Run a one-shot player script on the server, once, right now. `code` is a JS function body with these in scope: " +
           "`view` = your full state as JSON (players, mine, allies, enemy, deposits, grid, visibility, events since your last call, chat, underAttack, lastSeen, projectiles, timeMs, matchMs...; " +
           "entities carry id, kind, owner, x, y, hp, maxHp, stats, order, doing, training), `game` = the room's settings as JSON (kinds with costs and stats, upgrades, map), " +
-          "`act(order)` = queue one order (same shapes as act; move/attack/gather/build/train/upgrade/stop; max 50) and `log(...)`. " +
+          `\`act(order)\` = queue one order (same shapes as act; move/attack/gather/build/train/upgrade/stop; max ${RUN_LIMITS.maxOrders}) and \`log(...)\`. ` +
           "All queued orders are applied together when it returns; if it throws, none are. Its return value (JSON) and logs come back with each order's result. " +
           "Deterministic CPU/memory limits (heavy loops fail with out of gas); no network or timers. It reads your view like state does.",
         inputSchema: {
-          code: z.string().min(1).max(16384).describe("function body; may `return` a JSON value"),
+          code: z.string().min(1).max(RUN_LIMITS.maxBytes).describe("function body; may `return` a JSON value"),
           lang: z.enum(["js", "ts"]).optional().describe("default js; ts types are stripped"),
         },
       },
@@ -114,7 +114,7 @@ export function createServer(c: castellan.Client = castellan.client({ connector 
     chat: tool(
       {
         description:
-          "Messages, when the room has chat. With `text`: send it (max 200 chars, one per 3 s across channels); public by default, " +
+          `Messages, when the room has chat. With \`text\`: send it (max ${API_LIMITS.chatChars} chars, one per ${API_LIMITS.chatEveryMs / 1000} s across channels); public by default, ` +
           "private with `to` (a player id), or to your team with channel team (not with to). Private and team messages are hidden from live spectators and appear in the replay. " +
           "Returns your view. Without `text`: every message you can see. New ones also arrive in subsequent observations.",
         inputSchema: {

@@ -1,7 +1,7 @@
 import type { OrderProgress, UnitOrder } from "@castellan/shared";
 import type { Entity } from "./entities";
 import type { SimulationClock } from "./clock";
-import { dist } from "./grid";
+import { dist } from "@castellan/shared";
 
 interface OrderHistory {
   order: UnitOrder;

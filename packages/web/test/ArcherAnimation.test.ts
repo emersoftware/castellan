@@ -85,7 +85,7 @@ it.each([50, 100, 200])('uses simulation time at replay tick duration %i ms, fre
   h.renderer.setPaused(false);
   h.internal.animate();
   expect(h.lastArcher()[2]).toEqual(halfway);
-  h.renderer.setFrame(h.frame(1), tickMs, true);
+  h.renderer.seek(h.frame(1), tickMs);
   h.internal.animate();
   expect(h.internal.drawn.get('r')!.shot).toBeUndefined();
   expect(h.lastArcher()[2]?.action).toBe('idle');
@@ -143,7 +143,7 @@ it('uses upgraded cadence and resets walking when seeking', () => {
   h.renderer.setFrame(h.frame(6, [{ ...moved, x: 6 }, h.target]), 100);
   h.internal.animate();
   expect(h.lastArcher()[2]?.action).toBe('walk');
-  h.renderer.setFrame(h.frame(2, [moved, h.target]), 100, true);
+  h.renderer.seek(h.frame(2, [moved, h.target]), 100);
   h.internal.animate();
   expect(h.lastArcher()[2]?.action).toBe('idle');
 });

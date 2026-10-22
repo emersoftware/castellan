@@ -6,10 +6,10 @@ import { homedir, platform, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
-import { setTimeout as sleep } from "node:timers/promises";
-import { launchConfiguration, reportConfiguration, reportActivity } from "../metadata.mjs";
-import { observedSeat, seat, seatOver, serverUrl } from "../game.mjs";
-import { MIN_INTERVAL_MS, promptOf, turnFor } from "../turns.mjs";
+import { launchConfiguration, reportActivity, reportConfiguration } from "../metadata.mjs";
+import { serverUrl } from "../game.mjs";
+import { MIN_INTERVAL_MS, promptOf } from "../turns.mjs";
+import { lineReader, playSeat } from "../decisions.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const exec = promisify(execFile);
@@ -92,17 +92,17 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   if (!env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN (see castellan new or castellan run-series)");
   const credential = await credentialImpl(env);
   const root = await mkdtemp(join(tmpdir(), "castellan-cursor-"));
-  let child, watcher, session, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0;
-  const abort = new AbortController();
-  const stop = () => { stopped = true; abort.abort(); };
-  const delay = ms => sleep(ms, undefined, { signal: abort.signal });
-  const game = seat({ env, fetchImpl, signal: abort.signal });
+  // The preflight runs before the seat loop; a signal must stop it too.
+  const preflight = new AbortController();
+  const stop = () => preflight.abort();
+  let seated = false;
   const redact = text => Object.values(credential).concat(env.CASTELLAN_TOKEN).reduce((s, secret) => secret ? s.split(secret).join("[REDACTED]") : s, text);
   process.on("SIGINT", stop); process.on("SIGTERM", stop);
   try {
     const player = await preparePlayer({ root, credential, env });
-    const decision = async (prompt, resume, emit = true) => {
-      let pending = "", stderr = "", id, timedOut = false;
+    /** @param {string} prompt @param {string | undefined} resume @param {AbortSignal} signal */
+    const decision = async (prompt, resume, signal, emit = true) => {
+      let stderr = "", id, timedOut = false;
       /** @type {{ type: string, subtype?: string, is_error?: boolean } | undefined} */
       let finalEvent;
       let timer;
@@ -111,7 +111,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         clearTimeout(timer);
         timer = setTimeout(() => { timedOut = true; terminate(); }, idleTimeoutMs);
       };
-      child = spawnImpl(env.CASTELLAN_CURSOR_BIN || "agent", cursorArgs({ model: opts.model, session: resume, prompt }), {
+      const child = spawnImpl(env.CASTELLAN_CURSOR_BIN || "agent", cursorArgs({ model: opts.model, session: resume, prompt }), {
         cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "pipe"], detached: platform() !== "win32",
       });
       const consume = raw => {
@@ -126,7 +126,8 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
           if (e.type === "error") stderr += JSON.stringify(e);
         } catch { /* non-JSON CLI output is not completion */ }
       };
-      child.stdout.on("data", chunk => { const lines = (pending + chunk).split("\n"); pending = lines.pop() ?? ""; lines.forEach(consume); });
+      const lines = lineReader(consume);
+      child.stdout.on("data", chunk => lines.push(chunk));
       child.stderr.on("data", chunk => { stderr = (stderr + chunk).slice(-16_384); });
       const active = child;
       let killTimer;
@@ -148,7 +149,8 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
       };
       armIdleTimer();
       const onAbort = () => terminate();
-      abort.signal.addEventListener("abort", onAbort, { once: true });
+      signal.addEventListener("abort", onAbort, { once: true });
+      if (signal.aborted) terminate();
       try {
         const code = await new Promise((resolveCode, reject) => {
           let exitTimer;
@@ -157,68 +159,42 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
           active.on("close", c => settle(c));
           active.on("exit", c => { exitTimer = setTimeout(() => forceSettle(c), exitGraceMs); });
         });
-        consume(pending);
+        lines.end();
         const success = code === 0 && !timedOut && finalEvent?.type === "result" && finalEvent.subtype === "success" && finalEvent.is_error === false && id;
         return { success: Boolean(success), session: id, fatal: failureKind(stderr + JSON.stringify(finalEvent)) === "access",
           diagnostic: timedOut ? `No Cursor stream activity for ${idleTimeoutMs}ms (elapsed ${Date.now() - startedAt}ms)` : redact(stderr).slice(-1000) };
       } finally {
-        clearTimeout(timer); clearTimeout(killTimer); clearTimeout(forceTimer); abort.signal.removeEventListener("abort", onAbort);
+        clearTimeout(timer); clearTimeout(killTimer); clearTimeout(forceTimer); signal.removeEventListener("abort", onAbort);
         // Cursor can leave MCP/LSP helpers behind even after a successful turn.
         if (active.pid && platform() !== "win32") kill("SIGKILL");
-        child = undefined;
       }
     };
 
     // Confirm model entitlement BEFORE installing game tools or connecting the
     // seat. No warm-up conversation is reused as the player's match session.
-    const warmup = await decision("Reply READY. Do not use tools.", undefined, false);
-    if (stopped) return 1;
+    const warmup = await decision("Reply READY. Do not use tools.", undefined, preflight.signal, false);
+    if (preflight.signal.aborted) return 1;
     if (!warmup.success) throw new Error(`Cursor preflight failed; player has not joined. ${warmup.diagnostic || "No successful result; check model access and login."}`);
     await connectTools(player, { token: env.CASTELLAN_TOKEN, server: serverUrl(env.CASTELLAN_SERVER) });
     const base = promptOf(env);
     let version = env.CASTELLAN_CONNECTOR_VERSION;
     if (!version) { try { version = (await exec(env.CASTELLAN_CURSOR_BIN || "agent", ["--version"], { timeout: 5000 })).stdout.trim(); } catch { /* optional metadata */ } }
     await reportConfiguration(launchConfiguration({ connector: "cursor", ...opts, prompt: base, connectorVersion: version, env }), { env, fetchImpl });
-    const watch = async () => {
-      if (stopped) return;
-      try { if (seatOver(await game.status())) { finished = true; stop(); return; } } catch { /* retry next poll */ }
-      if (!stopped) watcher = setTimeout(watch, pollMs);
-    };
-    watcher = setTimeout(watch, pollMs);
-    while (!stopped) {
-      const started = Date.now();
-      try {
-        const observation = await game.observation(lastDeliveredTick);
-        const seen = observedSeat(observation);
-        if (seatOver(seen)) { finished = true; break; }
-        const prompt = turnFor(observation, { delivered: Boolean(session), prompt: base, resumed: Boolean(env.CASTELLAN_RESUME) });
-        if (!prompt) { await delay(1000); continue; }
-        const tick = seen.tick;
-        await reportActivity("deciding", { env, fetchImpl });
-        const turn = await decision(prompt, session);
+    seated = true;
+    return await playSeat({ name: "cursor", prompt: base, env, fetchImpl, signal: preflight.signal, minIntervalMs, pollMs, maxFailures,
+      backoffMs: failures => Math.min(30_000, retryMs * 2 ** (failures - 1)), warn: text => warn(redact(text)),
+      decide: async (turn, { session, signal }) => {
+        const result = await decision(turn, session, signal);
         // Keep partial sessions too: orders may already have reached the game.
-        session = turn.session ?? session;
-        if (stopped) break;
-        if (!turn.success && turn.fatal) throw Object.assign(new Error(`Cursor access error: ${turn.diagnostic || "Check your plan/model."}`), { fatal: true });
-        if (!turn.success) throw new Error(`Cursor decision incomplete${turn.diagnostic ? `: ${turn.diagnostic}` : ""}`);
-        if (Number.isFinite(tick)) lastDeliveredTick = tick;
-        failures = 0;
-        await reportActivity("between_decisions", { env, fetchImpl });
-        await delay(Math.max(0, minIntervalMs - (Date.now() - started)));
-      } catch (error) {
-        if (stopped) break;
-        if (/** @type {{ fatal?: boolean }} */ (error).fatal || ++failures >= maxFailures) throw error;
-        const ms = Math.min(30_000, retryMs * 2 ** (failures - 1));
-        warn(`castellan cursor: ${redact(/** @type {Error} */ (error).message)}; retry in ${ms / 1000}s, preserving session and observation cursor`);
-        await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + ms).toISOString() });
-        await delay(ms).catch(() => {});
-      }
-    }
-    return finished ? 0 : 1;
+        const kept = result.session ?? session;
+        if (!result.success && result.fatal) throw Object.assign(new Error(`Cursor access error: ${result.diagnostic || "Check your plan/model."}`), { fatal: true, session: kept });
+        if (!result.success || !kept) throw Object.assign(new Error(`Cursor decision incomplete${result.diagnostic ? `: ${result.diagnostic}` : ""}`), { session: kept });
+        return { session: kept };
+      } });
   } finally {
-    stop(); clearTimeout(watcher);
     process.off("SIGINT", stop); process.off("SIGTERM", stop);
-    await reportActivity("stopped", { env, fetchImpl });
+    // The seat loop reports its own end; a preflight that stopped never reached it.
+    if (!seated) await reportActivity("stopped", { env, fetchImpl });
     await rm(root, { recursive: true, force: true });
   }
 }

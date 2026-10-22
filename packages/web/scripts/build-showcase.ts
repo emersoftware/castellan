@@ -9,7 +9,7 @@ import { isDeepStrictEqual } from "node:util";
 import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import type { ReplayFile, SpectatorView } from "@castellan/shared";
-import { playRecordedReplay } from "../src/replayPlayback";
+import { playRecording, recordingWithShutdowns } from "@castellan/engine";
 import { cameraActivity, planShowcaseCamera, type CameraActivity } from "../src/showcaseCamera";
 import { decodeShowcaseChunk, encodeShowcaseChunk, parseShowcaseManifest, type ShowcaseManifest } from "../src/showcaseRecording";
 
@@ -32,7 +32,7 @@ function sourceFiles(directory: string): string[] {
 function signature(): string {
   const hash = createHash("sha256");
   const files = [replayPath, ...["engine", "shared", "sandbox"].flatMap(name => sourceFiles(join(root, "packages", name, "src"))),
-    join(web, "src/replayPlayback.ts"), join(web, "src/showcaseRecording.ts"), join(web, "src/showcaseCamera.ts"), fileURLToPath(import.meta.url),
+    join(web, "src/showcaseRecording.ts"), join(web, "src/showcaseCamera.ts"), fileURLToPath(import.meta.url),
     join(root, "pnpm-lock.yaml")].sort();
   for (const file of files) hash.update(relative(root, file)).update("\0").update(readFileSync(file)).update("\0");
   return hash.digest("hex");
@@ -89,7 +89,7 @@ if (cached) {
   };
 
   try {
-    const check = await playRecordedReplay(replay, frame => {
+    const check = await playRecording(recordingWithShutdowns(replay), frame => {
       seenFrames++;
       lastTick = frame.tick;
       const fighting = cameraActivity(frame);

@@ -9,7 +9,7 @@
  */
 import { newQuickJSWASMModuleFromVariant, type QuickJSContext, type QuickJSHandle, type QuickJSRuntime, type QuickJSWASMModule } from "quickjs-emscripten-core";
 import variant from "@jitl/quickjs-singlefile-mjs-release-sync";
-import type { ProjectileView, ScriptLimits, UnitOrder } from "@castellan/shared";
+import { RUN_LIMITS, type ProjectileView, type RunLimits, type ScriptLimits, type UnitOrder } from "@castellan/shared";
 import { PRELUDE } from "./prelude";
 
 let quickjs: QuickJSWASMModule | null = null;
@@ -131,7 +131,7 @@ export function createScriptHost(limits: ScriptLimits, seed: number): ScriptHost
   if (!quickjs) throw new Error("call initSandbox() first");
   const runtime: QuickJSRuntime = quickjs.newRuntime();
   runtime.setMemoryLimit(limits.heapBytes);
-  runtime.setMaxStackSize(256 * 1024);
+  runtime.setMaxStackSize(limits.stackBytes);
 
   // No VM execution after bootstrap is exempt: even world loading or error
   // formatting can reach player-controlled accessors/prototypes. Load/compile
@@ -249,8 +249,6 @@ export function testScript(code: string, kind: string, worlds: ScriptWorld[], li
   }
 }
 
-export interface RunLimits { maxBytes: number; heapBytes: number; gas: number; maxOrders: number; maxOutputBytes: number }
-export const RUN_LIMITS: RunLimits = { maxBytes: 16 * 1024, heapBytes: 32 * 1024 * 1024, gas: 2_500, maxOrders: 50, maxOutputBytes: 32 * 1024 };
 export interface RunResult { orders: unknown[]; logs: string[]; value: unknown; error?: string; operationalFailure?: true }
 
 /**
@@ -263,7 +261,7 @@ export function runOnce(code: string, input: { view: unknown; rules: unknown }, 
   if (new TextEncoder().encode(code).length > limits.maxBytes) return { orders: [], logs: [], value: null, error: `script over ${limits.maxBytes} bytes` };
   const runtime = quickjs.newRuntime();
   runtime.setMemoryLimit(limits.heapBytes);
-  runtime.setMaxStackSize(512 * 1024);
+  runtime.setMaxStackSize(limits.stackBytes);
   let cycles = 0;
   runtime.setInterruptHandler(() => ++cycles > limits.gas);
   const ctx = runtime.newContext();

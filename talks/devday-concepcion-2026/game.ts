@@ -71,13 +71,13 @@ async function mountClip(host: HTMLElement, url: string, options: Options = {}):
   const resize = new ResizeObserver(size);
   resize.observe(host);
   const focus = parseFocus(options.focus);
-  renderer.focus(focus);
+  renderer.camera.focus(focus);
   let index = 0, playing = false, destroyed = false, raf = 0, last = 0;
   const tickMs = 1000 / meta.tickRate;
   const reduced = !!options.reduced;
-  if (!reduced) renderer.prepareReveal();
-  renderer.setFrame(frames[0], tickMs, true);
-  if (!reduced) renderer.reveal();
+  if (!reduced) renderer.scene.prepareReveal();
+  renderer.seek(frames[0], tickMs);
+  if (!reduced) renderer.scene.reveal();
 
   const controller: Controller = {
     id: meta.id, frames,
@@ -102,7 +102,7 @@ async function mountClip(host: HTMLElement, url: string, options: Options = {}):
     setPaused(paused) { paused ? controller.pause() : controller.play(); },
     seek(i) {
       index = Math.max(0, Math.min(frames.length - 1, i));
-      renderer.setFrame(frames[index], tickMs, true);
+      renderer.seek(frames[index], tickMs);
       options.onTick?.(frames[index], controller);
     },
     destroy() {
@@ -125,10 +125,10 @@ async function mountClip(host: HTMLElement, url: string, options: Options = {}):
       if (index >= frames.length - 1) {
         if (options.loop === false) { controller.pause(); return; }
         index = 0;
-        renderer.setFrame(frames[0], tickMs, true);
+        renderer.seek(frames[0], tickMs);
       } else {
         index++;
-        renderer.setFrame(frames[index], tickMs, false);
+        renderer.setFrame(frames[index], tickMs);
       }
       options.onTick?.(frames[index], controller);
     }

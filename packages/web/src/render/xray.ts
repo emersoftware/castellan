@@ -1,5 +1,6 @@
 import { Filter, GlProgram, UniformGroup, type Texture } from "pixi.js";
 import type { KindSpec } from "@castellan/shared";
+import { filterVertex } from "./filterVertex";
 
 /**
  * Only units hidden behind buildings of the SAME player colour are outlined.
@@ -12,20 +13,7 @@ import type { KindSpec } from "@castellan/shared";
  * screen pixel. The filter's output frame places its cropped input back in
  * screen coordinates, so depth sampling stays aligned while panning/zooming.
  */
-const vertex = `in vec2 aPosition;
-out vec2 vTextureCoord;
-out vec2 vScreen;
-uniform vec4 uInputSize;
-uniform vec4 uOutputFrame;
-uniform vec4 uOutputTexture;
-void main(void) {
-  vec2 position = aPosition * uOutputFrame.zw + uOutputFrame.xy;
-  position.x = position.x * (2.0 / uOutputTexture.x) - 1.0;
-  position.y = position.y * (2.0 * uOutputTexture.z / uOutputTexture.y) - uOutputTexture.z;
-  gl_Position = vec4(position, 0.0, 1.0);
-  vTextureCoord = aPosition * (uOutputFrame.zw * uInputSize.zw);
-  vScreen = aPosition * uOutputFrame.zw + uOutputFrame.xy;
-}`;
+const vertex = filterVertex({ screen: true });
 
 const fragment = `in vec2 vTextureCoord;
 in vec2 vScreen;

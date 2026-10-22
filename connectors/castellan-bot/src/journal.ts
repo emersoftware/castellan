@@ -2,13 +2,14 @@
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { outcomeText } from "@castellan/shared";
+import type { ObservedClock } from "./clock";
 import type { CastellanBot } from "./core";
 import type { JournalEntry } from "./types";
 
 export class Journal {
   readonly file: string;
   private lines = 0;
-  constructor(readonly dir: string, readonly name: string, private echo: (line: string) => void = () => {}) {
+  constructor(readonly dir: string, readonly name: string, private clock: ObservedClock, private echo: (line: string) => void = () => {}) {
     mkdirSync(dir, { recursive: true });
     this.file = join(dir, `${name}.jsonl`);
     writeFileSync(this.file, "");
@@ -17,13 +18,13 @@ export class Journal {
   write(e: JournalEntry) {
     appendFileSync(this.file, JSON.stringify(e) + "\n");
     this.lines++;
-    if (NOTABLE.has(e.type)) this.echo(`[${(e.tick / 10).toFixed(1)}s] ${e.type} ${describe(e)}`);
+    if (NOTABLE.has(e.type)) this.echo(`[${this.clock.seconds(e.tick).toFixed(1)}s] ${e.type} ${describe(e)}`);
   }
 
   /** Markdown summary from the core's bookkeeping. */
   summary(core: CastellanBot, extra: Record<string, unknown> = {}): string {
     const s = core.summary();
-    const t = (tick: number) => `${(tick / 10).toFixed(0)}s`;
+    const t = (tick: number) => `${this.clock.seconds(tick).toFixed(0)}s`;
     const out: string[] = [];
     out.push(`# Castellan Bot ${this.name}`, "");
     const o = s.outcome;

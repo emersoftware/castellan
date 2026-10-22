@@ -19,7 +19,7 @@ async function start(chat = true, mode?: "ffa", matchMs = 5000) {
     players: [0, 1, 0, 1].map((team, i) => ({ name: `player${i}`, team: mode === "ffa" ? undefined : team })),
     mode,
     tickRate: 10, seed: 1, sides: "random", prepMs: 0, botLatencyMs: 1000, chat,
-    onFinish: (replay) => replays.push(replay),
+    onFinish: (replay) => { replays.push(replay); },
   });
   vi.useFakeTimers();
   for (const p of room.players) room.touch(p.id);
@@ -38,6 +38,19 @@ describe("team chat privacy", () => {
     const results = (await Promise.all([first, second])).flatMap((r) => r.results);
     expect(results.filter((r) => r.ok)).toHaveLength(50);
     expect(results.filter((r) => !r.ok)).toEqual(Array.from({ length: 10 }, () => ({ ok: false, reason: "over 50 orders this tick" })));
+  });
+
+  it("starts the chat cooldown only with a message the game accepted", async () => {
+    await start();
+    const tooLong = room.act("p1", [{ type: "chat", text: "x".repeat(201) }]);
+    await vi.advanceTimersByTimeAsync(100);
+    expect((await tooLong).results[0].ok).toBe(false);
+    const corrected = room.act("p1", [{ type: "chat", text: "hello" }]);
+    await vi.advanceTimersByTimeAsync(100);
+    expect((await corrected).results[0]).toEqual({ ok: true });
+    const tooSoon = room.act("p1", [{ type: "chat", text: "again" }]);
+    await vi.advanceTimersByTimeAsync(100);
+    expect((await tooSoon).results[0]).toEqual({ ok: false, reason: "one message every 3s" });
   });
 
   it("shows only the last five visible messages while preserving the full conversation", async () => {

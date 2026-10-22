@@ -9,6 +9,8 @@
  */
 import type { SoundName } from "@castellan/shared";
 import { AMBIENT_GAIN, Mix } from "./mix";
+import { trackError } from "../analytics";
+import { sharedLoad } from "../sharedLoad";
 
 const MUSIC_GAIN: Record<Track, number> = { theme: 0.3, battle: 0.09 };
 const MUSIC_FADE_S = 1.5;
@@ -41,6 +43,7 @@ class Sfx {
   private musicHolders: Track[] = [];
   private music: { track: Track; source: AudioBufferSourceNode; gain: GainNode } | null = null;
   private tracks = new Map<Track, Promise<{ buffer: AudioBuffer; info: LoopInfo }>>();
+  private effectsLoad = new Map<"effects", Promise<void>>();
   effectsMuted = (localStorage.getItem("castellan:effects-muted") ?? localStorage.getItem("castellan:muted")) === "1";
   musicMuted = (localStorage.getItem("castellan:music-muted") ?? localStorage.getItem("castellan:muted")) === "1";
   get muted() { return this.effectsMuted && this.musicMuted; }
@@ -64,8 +67,10 @@ class Sfx {
       this.effects.connect(this.master);
       const comp = this.ctx.createDynamicsCompressor();
       this.master.connect(comp).connect(this.ctx.destination);
-      void this.load(this.ctx);
     }
+    // The next gesture retries effects that did not load.
+    const ctx = this.ctx;
+    if (!this.effectsLoad.has("effects")) sharedLoad(this.effectsLoad, "effects", () => this.load(ctx)).catch(() => trackError("load sound effects"));
     void this.ctx.resume();
     void this.syncMusic();
   }
@@ -165,15 +170,10 @@ class Sfx {
   }
 
   private loadTrack(ctx: AudioContext, track: Track) {
-    let loaded = this.tracks.get(track);
-    if (!loaded) {
-      loaded = Promise.all([
-        fetch(`/game-assets/music/${track}.json`).then((r) => r.json() as Promise<LoopInfo>),
-        fetch(`/game-assets/music/${track}.mp3`).then((r) => r.arrayBuffer()).then((b) => ctx.decodeAudioData(b)),
-      ]).then(([info, buffer]) => ({ info, buffer }));
-      this.tracks.set(track, loaded);
-    }
-    return loaded;
+    return sharedLoad(this.tracks, track, () => Promise.all([
+      fetch(`/game-assets/music/${track}.json`).then((r) => r.json() as Promise<LoopInfo>),
+      fetch(`/game-assets/music/${track}.mp3`).then((r) => r.arrayBuffer()).then((b) => ctx.decodeAudioData(b)),
+    ]).then(([info, buffer]) => ({ info, buffer })));
   }
 
   private async syncMusic() {
@@ -182,7 +182,10 @@ class Sfx {
     if (this.music?.track === want) return;
     this.stopMusic();
     if (!ctx || !want) return;
-    const { buffer, info } = await this.loadTrack(ctx, want);
+    let loaded;
+    // Music that did not load stays off until the next change retries it.
+    try { loaded = await this.loadTrack(ctx, want); } catch { trackError("load music", { track: want }); return; }
+    const { buffer, info } = loaded;
     // Another change may have landed while this one was loading.
     if (this.musicMuted || this.musicHolders.at(-1) !== want || this.music) return;
     const source = ctx.createBufferSource();

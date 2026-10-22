@@ -1,10 +1,11 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import type { FastifyInstance } from "fastify";
 import { rules, type Ruleset } from "@castellan/shared";
 import { Room } from "../src/room";
 import { runReplay } from "@castellan/engine";
@@ -121,6 +122,66 @@ it("persists a pending trace after the bounded finish deadline instead of blocki
     await vi.advanceTimersByTimeAsync(1000);
     expect(saved.experiment.calls).toContainEqual(expect.objectContaining({ tool: "GET /wait", status: null, answeredTick: null }));
   } finally { room.close(); }
+});
+
+it("finishes saving a finished room's replay before close resolves", async () => {
+  let saved = false;
+  const room = await Room.create({ ruleset: { ...rules, matchMs: 200 }, players: [{ name: "a" }, { name: "b" }],
+    tickRate: 10, seed: 1, sides: "fixed", prepMs: 0, botLatencyMs: 1000, chat: false,
+    onFinish: async () => { await new Promise((resolve) => setTimeout(resolve, 20)); saved = true; } });
+  room.openCall("p1", "GET /wait"); // an unanswered call defers publication, so close() starts the save
+  room.touch("p1"); room.touch("p2");
+  await vi.waitFor(() => expect(room.state).toBe("finished"), { timeout: 5000, interval: 10 });
+  await room.close();
+  expect(saved).toBe(true);
+});
+
+/** A two-seat room on a short match whose replay is saved under `dir`. */
+async function finishedRoom(dir: string, before: () => Promise<void>) {
+  const app = await buildServer({ replayDir: dir, prepMs: 0, ruleset: { ...rules, matchMs: 300 } });
+  const room = (await app.inject({ method: "POST", url: "/rooms", payload: {} })).json();
+  await before();
+  for (const p of room.players) await app.inject({ url: "/state", headers: { authorization: `Bearer ${p.token}` } });
+  await waitForStatus(app, room.players[0].token, "finished");
+  return { app, error: async () => (await app.inject(`/rooms/${room.id}`)).json().error as string | undefined };
+}
+
+it("reports a replay it cannot write and keeps serving the other rooms", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "castellan-unwritable-"));
+  const unhandled = vi.fn();
+  process.on("unhandledRejection", unhandled);
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  let app: FastifyInstance | undefined;
+  try {
+    const finished = await finishedRoom(dir, () => chmod(dir, 0o500));
+    app = finished.app;
+    await vi.waitFor(async () => expect(unhandled.mock.calls.length > 0 || !!(await finished.error())).toBe(true), { timeout: 6000, interval: 20 });
+    expect(unhandled).not.toHaveBeenCalled();
+    expect(await finished.error()).toMatch(/EACCES/);
+    expect((await app.inject("/health")).statusCode).toBe(200);
+  } finally {
+    process.off("unhandledRejection", unhandled);
+    vi.restoreAllMocks();
+    await chmod(dir, 0o700);
+    await app?.close(); await rm(dir, { recursive: true, force: true });
+  }
+});
+
+it("never rewrites a replay catalog it cannot read", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "castellan-unreadable-index-"));
+  const index = () => readFile(join(dir, "index.json"), "utf8");
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  let app: FastifyInstance | undefined;
+  try {
+    const finished = await finishedRoom(dir, () => writeFile(join(dir, "index.json"), "[{ truncated"));
+    app = finished.app;
+    await vi.waitFor(async () => expect((await index()) !== "[{ truncated" || !!(await finished.error())).toBe(true), { timeout: 6000, interval: 20 });
+    expect(await index()).toBe("[{ truncated");
+    expect(await finished.error()).toMatch(/JSON/);
+  } finally {
+    vi.restoreAllMocks();
+    await app?.close(); await rm(dir, { recursive: true, force: true });
+  }
 });
 
 it("omits player and spectator capabilities from enabled access logs", async () => {

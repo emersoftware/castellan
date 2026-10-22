@@ -21,9 +21,9 @@ function fakeRenderer() {
     onSelect: vi.fn(checkAlive),
     select: vi.fn(checkAlive),
     onSound: vi.fn(checkAlive),
-    zoom: vi.fn(checkAlive),
-    prepareReveal: vi.fn(checkAlive),
-    reveal: vi.fn(checkAlive),
+    seek: vi.fn(checkAlive),
+    camera: { zoom: vi.fn(checkAlive), focus: vi.fn(checkAlive), setFocusArea: vi.fn(checkAlive) },
+    scene: { prepareReveal: vi.fn(checkAlive), reveal: vi.fn(checkAlive) },
   };
 }
 
@@ -61,7 +61,7 @@ it.each([false, true])("prepares the entire frame before displaying it (intro fi
   expect(r.setFrame).not.toHaveBeenCalled();
   expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe("hidden");
   await render(ruleset, frame, visible);
-  expect(r.setFrame).toHaveBeenCalledWith(frame, 100, false);
+  expect(r.setFrame).toHaveBeenCalledWith(frame, 100);
   expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe(visible ? "visible" : "hidden");
   await render(ruleset, frame, true);
   expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe("visible");
@@ -75,12 +75,12 @@ it("starts the dither entrance only after both the text and the first frame are 
   await mount(false, null);
   const r = fakeRenderer();
   await ready(0, r);
-  expect(r.prepareReveal).toHaveBeenCalledOnce();
+  expect(r.scene.prepareReveal).toHaveBeenCalledOnce();
   await mount(true, null);
-  expect(r.reveal).not.toHaveBeenCalled();
+  expect(r.scene.reveal).not.toHaveBeenCalled();
   await mount(true, frame);
-  expect(r.setFrame).toHaveBeenCalledWith(frame, 100, false);
-  expect(r.reveal).toHaveBeenCalledOnce();
+  expect(r.setFrame).toHaveBeenCalledWith(frame, 100);
+  expect(r.scene.reveal).toHaveBeenCalledOnce();
   expect(host.querySelector(".canvas-host")?.hasAttribute("data-presented")).toBe(true);
 });
 
@@ -115,7 +115,7 @@ it("does not feed frames or zoom a destroyed renderer while reconnecting", async
   await render(ruleset);
   const old = fakeRenderer();
   await ready(0, old);
-  expect(old.setFrame).toHaveBeenCalledWith(frame, 100, false);
+  expect(old.setFrame).toHaveBeenCalledWith(frame, 100);
 
   // A reconnect sends a fresh ruleset object and a frame with units that died meanwhile.
   const reconnectedRules = { ...ruleset };
@@ -125,13 +125,13 @@ it("does not feed frames or zoom a destroyed renderer while reconnecting", async
   const latest = { tick: 3 } as SpectatorView;
   await render(reconnectedRules, latest);
   expect(old.setFrame).toHaveBeenCalledTimes(1);
-  expect(old.zoom).not.toHaveBeenCalled();
+  expect(old.camera.zoom).not.toHaveBeenCalled();
 
   const replacement = fakeRenderer();
   await ready(1, replacement);
-  expect(replacement.setFrame).toHaveBeenCalledWith(latest, 100, false);
+  expect(replacement.setFrame).toHaveBeenCalledWith(latest, 100);
   await act(async () => host.querySelector("button")!.click());
-  expect(replacement.zoom).toHaveBeenCalledWith(1.25);
+  expect(replacement.camera.zoom).toHaveBeenCalledWith(1.25);
 });
 
 it("disposes an initialization that finishes after a newer renderer is ready", async () => {
@@ -165,7 +165,7 @@ it("shows an actionable error when assets fail and retries initialization", asyn
   const r = fakeRenderer();
   await ready(0, r);
   expect(host.querySelector('[role="alert"]')).toBeNull();
-  expect(r.setFrame).toHaveBeenCalledWith(frame, 100, false);
+  expect(r.setFrame).toHaveBeenCalledWith(frame, 100);
   expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe("hidden");
   await render(ruleset, frame, true);
   expect(getComputedStyle(host.querySelector(".canvas-host")!).visibility).toBe("visible");

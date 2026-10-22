@@ -60,7 +60,7 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
     GameRenderer.create(host.current!, ruleset, colors, { fitOnResize: bare, interactive, spriteBase }).then((x) => {
       if (cancelled) return x.destroy();
       r = x;
-      if (reveal) x.prepareReveal();
+      if (reveal) x.scene.prepareReveal();
       renderer.current = x;
       setRendererVersion((version) => version + 1);
     }).catch(() => { if (!cancelled) setFailed(true); });
@@ -94,17 +94,17 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
     // Layout can move the area without resizing it (fonts, text above), so watch its neighbours too.
     const measure = () => {
       const a = area.getBoundingClientRect(), c = canvas.getBoundingClientRect();
-      r.setFocusArea({ x: Math.round(a.left - c.left), y: Math.round(a.top - c.top), w: Math.round(a.width), h: Math.round(a.height) });
+      r.camera.setFocusArea({ x: Math.round(a.left - c.left), y: Math.round(a.top - c.top), w: Math.round(a.width), h: Math.round(a.height) });
     };
     measure();
     const observer = new ResizeObserver(measure);
     for (const el of [area, canvas, ...(area.parentElement ? [...area.parentElement.children] : [])]) observer.observe(el);
     // On unmount the renderer is destroyed first; only a live one is reframed.
-    return () => { observer.disconnect(); if (renderer.current === r) r.setFocusArea(undefined); };
+    return () => { observer.disconnect(); if (renderer.current === r) r.camera.setFocusArea(undefined); };
   }, [rendererVersion, focusArea]);
 
   useEffect(() => {
-    if (focus !== undefined) renderer.current?.focus(focus);
+    if (focus !== undefined) renderer.current?.camera.focus(focus);
   }, [rendererVersion, focus]);
 
   useEffect(() => {
@@ -115,13 +115,14 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
     if (!renderer.current || !frame) return;
     const jump = lastJump.current !== jumpKey;
     lastJump.current = jumpKey;
-    renderer.current.setFrame(frame, tickMs, jump);
+    if (jump) renderer.current.seek(frame, tickMs);
+    else renderer.current.setFrame(frame, tickMs);
     if (!presented) setPresented(true);
   }, [rendererVersion, frame, tickMs, jumpKey]);
 
   useEffect(() => {
     if (!renderer.current || !presented || !visible || shown.current) return;
-    if (reveal) renderer.current.reveal();
+    if (reveal) renderer.current.scene.reveal();
     // Pixi draws on the next animation frame; report after it is painted.
     readyRaf.current = requestAnimationFrame(() => {
       readyRaf.current = requestAnimationFrame(() => {
@@ -137,8 +138,8 @@ export function GameCanvas({ ruleset, colors, frame, tickMs, paused = false, jum
       {failed && <div className="load-state" role="alert"><p>Couldn’t load the battlefield.</p><button onClick={() => setAttempt(a => a + 1)}>Try again</button></div>}
       {!bare && interactive && (
         <div className="zoom">
-          <button onClick={() => renderer.current?.zoom(1.25)} title="zoom in">+</button>
-          <button onClick={() => renderer.current?.zoom(0.8)} title="zoom out">−</button>
+          <button onClick={() => renderer.current?.camera.zoom(1.25)} title="zoom in">+</button>
+          <button onClick={() => renderer.current?.camera.zoom(0.8)} title="zoom out">−</button>
         </div>
       )}
     </div>

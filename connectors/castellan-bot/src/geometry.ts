@@ -3,36 +3,18 @@
  * rotations, distances and the layout of a seat's corner. Nothing here reads
  * hidden state; every player can compute the same from the map description.
  */
-import type { MapSpec } from "@castellan/shared";
+import { dist as tileDistance, mapToSeat as tileInSeat, seatToMap as tileOnMap, type MapSpec } from "@castellan/shared";
 
 export interface Pt { x: number; y: number }
 
-/** Game distance: Euclidean rounded to the nearest whole tile (as in the rules). */
-export function dist(a: Pt, b: Pt): number {
-  const n = (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
-  const r = Math.floor(Math.sqrt(n));
-  return n - r * r > r ? r + 1 : r;
-}
-/** Chebyshev distance: steps in 8 directions, ignoring the diagonal cost. */
+/** The rules' game distance between two points. */
+export const dist = (a: Pt, b: Pt): number => tileDistance(a.x, a.y, b.x, b.y);
+/** Chebyshev distance: steps in 8 directions, ignoring the diagonal cost. Grouping only, never range. */
 const cheb = (a: Pt, b: Pt): number => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
-/** Where a tile of the listed layout lands for seat 0..3 (as listed, 180°, 90°, 270°). */
-function seatToMap({ x, y }: Pt, seat: number, { width: w, height: h }: MapSpec): Pt {
-  switch (seat) {
-    case 1: return { x: w - 1 - x, y: h - 1 - y };
-    case 2: return { x: w - 1 - y, y: x };
-    case 3: return { x: y, y: h - 1 - x };
-    default: return { x, y };
-  }
-}
-function mapToSeat({ x, y }: Pt, seat: number, { width: w, height: h }: MapSpec): Pt {
-  switch (seat) {
-    case 1: return { x: w - 1 - x, y: h - 1 - y };
-    case 2: return { x: y, y: w - 1 - x };
-    case 3: return { x: h - 1 - y, y: x };
-    default: return { x, y };
-  }
-}
+/** Where a tile of the listed layout lands for a seat, and back. */
+const seatToMap = ({ x, y }: Pt, seat: number, map: MapSpec): Pt => { const [mx, my] = tileOnMap(x, y, seat, map.width, map.height); return { x: mx, y: my }; };
+const mapToSeat = ({ x, y }: Pt, seat: number, map: MapSpec): Pt => { const [sx, sy] = tileInSeat(x, y, seat, map.width, map.height); return { x: sx, y: sy }; };
 
 const listedCastle = (map: MapSpec): Pt => map.start.find((s) => s.kind === "castle") ?? { x: 4, y: 4 };
 const seatBases = (map: MapSpec): Pt[] => Array.from({ length: map.seats ?? 2 }, (_, seat) => seatToMap(listedCastle(map), seat, map));

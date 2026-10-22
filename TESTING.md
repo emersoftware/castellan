@@ -114,3 +114,13 @@ their behavior plus result and presentation checks. It removed the repeated
 Follow-up: separate the sandbox heap-limit assertion from the gas limit. Its
 current broad error assertion does not prove which guard stopped the script.
 Strengthen it with a controlled mutation before you claim heap coverage.
+
+## Disposable open arena
+
+`pnpm test connectors/open-arena/test/arena.test.ts` owns the experimental gateway,
+source-IP attribution, planted capabilities and bounded artifact reads.
+`pnpm arena smoke` additionally builds and exercises the actual Docker boundary
+with local fixture players; it needs Docker Desktop and at least 8 GiB free.
+It does not use provider credentials. See [the experiment contract](connectors/open-arena/README.md)
+for evidence, cleanup and limits. A passing unit suite alone does not establish
+that Docker containment or a real provider session worked.

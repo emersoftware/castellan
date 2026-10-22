@@ -4,10 +4,10 @@ import { mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { setTimeout as sleep } from "node:timers/promises";
-import { connectorVersion, launchConfiguration, reportConfiguration, reportActivity } from "../metadata.mjs";
-import { observedSeat, seat, seatOver, serverUrl } from "../game.mjs";
-import { MIN_INTERVAL_MS, promptOf, turnFor } from "../turns.mjs";
+import { connectorVersion, launchConfiguration, reportConfiguration } from "../metadata.mjs";
+import { serverUrl } from "../game.mjs";
+import { MIN_INTERVAL_MS, promptOf } from "../turns.mjs";
+import { exitOf, playSeat } from "../decisions.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 /** The Codex CLI to run: CASTELLAN_CODEX_BIN, else `codex` on PATH. */
@@ -42,75 +42,30 @@ function codexArgs({ workspace, session, args, prompt }) {
  * every later decision resumes this match's conversation. */
 export async function play({ env = process.env, args = process.argv.slice(2), fetchImpl = fetch, spawnImpl = spawn,
   minIntervalMs = MIN_INTERVAL_MS, pollMs = 2000 } = {}) {
+  if (env.CASTELLAN_OPEN === "1") { const { playOpen } = await import("../../open-arena/src/agent.mjs"); await playOpen(env.CASTELLAN_ARENA_SEAT); return 0; }
   if (!env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN");
   const root = await mkdtemp(join(tmpdir(), "castellan-codex-"));
-  let child, session, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0;
-  const abort = new AbortController();
-  const stop = () => { stopped = true; abort.abort(); child?.kill("SIGTERM"); };
-  const game = seat({ env, fetchImpl, signal: abort.signal });
-  const delay = ms => sleep(ms, undefined, { signal: abort.signal });
-  let watcher;
   try {
     const { home, workspace } = await isolatedHome(root, env);
-    const base = promptOf(env);
-    await reportConfiguration(launchConfiguration({ connector: "codex", args, prompt: base, env,
+    const prompt = promptOf(env);
+    await reportConfiguration(launchConfiguration({ connector: "codex", args, prompt, env,
       connectorVersion: env.CASTELLAN_CONNECTOR_VERSION || await connectorVersion(codexBin(env)) }), { env, fetchImpl });
-    process.on("SIGINT", stop); process.on("SIGTERM", stop);
-    const watch = async () => {
-      if (stopped) return;
-      try {
-        if (seatOver(await game.status())) { finished = true; stop(); return; }
-      } catch { /* next poll */ }
-      if (!stopped) watcher = setTimeout(watch, pollMs);
-    };
-    watcher = setTimeout(watch, pollMs);
-    while (!stopped) {
-      const started = Date.now();
-      try {
-        const observation = await game.observation(lastDeliveredTick);
-        const seen = observedSeat(observation);
-        if (seatOver(seen)) { finished = true; break; }
-        const prompt = turnFor(observation, { delivered: Boolean(session), prompt: base });
-        if (!prompt) { await delay(1000); continue; }
-        const observedTick = seen.tick;
-        await reportActivity("deciding", { env, fetchImpl });
-        child = spawnImpl(codexBin(env), codexArgs({ workspace, session, args, prompt }), {
-          cwd: workspace, env: { ...env, CASTELLAN_SERVER: serverUrl(env.CASTELLAN_SERVER), CODEX_HOME: home }, stdio: ["ignore", "pipe", "inherit"],
-        });
-        let pending = "", turnComplete = false;
-        const line = raw => {
-          try {
-            const event = JSON.parse(raw);
-            if (event.type === "thread.started" && typeof event.thread_id === "string") session = event.thread_id;
-            if (event.type === "turn.completed") turnComplete = true;
-          } catch { /* plain CLI diagnostics */ }
-        };
-        child.stdout.on("data", chunk => {
-          process.stdout.write(chunk);
-          const lines = (pending + chunk).split("\n"); pending = lines.pop() ?? ""; lines.forEach(line);
-        });
-        const code = await new Promise((resolveCode, reject) => { child.on("error", reject); child.on("close", resolveCode); });
-        line(pending); child = undefined;
-        if (stopped) break;
-        if (code !== 0 || !turnComplete || !session) throw new Error(`Codex decision incomplete (exit ${code})`);
-        if (Number.isFinite(observedTick)) lastDeliveredTick = observedTick;
-        failures = 0;
-        await reportActivity("between_decisions", { env, fetchImpl });
-        await delay(Math.max(0, minIntervalMs - (Date.now() - started)));
-      } catch (error) {
-        if (stopped) break;
-        failures++;
-        const ms = Math.min(30_000, 2000 * failures);
-        console.error(`castellan codex: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
-        await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + ms).toISOString() });
-        await delay(ms).catch(() => {});
-      }
-    }
-    return finished ? 0 : 1;
+    return await playSeat({ name: "codex", prompt, env, fetchImpl, minIntervalMs, pollMs, decide: async (turn, { session, signal }) => {
+      const child = spawnImpl(codexBin(env), codexArgs({ workspace, session, args, prompt: turn }), {
+        cwd: workspace, env: { ...env, CASTELLAN_SERVER: serverUrl(env.CASTELLAN_SERVER), CODEX_HOME: home }, stdio: ["ignore", "pipe", "inherit"],
+      });
+      let thread = session, turnComplete = false;
+      const code = await exitOf(child, signal, raw => {
+        try {
+          const event = JSON.parse(raw);
+          if (event.type === "thread.started" && typeof event.thread_id === "string") thread = event.thread_id;
+          if (event.type === "turn.completed") turnComplete = true;
+        } catch { /* plain CLI diagnostics */ }
+      });
+      if (code !== 0 || !turnComplete || !thread) throw Object.assign(new Error(`Codex decision incomplete (exit ${code})`), { session: thread });
+      return { session: thread };
+    } });
   } finally {
-    stop(); clearTimeout(watcher);
-    process.off("SIGINT", stop); process.off("SIGTERM", stop);
-    await reportActivity("stopped", { env, fetchImpl });
     await rm(root, { recursive: true, force: true });
   }
 }

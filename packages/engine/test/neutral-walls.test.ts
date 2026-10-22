@@ -1,7 +1,8 @@
 import { afterEach, expect, it } from "vitest";
 import { MAPS, NEUTRAL_OWNER, playerGuide, rules, viewToText, type ReplayFile, type Ruleset } from "@castellan/shared";
 import { createMatch, findPath, runReplay, type Match } from "../src";
-import { seatToMap, type Grid } from "../src/grid";
+import { seatToMap } from "@castellan/shared";
+import type { Grid } from "../src/grid";
 
 const matches: Match[] = [];
 afterEach(() => { for (const m of matches.splice(0)) m.dispose(); });

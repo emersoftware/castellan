@@ -91,7 +91,7 @@ it('applies replay speed changes, completes after the final snapshot and cleans 
   h.time(2250); h.internal.animate(); expect(h.last()[2]?.frame).toBe(12);
   h.time(2650); h.internal.animate(); expect(h.last()[2]?.frame).toBe(21);
   expect(h.sprite.destroyed).toBe(false);
-  h.renderer.setFrame(h.frame(1, [h.entity]), 100, true);
+  h.renderer.seek(h.frame(1, [h.entity]), 100);
   expect(h.sprite.destroyed).toBe(true);
   expect(h.internal.effects).toHaveLength(0);
 });

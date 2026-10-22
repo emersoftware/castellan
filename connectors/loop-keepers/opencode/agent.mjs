@@ -5,11 +5,11 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { setTimeout as sleep } from "node:timers/promises";
-import { connectorVersion, launchConfiguration, reportConfiguration, reportActivity } from "../metadata.mjs";
-import { configFile, observedSeat, seat, seatOver, serverUrl } from "../game.mjs";
+import { connectorVersion, launchConfiguration, reportConfiguration } from "../metadata.mjs";
+import { configFile, serverUrl } from "../game.mjs";
 import { loadKey as loadDeepSeekKey } from "../deepseek/key.mjs";
-import { MIN_INTERVAL_MS, promptOf, turnFor } from "../turns.mjs";
+import { MIN_INTERVAL_MS, promptOf } from "../turns.mjs";
+import { exitOf, playSeat } from "../decisions.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_MODEL = "openrouter/~deepseek/deepseek-flash-latest";
@@ -166,77 +166,26 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   console.error(`castellan opencode: ${opts.model}${opts.variant ? ` (${opts.variant})` : ""}; logs ${root}${env.CASTELLAN_DIRECTIVE ? `; directive: ${env.CASTELLAN_DIRECTIVE}` : ""}`);
   await reportConfiguration(launchConfiguration({ connector: "opencode", model: opts.model, effort: opts.variant,
     connectorVersion: env.CASTELLAN_CONNECTOR_VERSION || await connectorVersion(env.CASTELLAN_OPENCODE_BIN || "opencode"), prompt: base, env }), { env, fetchImpl });
-  let child, session, watcher, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0;
   const lines = [];
-  const abort = new AbortController();
-  const stop = () => { stopped = true; abort.abort(); child?.kill("SIGTERM"); };
-  const game = seat({ env, fetchImpl, signal: abort.signal });
-  const delay = ms => sleep(ms, undefined, { signal: abort.signal });
-  process.on("SIGINT", stop); process.on("SIGTERM", stop);
-  // A model request in flight when the match ends would otherwise keep the process alive.
-  const watch = async () => {
-    if (stopped) return;
-    try {
-      if (seatOver(await game.status())) { finished = true; stop(); return; }
-    } catch { /* next poll */ }
-    if (!stopped) watcher = setTimeout(watch, pollMs);
-  };
-  watcher = setTimeout(watch, pollMs);
   try {
-    while (!stopped) {
-      const started = Date.now();
-      try {
-        const observation = await game.observation(lastDeliveredTick);
-        const seen = observedSeat(observation);
-        if (seatOver(seen)) { finished = true; break; }
-        const prompt = turnFor(observation, { delivered: Boolean(session), prompt: base, resumed: Boolean(env.CASTELLAN_RESUME) });
-        if (!prompt) { await delay(1000); continue; }
-        const observedTick = seen.tick;
-        await reportActivity("deciding", { env, fetchImpl });
-        child = spawnImpl(env.CASTELLAN_OPENCODE_BIN || "opencode", [...player.args, ...(session ? ["--session", session] : []), prompt],
-          { cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "inherit"] });
-        const turn = [];
-        let pending = "";
-        child.stdout.on("data", chunk => {
-          process.stdout.write(chunk);
-          const parts = (pending + chunk).split("\n"); pending = parts.pop() ?? ""; turn.push(...parts);
-        });
-        const code = await new Promise((resolveCode, reject) => { child.on("error", reject); child.on("close", resolveCode); });
-        turn.push(pending); child = undefined;
-        lines.push(...turn);
-        if (stopped) break;
-        const retry = code !== 0 ? providerRetryAfter(turn) : null;
-        if (retry) {
-          await reportActivity("provider_wait", { env, fetchImpl, retryAt: new Date(Date.now() + retry.delayMs).toISOString() });
-          console.error(`castellan opencode: ${retry.reason}; waiting ${retry.delayMs / 1000}s (Retry-After); the match keeps running`);
-          await delay(retry.delayMs);
-          continue;
-        }
-        // Adopt a session only once a decision completed, so a failed first turn resends the full prompt.
-        const id = turn.map(l => { try { return JSON.parse(l).sessionID; } catch { return undefined; } }).find(Boolean);
-        if (code !== 0 || !(session ??= id)) throw new Error(`OpenCode decision incomplete (exit ${code})`);
-        if (Number.isFinite(observedTick)) lastDeliveredTick = observedTick;
-        failures = 0;
-        await reportActivity("between_decisions", { env, fetchImpl });
-        await delay(Math.max(0, minIntervalMs - (Date.now() - started)));
-      } catch (error) {
-        if (stopped) break;
-        failures++;
-        const ms = Math.min(30_000, 2000 * failures);
-        console.error(`castellan opencode: ${/** @type {Error} */ (error).message}; retry in ${ms / 1000}s, preserving session and observation cursor`);
-        await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + ms).toISOString() });
-        await delay(ms).catch(() => {});
-      }
-    }
-    return finished ? 0 : 1;
+    return await playSeat({ name: "opencode", prompt: base, env, fetchImpl, minIntervalMs, pollMs, decide: async (turn, { session, signal }) => {
+      const child = spawnImpl(env.CASTELLAN_OPENCODE_BIN || "opencode", [...player.args, ...(session ? ["--session", session] : []), turn],
+        { cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "inherit"] });
+      const output = [];
+      const code = await exitOf(child, signal, line => output.push(line));
+      lines.push(...output);
+      const retry = code !== 0 ? providerRetryAfter(output) : null;
+      if (retry) throw Object.assign(new Error(retry.reason), { retryAfterMs: retry.delayMs });
+      // Adopt a session only once a decision completed, so a failed first turn resends the full prompt.
+      const next = session ?? output.map(l => { try { return JSON.parse(l).sessionID; } catch { return undefined; } }).find(Boolean);
+      if (code !== 0 || !next) throw new Error(`OpenCode decision incomplete (exit ${code})`);
+      return { session: next };
+    } });
   } finally {
-    stop(); clearTimeout(watcher);
-    process.off("SIGINT", stop); process.off("SIGTERM", stop);
     const totals = usage(lines);
     await writeFile(join(root, "events.jsonl"), lines.join("\n"), { mode: 0o600 });
     await writeFile(join(root, "usage.json"), JSON.stringify(totals, null, 2), { mode: 0o600 });
     console.error(`castellan opencode usage: ${JSON.stringify(totals)}`);
-    await reportActivity("stopped", { env, fetchImpl });
   }
 }
 

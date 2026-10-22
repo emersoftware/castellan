@@ -1,7 +1,7 @@
 import { afterEach, expect, it } from "vitest";
 import { rules, type Ruleset, type ReplayFile } from "@castellan/shared";
 import { createMatch, runReplay, type Match, type PlayerOrder } from "../src";
-import { seatToMap } from "../src/grid";
+import { seatToMap } from "@castellan/shared";
 
 const live: Match[] = [];
 afterEach(() => { for (const m of live.splice(0)) m.dispose(); });

@@ -9,12 +9,13 @@
 // OBJECTIVE=rps, each scenario's result (ln of A's loss ÷ B's loss) hits its rock-paper-scissors target.
 //   npx tsx src/balance-optimize.mts [generations] [hours]   → /tmp/castellan-opt/opt.log, /tmp/castellan-opt/best.json
 //   BATTLES=file, VARIANTS=n (first n stagings: as recorded, open, jittered), FROM=values.json (search start),
+//   SCRIPTS=script-sets.json (player-written script pairs for the designed battles; none without it),
 //   STARTS=a.json,b.json,… (fight each, start from the most balanced; distance is then measured from it)
 import { spawn } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { PARAMS, legal, start as snapped, type Values } from "./balance-params";
-import { SCENARIOS, SYNTHETIC_COUNT, scenarioOf } from "./synthetic";
+import { RECORDED_SCRIPTS, SCENARIOS, SYNTHETIC_COUNT, scenarioOf } from "./synthetic";
 import { splitReplays } from "./experiment-split";
 import type { EntityKind } from "@castellan/shared";
 import type { Snapshot } from "./battles";
@@ -53,6 +54,7 @@ const workers = Array.from({ length: WORKERS }, () => {
 });
 process.on("exit", () => { for (const w of workers) w.child.kill(); });
 const log = (s: string) => { console.log(s); appendFileSync(`${OUT_DIR}/opt.log`, s + "\n"); };
+if (SYNTH) log(`designed battles: ${SYNTHETIC_COUNT}, with ${RECORDED_SCRIPTS.source ? `${RECORDED_SCRIPTS.sets.length} recorded script sets from ${RECORDED_SCRIPTS.source}` : "built-in scripts only (set SCRIPTS to add recorded ones)"}`);
 
 type Stats = { destroyed: Record<string, number>; lost: Record<string, number>; loss?: [number, number] };
 const TALLIES: Exclude<keyof Stats, "loss">[] = ["destroyed", "lost"];
@@ -195,12 +197,12 @@ for (let g = 1, stale = 0; g <= GENERATIONS && Date.now() < DEADLINE && stale < 
 }
 // Freeze the winner before the single final test stage. Baseline is measured alongside it
 // for comparison, never used to choose another candidate after seeing test performance.
-writeFileSync(`${OUT_DIR}/validated.json`, JSON.stringify({ ...validated, improved: JSON.stringify(validated.values) !== JSON.stringify(from) }, null, 1));
+writeFileSync(`${OUT_DIR}/validated.json`, JSON.stringify({ ...validated, improved: JSON.stringify(validated.values) !== JSON.stringify(from), designedScripts: RECORDED_SCRIPTS.source }, null, 1));
 const baselineTest = score(from, await fight(from, test), test);
 const selectedTest = JSON.stringify(validated.values) === JSON.stringify(from) ? baselineTest
   : score(validated.values, await fight(validated.values, test), test);
 log(`final test baseline: ${baselineTest.balance.toFixed(4)}; frozen selected candidate: ${selectedTest.balance.toFixed(4)}`);
-writeFileSync(`${OUT_DIR}/final-test.json`, JSON.stringify({ values: validated.values, baseline: baselineTest, selected: selectedTest,
+writeFileSync(`${OUT_DIR}/final-test.json`, JSON.stringify({ values: validated.values, baseline: baselineTest, selected: selectedTest, designedScripts: RECORDED_SCRIPTS.source,
   replays: [...partitions].filter(([, p]) => p === "test").map(([id]) => id),
   note: "Diagnostic objective only. Do not tune candidates against this report; use new games for the next independent test." }, null, 2));
 for (const w of workers) w.child.kill();

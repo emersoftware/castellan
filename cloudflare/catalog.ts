@@ -3,7 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import type { ReplayFile, SeriesSummary } from "../packages/shared/src/protocol";
-import { playerResult } from "../packages/shared/src/outcome";
+import { seriesStandings } from "../packages/shared/src/outcome";
 import { replayPlayerSummaries, type ReplayPlayerSummary } from "../packages/shared/src/replayMetadata";
 import { replayArchive } from "../packages/shared/src/replayArchive";
 import { hasScriptedBot } from "../packages/web/src/replayCatalog";
@@ -62,16 +62,7 @@ export function completeSeries(entries: Publication["replays"], titles: Record<s
     if (games.some((g) => JSON.stringify(g.replay.players.map(({ id, name, team }, i) => ({ id, name, team: team ?? i }))) !== JSON.stringify(players))) {
       throw new Error(`Series ${id} has inconsistent players`);
     }
-    const score = Object.fromEntries(players.map((p) => [p.id, 0]));
-    const losses = Object.fromEntries(players.map((p) => [p.id, 0]));
-    for (const { replay } of games) for (const winner of replay.outcome.winners ?? (replay.outcome.winner ? [replay.outcome.winner] : [])) {
-      if (!(winner in score)) throw new Error(`Unknown winner in series ${id}`);
-      score[winner]++;
-    }
-    for (const { replay } of games) for (const p of players) if (playerResult(replay.outcome, p.id) === "loss") losses[p.id]++;
-    const max = Math.max(...Object.values(score));
-    const leaders = players.filter((p) => score[p.id] === max);
-    const winners = new Set(leaders.map((p) => p.team)).size === 1 ? leaders.map((p) => p.id) : [];
+    const { score, losses, leaders: winners } = seriesStandings(players, games.map(({ replay }) => replay.outcome));
     series.push({ savedAt: games.map((g) => g.summary.savedAt).sort().at(-1)!, summary: {
       id, title: titles[id] ?? `${players.map((p) => p.name).join(" vs. ")}: three-game series`,
       createdAt: games[0].replay.createdAt, totalGames: 3, currentGame: 3, status: "finished", players, score, losses, winners,
