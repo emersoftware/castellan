@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
 import { expect, it, vi } from "vitest";
 
-const deck = new URL("../../../talks/devday-concepcion-2026/", import.meta.url);
+const deck = new URL("../public/devday/", import.meta.url);
 
 it("navigates every public slide forward and back without speaker notes or a presenter", () => {
   const dom = new JSDOM(readFileSync(new URL("index.html", deck), "utf8"), {

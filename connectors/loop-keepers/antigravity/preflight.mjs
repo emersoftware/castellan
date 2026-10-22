@@ -7,10 +7,10 @@ import { createServer } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { routes } from "../../../packages/shared/src/http.ts";
+import { routes } from "@castellan/shared";
 import { preparePlayer } from "./play.mjs";
 import { startToolBridge } from "./tool.mjs";
-/** @import { Effort } from "../../../packages/shared/src/replayMetadata.ts" */
+/** @import { Effort } from "@castellan/shared" */
 
 // The diagnostic reads these routes; each one answers as the game tool of the same name.
 const probedRoutes = [routes.guide, routes.state];

@@ -5,12 +5,13 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { replayArchive, replayPlayerSummaries, rules, type ReplayFile } from "@castellan/shared";
+import { localReplays } from "@castellan/shared/local-data";
 import type { ReplaySummary } from "../src/api";
 import { catalogBattles, hasScriptedBot } from "../src/replayCatalog";
 
 const root = resolve(import.meta.dirname, "../../..");
 const destination = resolve(root, replayArchive.featured);
-const local = resolve(root, replayArchive.local);
+const local = localReplays();
 await mkdir(destination, { recursive: true });
 const existing = JSON.parse(await readFile(resolve(destination, replayArchive.index), "utf8")) as ReplaySummary[];
 const titles = new Map(existing.map((entry) => [entry.id, entry.title]));

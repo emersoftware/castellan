@@ -122,21 +122,6 @@ else self.moveTo(${king.x}, ${king.y});`;
   });
 });
 
-describe("replay", () => {
-  it("re-simulates a recorded match exactly", async () => {
-    const { simulate, BOTS } = await import("@castellan/sim");
-    const { runReplay } = await import("../src");
-    const r = await simulate({ bot: BOTS.eco(), latencyMs: 2000 }, { bot: BOTS.rush(), latencyMs: 3000 }, { seed: 9, ruleset: rules });
-    let frames = 0;
-    const check = await runReplay({
-      format: 1, id: "t", createdAt: "", ruleset: rules, seed: 9, tickRate: 10, players,
-      orders: r.orders, hashes: r.hashes, finalTick: r.ticks, outcome: r.outcome,
-    }, () => frames++);
-    expect(check).toEqual({ verified: true, desyncAt: undefined });
-    expect(frames).toBe(r.ticks + 1);
-  });
-});
-
 describe("building rules", () => {
   it("allows a tower rush to build next to the enemy castle and fight its base", async () => {
     const m = await make(seeAll(unlocked({ ...rules, startMineral: 400 })));

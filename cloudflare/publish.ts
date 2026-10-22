@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { collectPublication, publicationSQL, type Published } from "./catalog";
+import { localReplays } from "../packages/shared/src/localData";
 
 const args = process.argv.slice(2);
 // `--version v21b`: only games under that set of rules (the engine replays no other), and series made of them.
@@ -13,7 +14,7 @@ const onlyAt = args.indexOf("--only"), only = onlyAt >= 0 ? new Set(args.splice(
 if (onlyAt >= 0 && !only?.size) throw new Error("--only needs comma-separated replay ids");
 if (args.some((arg) => !["--local", "--dry-run"].includes(arg))) throw new Error("Usage: pnpm publish:replays [--local] [--dry-run] [--version <prefix>] [--only <id,...>]");
 const root = resolve(import.meta.dirname, "..");
-const publication = await collectPublication(root);
+const publication = await collectPublication(root, localReplays());
 if (only) {
   const missing = [...only].filter((id) => !publication.replays.some((r) => r.replay.id === id));
   if (missing.length) throw new Error(`Not publishable or not found: ${missing.join(", ")}`);

@@ -4,7 +4,7 @@
  * return), and a tiny room layer adds chat the way the server does.
  */
 import { createMatch, type PlayerOrder } from "@castellan/engine";
-import { BOTS, type Bot } from "@castellan/sim";
+import { BOTS, type Bot } from "@castellan/bots";
 import { MAPS, rules as baseRules, type ChatMessage, type GameEvent, type Order, type Outcome, type RoomMode, type Ruleset } from "@castellan/shared";
 import { CastellanBot } from "../src/core";
 import type { JournalEntry } from "../src/types";

@@ -19,6 +19,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
+import { localReplays } from "../packages/shared/src/localData.ts";
 
 const root = resolve(import.meta.dirname, "..");
 type Config = { connector?: string | null; model?: string | null; effort?: string | null };
@@ -31,7 +32,7 @@ type Replay = {
 };
 
 const files = [
-  ...readdirSync(resolve(root, "replays")).filter(f => f.endsWith(".json.gz")).map(f => resolve(root, "replays", f)),
+  ...readdirSync(localReplays()).filter(f => f.endsWith(".json.gz")).map(f => resolve(localReplays(), f)),
   ...readdirSync(resolve(root, "packages/web/public/featured")).filter(f => /^[0-9a-f]+\.json$/.test(f)).map(f => resolve(root, "packages/web/public/featured", f)),
 ];
 const replays: Replay[] = [];

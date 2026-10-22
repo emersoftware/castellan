@@ -1,6 +1,6 @@
 // A harness plugin, not a replacement agent loop. Deny every non-game tool
 // at execution as well as filtering the model-visible catalog.
-import { GAME_TOOLS } from "../../../packages/shared/src/http.ts";
+import { GAME_TOOLS } from "@castellan/shared";
 
 /** @public dsh discovers this plugin's name through its runtime loader. */
 export const name = "castellan-game-tools";

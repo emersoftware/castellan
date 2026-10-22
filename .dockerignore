@@ -4,3 +4,5 @@ node_modules
 replays
 .git
 files.zip
+# The DevDay deck ships with the public site only.
+packages/web/public/devday

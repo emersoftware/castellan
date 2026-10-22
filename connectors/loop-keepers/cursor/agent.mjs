@@ -1,5 +1,5 @@
 // @ts-check
-/** @import { Effort } from "../../../packages/shared/src/replayMetadata.ts" */
+/** @import { Effort } from "@castellan/shared" */
 import { execFile, spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir, platform, tmpdir } from "node:os";

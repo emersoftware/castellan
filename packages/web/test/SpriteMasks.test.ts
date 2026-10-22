@@ -62,7 +62,7 @@ it.each([2, 3])("matches the reference masks at radius %s on borders, thin lines
 });
 
 it("matches the reference masks on a real animation atlas", async () => {
-  const path = new URL("../public/sprites/knight/knight-idle.png", import.meta.url).pathname;
+  const path = new URL("../../../assets/sprites/knight/knight-idle.png", import.meta.url).pathname;
   const { data, info } = await sharp(path).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const src = new Uint8ClampedArray(data);
   normalizeCharacterContrast(src);

@@ -14,7 +14,7 @@ import soundfile as sf
 from scipy.signal import butter, sosfilt
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE.parents[1] / 'packages/web/public/music/dos-voces-v1'
+OUT = HERE / 'dos-voces-v1'
 RATE, BPM, BARS = 32000, 95, 32
 BEAT = 60 / BPM
 LOOP = BARS * 4 * BEAT

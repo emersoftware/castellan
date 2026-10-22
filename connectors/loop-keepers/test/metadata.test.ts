@@ -14,7 +14,7 @@ import { efforts as cursorEfforts } from "../cursor/agent.mjs";
 import { efforts as agyEfforts } from "../antigravity/preflight.mjs";
 // @ts-expect-error Plain Node launcher.
 import { efforts as dshEfforts } from "../deepseek/agent.mjs";
-import { EFFORTS } from "../../../packages/shared/src/replayMetadata";
+import { EFFORTS } from "@castellan/shared";
 
 const exec = promisify(execFile);
 const dirs: string[] = [], servers: Server[] = [];

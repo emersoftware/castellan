@@ -4,7 +4,9 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createMatch, type MatchConfig, type PlayerOrder } from "@castellan/engine";
 import { MAPS, rules, type ExperimentManifest, type Ruleset } from "@castellan/shared";
-import { BOTS, simulate } from "../src";
+import { BOTS } from "@castellan/bots";
+import { runReplay } from "@castellan/engine";
+import { simulate } from "../src";
 import { assertBalanceReplay, replayContinuation, resumeBattle, runBattle, type Snapshot } from "../src/battles";
 import { splitReplays } from "../src/experiment-split";
 import { scenario } from "../src/synthetic";
@@ -183,4 +185,15 @@ it("adds player-written script pairs to the designed battles only when SCRIPTS n
     vi.unstubAllEnvs(); vi.resetModules();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+it("records a simulated match that the engine replays exactly", async () => {
+  const r = await simulate({ bot: BOTS.eco(), latencyMs: 2000 }, { bot: BOTS.rush(), latencyMs: 3000 }, { seed: 9, ruleset: rules });
+  let frames = 0;
+  const check = await runReplay({
+    format: 1, id: "t", createdAt: "", ruleset: rules, seed: 9, tickRate: 10, players,
+    orders: r.orders, hashes: r.hashes, finalTick: r.ticks, outcome: r.outcome,
+  }, () => frames++);
+  expect(check).toEqual({ verified: true, desyncAt: undefined });
+  expect(frames).toBe(r.ticks + 1);
 });

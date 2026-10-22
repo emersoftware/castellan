@@ -14,7 +14,7 @@ pnpm castellan new --name castellan --bot eco       # a room; prints CASTELLAN_T
 CASTELLAN_TOKEN=<token> pnpm castellan-bot
 ```
 
-Flags: `--log <dir>` (default `runs/castellan-bot`), `--name`, `--wait <s>` (long-poll per cycle,
+Flags: `--log <dir>` (default `~/.local/share/castellan/runs/castellan-bot`), `--name`, `--wait <s>` (long-poll per cycle,
 default 1). The player works with `castellan run`, `castellan run-series`, teams and free-for-all
 rooms, with or without chat. It never reads the spectator link.
 

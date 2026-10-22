@@ -5,6 +5,7 @@
   "exports": { ".": "./src/index.ts" },
   "scripts": { "sim": "tsx src/cli.ts" },
   "dependencies": {
+    "@castellan/bots": "workspace:*",
     "@castellan/shared": "workspace:*",
     "@castellan/engine": "workspace:*"
   }

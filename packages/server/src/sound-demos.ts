@@ -7,15 +7,14 @@
  *   pnpm --filter @castellan/server exec tsx src/sound-demos.ts [keep]
  */
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { createMatch, type PlayerOrder } from "@castellan/engine";
-import { hasBuildOrder, type Bot } from "@castellan/sim";
-import { replayArchive, rules, type EntityKind, type GameEvent, type Order, type PlayerView, type RecordedKind, type ReplayFile, type SoundName } from "@castellan/shared";
-import { saveReplay } from "./app";
+import { hasBuildOrder, type Bot } from "@castellan/bots";
+import { rules, type EntityKind, type GameEvent, type Order, type PlayerView, type RecordedKind, type ReplayFile, type SoundName } from "@castellan/shared";
+import { localReplays } from "@castellan/shared/local-data";
+import { ReplayArchive } from "./archive";
 
-const root = resolve(fileURLToPath(import.meta.url), "../../../..");
-const dir = resolve(process.env.REPLAY_DIR ?? resolve(root, replayArchive.local));
+const archive = new ReplayArchive(resolve(localReplays()));
 const keep = Number(process.argv[2] ?? 2);
 const TICK_RATE = 10;
 const LATENCY_TICKS = 30;
@@ -144,7 +143,7 @@ const best = results.sort((x, y) => x.missing - y.missing || x.ticks - y.ticks)
   .filter((r, i, all) => all.findIndex((o) => o.setup === r.setup) === i).slice(0, keep);
 for (const r of best) {
   const id = randomBytes(4).toString("hex");
-  await saveReplay(dir, {
+  await archive.save({
     format: 1, id, createdAt: new Date().toISOString(), ruleset: rules, seed: r.seed, tickRate: TICK_RATE,
     players: [{ id: "p1", name: `demo:${r.setup}` }, { id: "p2", name: "demo:defend" }],
     orders: r.orders, hashes: r.hashes, finalTick: r.ticks, outcome: r.outcome,

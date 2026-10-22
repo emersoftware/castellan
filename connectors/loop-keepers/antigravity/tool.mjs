@@ -6,7 +6,7 @@ import { chmod, stat, writeFile, rm } from "node:fs/promises";
 import { createServer, createConnection } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { GAME_TOOLS } from "../../../packages/shared/src/http.ts";
+import { GAME_TOOLS } from "@castellan/shared";
 
 const names = new Set(GAME_TOOLS);
 const mcpBin = fileURLToPath(new URL("../../mcp/bin/castellan-mcp.mjs", import.meta.url));
@@ -163,7 +163,7 @@ async function callTool(argv, { socketPath }) {
 
 /**
  * Only mutation receipts have a known result header followed by a view.
- * @param {[import("../../../packages/shared/src/http.ts").GameTool, string]} argv
+ * @param {[import("@castellan/shared").GameTool, string]} argv
  * @param {string} text
  */
 function mutationPreview(argv, text) {

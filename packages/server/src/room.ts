@@ -1,7 +1,8 @@
 /**
  * A room runs one match in real time: it owns the clock, the order queue, the
  * long-poll waiters, the spectators and the replay. Everything a player can do
- * goes through the few public methods here; the HTTP layer only translates.
+ * goes through the few public methods here, and every call is recorded in its
+ * `experiment`; the HTTP layer only translates.
  */
 import { randomBytes } from "node:crypto";
 import { createMatch, resimulate, type Match, type MatchConfig } from "@castellan/engine";
@@ -9,9 +10,9 @@ import type { ScriptHost, ScriptHostFactory } from "@castellan/sandbox";
 import type {
   ChatMessage, GameEvent, MatchStatus, Order, OrderResult, PlayerId, PlayerTiming, PlayerView, ReplayFile, RoomMode, Ruleset, SeatStatus, SeriesProgress, SpectatorMessage, SpectatorView,
 } from "@castellan/shared";
-import { BOTS, type Bot } from "@castellan/sim";
-import { AGENT_ACTIVITY_STATES, API_LIMITS, isGenericConnector, playerGuide, type AgentActivity, type AgentConfiguration, type ExperimentManifest } from "@castellan/shared";
-import { engineIdentity, sha256, unknownAgent } from "./experiment";
+import { BOTS, type Bot } from "@castellan/bots";
+import { API_LIMITS, playerGuide, type AgentConfiguration, type ExperimentManifest } from "@castellan/shared";
+import { ExperimentRecorder } from "./experiment";
 import { createIsolatedScriptHost } from "./script-isolation";
 
 
@@ -96,9 +97,8 @@ export interface Spectator {
 
 export class Room {
   readonly spectatorToken: string;
-  private experiment: ExperimentManifest;
-  private lastActionAt = new Map<PlayerId, number>();
-  private activeCalls = new Set<ExperimentManifest["calls"][number]>();
+  /** What the players declare, call and take to decide; the HTTP layer records each call here. */
+  readonly experiment: ExperimentRecorder;
   private finishPublished = false;
   private finishTimer: NodeJS.Timeout | undefined;
   private publication: Promise<void> | undefined;
@@ -122,8 +122,6 @@ export class Room {
   private hashes: Record<number, string> = {};
   private timer: NodeJS.Timeout | null = null;
   private closed = false;
-  private runningSince = 0;
-  private timing = new Map<PlayerId, PlayerTiming & { answeredAt: number | null }>();
   private lastChat = new Map<PlayerId, number>();
   /** Tick of the last view returned to each player. */
   private seen = new Map<PlayerId, number>();
@@ -154,13 +152,10 @@ export class Room {
     } else if (opts.sides === "random" && seededCoin(opts.seed)) {
       for (const p of this.players) p.side = 1 - p.side;
     }
-    this.experiment = { schema: 1, engine: engineIdentity(), rulesSha256: sha256(JSON.stringify(this.ruleset)),
-      baseGuideSha256: sha256(playerGuide(this.ruleset, { tickRate: this.tickRate, chat: this.chat, teams: this.teams, playerCount: this.players.length })), mode: "independent",
-      players: Object.fromEntries(this.players.map((p, i) => {
-        const configuration = opts.players[i].agent ?? { ...unknownAgent(), ...(p.bot ? { model: `bot:${p.bot.name}`, connector: "reference-bot", memoryPolicy: "match-local" } : {}) };
-        return [p.id, { configuration, changes: [{ tick: 0, configuration }] }];
-      })),
-      calls: [], droppedCalls: 0 };
+    this.experiment = new ExperimentRecorder(this, this.players, {
+      ruleset: this.ruleset, agents: opts.players.map((p) => p.agent),
+      guide: playerGuide(this.ruleset, { tickRate: this.tickRate, chat: this.chat, teams: this.teams, playerCount: this.players.length }),
+    }, () => this.publishFinish());
   }
 
   static async create(opts: RoomOptions): Promise<Room> {
@@ -182,10 +177,10 @@ export class Room {
     const { onFinish: _, ...options } = this.opts;
     return {
       options: { ...options, spectatorToken: this.spectatorToken, id: this.id, createdAt: this.createdAt.toISOString() },
-      experiment: structuredClone(this.experiment),
+      experiment: this.experiment.manifest(),
       players: this.players.map(({ id, token, side, team }) => ({ id, token, side, team })),
       tick: this.tick, hash: this.match.hash(), orders: this.recorded, hashes: this.hashes,
-      timing: this.timingStats(), cursors: [...this.seen], lastChat: [...this.lastChat],
+      timing: this.experiment.timing(), cursors: [...this.seen], lastChat: [...this.lastChat],
     };
   }
 
@@ -202,11 +197,10 @@ export class Room {
     room.match = match;
     if (!check.verified) { match.dispose(); throw new Error(`checkpoint mismatch for room ${room.id} at tick ${check.desyncAt}`); }
     room.recorded = saved.orders;
-    if (saved.experiment) room.experiment = structuredClone(saved.experiment);
+    room.experiment.restore(saved.experiment, saved.timing, { finished: !!room.match.outcome });
     room.hashes = saved.hashes;
     room.seen = new Map(saved.cursors);
     room.lastChat = new Map(saved.lastChat);
-    for (const [player, timing] of Object.entries(saved.timing)) room.timing.set(player, { ...timing, answeredAt: null });
     if (room.match.outcome) {
       room.status = "finished";
       room.disposeMatch();
@@ -217,11 +211,11 @@ export class Room {
   replay(): ReplayFile | undefined {
     if (!this.match.outcome) return;
     return { format: 1, id: this.id, createdAt: this.createdAt.toISOString(), ruleset: this.ruleset,
-      experiment: { ...structuredClone(this.experiment), mode: this.seriesProgress ? "series" : "independent" },
+      experiment: this.experiment.manifest(this.seriesProgress ? "series" : "independent"),
       seed: this.opts.seed, tickRate: this.tickRate,
       players: this.players.map(({ id, name, side, team }) => ({ id, name, side, team })),
       orders: this.recorded, hashes: { ...this.hashes, [this.tick]: this.match.hash() }, finalTick: this.tick,
-      outcome: this.match.outcome, timing: this.timingStats(), chat: this.chat,
+      outcome: this.match.outcome, timing: this.experiment.timing(), chat: this.chat,
       ...(this.seriesProgress ? { series: { id: this.seriesProgress().id, gameNumber: this.seriesProgress().gameNumber, totalGames: 3 as const } } : {}),
     };
   }
@@ -250,95 +244,9 @@ export class Room {
   }
   get outcome() { return this.match.outcome; }
 
-  /**
-   * A player's call begins. The gap since we last answered it is its thinking
-   * time (model + harness), counted only while the match runs.
-   */
-  beginCall(player: PlayerId) {
-    const t = this.timingOf(player);
-    t.calls++;
-    const age = Math.max(0, this.tick - this.cursor(player));
-    t.observationAgeTicksTotal = (t.observationAgeTicksTotal ?? 0) + age;
-    t.observationAgeTicksMax = Math.max(t.observationAgeTicksMax ?? 0, age);
-    if (this.status === "running" && t.answeredAt !== null) {
-      const gap = Date.now() - Math.max(t.answeredAt, this.runningSince);
-      t.thinkMs += gap;
-      t.thinks++;
-      t.maxThinkMs = Math.max(t.maxThinkMs, gap);
-    }
-    t.answeredAt = null;
-  }
-
-  /** We answered a player's call. `waitedMs`: time it spent in a long-poll. */
-  endCall(player: PlayerId, waitedMs = 0) {
-    const t = this.timingOf(player);
-    t.answeredAt = Date.now();
-    if (this.status === "running") t.waitMs += waitedMs;
-  }
-
-  /** The host's declaration of a player's agent, replacing the previous one. */
-  configureAgent(player: PlayerId, configuration: AgentConfiguration) {
-    const record = this.experiment.players[player];
-    if (JSON.stringify(record.configuration) === JSON.stringify(configuration)) return;
-    if (record.changes.length >= 128) throw new Error("too many agent configuration changes");
-    record.changes.push({ tick: this.tick, configuration });
-    record.configuration = configuration;
-  }
-
-  /** A connector's declaration on each call: it adds known fields without erasing a host's more complete configuration. */
-  declareAgent(player: PlayerId, configuration: AgentConfiguration) {
-    const current = this.experiment.players[player].configuration;
-    const merged = { ...current, ...Object.fromEntries(Object.entries(configuration).filter(([, value]) => value !== null)) } as AgentConfiguration;
-    if (isGenericConnector(configuration.connector) && current.connector && !isGenericConnector(current.connector)) merged.connector = current.connector;
-    this.configureAgent(player, merged);
-  }
-
-  recordAgentActivity(player: PlayerId, body: unknown) {
-    const data = body as { state?: unknown; retryAt?: string } | null;
-    const state = AGENT_ACTIVITY_STATES.find((s) => s === data?.state);
-    if (!data || !state) throw new Error("invalid agent activity");
-    if (data.retryAt !== undefined && (typeof data.retryAt !== "string" || !Number.isFinite(Date.parse(data.retryAt)))) throw new Error("invalid retryAt");
-    const history = this.experiment.agentActivity ??= [];
-    if (history.length >= 20_000) return;
-    const activity: AgentActivity = { state, at: new Date().toISOString(), ...(data.retryAt ? { retryAt: new Date(data.retryAt).toISOString() } : {}) };
-    history.push({ player, tick: this.tick, activity });
-  }
-
-  openCall(player: PlayerId, tool: string): ExperimentManifest["calls"][number] {
-    const call = { player, tool, startedTick: this.tick, observationTick: this.cursor(player), answeredTick: null, durationMs: null, status: null };
-    // Calls started after completion belong to replay browsing, not competition.
-    if (this.status === "finished") return call;
-    this.activeCalls.add(call);
-    if (this.experiment.calls.length < 20_000) this.experiment.calls.push(call);
-    else this.experiment.droppedCalls++;
-    return call;
-  }
-
-  recordCall(call: ExperimentManifest["calls"][number]) {
-    if (!this.activeCalls.delete(call)) return;
-    if ((call.status ?? 0) >= 400 || call.failed) this.timingOf(call.player).toolErrors = (this.timingOf(call.player).toolErrors ?? 0) + 1;
-    if (this.state === "finished" && this.activeCalls.size === 0) this.publishFinish();
-  }
-
-  recordOperationalFailure(player: PlayerId, message: string, tick = this.tick) {
-    const failures = this.experiment.operationalFailures ??= [];
-    if (!failures.some((failure) => failure.player === player && failure.message === message)) failures.push({ tick, player, message });
-  }
-
   /** The whole conversation this player may read, oldest first, senders named by id. */
   conversation(player: PlayerId): ChatMessage[] {
     return this.match.chat(player).map((m) => ({ ...m, name: m.from }));
-  }
-
-  timingStats(): Record<PlayerId, PlayerTiming> {
-    const out: Record<PlayerId, PlayerTiming> = {};
-    for (const p of this.players) {
-      if (p.bot) continue;
-      const { answeredAt: _, ...t } = this.timingOf(p.id);
-      if (this.status === "running") t.maxActionGapMs = Math.max(t.maxActionGapMs ?? 0, Date.now() - (this.lastActionAt.get(p.id) ?? this.runningSince));
-      out[p.id] = t;
-    }
-    return out;
   }
 
   /** Any authenticated call counts as "connected". When everyone is, prep starts. */
@@ -371,7 +279,7 @@ export class Room {
     const v = this.match.spectate(since);
     v.status = this.status;
     for (const p of v.players) {
-      const activity = [...(this.experiment.agentActivity ?? [])].reverse().find(e => e.player === p.id)?.activity;
+      const activity = this.experiment.latestActivity(p.id);
       if (activity) p.agentActivity = { ...activity };
       const own = v.perspectives?.[p.id]?.players.find(q => q.id === p.id);
       if (own && activity) own.agentActivity = { ...activity };
@@ -391,10 +299,7 @@ export class Room {
     if (this.status !== "running") {
       return { results: orders.map(() => ({ ok: false, reason: `match is ${this.status}: orders and scripts are accepted once it is running` })), tick: this.tick };
     }
-    const t = this.timingOf(player);
-    t.decisions++;
-    t.orders += orders.length;
-    t.firstActionMs ??= Date.now() - this.runningSince;
+    const at = Date.now();
     // A player's orders for one tick share one capacity, however many requests they come in.
     let capacity = API_LIMITS.orders - this.queue.filter((q) => q.player === player).length;
     const settled = await Promise.all(orders.map((order) => {
@@ -404,12 +309,8 @@ export class Room {
       if (capacity-- <= 0) return refused(`over ${API_LIMITS.orders} orders this tick`);
       return order?.type === "chat" ? this.enqueueChat(player, order) : this.enqueue(player, order);
     }));
-    const rejected = settled.filter((s) => !s.result.ok).length;
-    t.rejectedOrders = (t.rejectedOrders ?? 0) + rejected;
-    if (settled.some((s, i) => s.result.ok && orders[i]?.type !== "chat")) {
-      t.maxActionGapMs = Math.max(t.maxActionGapMs ?? 0, Date.now() - (this.lastActionAt.get(player) ?? this.runningSince));
-      this.lastActionAt.set(player, Date.now());
-    }
+    this.experiment.decision(player, { at, orders: orders.length, rejected: settled.filter((s) => !s.result.ok).length,
+      acted: settled.some((s, i) => s.result.ok && orders[i]?.type !== "chat") });
     return { results: settled.map((s) => s.result), tick: settled[0]?.tick ?? this.tick };
   }
 
@@ -471,7 +372,7 @@ export class Room {
       map: this.ruleset.map.name,
       mode: this.mode,
       chat: this.opts.chat,
-      timing: this.timingStats(),
+      timing: this.experiment.timing(),
       players: this.players.map((p) => ({ id: p.id, name: p.name, bot: p.bot?.name, connected: p.seen, side: p.side, team: p.team })),
       outcome: this.match.outcome ?? undefined,
       ...(this.error ? { error: this.error } : {}),
@@ -533,7 +434,7 @@ export class Room {
 
   private run() {
     if (this.closed) return;
-    this.runningSince = Date.now();
+    this.experiment.running();
     this.setStatus("running");
     const ms = 1000 / this.tickRate;
     let next = Date.now();
@@ -559,7 +460,7 @@ export class Room {
     // Replays are published after the match and include both chat channels.
     for (const o of input) this.recorded.push({ tick: T, ...o });
     const { results, events } = this.match.step(input);
-    for (const event of events) if (event.type === "script_error" && event.operationalFailure) this.recordOperationalFailure(event.owner, event.message, event.tick);
+    for (const event of events) if (event.type === "script_error" && event.operationalFailure) this.experiment.operationalFailure(event.owner, event.message, event.tick);
     batch.forEach((b, i) => b.resolve?.({ result: results[i], tick: T }));
     if (T % 100 === 0) this.hashes[T] = this.match.hash();
     if (this.match.outcome) this.finish();
@@ -567,10 +468,7 @@ export class Room {
   }
 
   private finish() {
-    for (const p of this.players) {
-      const t = this.timingOf(p.id);
-      t.maxActionGapMs = Math.max(t.maxActionGapMs ?? 0, Date.now() - (this.lastActionAt.get(p.id) ?? this.runningSince));
-    }
+    this.experiment.finished();
     this.hashes[this.match.tick] = this.match.hash();
     // Finished rooms remain readable in the lobby/history, but their player
     // VMs no longer execute. Release workers now, not only at server shutdown.
@@ -579,7 +477,7 @@ export class Room {
     if (this.timer) clearTimeout(this.timer);
     // Resolve waits/orders first, then capture their final responses. A stalled
     // client cannot prevent persistence or advancing a series indefinitely.
-    if (this.activeCalls.size === 0) this.publishFinish();
+    if (this.experiment.settled) this.publishFinish();
     else this.finishTimer = setTimeout(() => this.publishFinish(), 1000);
   }
 
@@ -615,15 +513,6 @@ export class Room {
     if (this.spectators.size === 0) return;
     const msg: SpectatorMessage = { type: "tick", view: this.spectate() };
     for (const s of this.spectators) s.send(msg);
-  }
-
-  private timingOf(player: PlayerId) {
-    let t = this.timing.get(player);
-    if (!t) {
-      t = { calls: 0, decisions: 0, orders: 0, thinkMs: 0, thinks: 0, maxThinkMs: 0, waitMs: 0, firstActionMs: null, answeredAt: null };
-      this.timing.set(player, t);
-    }
-    return t;
   }
 
   private player(id: PlayerId): RoomPlayer {

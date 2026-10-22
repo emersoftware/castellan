@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import { readFile } from 'node:fs/promises';
 
 it.each(['castle', 'tower'])('%s has a moving flag, fixed masonry and transparent cell borders', async kind => {
-  const base = new URL(`../public/sprites/${kind}/`, import.meta.url);
+  const base = new URL(`../../../assets/sprites/${kind}/`, import.meta.url);
   const { idle: m } = JSON.parse(await readFile(new URL('manifest.json', base), 'utf8'));
   const { data, info } = await sharp(await readFile(new URL(m.image, base))).raw().toBuffer({resolveWithObject:true});
   expect(info.width).toBe(m.frameWidth * m.frameCount);

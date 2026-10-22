@@ -4,7 +4,9 @@
  *   pnpm sim --matrix            every bot against every bot
  *   pnpm sim --latency-curve     the same bot with different decision delays
  */
-import { BOTS, simulate, type BotName } from "./index";
+import { BOTS } from "@castellan/bots";
+import type { BotName } from "@castellan/shared";
+import { simulate } from "./index";
 import { MAPS, rules, playerResult } from "@castellan/shared";
 
 const args = new Map<string, string>();

@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import { collectPublication } from "./catalog";
+import { localReplays } from "../packages/shared/src/localData";
 import { pagePath, pages, publishedApi, publishedRoutes } from "../packages/shared/src/http";
 
 const base = process.argv[2] ?? "http://localhost:8787";
-const publication = await collectPublication(resolve(import.meta.dirname, ".."));
+const publication = await collectPublication(resolve(import.meta.dirname, ".."), localReplays());
 async function get(path: string) {
   const response = await fetch(new URL(path, base), { headers: { "cache-control": "no-cache" }, signal: AbortSignal.timeout(30_000) });
   assert.equal(response.status, 200, path);

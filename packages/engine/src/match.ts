@@ -1,17 +1,19 @@
 import type {
   ChatMessage, DepositView, EntityView, GameEvent, KindSpec, MatchStatus, Order, OrderResult, Outcome, PlayerId, PlayerStats,
-  Doing, OrderEndReason, PlayerView, RecordedKind, Ruleset, SpectatorView, UnderAttack, ActionAvailability, UnitOrder,
+  Doing, OrderEndReason, PlayerView, RecordedKind, Ruleset, SpectatorView, UnderAttack, UnitOrder,
 } from "@castellan/shared";
-import { barrierAxes, dist, HOLD_SCRIPT, matchLengthMs, NEUTRAL_OWNER, seatToMap, withMineralNames, withRecordedDefaults } from "@castellan/shared";
-import { createScriptHost, testScript, type ScriptAction, type ScriptActionResult, type ScriptHost, type ScriptHostFactory, type ScriptWorld, type UnitRun } from "@castellan/sandbox";
+import { barrierAxes, dist, matchLengthMs, NEUTRAL_OWNER, seatToMap, withMineralNames, withRecordedDefaults } from "@castellan/shared";
+import { createScriptHost, type ScriptAction, type ScriptHostFactory, type UnitRun } from "@castellan/sandbox";
 import { DIRS, inBounds } from "./grid";
 import { Board } from "./board";
 import { Combat, inAttackRange } from "./combat";
 import { SimulationClock } from "./clock";
 import { OrderTracker } from "./order-progress";
 import { Movement } from "./movement";
+import { Production } from "./production";
+import { UnitScripts } from "./unit-scripts";
 import { PlayerVision } from "./vision";
-import type { Entity, Intent, Deposit } from "./entities";
+import type { Entity, Intent, Deposit, Player } from "./entities";
 import { validateOrder } from "./validate";
 
 export interface MatchConfig {
@@ -60,26 +62,6 @@ export interface PlayerOrder {
   order: Order;
 }
 
-interface Player {
-  id: PlayerId;
-  /** Seat 0..3: which rotation of the map is home. Tie-breaks follow it so mirrored play stays mirrored. */
-  side: number;
-  team: number;
-  name: string;
-  mineral: number;
-  kills: number;
-  buildingKills: number;
-  alive: boolean;
-  host: ScriptHost;
-  /** Current source per scriptable kind, and whether the player wrote it. */
-  scripts: Map<string, { code: string; custom: boolean; errors: string[] }>;
-  logsThisTick: number;
-  operationalFailureReported?: true;
-  scriptRuntime?: PlayerStats["scriptRuntime"];
-  upgrades: Record<string, number>;
-  research: { upgrade: string; level: number; completesAtTick: number } | null;
-}
-
 /** Events kept for `view(player, since)`. */
 const EVENT_WINDOW_TICKS = 600;
 
@@ -101,14 +83,15 @@ export class Match {
   private board: Board;
   /** Eliminated players: their remaining buildings are inert ruins. */
   private ruined = new Set<PlayerId>();
-  private vision!: PlayerVision;
+  private vision: PlayerVision;
+  private production: Production;
+  private scripts: UnitScripts;
   private eventAudience = new WeakMap<GameEvent, Set<PlayerId>>();
   private nextId = 1;
   private combat: Combat;
   private log: GameEvent[] = [];
   private conversation: Extract<GameEvent, { type: "chat" }>[] = [];
   private movement: Movement;
-  private scriptHostFactory: ScriptHostFactory;
 
   constructor(cfg: MatchConfig) {
     if (cfg.players.some(p => p.id === NEUTRAL_OWNER)) throw new Error(`Player id ${NEUTRAL_OWNER} is reserved for scenario walls`);
@@ -119,43 +102,34 @@ export class Match {
     // Balance continuations replace the ruleset; collaborators always read the current candidate.
     this.combat = new Combat(() => this.ruleset, this.clock, this.ents,
       (a, b) => this.hostile(a, b), (player, x, y) => this.vision.canSee(player, x, y), {
-        result: (entity, status, effect, reason) => this.scriptResult(entity, status, effect, reason),
-        attacked: (entity, attacker, damage) => this.attackedEvent(entity, attacker, damage),
+        result: (entity, status, effect, reason) => this.scripts.result(entity, status, effect, reason),
+        attacked: (entity, attacker, damage) => this.scripts.attacked(entity, attacker, damage),
       });
     this.seed = cfg.seed;
-    this.scriptHostFactory = cfg.scriptHostFactory ?? createScriptHost;
     this.maxTicks = this.clock.ticks(matchLengthMs(cfg.ruleset));
     const { width, height } = cfg.ruleset.map;
     this.board = new Board(width, height, (id) => this.deps.has(id) || this.ents.get(id)!.spec.building);
     this.movement = new Movement(() => this.ruleset, this.clock, this.board, this.ents,
       owner => this.player(owner).side, (a, b) => this.hostile(a, b));
-    const allocated: ScriptHost[] = [];
-    const allocate = (seed: number) => {
-      const host = this.scriptHostFactory(this.rules.script, seed);
-      allocated.push(host);
-      return host;
-    };
+    this.players = cfg.players.map((p, i) => ({
+      id: p.id, side: p.side ?? i % 2, team: p.team ?? i, name: p.name, mineral: this.ruleset.startMineral, kills: 0, buildingKills: 0, alive: true,
+      upgrades: {}, research: null,
+    }));
+    this.vision = new PlayerVision(() => this.ruleset, this.clock, {
+      players: this.players, entities: this.ents, deposits: this.deps, ruined: this.ruined,
+    }, (a, b) => this.hostile(a, b));
+    this.production = new Production(() => this.ruleset, this.clock, { players: this.players, entities: this.ents, ruined: this.ruined },
+      this.movement, (kind, owner, x, y) => this.spawn(kind, owner, x, y));
+    // The script VMs are allocated here; anything that fails afterwards must release them.
+    this.scripts = new UnitScripts(() => this.ruleset, this.clock, {
+      players: this.players, entities: this.ents, ruined: this.ruined, board: this.board,
+      vision: this.vision, movement: this.movement, combat: this.combat, hostile: (a, b) => this.hostile(a, b),
+    }, cfg.scriptHostFactory ?? createScriptHost, cfg.seed);
     try {
-      this.players = cfg.players.map((p, i) => ({
-        id: p.id, side: p.side ?? i % 2, team: p.team ?? i, name: p.name, mineral: this.ruleset.startMineral, kills: 0, buildingKills: 0, alive: true,
-        host: allocate((cfg.seed * 31 + i * 7919) >>> 0),
-        scripts: new Map(), logsThisTick: 0, upgrades: {}, research: null,
-      }));
-      this.vision = new PlayerVision(() => this.ruleset, this.clock, {
-        players: this.players, entities: this.ents, deposits: this.deps, ruined: this.ruined,
-      }, (a, b) => this.hostile(a, b));
-      for (const p of this.players) {
-        for (const [kind, spec] of Object.entries(this.ruleset.kinds)) {
-          if (!spec.scriptable) continue;
-          const code = this.defaultScript(kind);
-          p.host.setScript(kind, code);
-          p.scripts.set(kind, { code, custom: false, errors: [] });
-        }
-      }
       this.setup();
       this.vision.refresh();
     } catch (error) {
-      for (const host of allocated) host.dispose();
+      this.scripts.dispose();
       throw error;
     }
   }
@@ -186,19 +160,8 @@ export class Match {
       events.push(e);
     };
     const prio = this.priority();
-    for (const p of this.players) p.logsThisTick = 0;
-    // Finish research before this tick's orders/spawns; existing cooldowns are not reset.
-    for (const p of this.players) {
-      if (!p.alive || !p.research || T < p.research.completesAtTick) continue;
-      const { upgrade, level } = p.research;
-      p.upgrades[upgrade] = level;
-      p.research = null;
-      const kind = this.ruleset.upgrades[upgrade].kind;
-      for (const e of this.ents.values()) if (e.owner === p.id && e.kind === kind) e.spec = this.effectiveSpec(p, kind);
-      emit({ tick: T, type: "upgrade_completed", owner: p.id, upgrade, level });
-    }
-
-    this.finishTraining(emit);
+    // Research and training finish before this tick's orders.
+    this.production.deliver(this.interleaved(prio), emit);
 
     // 1. Orders, alternating between players so nobody always goes first.
     const queues = prio.map((p) => input.map((o, i) => [o, i] as const).filter(([o]) => o.player === p.id));
@@ -240,20 +203,12 @@ export class Match {
     for (const p of prio) {
       const mine = scripted.filter((e) => e.owner === p.id);
       if (mine.length === 0) continue;
-      if (this.ruleset.reactiveOrders) this.prepareScriptEvents(mine, p);
-      const runs = p.host.run(this.scriptWorld(p, mine), mine.map((e) => e.id));
-      for (const e of mine) {
-        const r = runs[e.id];
-        // Delivered once, including failed invocations. Events generated by
-        // this decision (e.g. cancellation) remain queued for the next tick.
-        if (this.ruleset.reactiveOrders) e.scriptEvents = [];
-        if (r.error) this.scriptError(p, e, r.error, emit, r.operationalFailure);
-        if (r.log && p.logsThisTick++ < 10) emit({ tick: T, type: "log", owner: p.id, unit: e.id, message: r.log });
+      this.scripts.decide(p, mine, emit, (e, r) => {
         const orderIntent = this.ruleset.reactiveOrders ? this.reactiveOrderIntent(e, r, emit) : null;
         if (orderIntent) {
           intents.set(e.id, orderIntent);
           e.actionResult = { tick: T, source: "order", intent: describeIntent(orderIntent), status: orderIntent.t === "hold" ? "held" : orderIntent.t === "build" ? "working" : "blocked" };
-          continue;
+          return;
         }
         const intent = this.scriptIntent(e, r.action);
         const impossible = intent.t === "hold" && r.action.a !== "hold";
@@ -262,7 +217,7 @@ export class Match {
           ...(r.error ? { reason: r.error } : impossible ? { reason: "action has no valid target or cannot be performed" } : {}) };
         e.actionResult = { tick: T, source: "script", intent: describeIntent(intent), status: e.lastActionResult.status, ...(e.lastActionResult.reason ? { reason: e.lastActionResult.reason } : {}) };
         intents.set(e.id, intent);
-      }
+      });
     }
 
     for (const e of this.ents.values()) {
@@ -272,7 +227,7 @@ export class Match {
 
     // 3. Resolve movement in player priority, allowing friendly columns to depart front to back.
     this.movement.advance(this.interleaved(prio), intents, {
-      result: (entity, status, effect, reason) => this.scriptResult(entity, status, effect, reason),
+      result: (entity, status, effect, reason) => this.scripts.result(entity, status, effect, reason),
       endOrder: (entity, reason) => this.endOrder(entity, reason, emit),
     });
 
@@ -287,11 +242,11 @@ export class Match {
       if (it?.t === "gather") {
         const before = e.carrying;
         this.gatherFrom(e, it.id, emit);
-        this.scriptResult(e, e.carrying > before ? "acted" : T < e.nextGather ? "cooldown" : "blocked", e.carrying > before ? "gather" : undefined);
+        this.scripts.result(e, e.carrying > before ? "acted" : T < e.nextGather ? "cooldown" : "blocked", e.carrying > before ? "gather" : undefined);
       } else if (it?.t === "unload") {
         const before = e.carrying;
         this.unload(e, emit);
-        this.scriptResult(e, before > 0 ? "acted" : "invalid", before > 0 ? "unload" : undefined);
+        this.scripts.result(e, before > 0 ? "acted" : "invalid", before > 0 ? "unload" : undefined);
       }
       else if (it?.t === "build") this.build(e, emit);
     }
@@ -351,8 +306,6 @@ export class Match {
   view(player: PlayerId, since?: number): PlayerView {
     const p = this.player(player);
     const events = this.events(player, since ?? this.clock.tick - this.clock.ticks(10_000));
-    const scripts: PlayerView["scripts"] = {};
-    for (const [kind, s] of p.scripts) scripts[kind] = { custom: s.custom, errors: [...s.errors] };
     return {
       tick: this.clock.tick,
       timeMs: this.clock.ms(this.clock.tick),
@@ -366,8 +319,8 @@ export class Match {
       ...this.visibleEntities(player),
       deposits: this.depositViews().filter((d) => this.vision.canSee(player, d.x, d.y)),
       projectiles: this.combat.views(player),
-      scripts,
-      availableActions: this.availableActions(p),
+      scripts: this.scripts.view(p),
+      availableActions: this.production.availableActions(p, !p.alive ? ["player eliminated"] : this._outcome ? ["match over"] : []),
       combat: this.vision.combatSummary(player, since ?? this.clock.tick - this.clock.ticks(10_000)),
       events,
       underAttack: this.underAttack(player, since ?? this.clock.tick - this.clock.ticks(10_000)),
@@ -464,8 +417,7 @@ export class Match {
 
   /** Source of the script `player` runs for `kind`. */
   scriptSource(player: PlayerId, kind: string): { code: string; custom: boolean } | null {
-    const s = this.player(player).scripts.get(kind);
-    return s ? { code: s.code, custom: s.custom } : null;
+    return this.scripts.source(this.player(player), kind);
   }
 
   /** Applies `edit`, then recomputes what entity changes invalidate: routes and vision. */
@@ -475,12 +427,11 @@ export class Match {
       if (!e) throw new Error(`no entity ${id}`);
       return e;
     };
-    const specOf = (owner: PlayerId, kind: string) => owner === NEUTRAL_OWNER ? this.ruleset.kinds[kind] : this.effectiveSpec(this.player(owner), kind);
     edit({
       useRuleset: (ruleset) => {
         this.rules = ruleset;
         for (const e of this.ents.values()) {
-          const spec = specOf(e.owner, e.kind);
+          const spec = this.specOf(e.owner, e.kind);
           e.hp = Math.max(1, Math.round(e.hp / e.spec.hp * spec.hp)); e.spec = spec;
         }
       },
@@ -519,12 +470,7 @@ export class Match {
    * modify the player's installed script, memory, PRNG or event cursor.
    */
   testScript(player: PlayerId, kind: string, code: string) {
-    const p = this.player(player);
-    if (!p.scripts.has(kind)) return { ok: false as const, error: `${kind} is not scriptable` };
-    const units = [...this.ents.values()].filter(e => e.owner === player && e.kind === kind)
-      .map(e => ({ ...e, scriptEvents: [...e.scriptEvents ?? []] }));
-    if (this.ruleset.reactiveOrders) this.prepareScriptEvents(units, p);
-    return testScript(code, kind, [this.scriptWorld(p, units)], this.ruleset.script, (this.seed * 31 + this.players.indexOf(p) * 7919) >>> 0, this.scriptHostFactory);
+    return this.scripts.test(this.player(player), kind, code);
   }
 
   /** `player` leaves (e.g. disconnected): its side loses if it has nobody else left, else it is out. */
@@ -583,7 +529,7 @@ export class Match {
   }
 
   dispose(): void {
-    for (const p of this.players) p.host.dispose();
+    this.scripts.dispose();
   }
 
   // ───────────────────────── setup ─────────────────────────
@@ -626,8 +572,13 @@ export class Match {
     this.board.placeDeposit(id, x, y);
   }
 
+  /** A kind's stats for its owner: research applies to players; scenario walls use the rules as written. */
+  private specOf(owner: PlayerId, kind: string): KindSpec {
+    return owner === NEUTRAL_OWNER ? this.ruleset.kinds[kind] : this.production.specFor(this.player(owner), kind);
+  }
+
   private spawn(kind: RecordedKind, owner: PlayerId, x: number, y: number): Entity {
-    const spec = owner === NEUTRAL_OWNER ? this.ruleset.kinds[kind] : this.effectiveSpec(this.player(owner), kind);
+    const spec = this.specOf(owner, kind);
     const e: Entity = {
       id: `e${this.nextId++}`, kind, spec, owner, x, y, hp: spec.hp,
       order: spec.gathers && !spec.scriptable ? { type: "gather" } : null,
@@ -658,7 +609,7 @@ export class Match {
     const p = this.player(po.player);
     const o = po.order;
     if (!p.alive) return { ok: false, reason: "you are out of the match" };
-    if (o.type === "script") return this.setScript(p, o.kind, o.code);
+    if (o.type === "script") return this.scripts.setScript(p, o.kind, o.code);
     if (o.type === "chat") {
       if (o.to !== undefined && o.channel !== undefined && o.channel !== "private") {
         return { ok: false, reason: "to requires private chat (omit channel or use private)" };
@@ -676,8 +627,8 @@ export class Match {
       emit({ tick: this.clock.tick, type: "chat", owner: p.id, text: o.text.trim(), ...(o.channel ? { channel: o.channel } : {}) });
       return { ok: true };
     }
-    if (o.type === "train") return this.train(p, o.building, o.kind, emit);
-    if (o.type === "upgrade") return this.research(p, o.upgrade, emit);
+    if (o.type === "train") return this.production.train(p, o.building, o.kind, emit);
+    if (o.type === "upgrade") return this.production.research(p, o.upgrade, emit);
 
     const e = this.ents.get(o.unit);
     if (!e || e.owner !== p.id) return { ok: false, reason: `no entity ${o.unit} of yours` };
@@ -712,12 +663,14 @@ export class Match {
       case "build": {
         const spec = this.ruleset.kinds[o.kind], kind = e.spec.builds?.find((k) => k === o.kind);
         if (!kind || !spec) return { ok: false, reason: `${e.kind} cannot build ${o.kind}` };
-        if (this.locked(p, o.kind)) return { ok: false, reason: `${o.kind} requires ${spec.requires} research` };
+        const lock = this.production.lockReason(p, o.kind);
+        if (lock) return { ok: false, reason: lock };
         if (!inBounds(this.board, o.x, o.y)) return { ok: false, reason: `(${o.x},${o.y}) is outside the map` };
         if (!this.vision.canSee(p.id, o.x, o.y)) return { ok: false, reason: "build site must be visible" };
         if (this.board.isStatic(o.x, o.y) && this.board.site(o.x, o.y) !== e.id) return { ok: false, reason: `(${o.x},${o.y}) is occupied` };
         if (this.makesDoorCorner(p.id, kind, o.x, o.y)) return { ok: false, reason: "doors must stay on one wall axis; no corners or junctions" };
-        if (p.mineral < spec.cost) return { ok: false, reason: `needs ${spec.cost} mineral, you have ${p.mineral}` };
+        const shortfall = this.production.shortfall(p, spec.cost);
+        if (shortfall) return { ok: false, reason: shortfall };
         const near = this.enemyBuildingNear(p.id, o.x, o.y);
         if (near) return { ok: false, reason: `too close to enemy ${near.kind} ${near.id}: keep ${this.ruleset.buildExclusion}+ tiles away` };
         if (e.construction && (e.construction.kind !== o.kind || e.construction.x !== o.x || e.construction.y !== o.y)) this.clearConstruction(e);
@@ -727,142 +680,9 @@ export class Match {
     }
   }
 
-  private setScript(p: Player, kind: string, code: string | null): OrderResult {
-    const cur = p.scripts.get(kind);
-    if (!cur) return { ok: false, reason: `${kind} is not scriptable` };
-    const source = code ?? this.defaultScript(kind);
-    const r = p.host.setScript(kind, source);
-    if (!r.ok) {
-      p.host.setScript(kind, cur.code);
-      return { ok: false, reason: r.error };
-    }
-    p.scripts.set(kind, { code: source, custom: code !== null, errors: [] });
-    return { ok: true };
-  }
-
-  /** The script a kind runs while its player has none of its own. */
-  private defaultScript(kind: string): string {
-    return this.ruleset.defaultScripts[kind] ?? HOLD_SCRIPT;
-  }
-
-  /** A kind that needs a research this player has not completed. */
-  private locked(p: Player, kind: string): boolean {
-    const req = this.ruleset.kinds[kind]?.requires;
-    return !!req && !p.upgrades[req];
-  }
-
-  private effectiveSpec(p: Player, kind: string): KindSpec {
-    const base = this.ruleset.kinds[kind];
-    const spec = { ...base };
-    for (const [id, level] of Object.entries(p.upgrades)) {
-      const upgrade = this.ruleset.upgrades[id];
-      if (upgrade.kind !== kind || upgrade.stat === "unlock") continue;
-      const bought = upgrade.levels[level - 1];
-      spec[upgrade.stat] = bought.value;
-      if (bought.vision !== undefined) spec.vision = bought.vision;
-    }
-    return spec;
-  }
-
-  private trainBlockers(p: Player, b: Entity, kind: string): string[] {
-    const spec = this.ruleset.kinds[kind], reasons: string[] = [];
-    if (this.locked(p, kind)) reasons.push(`${kind} requires ${spec.requires} research`);
-    if (p.mineral < spec.cost) reasons.push(`needs ${spec.cost} mineral, you have ${p.mineral}`);
-    if (this.pop(p.id) + this.queuedPop(p.id) >= this.ruleset.popCap) reasons.push(`population cap ${this.ruleset.popCap} reached`);
-    if (spec.trainMs && (b.training?.length ?? 0) >= this.ruleset.trainingQueueLimit) reasons.push("training queue full");
-    if (!spec.trainMs && !this.movement.freeNeighbor(b.x, b.y, p.id)) reasons.push(`no free tile around ${b.id}`);
-    return reasons;
-  }
-
-  private researchBlockers(p: Player, id: string): string[] {
-    const upgrade = this.ruleset.upgrades[id], next = upgrade.levels[p.upgrades[id] ?? 0], reasons: string[] = [];
-    if (p.research) reasons.push(`already researching ${p.research.upgrade}`);
-    if (!next) reasons.push(`${id} is already at maximum level`);
-    if (upgrade.stat !== "unlock" && this.locked(p, upgrade.kind)) reasons.push(`${upgrade.kind} requires ${this.ruleset.kinds[upgrade.kind].requires} research`);
-    if (next && p.mineral < next.cost) reasons.push(`needs ${next.cost} mineral, you have ${p.mineral}`);
-    return reasons;
-  }
-
-  private availableActions(p: Player): ActionAvailability {
-    const mine = [...this.ents.values()].filter(e => e.owner === p.id);
-    const inactive = !p.alive ? ["player eliminated"] : this._outcome ? ["match over"] : [];
-    return {
-      train: mine.flatMap(b => (b.spec.trains ?? []).map(kind => ({ building: b.id, kind, cost: this.ruleset.kinds[kind].cost,
-        queue: b.training?.length ?? 0, queueLimit: this.ruleset.trainingQueueLimit,
-        blockedBy: [...inactive, ...this.trainBlockers(p, b, kind)], exitBlocked: !this.movement.freeNeighbor(b.x, b.y, p.id) }))),
-      build: [...new Set(Object.values(this.ruleset.kinds).flatMap(k => k.builds ?? []))].map(kind => ({ kind,
-        cost: this.ruleset.kinds[kind].cost, siteCheckRequired: true,
-        blockedBy: [...inactive, ...(!mine.some(e => e.spec.builds?.includes(kind)) ? ["no builder"] : []),
-          ...(this.locked(p, kind) ? [`${kind} requires ${this.ruleset.kinds[kind].requires} research`] : []),
-          ...(p.mineral < this.ruleset.kinds[kind].cost ? [`needs ${this.ruleset.kinds[kind].cost} mineral, you have ${p.mineral}`] : [])] })),
-      research: Object.entries(this.ruleset.upgrades).map(([upgrade, spec]) => ({ upgrade,
-        level: (p.upgrades[upgrade] ?? 0) + 1, cost: spec.levels[p.upgrades[upgrade] ?? 0]?.cost ?? null,
-        blockedBy: [...inactive, ...this.researchBlockers(p, upgrade)] })),
-    };
-  }
-
-  private research(p: Player, id: string, emit: (e: GameEvent) => void): OrderResult {
-    const upgrade = this.ruleset.upgrades[id];
-    if (!upgrade || !Object.hasOwn(this.ruleset.upgrades, id)) return { ok: false, reason: `unknown upgrade ${id}` };
-    const blockedBy = this.researchBlockers(p, id);
-    if (blockedBy.length) return { ok: false, reason: blockedBy[0] };
-    const level = (p.upgrades[id] ?? 0) + 1;
-    const next = upgrade.levels[level - 1];
-    p.mineral -= next.cost;
-    p.research = { upgrade: id, level, completesAtTick: this.clock.tick + this.clock.ticks(next.researchMs) };
-    emit({ tick: this.clock.tick, type: "research_started", owner: p.id, upgrade: id, level,
-      completesAtMs: this.clock.ms(p.research.completesAtTick), mineral: { spent: next.cost, remaining: p.mineral } });
-    return { ok: true };
-  }
-
-  private train(p: Player, buildingId: string, ordered: string, emit: (e: GameEvent) => void): OrderResult {
-    const b = this.ents.get(buildingId);
-    const spec = this.ruleset.kinds[ordered];
-    if (!b || b.owner !== p.id) return { ok: false, reason: `no building ${buildingId} of yours` };
-    const kind = b.spec.trains?.find((k) => k === ordered);
-    if (!kind || !spec) return { ok: false, reason: `${b.kind} cannot train ${ordered}` };
-    const blockedBy = this.trainBlockers(p, b, kind);
-    if (blockedBy.length) return { ok: false, reason: blockedBy[0] };
-    if (spec.trainMs) {
-      const queue = b.training ??= [];
-      if (queue.length >= this.ruleset.trainingQueueLimit) return { ok: false, reason: "training queue full" };
-      p.mineral -= spec.cost;
-      queue.push({ kind, ...(queue.length === 0 ? { completesAtTick: this.clock.tick + this.clock.ticks(spec.trainMs) } : {}) });
-      emit({ tick: this.clock.tick, type: "training_queued", owner: p.id, building: b.id, kind, position: queue.length });
-      return { ok: true };
-    }
-    const tile = this.movement.freeNeighbor(b.x, b.y, p.id);
-    if (!tile) return { ok: false, reason: `no free tile around ${buildingId}` };
-    p.mineral -= spec.cost;
-    const u = this.spawn(kind, p.id, tile[0], tile[1]);
-    emit({ tick: this.clock.tick, type: "spawn", id: u.id, kind, owner: p.id, x: u.x, y: u.y });
-    return { ok: true, id: u.id };
-  }
-
-  private queuedPop(owner: PlayerId): number {
-    let count = 0;
-    for (const e of this.ents.values()) if (e.owner === owner) count += e.training?.length ?? 0;
-    return count;
-  }
-
-  private finishTraining(emit: (e: GameEvent) => void) {
-    for (const b of this.interleaved(this.priority())) {
-      if (this.ruined.has(b.owner)) continue;
-      const job = b.training?.[0];
-      if (!job || job.completesAtTick === undefined || this.clock.tick < job.completesAtTick) continue;
-      const tile = this.movement.freeNeighbor(b.x, b.y, b.owner);
-      if (!tile) continue; // Ready, but blocked: preserve the paid unit until an exit opens.
-      const unit = this.spawn(job.kind, b.owner, tile[0], tile[1]);
-      b.training!.shift();
-      const next = b.training![0];
-      if (next) next.completesAtTick = this.clock.tick + this.clock.ticks(this.ruleset.kinds[next.kind].trainMs!);
-      emit({ tick: this.clock.tick, type: "spawn", id: unit.id, kind: unit.kind, owner: b.owner, x: unit.x, y: unit.y });
-    }
-  }
-
   private endOrder(e: Entity, reason: OrderEndReason, emit: (e: GameEvent) => void) {
     if (this.ruleset.reactiveOrders && e.order) {
-      (e.scriptEvents ??= []).push({ type: "order_ended", tick: this.clock.tick, order: { ...e.order }, reason });
+      this.scripts.orderEnded(e, e.order, reason);
       e.orderSuspended = false;
     }
     e.order = null;
@@ -899,29 +719,6 @@ export class Match {
       e.path = null;
     } else if (run.orderControl === "continue") e.orderSuspended = false;
     return e.orderSuspended ? null : this.orderIntent(e, emit);
-  }
-
-  private prepareScriptEvents(units: readonly Entity[], p: Player) {
-    if (!units.length) return;
-    // Visibility is shared throughout this player's preparation; each unit
-    // still gets its own range filter and distance/reading-order sort.
-    const enemies = [...this.ents.values()].filter(other => this.hostile(other.owner, p.id)
-      && this.vision.canSee(p.id, other.x, other.y));
-    for (const e of units) {
-      const seen = enemies.filter(other => this.ruleset.scriptSight === "player" || dist(e.x, e.y, other.x, other.y) <= e.spec.vision)
-        .sort((a, b) => dist(e.x, e.y, a.x, a.y) - dist(e.x, e.y, b.x, b.y) || this.movement.readingKey(a.x, a.y, p.side) - this.movement.readingKey(b.x, b.y, p.side));
-      const before = new Set(e.seenEnemies ?? []);
-      for (const enemy of seen) if (!before.has(enemy.id)) (e.scriptEvents ??= []).push({ type: "enemy_seen", tick: this.clock.tick, enemy: enemy.id });
-      e.seenEnemies = seen.map(enemy => enemy.id);
-    }
-  }
-
-  private attackedEvent(e: Entity, attacker: string, damage: number) {
-    if (!this.ruleset.reactiveOrders || !e.spec.scriptable) return;
-    const events = e.scriptEvents ??= [];
-    const same = events.find(event => event.type === "attacked" && event.tick === this.clock.tick && event.attacker === attacker);
-    if (same?.type === "attacked") same.damage += damage;
-    else events.push({ type: "attacked", tick: this.clock.tick, damage, attacker });
   }
 
   // ───────────────────────── intents ─────────────────────────
@@ -1023,101 +820,6 @@ export class Match {
         return { t: "hold" };
     }
   }
-
-  private scriptError(p: Player, e: Entity, message: string, emit: (e: GameEvent) => void, operationalFailure?: true) {
-    const s = p.scripts.get(e.kind);
-    if (!s) return;
-    if (s.errors.at(-1) !== message || (operationalFailure && !p.operationalFailureReported)) {
-      s.errors.push(message);
-      if (s.errors.length > 3) s.errors.shift();
-      if (!operationalFailure || !p.operationalFailureReported) {
-        emit({ tick: this.clock.tick, type: "script_error", owner: p.id, kind: e.kind, unit: e.id, message,
-          ...(operationalFailure ? { operationalFailure } : {}) });
-        if (operationalFailure) {
-          p.operationalFailureReported = true;
-          p.scriptRuntime = { status: "stopped", tick: this.clock.tick, message };
-        }
-      }
-    }
-  }
-
-  private scriptResult(e: Entity, status: ScriptActionResult["status"], effect?: ScriptActionResult["effect"], reason?: string) {
-    if (e.actionResult?.tick === this.clock.tick) e.actionResult = { ...e.actionResult, status, ...(effect ? { effect } : {}), ...(reason ? { reason } : {}) };
-    // Persistent/manual orders do not replace the previous script's feedback.
-    if (e.lastActionResult?.tick !== this.clock.tick) return;
-    e.lastActionResult = { tick: this.clock.tick, action: e.lastActionResult.action, status,
-      ...(effect ? { effect } : {}), ...(reason ? { reason } : {}) };
-  }
-
-  private scriptWorld(p: Player, units: Entity[]): ScriptWorld {
-    const baseOf = (owner: PlayerId) => {
-      const own = [...this.ents.values()].filter((e) => e.owner === owner && (!this.hostile(owner, p.id) || this.vision.canSee(p.id, e.x, e.y)));
-      const b = own.find((e) => e.spec.building && e.spec.dropoff)
-        ?? own.find((e) => e.spec.building && e.spec.vital) ?? own.find((e) => e.spec.vital);
-      return b ? { x: b.x, y: b.y } : null;
-    };
-    const myBase = baseOf(p.id);
-    // The enemy base is the nearest hostile player's (ties: player order).
-    let enemyBase: { x: number; y: number } | null = null;
-    for (const q of this.players) {
-      if (!q.alive || !this.hostile(q.id, p.id)) continue;
-      const b = baseOf(q.id);
-      if (b && (!enemyBase || (myBase && dist(myBase.x, myBase.y, b.x, b.y) < dist(myBase.x, myBase.y, enemyBase.x, enemyBase.y)))) enemyBase = b;
-    }
-    const relation = (owner: PlayerId) => (owner === p.id ? 1 : this.hostile(owner, p.id) ? 0 : 2);
-    const u: ScriptWorld["units"] = {};
-    for (const e of units) {
-      u[e.id] = {
-        id: e.id, type: e.kind, x: e.x, y: e.y, hp: e.hp, maxHp: e.spec.hp, atk: e.spec.atk ?? 0,
-        def: e.spec.def, range: e.spec.range ?? 0, minRange: e.spec.minRange ?? 0, vision: e.spec.vision,
-        attackMs: e.spec.attackMs ? this.clock.ms(this.clock.ticks(e.spec.attackMs)) : 0,
-        moveMs: e.spec.moveMs ? this.clock.ms(this.clock.ticks(e.spec.moveMs)) : 0,
-        attackReadyInTicks: Math.max(0, e.nextAttack - this.clock.tick),
-        moveReadyInTicks: Math.max(0, e.nextMove - this.clock.tick),
-        aimReadyInTicks: e.spec.aimMs && e.lastStep ? Math.max(0, e.lastStep.tick + this.clock.ticks(e.spec.aimMs) - this.clock.tick) : 0,
-        gatherReadyInTicks: Math.max(0, e.nextGather - this.clock.tick),
-        lastActionResult: e.lastActionResult ?? null,
-        moves: Object.fromEntries(Object.entries(DIRS).map(([dir, [dx, dy]]) => {
-          const x = e.x + dx, y = e.y + dy;
-          if (!e.spec.moveMs || !inBounds(this.board, x, y)) return [dir, false];
-          // A movement query must never expose occupancy behind fog, including
-          // the two orthogonal tiles used to check a diagonal crossing.
-          if (!this.vision.canSee(p.id, x, y) || (dx && dy && (!this.vision.canSee(p.id, e.x + dx, e.y) || !this.vision.canSee(p.id, e.x, e.y + dy)))) return [dir, null];
-          return [dir, this.movement.canStep(e, x, y)];
-        })),
-        lastAttackedTick: e.lastAttacked?.tick ?? null,
-        lastAttacker: e.lastAttacked && this.clock.tick - e.lastAttacked.tick <= this.clock.ticks(this.ruleset.lastAttackerMs) ? e.lastAttacked.id : null,
-        ...(this.ruleset.reactiveOrders ? {
-          order: e.order ? { ...e.order } : null, orderSuspended: !!e.orderSuspended,
-          events: (e.scriptEvents ?? []).map(event => {
-            if (event.type !== "attacked") return event;
-            const attacker = event.attacker ? this.ents.get(event.attacker) : undefined;
-            return { ...event, attacker: attacker && this.hostile(attacker.owner, p.id) && this.vision.canSee(p.id, attacker.x, attacker.y) ? attacker.id : null };
-          }),
-        } : {}),
-        ...(e.spec.gathers ? { carrying: e.carrying, carryCapacity: this.ruleset.gather.carry } : {}),
-      };
-    }
-    return {
-      ...(this.ruleset.reactiveOrders ? { reactiveOrders: true } : {}),
-      tick: this.clock.tick,
-      side: p.side,
-      units: u,
-      deposits: [...this.vision.deposits(p.id)?.values() ?? []].map(d => ({ ...d, tie: this.movement.readingKey(d.x, d.y, p.side) })),
-      projectiles: this.combat.views(p.id),
-      all: [...this.ents.values()].filter((e) => !this.hostile(e.owner, p.id) || this.vision.canSee(p.id, e.x, e.y)).map((e) => [
-        e.id, e.kind, e.owner, relation(e.owner), e.x, e.y, e.hp, e.spec.hp, e.spec.building ? 1 : 0, this.movement.readingKey(e.x, e.y, p.side),
-        { atk: e.spec.atk ?? 0, def: e.spec.def, range: e.spec.range ?? 0, minRange: e.spec.minRange ?? 0, vision: e.spec.vision,
-          attackMs: e.spec.attackMs ? this.clock.ms(this.clock.ticks(e.spec.attackMs)) : 0, moveMs: e.spec.moveMs ? this.clock.ms(this.clock.ticks(e.spec.moveMs)) : 0,
-          ruin: this.ruined.has(e.owner) },
-      ]),
-      myBase,
-      enemyBase,
-      sight: this.ruleset.scriptSight === "player" ? "player" : "unit",
-    };
-  }
-
-  // ───────────────────────── movement ─────────────────────────
 
   // ───────────────────────── economy ─────────────────────────
 
@@ -1283,12 +985,6 @@ export class Match {
     return undefined;
   }
 
-  private pop(owner: PlayerId): number {
-    let n = 0;
-    for (const e of this.ents.values()) if (e.owner === owner && !e.spec.building) n++;
-    return n;
-  }
-
   private score(p: Player): number {
     const s = this.ruleset.score;
     let units = 0;
@@ -1319,17 +1015,19 @@ export class Match {
 
   /** A player's view names everyone by id: display names (often the model) stay with observers. */
   private stats(viewer?: PlayerId): PlayerStats[] {
-    return this.players.map((p) => (viewer && this.hostile(p.id, viewer) ? {
-      id: p.id, name: viewer ? p.id : p.name, popCap: this.ruleset.popCap, team: p.team, alive: p.alive,
-    } : {
-      id: p.id, name: viewer ? p.id : p.name, mineral: p.mineral, pop: this.pop(p.id), popCap: this.ruleset.popCap,
-      queuedPop: this.queuedPop(p.id),
-      ...(p.scriptRuntime ? { scriptRuntime: { ...p.scriptRuntime } } : {}),
-      score: this.score(p), kills: p.kills + p.buildingKills, team: p.team, alive: p.alive,
-      upgrades: { ...p.upgrades }, ...(p.alive && p.research ? { research: {
-        upgrade: p.research.upgrade, level: p.research.level, completesAtMs: this.clock.ms(p.research.completesAtTick),
-      } } : {}),
-    }));
+    return this.players.map((p) => {
+      if (viewer && this.hostile(p.id, viewer)) return { id: p.id, name: viewer ? p.id : p.name, popCap: this.ruleset.popCap, team: p.team, alive: p.alive };
+      const { units, queued } = this.production.population(p.id), scriptRuntime = this.scripts.runtime(p);
+      return {
+        id: p.id, name: viewer ? p.id : p.name, mineral: p.mineral, pop: units, popCap: this.ruleset.popCap,
+        queuedPop: queued,
+        ...(scriptRuntime ? { scriptRuntime } : {}),
+        score: this.score(p), kills: p.kills + p.buildingKills, team: p.team, alive: p.alive,
+        upgrades: { ...p.upgrades }, ...(p.alive && p.research ? { research: {
+          upgrade: p.research.upgrade, level: p.research.level, completesAtMs: this.clock.ms(p.research.completesAtTick),
+        } } : {}),
+      };
+    });
   }
 
   /** `viewer` null = spectator (sees everything). Intent is private; heading is public. */

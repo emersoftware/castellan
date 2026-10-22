@@ -2,8 +2,8 @@
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { isChatChannel, isRoomMode } from "@castellan/shared";
-import { client } from "./client";
-import * as cmd from "./commands";
+import { client } from "./client.ts";
+import * as cmd from "./commands.ts";
 
 const USAGE = `castellan — Castellan client (env CASTELLAN_SERVER, CASTELLAN_TOKEN)
 

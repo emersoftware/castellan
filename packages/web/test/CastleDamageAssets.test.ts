@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import sharp from 'sharp';
 import { readFile } from 'node:fs/promises';
 
-const dir=new URL('../public/sprites/castle/',import.meta.url);
+const dir=new URL('../../../assets/sprites/castle/',import.meta.url);
 const manifest=JSON.parse(await readFile(new URL('manifest.json',dir),'utf8'));
 const mapping=JSON.parse(await readFile(new URL('fire-pixels.json',dir),'utf8'));
 

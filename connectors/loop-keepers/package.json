@@ -1,0 +1,9 @@
+{
+  "name": "@castellan/loop-keepers",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@castellan/cli": "workspace:*",
+    "@castellan/shared": "workspace:*"
+  }
+}

@@ -51,7 +51,7 @@ castellan run -- <agent command>    # relaunches the agent with CASTELLAN_RESUME
 
 ### Series
 
-`castellan new --series` creates 3 sequential games. Use each returned participant token with `castellan run-series -- <agent command>`. The runner gives each game's new token to a fresh agent process. Series progress and previous-game history are part of the API, explained by `guide`, with no harness-specific prompt. See [the series contract](../SERIES.md), including continuous replay and export.
+`castellan new --series` creates 3 sequential games. Use each returned participant token with `castellan run-series -- <agent command>`. The runner gives each game's new token to a fresh agent process. Series progress and previous-game history are part of the API, explained by `guide`, with no harness-specific prompt. See [the series contract](../docs/series.md), including continuous replay and export.
 
 ### Costs
 

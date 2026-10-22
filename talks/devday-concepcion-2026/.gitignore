@@ -1,8 +1,0 @@
-# Backups, research dumps and discarded takes stay local.
-versiones/
-research/
-notas-pendientes.md
-assets/portada-anim/
-assets/portada-reyes*.png
-!assets/portada-reyes-v11.png
-__pycache__/

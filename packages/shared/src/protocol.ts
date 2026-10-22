@@ -1,5 +1,5 @@
 /** Everything that crosses the wire between the server and its clients. */
-import type { RecordedKind } from "./ruleset";
+import type { RecordedKind } from "./ruleset.ts";
 
 export type PlayerId = string;
 /** Reserved entity owner for inert scenario walls; never a participant or winner. */
@@ -48,8 +48,12 @@ export type UnitOrder =
 interface MineralChange { spent: number; remaining: number; pending?: number }
 export type OrderResult = ({ ok: true; id?: string } | { ok: false; reason: string }) & { mineral?: MineralChange };
 
-const MATCH_STATUSES = ["waiting", "prep", "running", "finished"] as const;
+export const MATCH_STATUSES = ["waiting", "prep", "running", "finished"] as const;
 export type MatchStatus = (typeof MATCH_STATUSES)[number];
+
+/** The reference bots a room can seat as a player; @castellan/bots implements each one. */
+export const BOT_NAMES = ["rush", "eco", "turtle", "kite", "archers"] as const;
+export type BotName = (typeof BOT_NAMES)[number];
 
 /** Four-seat maps play in two teams of two unless the room asks for every player alone. */
 const ROOM_MODES = ["teams", "ffa"] as const;
@@ -65,16 +69,6 @@ export type SeatState = { status?: MatchStatus; alive?: boolean };
 export const seatOver = (seat: SeatState) => seat.status === "finished" || seat.alive === false;
 /** The seat's match takes orders. */
 export const seatPlaying = (seat: SeatState) => seat.status === "running";
-/** The header line viewToText writes (text.ts): its tick, then its status among the dotted fields. */
-const HEADER = new RegExp(`^tick (\\d+)(?:.*? · (${MATCH_STATUSES.join("|")}) · )?`);
-/**
- * The seat as a text observation (`?format=text`) shows it: its header line, and YOU marked OUT. `tick` is NaN
- * without a header. It lives here, without runtime imports, so keepers can load it straight from Node.
- */
-export function observedSeat(observation: string): SeatState & { tick: number } {
-  const header = HEADER.exec(observation);
-  return { status: MATCH_STATUSES.find((s) => s === header?.[2]), tick: Number(header?.[1]), alive: !/^YOU\s+.* · OUT$/m.test(observation) };
-}
 
 export interface SeriesProgress {
   id: string;
@@ -384,7 +378,7 @@ export interface ReplayFile {
   format: 1;
   id: string;
   createdAt: string;
-  ruleset: import("./ruleset").Ruleset;
+  ruleset: import("./ruleset.ts").Ruleset;
   seed: number;
   tickRate: number;
   /** In engine order; `side` is the seat (map corner) each one started on. */
@@ -457,5 +451,5 @@ export interface ExperimentManifest {
 
 /** Messages on the spectator WebSocket. */
 export type SpectatorMessage =
-  | { type: "hello"; roomId: string; ruleset: import("./ruleset").Ruleset; tickRate: number; view: SpectatorView }
+  | { type: "hello"; roomId: string; ruleset: import("./ruleset.ts").Ruleset; tickRate: number; view: SpectatorView }
   | { type: "tick"; view: SpectatorView };

@@ -17,8 +17,8 @@
     "tsx": "^4.20.0"
   },
   "devDependencies": {
+    "@castellan/bots": "workspace:*",
     "@castellan/engine": "workspace:*",
-    "@castellan/sim": "workspace:*",
     "@castellan/server": "workspace:*"
   }
 }

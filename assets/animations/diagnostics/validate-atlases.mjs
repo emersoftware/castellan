@@ -8,7 +8,7 @@ const sharp=createRequire(root+'/packages/web/package.json')('sharp');
 const expected={ranger:['idle','walk','shoot','death'],knight:['idle','walk','attack','death'],king:['idle','walk','attack','death'],worker:['idle','walk','mine','attack','death']};
 let atlases=0,cells=0;
 for(const [kind,actions] of Object.entries(expected)){
- const base=root+'/packages/web/public/sprites/'+kind;
+ const base=root+'/assets/sprites/'+kind;
  const manifest=JSON.parse(readFileSync(base+'/manifest.json'));
  for(const action of actions){
   const meta=manifest[action];assert.ok(meta&&meta.available!==false,kind+'/'+action);

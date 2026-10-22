@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
-import { expect, it, vi } from 'vitest';
-import { Texture, type Sprite, type Graphics } from 'pixi.js';
-import { rules, type EntityView, type SpectatorView } from '@castellan/shared';
-import { GameRenderer } from '../src/render/renderer';
+import { expect, it } from 'vitest';
+import { Graphics, Sprite } from 'pixi.js';
+import { rules, type EntityView } from '@castellan/shared';
 import { buildingLook, fall } from '../src/render/look';
-import fireSites from '../public/sprites/castle/fire-pixels.json';
+import fireSites from '../../../assets/sprites/castle/fire-pixels.json';
 import { RAMPS, PLAYER_RAMPS } from '../src/render/palette';
-import type { SpriteSet } from '../src/render/sprites';
+import { createField, frameAt, stubArt } from './support/battlefield';
 
 const look = (kind: string, hp: number, maxHp: number, timeMs: number) => buildingLook({ kind, hp, maxHp }, timeMs)!;
 it('selects the two approved states and ignites at half health', () => {
@@ -39,38 +38,34 @@ it('particles use mapped fire sites and a reproducible simulation phase', () => 
 });
 
 it.each([25,50] as const)('renders stage %s with owner masonry, independent fire, pause and matching collapse', stage => {
-  let now=1000;
-  const renderer=Reflect.construct(GameRenderer,[document.createElement('div'),rules,{a:2}]) as GameRenderer;
-  const internal=renderer as unknown as {
-    now:()=>number; play:()=>void; sprites:SpriteSet; animate():void;
-    app:{renderer:{render():void}};
-    drawn:Map<string,{sprite:Sprite;flame?:Sprite;sparks?:Graphics}>;
-  };
-  internal.now=()=>now;internal.play=vi.fn();internal.app={renderer:{render(){}}};
-  const sprites=vi.fn<SpriteSet>(()=>({flip:false,art:{texture:Texture.EMPTY,silhouette:Texture.EMPTY,
-    xray:Array(4).fill(Texture.EMPTY),scale:1/3,anchorX:.5,anchorY:.75}}));
-  internal.sprites=sprites;
+  const h=createField({colors:{a:2},art:stubArt({scale:1/3,anchorX:.5,anchorY:.75})});
   const entity:EntityView={id:'u',kind:'castle',owner:'a',x:4,y:4,hp:stage===25?50:25,maxHp:100};
-  const frame=(tick:number,entities:EntityView[])=>({tick,timeMs:tick*100,entities,deposits:[],events:[],projectiles:[]}) as unknown as SpectatorView;
-  renderer.setFrame(frame(1,[entity]),100);internal.animate();
-  const drawn=internal.drawn.get('u')!;
-  expect(drawn.sprite.tint).toBe(PLAYER_RAMPS[2].key);
-  expect(drawn.flame?.tint).toBe(RAMPS.fire.key);
-  expect(drawn.sparks).toBeDefined();
-  expect(sprites.mock.calls.some(c=>c[2]?.action===`damaged${stage}`)).toBe(true);
-  const lastFire=()=>sprites.mock.calls.filter(c=>c[2]?.action===`fire${stage}`).at(-1)![2];
-  renderer.setPaused(true);const before=lastFire();now=5000;internal.animate();
+  h.field.show(frameAt(1,[entity]),100);h.animate();
+  const sprite=h.sprite('u');
+  expect(sprite.tint).toBe(PLAYER_RAMPS[2].key);
+  // The fire is the one sprite on the field in the fire ramp; its sparks the one graphic among the bodies.
+  const flame=h.layers.objects.children.find(c=>c instanceof Sprite&&c.tint===RAMPS.fire.key)!;
+  const sparks=h.layers.objects.children.find(c=>c instanceof Graphics)!;
+  expect(flame).toBeDefined();
+  expect(sparks).toBeDefined();
+  expect(h.sprites.mock.calls.some(c=>c[2]?.action===`damaged${stage}`)).toBe(true);
+  const lastFire=()=>h.sprites.mock.calls.filter(c=>c[2]?.action===`fire${stage}`).at(-1)![2];
+  h.clock.pause();const before=lastFire();h.time(5000);h.animate();
   expect(lastFire()).toEqual(before);
-  renderer.setPaused(false);
-  renderer.setFrame({...frame(2,[]),events:[{tick:1,type:'death',id:'u',kind:'castle',owner:'a',x:4,y:4}]},100);
-  internal.animate();
-  expect(sprites.mock.calls.some(c=>c[2]?.action===`death${stage}`&&c[2].frame===0)).toBe(true);
+  h.clock.resume();
+  h.field.show({...frameAt(2,[]),events:[{tick:1,type:'death',id:'u',kind:'castle',owner:'a',x:4,y:4}]},100);
+  h.animate();
+  expect(h.sprites.mock.calls.some(c=>c[2]?.action===`death${stage}`&&c[2].frame===0)).toBe(true);
   expect(fall({kind:'castle',hp:stage===25?50:25,maxHp:100},rules.kinds.castle).at(1000).animation?.action).toBe(`death${stage}`);
-  now=6000;internal.animate();
-  const lastDeathFire=()=>sprites.mock.calls.filter(c=>c[2]?.action===`deathFire${stage}`).at(-1)![2];
-  const deathFrame=lastDeathFire();renderer.setPaused(true);now=9000;internal.animate();
+  // Masonry, flame and sparks fall together in one layer.
+  const collapse=sprite.parent!;
+  expect(flame.parent).toBe(collapse);expect(sparks.parent).toBe(collapse);
+  h.time(6000);h.animate();
+  const lastDeathFire=()=>h.sprites.mock.calls.filter(c=>c[2]?.action===`deathFire${stage}`).at(-1)![2];
+  const deathFrame=lastDeathFire();h.clock.pause();h.time(9000);h.animate();
   expect(lastDeathFire()).toEqual(deathFrame);
-  renderer.setPaused(false);now=18000;internal.animate();
-  expect(drawn.sprite.destroyed).toBe(true);
-  expect(drawn.flame).toBeUndefined();expect(drawn.sparks).toBeUndefined();
+  h.clock.resume();h.time(18000);h.animate();
+  expect(sprite.destroyed).toBe(true);
+  expect(collapse.destroyed).toBe(true);
+  expect(flame.destroyed).toBe(true);expect(sparks.destroyed).toBe(true);
 });

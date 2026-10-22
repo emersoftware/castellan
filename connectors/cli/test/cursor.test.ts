@@ -24,9 +24,9 @@ function harness(turns: { events?: object[]; stderr?: string; code?: number; han
     if (url.endsWith("/agent-status")) activities.push(JSON.parse(init!.body!).state);
     if (url.includes("/state?")) {
       states.push(new URL(url).searchParams.get("since")!); tick++;
-      return { ok: true, text: async () => `tick ${tick} · 0.1s/10s · ${tick <= lastTick ? "running" : "finished"} · you are p1` };
+      return new Response(`tick ${tick} · 0.1s/10s · ${tick <= lastTick ? "running" : "finished"} · you are p1`);
     }
-    return { ok: true, json: async () => ({ status: status() }) };
+    return Response.json({ status: status() });
   };
   const spawnImpl = (_bin: string, args: string[], opts: { env: NodeJS.ProcessEnv; cwd: string }) => {
     launches.push({ args, ...opts });
@@ -131,7 +131,7 @@ describe("Cursor player", () => {
   it("stops an in-flight decision when the player is eliminated", async () => {
     const h = harness([{}, { events: [init()], hang: true }], 10);
     const baseFetch = h.params.fetchImpl;
-    const fetchImpl = async (url: string) => url.endsWith("/status") ? { ok: true, json: async () => ({ status: "running", alive: false }) } : baseFetch(url);
+    const fetchImpl = async (url: string) => url.endsWith("/status") ? Response.json({ status: "running", alive: false }) : baseFetch(url);
     expect(await play({ ...h.params, fetchImpl, pollMs: 25 })).toBe(0);
     expect(h.kills).toHaveBeenCalledWith("SIGTERM");
   });

@@ -1,4 +1,4 @@
-import type { ReplayFile } from "./protocol";
+import type { ReplayFile } from "./protocol.ts";
 
 /** Reasoning efforts a harness may declare, from none to the most; "none" and "off" turn reasoning off. */
 export const EFFORTS = ["none", "off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"] as const;

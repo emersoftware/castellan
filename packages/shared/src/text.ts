@@ -1,7 +1,7 @@
-import type { ChatMessage, EntityView, GameEvent, PlayerId, PlayerView } from "./protocol";
-import { NEUTRAL_OWNER } from "./protocol";
-import { playerResult, winnersOf } from "./outcome";
-import { ENTITY_KINDS } from "./ruleset";
+import type { ChatMessage, EntityView, GameEvent, PlayerId, PlayerView, SeatState } from "./protocol.ts";
+import { MATCH_STATUSES, NEUTRAL_OWNER } from "./protocol.ts";
+import { playerResult, winnersOf } from "./outcome.ts";
+import { ENTITY_KINDS } from "./ruleset.ts";
 
 /** How a kind's script reads to its player: `custom` once uploaded, else `default`. */
 export const scriptOrigin = (script: { custom: boolean }) => (script.custom ? "custom" : "default");
@@ -17,7 +17,7 @@ export function viewToText(v: PlayerView): string {
   const lines: string[] = [];
   const secs = (ms: number) => (ms / 1000).toFixed(1);
   const left = v.status === "finished" ? "" : ` · ${secs(Math.max(0, v.matchMs - v.timeMs))}s left`;
-  // Keepers read this header and the YOU line's OUT back with observedSeat (protocol.ts).
+  // observedSeat reads this header and the YOU line's OUT back.
   lines.push(`tick ${v.tick} · ${secs(v.timeMs)}s/${secs(v.matchMs)}s${left} · ${v.status} · you are ${v.you}`);
   if (v.series) lines.push(`series ${v.series.id} · game ${v.series.gameNumber}/3 · ${v.series.status} · wins ${JSON.stringify(v.series.score)}${v.series.losses ? ` · losses ${JSON.stringify(v.series.losses)}` : ""} · previous games ${v.series.previousGames.join(", ") || "none"} (use history)`);
   const myTeam = v.players.find((p) => p.id === v.you)?.team;
@@ -113,6 +113,15 @@ export function viewToText(v: PlayerView): string {
   const ev = v.events.filter((e) => e.type !== "attack" && e.type !== "unload" && !(v.chat && e.type === "chat"));
   if (ev.length) lines.push("events:", ...ev.slice(-30).map(eventLine));
   return lines.join("\n");
+}
+
+/** viewToText's header line: its tick, then its status among the dotted fields. */
+const HEADER = new RegExp(`^tick (\\d+)(?:.*? · (${MATCH_STATUSES.join("|")}) · )?`);
+
+/** The seat as a text observation shows it: its header line, and YOU marked OUT. `tick` is NaN without a header. */
+export function observedSeat(observation: string): SeatState & { tick: number } {
+  const header = HEADER.exec(observation);
+  return { status: MATCH_STATUSES.find((s) => s === header?.[2]), tick: Number(header?.[1]), alive: !/^YOU\s+.* · OUT$/m.test(observation) };
 }
 
 function entityLine(e: EntityView): string {

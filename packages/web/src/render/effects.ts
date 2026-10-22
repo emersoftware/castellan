@@ -4,8 +4,6 @@ import { iso } from "./projection";
 export interface Effect {
   /** Returns false when finished. */
   update(now: number): boolean;
-  /** Remove persistent remains when seeking away from their timeline. */
-  destroy?(): void;
 }
 
 /** Creates short-lived visuals; the caller advances them on its presentation clock. */
@@ -67,16 +65,17 @@ export class SceneEffects {
     };
   }
 
-  floatText(text: string, x: number, y: number, color: number, ms = 1000, size = 8): Effect {
+  /** A banner that rises from a tile and fades over 3.2 s, for a vital loss. */
+  floatText(text: string, x: number, y: number, color: number): Effect {
     const { sx, sy } = iso(x, y);
-    const t = new Text({ text, style: { fontFamily: size > 9 ? "Times New Roman, Times, serif" : "Arial, Helvetica, sans-serif", fontSize: size, fill: color, stroke: { color: 0x000000, width: 2 } }, resolution: 2 });
+    const t = new Text({ text, style: { fontFamily: "Times New Roman, Times, serif", fontSize: 12, fill: color, stroke: { color: 0x000000, width: 2 } }, resolution: 2 });
     t.anchor.set(0.5, 1);
     t.position.set(sx, sy - 18);
     this.fx.addChild(t);
     const start = this.now();
     return {
       update: (now) => {
-        const k = (now - start) / ms;
+        const k = (now - start) / 3200;
         t.y = sy - 18 - k * 12;
         t.alpha = 1 - Math.max(0, k - 0.7) / 0.3;
         if (k < 1) return true;

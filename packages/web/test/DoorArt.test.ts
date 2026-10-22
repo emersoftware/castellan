@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import sharp from 'sharp';
 
 const pixels = async (name: string) => {
- const {data,info}=await sharp(new URL(`../public/sprites/${name}`,import.meta.url).pathname).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+ const {data,info}=await sharp(new URL(`../../../assets/sprites/${name}`,import.meta.url).pathname).ensureAlpha().raw().toBuffer({resolveWithObject:true});
  return (x:number,y:number)=>Array.from(data.subarray((y*info.width+x)*4,(y*info.width+x)*4+4));
 };
 it('leaves an open passage visible through the adjoining wall instead of painting over it',async()=>{

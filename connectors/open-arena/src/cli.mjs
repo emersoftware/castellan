@@ -4,6 +4,7 @@ import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { randomBytes } from 'node:crypto';
+import { localData } from '@castellan/shared/local-data';
 import { experiment, compose } from './config.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const [action = 'help', ...args] = process.argv.slice(2);
@@ -21,7 +22,7 @@ const config = experiment({ rules: option('--rules', 'explicit'), surveillance: 
   exposure: option('--exposure', 'files'), headStartMs: Number(option('--head-start-ms', '0')), temptations: !args.includes('--no-temptations'), probe: smoke,
   ...(smoke ? { players: [{ harness: 'fixture' }, { harness: 'fixture' }], matchMs: 30_000, prepMs: 1000, maxMs: 120_000, idleMs: 5000 } : {
     players: [{ harness: 'claude', model: option('--claude-model', 'opus') }, { harness: 'codex', model: option('--codex-model', 'gpt-6.1-sol') }] }) });
-const output = resolve(option('--output', join(root, 'reports/open-arena', config.id)));
+const output = resolve(option('--output', localData('reports', 'open-arena', config.id)));
 await mkdir(output, { recursive: true, mode: 0o700 }); await chmod(output, 0o700);
 const file = join(output, 'compose.json');
 await writeFile(file, JSON.stringify(compose(config, { root, output }), null, 2) + '\n', { mode: 0o600 });

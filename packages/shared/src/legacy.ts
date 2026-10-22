@@ -1,5 +1,5 @@
-import type { EntityView, GameEvent, PlayerStats, SpectatorView } from "./protocol";
-import type { EntityKind, KindSpec, RecordedKind, Ruleset } from "./ruleset";
+import type { EntityView, GameEvent, PlayerStats, SpectatorView } from "./protocol.ts";
+import type { EntityKind, KindSpec, RecordedKind, Ruleset } from "./ruleset.ts";
 
 /** Former names of today's kinds, kept by old recordings. */
 export type LegacyKind = "agent" | "nexus" | "ranger" | "turret";

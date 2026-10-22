@@ -2,20 +2,20 @@
  * What an entity looks like at a moment, from its published clips: a living unit's pose, a standing
  * building's damage and fire, and how a fallen entity goes. Times are presentation milliseconds.
  */
-import worker from '../../public/sprites/worker/manifest.json';
-import knight from '../../public/sprites/knight/manifest.json';
-import king from '../../public/sprites/king/manifest.json';
-import archer from '../../public/sprites/archer/manifest.json';
-import castle from '../../public/sprites/castle/manifest.json';
-import tower from '../../public/sprites/tower/manifest.json';
-import wall from '../../public/sprites/wall/manifest.json';
-import wallpost from '../../public/sprites/wallpost/manifest.json';
-import door from '../../public/sprites/door/manifest.json';
-import openDoor from '../../public/sprites/door-open/manifest.json';
-import leftWall from '../../public/sprites/wall-door-left/manifest.json';
-import rightWall from '../../public/sprites/wall-door-right/manifest.json';
-import bothWall from '../../public/sprites/wall-door-both/manifest.json';
-import fireSites from '../../public/sprites/castle/fire-pixels.json';
+import worker from '../../../../assets/sprites/worker/manifest.json';
+import knight from '../../../../assets/sprites/knight/manifest.json';
+import king from '../../../../assets/sprites/king/manifest.json';
+import archer from '../../../../assets/sprites/archer/manifest.json';
+import castle from '../../../../assets/sprites/castle/manifest.json';
+import tower from '../../../../assets/sprites/tower/manifest.json';
+import wall from '../../../../assets/sprites/wall/manifest.json';
+import wallpost from '../../../../assets/sprites/wallpost/manifest.json';
+import door from '../../../../assets/sprites/door/manifest.json';
+import openDoor from '../../../../assets/sprites/door-open/manifest.json';
+import leftWall from '../../../../assets/sprites/wall-door-left/manifest.json';
+import rightWall from '../../../../assets/sprites/wall-door-right/manifest.json';
+import bothWall from '../../../../assets/sprites/wall-door-both/manifest.json';
+import fireSites from '../../../../assets/sprites/castle/fire-pixels.json';
 import { currentKind, type KindSpec, type RecordedKind } from '@castellan/shared';
 import { screenDir, type AnimationFrame } from './sprites';
 import type { ClipArt } from './clips';

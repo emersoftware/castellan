@@ -1,7 +1,6 @@
 /**
- * The game's mixing rules, shared by the browser and the reel's soundtrack (packages/video/scripts/sfx.mjs):
- * each sound is rate-limited, capped in simultaneous voices and quieter the more often it just played; blows of
- * the same tick are spread over a few milliseconds, and only noises get a slight pitch jitter.
+ * The game's mixing rules: each sound is rate-limited, capped in simultaneous voices and quieter the more often
+ * it just played; blows of the same tick are spread over a few milliseconds, and only noises get a slight pitch jitter.
  */
 import type { SoundName } from "@castellan/shared";
 

@@ -5,7 +5,7 @@
 import { writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { playerResult, type RoomMode } from "@castellan/shared";
-import { BOTS } from "@castellan/sim";
+import { BOTS } from "@castellan/bots";
 import { playHeadless } from "../test/harness";
 
 const { values } = parseArgs({ args: process.argv.slice(2), options: {

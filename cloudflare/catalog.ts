@@ -73,12 +73,12 @@ export function completeSeries(entries: Publication["replays"], titles: Record<s
   return series;
 }
 
-export async function collectPublication(root: string): Promise<Publication> {
+/** `root` is the repository, whose featured copies are published along with the `local` archive's matches. */
+export async function collectPublication(root: string, local: string): Promise<Publication> {
   let titles: { replays: Record<string, string>; series: Record<string, string> } = { replays: {}, series: {} };
   try { titles = JSON.parse(await readFile(join(root, "cloudflare/titles.json"), "utf8")); }
   catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; }
   const featured = join(root, replayArchive.featured);
-  const local = join(root, replayArchive.local);
   const previous = new Map((await optionalIndex(join(featured, replayArchive.index))).map((e) => [e.id, e]));
   const localIndex = new Map((await optionalIndex(join(local, replayArchive.index))).map((e) => [e.id, e]));
   const files = new Map<string, { path: string; compressed: boolean }>();

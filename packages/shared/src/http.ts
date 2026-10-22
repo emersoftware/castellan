@@ -2,6 +2,9 @@
 
 export const defaultServer = "http://localhost:4400";
 
+/** A server address without trailing slashes; the local server when none is given. */
+export const serverUrl = (address?: string) => (address || defaultServer).replace(/\/+$/, "");
+
 /** Top-level paths the server answers; clients and the web dev proxy build their URLs from these. */
 export const routes = {
   health: "/health",

@@ -6,7 +6,7 @@ import { ff, probe } from './ffmpeg.mjs';
 import { formerKind } from '../../shared/src/legacy.ts';
 /** @import { EntityKind } from '../../shared/src/ruleset.ts' */
 const root = new URL('../../../', import.meta.url).pathname;
-const spriteDir = `${root}packages/web/public/sprites`;
+const spriteDir = `${root}assets/sprites`;
 /** @type {Map<EntityKind, { file: EntityKind, crop: import('sharp').Region, width: number, height: number, pole: number, flagBottom: number, anchorX: number, anchorY: number }>} */
 const settings = new Map([
   ['castle', { file: 'castle', crop: {left:76,top:20,width:392,height:508}, width:180,height:234,pole:313, flagBottom:116, anchorX:0.5,anchorY:437/508 }],

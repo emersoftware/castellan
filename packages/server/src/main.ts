@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath } from "node:url";
-import { replayArchive } from "@castellan/shared";
+import { localReplays } from "@castellan/shared/local-data";
 import { buildServer } from "./app";
 
 const root = resolve(fileURLToPath(import.meta.url), "../../../..");
@@ -10,7 +10,7 @@ const localEnv = resolve(root, "packages/server/.env.local");
 if (existsSync(localEnv)) loadEnvFile(localEnv);
 const port = Number(process.env.PORT ?? 4400);
 const app = await buildServer({
-  replayDir: resolve(process.env.REPLAY_DIR ?? resolve(root, replayArchive.local)),
+  replayDir: resolve(localReplays()),
   webDir: process.env.WEB_DIR ?? resolve(root, "packages/web/dist"),
   tickRate: process.env.TICK_RATE ? Number(process.env.TICK_RATE) : undefined,
   prepMs: process.env.PREP_MS ? Number(process.env.PREP_MS) : undefined,

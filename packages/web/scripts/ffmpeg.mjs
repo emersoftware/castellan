@@ -1,11 +1,8 @@
-// ffmpeg as the asset and video scripts run it.
+// ffmpeg as the asset and recording scripts run it.
 import { execFileSync, spawn } from "node:child_process";
 
 /** Runs ffmpeg quietly, overwriting outputs; returns what it writes to stdout (`-` as the output), such as raw samples. */
 export const ff = (...args) => execFileSync("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", ...args], { maxBuffer: 1 << 30 });
-
-/** Starts ffmpeg quietly, to read its output (`-`) from stdout as it comes, such as frames. */
-export const ffStream = (...args) => spawn("ffmpeg", ["-hide_banner", "-loglevel", "error", ...args]);
 
 /** A media file's length in seconds; for a video also its size in pixels and frame rate (a fraction, as ffmpeg takes it). */
 export function probe(file) {

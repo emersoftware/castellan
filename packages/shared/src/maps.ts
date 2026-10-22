@@ -3,7 +3,7 @@
  * rotations (180° for 2 seats, every 90° for 4) so no corner has an advantage;
  * `symmetric` adds the mirror of every wall tile so a map only lists one half.
  */
-import type { MapSpec } from "./ruleset";
+import type { MapSpec } from "./ruleset.ts";
 
 const W = 32;
 const H = 32;

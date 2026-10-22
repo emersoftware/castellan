@@ -12,10 +12,10 @@ try {
  await page.screenshot({path:'/tmp/castellan-door-landing.png'});
  const preview=await page.evaluateHandle(async(sharedPath)=>{
  const {GameRenderer}=await import(/** @type {string} */ (performance.getEntriesByType('resource').map(e=>e.name).find(u=>u.includes('/src/render/renderer.ts'))));
- const {v15:ruleset}=await import('/@fs'+sharedPath);
+ const {rules:ruleset}=await import('/@fs'+sharedPath);
  const host=document.createElement('div');host.style.cssText='position:fixed;inset:0;background:black;z-index:100';document.body.append(host);
  const r=await GameRenderer.create(host,{...ruleset,map:{...ruleset.map,width:12,height:12,walls:[]}},{a:0,b:1,c:2,d:3},{interactive:false});
- const clock=r.manualClock();r.zoom(1.5);
+ const clock=r.manualClock();r.camera.zoom(1.5);
  /** @type {EntityView[]} */
  const entities=[];
  for(let row=0;row<4;row++)for(let i=0;i<5;i++)entities.push({id:`${row}:${i}`,kind:i===2?'door':'wall',owner:['a','b','c','d'][row],x:row<2?2+row*3:i+6,y:row<2?i+2:3+(row-2)*4,hp:150,maxHp:150,open:row%2===1});

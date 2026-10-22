@@ -1,4 +1,4 @@
-import type { LegacyKind } from "./legacy";
+import type { LegacyKind } from "./legacy.ts";
 
 /** Every kind of entity in today's rules (see rules.ts). */
 export const ENTITY_KINDS = ["worker", "king", "knight", "archer", "castle", "tower", "wall", "door"] as const;

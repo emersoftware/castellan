@@ -14,7 +14,7 @@ import sharp from "sharp";
 /** @import { ClipArt } from "../src/render/clips.ts" */
 
 const RAW = resolve(import.meta.dirname, "../../../assets/raw");
-const OUT = resolve(import.meta.dirname, "../public/sprites");
+const OUT = resolve(import.meta.dirname, "../../../assets/sprites");
 /** Sprites are stored at 3× their on-screen size (zoom 1). */
 const SCALE = 3;
 /** Transparent padding, in stored pixels (1 screen px). Keeps existing anchors. */

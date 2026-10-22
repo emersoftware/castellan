@@ -5,7 +5,7 @@
  */
 import { spawn } from "node:child_process";
 import { eventLine, outcomeText, routes, type ChatChannel, type MatchStatus, type Outcome, type PlayerView, type RoomMode, type SeriesSummary } from "@castellan/shared";
-import { ApiError, client, query, type Client } from "./client";
+import { ApiError, client, query, type Client } from "./client.ts";
 
 export interface Fmt {
   json?: boolean;

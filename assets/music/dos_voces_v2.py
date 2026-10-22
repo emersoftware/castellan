@@ -18,7 +18,7 @@ Two voices, both original melodies: the synth (Roygbiv's statistics, none of its
   bars 21-28  both together
 Every synth note gets its own attack (no glide or legato); only the recorder slurs. The synth drifts by
 2-3 cents, slowly, as a nod to BoC's tape without the wobble.
-Writes packages/web/public/music/dos-voces-v2/ (tema.mp3, tema/sinte/flauta/acompanamiento.flac, tema.json).
+Writes dos-voces-v2/ here (tema.mp3, tema/sinte/flauta/acompanamiento.flac, tema.json).
 Review assets only: the game's music is unchanged.
 """
 import json
@@ -31,7 +31,7 @@ import soundfile as sf
 import compose as menu
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE.parents[1] / 'packages/web/public/music/dos-voces-v2'
+OUT = HERE / 'dos-voces-v2'
 SOUNDFONT = Path.home() / '.cache/castellan-soundfonts/MuseScore_General.sf3'
 RATE = 44100
 BPM = 84

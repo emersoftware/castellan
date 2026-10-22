@@ -33,7 +33,7 @@ try {
     const frame = (tick, alive = true) => ({ tick, timeMs: tick * 100, entities: alive ? [...entities, ...neighbors] : [],
       deposits: [], events: [], projectiles: [] });
     renderer.setFrame(frame(1), 100); clock.draw();
-    const sprites = entities.map(e => renderer.drawn.get(e.id).sprite);
+    const sprites = entities.map(e => renderer.field.entities.figures.get(e.id).sprite);
     const origins=sprites.map(s=>({x:s.x,y:s.y}));
     const layers=()=>sprites.map(s=>s.destroyed?null:s.parent);
     const die = () => renderer.setFrame({ ...frame(2, false), events: [...entities, ...neighbors].map(e => ({

@@ -1,5 +1,2 @@
 featured/**
-# Source art and composition archives stay in the repository; serve distribution copies.
-sprites/**
-music/**
 game-assets/build.json

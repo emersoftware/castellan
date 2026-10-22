@@ -8,7 +8,7 @@ import { RAMPS } from "../src/render/palette.ts";
 
 const web = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sharp = createRequire(resolve(web, "package.json"))("sharp");
-const castle = await sharp(resolve(web, "public/sprites/castle.png")).trim().toBuffer();
+const castle = await sharp(resolve(web, "../../assets/sprites/castle.png")).trim().toBuffer();
 
 for (const [size, name] of [[64, "favicon-64.png"], [180, "apple-touch-icon.png"]] as const) {
   const { data } = await sharp(castle).resize(size, size, { fit: "contain", background: "#00000000" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });

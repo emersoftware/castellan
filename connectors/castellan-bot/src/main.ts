@@ -4,10 +4,11 @@
  */
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
+import { localData } from "@castellan/shared/local-data";
 import { Runtime } from "./runtime";
 
 const { values } = parseArgs({ args: process.argv.slice(2), options: {
-  log: { type: "string", default: process.env.CASTELLAN_BOT_LOG ?? "runs/castellan-bot" },
+  log: { type: "string", default: process.env.CASTELLAN_BOT_LOG ?? localData("runs", "castellan-bot") },
   name: { type: "string" },
   wait: { type: "string", default: "1" },
   help: { type: "boolean", short: "h" },

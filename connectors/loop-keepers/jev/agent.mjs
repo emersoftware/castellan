@@ -13,9 +13,10 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 import { launchConfiguration, reportActivity, reportConfiguration } from "../metadata.mjs";
-import { observedSeat, seat, seatOver, serverUrl } from "../game.mjs";
+import { observedSeat, seat, seatOver } from "../game.mjs";
 import { promptOf } from "../turns.mjs";
-import { dist as tileDistance } from "../../../packages/shared/src/geometry.ts";
+import { client, query } from "@castellan/cli";
+import { dist as tileDistance, routes } from "@castellan/shared";
 import { loadKey } from "../opencode/agent.mjs";
 
 const DEFAULT_JEV = "typesafe/jev-1.14";
@@ -227,17 +228,11 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   console.error(`castellan jev: ${opts.planner} (${opts.effort}) plans, ${opts.jev} chooses; logs ${root}`);
   await reportConfiguration(launchConfiguration({ connector: "jev", model: `${opts.planner}+${opts.jev}`, effort: opts.effort, prompt: goal, env }), { env, fetchImpl });
 
-  const server = serverUrl(env.CASTELLAN_SERVER);
   const abort = new AbortController();
-  const api = async (method, path, body) => {
-    const res = await fetchImpl(server + path, { method, signal: AbortSignal.any([abort.signal, AbortSignal.timeout(10_000)]),
-      headers: { authorization: `Bearer ${env.CASTELLAN_TOKEN}`, ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
-    const text = await res.text();
-    let json; try { json = JSON.parse(text); } catch { json = text; }
-    if (!res.ok) throw new Error(`game HTTP ${res.status}: ${typeof json === "string" ? json : json.error ?? ""}`);
-    return json;
-  };
   const game = seat({ env, fetchImpl, signal: abort.signal });
+  // The chooser's own calls; like the seat's reads, they declare no agent and stop with the keeper.
+  const api = client({ env, fetchImpl, declare: false });
+  const call = () => ({ signal: AbortSignal.any([abort.signal, AbortSignal.timeout(10_000)]) });
   const choose = jevClient({ key, model: opts.jev, fetchImpl });
   const journal = line => appendFile(join(root, "decisions.jsonl"), JSON.stringify({ at: Date.now(), ...line }) + "\n", { mode: 0o600 });
   const recent = [], failed = new Map();
@@ -268,12 +263,12 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
       console.log(`[${view.tick}] PLAN (${reason}): ${next.objective} · targets ${JSON.stringify(next.targets)}${next.waypoint ? ` · waypoint ${next.waypoint.x},${next.waypoint.y}` : ""}`);
       await journal({ tick: view.tick, plan: next, reason });
       if (next.message) {
-        const sent = await api("POST", "/chat", { text: next.message.text, ...(next.message.to && next.message.to !== "all" ? { to: next.message.to } : {}) }).then(() => "sent", e => `failed: ${e.message}`);
+        const sent = await api.post(routes.chat, { text: next.message.text, ...(next.message.to && next.message.to !== "all" ? { to: next.message.to } : {}) }, call()).then(() => "sent", e => `failed: ${e.message}`);
         recent.push({ action: `message to ${next.message.to ?? "all"}: ${next.message.text}`, result: sent });
       }
       for (const [kind, code] of Object.entries(next.scripts)) {
         // Installing compiles the script first; a script that does not compile is rejected with the reason.
-        const result = await api("PUT", `/scripts/${kind}`, { code, lang: "js" }).then(() => "installed", e => `rejected: ${e.message.slice(0, 200)}`);
+        const result = await api.put(`${routes.scripts}/${kind}`, { code, lang: "js" }, call()).then(() => "installed", e => `rejected: ${e.message.slice(0, 200)}`);
         recent.push({ action: `planner's ${kind} script`, result });
       }
     })().catch(e => { console.error(`castellan jev: plan failed: ${e.message}`); lastPlanAt = Date.now() - REPLAN_MS + 3000; })
@@ -284,7 +279,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
     while (!stopped) {
       const started = Date.now();
       try {
-        const view = await api("GET", `/state?since=${chooserSince}`);
+        const view = /** @type {import("@castellan/shared").PlayerView} */ (await api.get(`${routes.state}${query({ since: chooserSince })}`, call()));
         chooserSince = view.tick;
         if (seatOver({ status: view.status, alive: view.players.find(p => p.id === view.you)?.alive })) { finished = true; break; }
         if (view.status !== "running") { await sleep(1000, undefined, { signal: abort.signal }); continue; }
@@ -298,7 +293,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
         await reportActivity("deciding", { env, fetchImpl });
         const pick = await choose(summary(view, plan, recent), menu);
         jevCost += pick.cost; decisions++;
-        const res = await api("POST", "/act", { orders: pick.selected.orders });
+        const res = /** @type {{ results: import("@castellan/shared").OrderResult[] }} */ (await api.post(routes.act, { orders: pick.selected.orders }, call()));
         const rejected = (res.results ?? []).find(r => !r.ok);
         if (rejected) { failed.set(pick.selected.key, Date.now() + FAILED_MS); rejections++; } else rejections = 0;
         // A move needs time to show its effect; an unreachable point would otherwise be re-sent every decision.

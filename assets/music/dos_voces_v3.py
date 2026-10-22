@@ -16,7 +16,7 @@ The two melodies are the originals this time (study 02 only borrowed their trait
   bars 13-20  the synth plays Roygbiv's melody over its chords
   bars 21-28  Roygbiv again, the recorder above it in long notes with AoK's gesture
 Synth notes each get their own attack (no glide); the recorder slurs. Helpers come from dos_voces_v2.py.
-Writes packages/web/public/music/dos-voces-v3/. Review assets only: the game's music is unchanged.
+Writes dos-voces-v3/ here. Review assets only: the game's music is unchanged.
 """
 import json
 from pathlib import Path
@@ -28,7 +28,7 @@ import compose as menu
 import dos_voces_v2 as v2
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE.parents[1] / 'packages/web/public/music/dos-voces-v3'
+OUT = HERE / 'dos-voces-v3'
 RATE, BPM, BEAT, BAR = v2.RATE, v2.BPM, v2.BEAT, v2.BAR
 AOK_FROM, ROY_FROM, BOTH_FROM, BARS = 4, 12, 20, 28
 LOOP = BARS * BAR

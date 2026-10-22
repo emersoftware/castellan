@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { playerGuide, type EntityKind, type Ruleset } from "@castellan/shared";
+import { localReplays } from "@castellan/shared/local-data";
 // @ts-expect-error Plain Node launcher shared with external harnesses.
 import { codexBin, isolatedExec, isolatedHome } from "../../../connectors/loop-keepers/codex/agent.mjs";
 
@@ -28,7 +29,7 @@ const ASK = `Decide what you spend on during the next minute. Reply with JSON on
 
 function rulesOf(source: string): Ruleset {
   if (source.endsWith(".json")) return JSON.parse(readFileSync(source, "utf8"));
-  return JSON.parse(gunzipSync(readFileSync(join(import.meta.dirname, "../../../replays", `${source}.json.gz`))).toString()).ruleset;
+  return JSON.parse(gunzipSync(readFileSync(join(localReplays(), `${source}.json.gz`))).toString()).ruleset;
 }
 
 /** One isolated, tool-less Codex call (same isolation as the player connector, without the game tools). */

@@ -22,13 +22,13 @@ try {
     const label=document.createElement('div');label.style.cssText='position:fixed;left:30px;top:22px;color:#eee;font:22px monospace;z-index:101';
     label.textContent='DAÑO LEVE / INTERMEDIO · FUEGO + PARTÍCULAS';document.body.append(label);
     const renderer=await GameRenderer.create(host,{...rules,map:{...rules.map,width:24,height:24,walls:[],deposits:[],sharedDeposits:[]}},{a:0,b:1,c:2,d:3},{interactive:false});
-    const clock=renderer.manualClock();renderer.zoom(1.25);
+    const clock=renderer.manualClock();renderer.camera.zoom(1.25);
     /** @type {EntityView[]} */
     const entities=[25,50].flatMap((stage,row)=>['a','b','c','d'].map((owner,col)=>({id:`${stage}-${col}`,kind:'castle',owner,
       x:6+row*4+col*3,y:15+row*4-col*3,hp:stage===25?50:25,maxHp:100})));
     const frame=(tick,alive=true,hp)=>({tick,timeMs:tick*100,entities:alive?entities.map(e=>({...e,hp:hp??e.hp})):[],deposits:[],events:[],projectiles:[]});
     clock.setTime(0);renderer.setFrame(frame(1),100);clock.draw();
-    const drawn=entities.map(e=>renderer.drawn.get(e.id));
+    const drawn=entities.map(e=>renderer.field.entities.figures.get(e.id));
     return {renderer,clock,drawn,frame,label,step(ms){clock.setTime(ms);clock.draw();},live(tick){renderer.setFrame(frame(tick),100);clock.draw();},
       die(){renderer.setFrame({...frame(40,false),events:entities.map(e=>({tick:39,type:'death',id:e.id,kind:e.kind,owner:e.owner,x:e.x,y:e.y}))},100);label.textContent='CAÍDA DE ARRIBA HACIA ABAJO · PAREDES HACIA ADENTRO';clock.draw();},
       cells(){return drawn.map(d=>({destroyed:d.sprite.destroyed,body:d.sprite.destroyed?null:{x:d.sprite.texture.frame.x,y:d.sprite.texture.frame.y},

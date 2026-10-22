@@ -9,33 +9,15 @@
       "entry": [
         "tools/elo.mts",
         "connectors/autonomous/{cli,validate,live-validate}.ts",
-        // Shell launchers, harness tool modules and credential/setup commands.
-        "connectors/loop-keepers/{antigravity,codex,cursor,deepseek,jev,minimax,opencode}/agent.mjs",
-        "connectors/loop-keepers/antigravity/{play,preflight,tool}.mjs",
-        "connectors/loop-keepers/claude-code/{first-turn,stop-hook}.mjs",
-        "connectors/loop-keepers/deepseek/{game-tools,key,setup}.mjs",
-        "connectors/loop-keepers/minimax/{key,setup}.mjs",
-        "connectors/{autonomous,loop-keepers}/test/**/*.test.ts",
+        "connectors/autonomous/test/**/*.test.ts",
         // Maintained art generators and diagnostics, invoked directly from Node.
         "assets/animations/package-units.mjs",
         "assets/animations/diagnostics/validate-atlases.mjs",
         "assets/animations/ranger/{idle,shoot,walk}-directions/package.mjs",
-        "assets/icons/{export-hero-king,render-king-fire,render-king-icon}.mts",
-        // Plain script tags, esbuild input and the standalone deck checker.
-        "talks/devday-concepcion-2026/{slides.js,scenes.js,game.ts,build-game.mjs}",
-        "talks/devday-concepcion-2026/tools/check.mjs"
+        "assets/icons/{export-hero-king,render-king-fire,render-king-icon}.mts"
       ],
-      "project": [
-        "**/*.{js,mjs,cjs,ts,mts,cts,tsx,jsx}",
-        // Generated bundle; its TypeScript source above is checked instead.
-        "!talks/devday-concepcion-2026/game.js",
-        // Local-only, gitignored research and saved drafts (nested .gitignore).
-        "!talks/devday-concepcion-2026/{research,versiones}/**"
-      ],
-      // Art tools invoke the system ffmpeg; the deck checker resolves Puppeteer
-      // through packages/web/package.json, which owns that dependency.
-      "ignoreBinaries": ["ffmpeg"],
-      "ignoreDependencies": ["puppeteer-core"]
+      // Art tools invoke the system ffmpeg.
+      "ignoreBinaries": ["ffmpeg"]
     },
     "packages/sandbox": {
       "entry": ["src/index.{ts,js}", "test/**/*.test.ts"]
@@ -47,6 +29,17 @@
       "entry": ["src/{cli,seed,server,auditor,egress,agent,fixture}.mjs", "test/**/*.test.ts"],
       // util-linux in the arena image drops privileges before starting a harness.
       "ignoreBinaries": ["setpriv"]
+    },
+    "connectors/loop-keepers": {
+      // Shell launchers, harness tool modules and credential/setup commands.
+      "entry": [
+        "{antigravity,codex,cursor,deepseek,jev,minimax,opencode}/agent.mjs",
+        "antigravity/{play,preflight,tool}.mjs",
+        "claude-code/{first-turn,stop-hook}.mjs",
+        "deepseek/{game-tools,key,setup}.mjs",
+        "minimax/{key,setup}.mjs",
+        "test/**/*.test.ts"
+      ]
     },
     "connectors/mcp": {
       "entry": ["src/tools.{ts,js}"]
@@ -66,7 +59,7 @@
     "packages/sim": {
       "entry": ["src/index.{ts,js}",
         "test/**/*.test.ts",
-        "src/{balance-optimize,battles-baseline,bot-smoke,choice-probe,extract-recent,script-sets,synthetic-matrix,video-timeline}.mts"
+        "src/{balance-optimize,battles-baseline,bot-smoke,choice-probe,extract-recent,script-sets,synthetic-matrix}.mts"
       ]
     },
     "packages/web": {
@@ -76,10 +69,9 @@
         "scripts/{check-building-collapse,check-castle-damage,check-doors,check-landing-audio,check-worker-idle,record,shot}.mjs",
         "scripts/favicon.mts", "scripts/sync-replays.ts"
       ],
-      "ignoreBinaries": ["ffmpeg", "ffprobe"]
-    },
-    "packages/video": {
-      "entry": ["src/index.{ts,js}", "remotion.config.ts", "scripts/{dither,sfx}.mjs"]
+      "ignoreBinaries": ["ffmpeg", "ffprobe"],
+      // The DevDay deck is a prebuilt static site with its own bundled scripts.
+      "ignore": ["public/devday/**"]
     }
   }
 }

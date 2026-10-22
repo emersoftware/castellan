@@ -19,7 +19,7 @@ it("restores queued production, reserved population and explored terrain without
     ]);
     await vi.advanceTimersByTimeAsync(2100); expect((await pending).results.every((r) => r.ok)).toBe(true);
     room.suspend();
-    room.configureAgent("p1", { model: "fixture", effort: "low", connector: "test", connectorVersion: "1", promptSha256: null, memoryPolicy: "isolated", contextPolicy: null });
+    room.experiment.configure("p1", { model: "fixture", effort: "low", connector: "test", connectorVersion: "1", promptSha256: null, memoryPolicy: "isolated", contextPolicy: null });
     const before = room.view("p1", 0), saved = room.checkpoint();
     expect(before.players[0]).toMatchObject({ mineral: 1000 - 50 - rules.kinds.archer.cost, queuedPop: 2 });
     restored = await Room.restore(saved, () => {});

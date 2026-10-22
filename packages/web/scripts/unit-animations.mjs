@@ -14,7 +14,7 @@ const root=resolve(import.meta.dirname,'../../..');
 const impacts={knight:[6,9,6,8,11]};
 for(const [kind,actions] of units){
   if(selectedKind&&kind!==selectedKind)continue;
-  const out=resolve(root,'packages/web/public/sprites',kind);
+  const out=resolve(root,'assets/sprites',kind);
   mkdirSync(out,{recursive:true});
   const previous=existsSync(resolve(out,'manifest.json'))?JSON.parse(readFileSync(resolve(out,'manifest.json'),'utf8')):{};
   const manifest={};

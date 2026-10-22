@@ -28,19 +28,19 @@ try {
    const entities=Array.from({length:8},(_,i)=>({id:`w${i}`,kind:'worker',owner:['a','b','c','d'][i%4],x:4+(i%4)*2,y:5+Math.floor(i/4)*4,hp:50,maxHp:50}));
    const frame=t=>({tick:t,timeMs:t*100,entities,deposits:[],events:[],projectiles:[]});
    renderer.setFrame(frame(1),100);
-   for(let i=0;i<8;i++) renderer.drawn.get(`w${i}`).dir=i;
+   for(let i=0;i<8;i++) renderer.field.entities.figures.get(`w${i}`).dir=i;
    clock.draw();
    return {renderer,clock,frame,step(t){clock.setTime(t*100);renderer.setFrame(frame(t),100);clock.draw();}};
  });
  await page.evaluate(preview=>preview.step(6),preview);
  await page.screenshot({path:'/tmp/castellan-worker-idle-directions.png'});
- const cells=await page.evaluate(preview=>[...preview.renderer.drawn.values()].map(d=>({frame:d.sprite.texture.frame.x,row:d.sprite.texture.frame.y,flip:d.sprite.scale.x<0})),preview);
+ const cells=await page.evaluate(preview=>[...preview.renderer.field.entities.figures.values()].map(d=>({frame:d.sprite.texture.frame.x,row:d.sprite.texture.frame.y,flip:d.sprite.scale.x<0})),preview);
  assert.ok(cells.every(c=>c.frame>0)); assert.deepEqual(cells.map(c=>c.row),[0,112,224,336,448,336,224,112]);
  assert.deepEqual(cells.map(c=>c.flip),[false,false,false,false,false,true,true,true]);
  await page.evaluate(preview=>preview.renderer.setPaused(true),preview);
- const frozen=await page.evaluate(preview=>preview.renderer.drawn.get('w0').sprite.texture.frame.x,preview);
+ const frozen=await page.evaluate(preview=>preview.renderer.field.entities.figures.get('w0').sprite.texture.frame.x,preview);
  await page.evaluate(preview=>{preview.clock.setTime(9999);preview.clock.draw();},preview);
- assert.equal(await page.evaluate(preview=>preview.renderer.drawn.get('w0').sprite.texture.frame.x,preview),frozen);
+ assert.equal(await page.evaluate(preview=>preview.renderer.field.entities.figures.get('w0').sprite.texture.frame.x,preview),frozen);
  assert.deepEqual(errors,[]);
  console.log('Worker idle verified: moving landing portrait, reduced motion, eight game directions, mirrored west views, game pause, no browser errors.');
 } finally {await browser.close();}

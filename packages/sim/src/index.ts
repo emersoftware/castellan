@@ -1,8 +1,6 @@
 import { createMatch, type PlayerOrder } from "@castellan/engine";
 import { MAPS, rules, type OrderResult, type Outcome, type Ruleset } from "@castellan/shared";
-import type { Bot } from "./bots";
-
-export * from "./bots";
+import type { Bot } from "@castellan/bots";
 
 export interface SimSide {
   bot: Bot;

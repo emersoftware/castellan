@@ -5,7 +5,7 @@ import { ff, probe } from './ffmpeg.mjs';
 
 const root = new URL('../../../', import.meta.url).pathname;
 const dir = `${root}assets/animations/buildings/castle/damage-stages`;
-const out = `${root}packages/web/public/sprites/castle`;
+const out = `${root}assets/sprites/castle`;
 const prepare = process.argv.includes('--prepare');
 const width = 1107, height = 1421;
 // Original castle: 374x480 centered on 544, crop 392x508 -> 180x234 stored pixels.

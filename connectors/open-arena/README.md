@@ -32,7 +32,7 @@ volumes mounted between provisioning and service startup, so tmpfs data survives
 the setup container exiting. The image installs only the
 arena/server/MCP production dependency graph.
 
-Each run creates a private directory under `reports/open-arena/` (or `--output`),
+Each run creates a private directory under `~/.local/share/castellan/reports/open-arena/` (or `--output`),
 then removes its containers, networks and named volumes on success or failure.
 A failed harness stops the experiment promptly, including its opponent. The
 watchdog allows a native CLI to keep acting within one invocation: 120 seconds

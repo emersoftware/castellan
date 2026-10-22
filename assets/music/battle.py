@@ -13,7 +13,7 @@ pan flute plays the arpeggio in eighths, a bar per cell. A war drum (bombo), syn
   bars 25-32  the full call, the pan flute a third above it
 The flutes are rendered with FluidSynth and MuseScore_General.sf3 (MIT), downloaded to
 ~/.cache/castellan-soundfonts.
-Writes packages/web/public/music/battle.mp3 (+ battle.json with its loop points).
+Writes battle.mp3 (+ battle.json with its loop points) next to this script.
 """
 import json
 from pathlib import Path
@@ -25,7 +25,7 @@ import soundfile as sf
 import compose as menu
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE.parents[1] / 'packages/web/public/music'
+OUT = HERE
 SOUNDFONT = Path.home() / '.cache/castellan-soundfonts/MuseScore_General.sf3'
 SOUNDFONT_URL = 'https://ftp.osuosl.org/pub/musescore/soundfont/MuseScore_General/MuseScore_General.sf3'
 BPM = 90

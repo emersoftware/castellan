@@ -10,7 +10,7 @@ const root = resolve(import.meta.dirname, '../../..');
 const kind = 'archer';
 // The art predates the archer's rename.
 const art = formerKind(kind);
-const out = resolve(root, `packages/web/public/sprites/${kind}`);
+const out = resolve(root, `assets/sprites/${kind}`);
 mkdirSync(out, { recursive: true });
 const manifest = {};
 for (const action of ['idle', 'walk', 'shoot', 'death']) {

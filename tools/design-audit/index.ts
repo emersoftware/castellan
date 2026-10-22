@@ -23,7 +23,7 @@ if (option("list")) {
 const files = git("ls-files", "--cached", "--others", "--exclude-standard", "--", ...(paths.length ? paths : ["packages", "connectors", "cloudflare"])).filter(
   (f) =>
     /\.(ts|tsx|mts|mjs|js)$/.test(f) &&
-    !/\.d\.ts$|\.test\.|(^|\/)(test|dist|node_modules)\//.test(f) &&
+    !/\.d\.ts$|\.test\.|(^|\/)(test|dist|node_modules|public)\//.test(f) &&
     (paths.length > 0 || !f.startsWith("connectors/autonomous/")) &&
     existsSync(`${root}/${f}`),
 );

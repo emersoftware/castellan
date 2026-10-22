@@ -111,10 +111,10 @@ describe("OpenCode connector", () => {
     const fetchImpl = async (url: string, init: { body?: string }) => {
       if (url.includes("/state?")) {
         states.push(new URL(url).searchParams.get("since")!); tick++;
-        return { ok: true, text: async () => `tick ${tick} · 0.1s/10s · ${tick <= lastTick ? "running" : "finished"} · you are p1\nYOU   p1: mineral 200` };
+        return new Response(`tick ${tick} · 0.1s/10s · ${tick <= lastTick ? "running" : "finished"} · you are p1\nYOU   p1: mineral 200`);
       }
       if (url.endsWith("/agent-status")) activities.push(JSON.parse(init.body!).state);
-      return { ok: true, json: async () => ({ status: status() }) };
+      return Response.json({ status: status() });
     };
     return { states, activities, fetchImpl };
   }

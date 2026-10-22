@@ -5,8 +5,8 @@
  * Times are in milliseconds; the engine converts them to ticks, so changing the
  * tick rate does not change the balance.
  */
-import { MAPS } from "./maps";
-import type { Ruleset } from "./ruleset";
+import { MAPS } from "./maps.ts";
+import type { Ruleset } from "./ruleset.ts";
 
 export const rules: Ruleset = {
   version: "0.29.3",

@@ -1,7 +1,11 @@
+import { BOT_NAMES } from "@castellan/shared";
+
+/** A player named after a reference bot, alone or with a suffix such as `eco-2`. */
+const BOT_PLAYER = new RegExp(`^(${BOT_NAMES.join("|")})(?:[-_][a-z0-9]+)?$`, "i");
+
 /** Legacy recordings only stored player names, not the built-in bot flag. */
 export function hasScriptedBot(players: readonly { name: string; bot?: string }[]): boolean {
-  return players.some((player) => !!player.bot || /^bot:/i.test(player.name)
-    || /^(rush|eco|kite|turtle)(?:[-_][a-z0-9]+)?$/i.test(player.name));
+  return players.some((player) => !!player.bot || /^bot:/i.test(player.name) || BOT_PLAYER.test(player.name));
 }
 
 interface Listed { id: string; players: readonly { name: string; bot?: string }[]; rulesVersion?: string; savedAt?: string; createdAt: string }

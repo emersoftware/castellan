@@ -8,8 +8,5 @@
   "dependencies": {
     "@castellan/shared": "workspace:*",
     "@castellan/sandbox": "workspace:*"
-  },
-  "devDependencies": {
-    "@castellan/sim": "workspace:*"
   }
 }

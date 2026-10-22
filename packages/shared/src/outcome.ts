@@ -1,4 +1,4 @@
-import type { Outcome, PlayerId } from "./protocol";
+import type { Outcome, PlayerId } from "./protocol.ts";
 
 /** Every player on the winning side; recordings older than teams name only `winner`. */
 export function winnersOf(outcome: Outcome): PlayerId[] {

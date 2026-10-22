@@ -11,7 +11,7 @@ import { launchConfiguration, reportConfiguration } from "../metadata.mjs";
 import { serverUrl } from "../game.mjs";
 import { MIN_INTERVAL_MS, promptOf } from "../turns.mjs";
 import { exitOf, playSeat } from "../decisions.mjs";
-/** @import { Effort } from "../../../packages/shared/src/replayMetadata.ts" */
+/** @import { Effort } from "@castellan/shared" */
 
 const here = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_MODEL = "deepseek-flash";

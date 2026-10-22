@@ -1,2 +1,2 @@
-export * from "./client";
-export * from "./commands";
+export * from "./client.ts";
+export * from "./commands.ts";

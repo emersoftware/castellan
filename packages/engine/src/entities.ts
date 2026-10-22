@@ -50,3 +50,20 @@ export interface Deposit {
   y: number;
   amount: number;
 }
+
+/** A seat in the match: where it plays from, whose side it is on, and what it owns and has researched. */
+export interface Player {
+  id: PlayerId;
+  /** Seat 0..3: which rotation of the map is home. Tie-breaks follow it so mirrored play stays mirrored. */
+  side: number;
+  team: number;
+  name: string;
+  mineral: number;
+  kills: number;
+  buildingKills: number;
+  alive: boolean;
+  /** Completed research levels by upgrade id. */
+  upgrades: Record<string, number>;
+  /** The one research in progress, applied to the player's units when it completes. */
+  research: { upgrade: string; level: number; completesAtTick: number } | null;
+}

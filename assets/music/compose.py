@@ -18,7 +18,7 @@ anew, with a short breath before the next one.
 Everything is set chill and creamy, like the game's sound effects: a dark, barely resonant filter with a
 slow sweep, soft attacks, a whisper of drums, a warm room,
 a barely moving pulse width and no tape wobble. All synthesized here, no samples.
-Writes packages/web/public/music/theme.mp3 (+ theme.json with its loop points) and index.html here to listen.
+Writes theme.mp3 (+ theme.json with its loop points) and index.html here to listen.
 """
 import json
 from pathlib import Path
@@ -28,7 +28,7 @@ from scipy.signal import butter, fftconvolve, lfilter
 import soundfile as sf
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE.parents[1] / 'packages/web/public/music'
+OUT = HERE
 RATE = 44100
 BPM = 76
 BEAT = 60 / BPM

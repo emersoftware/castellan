@@ -5,7 +5,8 @@ import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { routes } from "../../packages/shared/src/http.ts";
+import { ApiError } from "@castellan/cli";
+import { routes } from "@castellan/shared";
 import { seat } from "./game.mjs";
 
 /** The value of the last `--name value` or `--name=value` among args. */
@@ -76,19 +77,19 @@ export function connectorVersion(binary) {
 export async function reportConfiguration(configuration, { env = process.env, fetchImpl = fetch, warn = console.error } = {}) {
   if (!env.CASTELLAN_TOKEN) return false;
   try {
-    const res = await seat({ env, fetchImpl, redirect: "error" }).report(routes.agentConfig, configuration);
-    if (res.ok) return true;
-    warn(`castellan: experiment configuration was not recorded (HTTP ${res.status}).`);
-  } catch {
+    await seat({ env, fetchImpl, redirect: "error" }).report(routes.agentConfig, configuration);
+    return true;
+  } catch (error) {
     // Avoid printing an error object: fetch/connection errors can carry URLs or
     // request options. Losing metadata must be explicit but not stop gameplay.
-    warn("castellan: experiment configuration was not recorded (server unavailable).");
+    warn(error instanceof ApiError && error.status ? `castellan: experiment configuration was not recorded (HTTP ${error.status}).`
+      : "castellan: experiment configuration was not recorded (server unavailable).");
   }
   return false;
 }
 
 /**
- * @param {import("../../packages/shared/src/protocol.ts").AgentActivity["state"]} state
+ * @param {import("@castellan/shared").AgentActivity["state"]} state
  * @param {{ env?: NodeJS.ProcessEnv, fetchImpl?: typeof fetch, retryAt?: string }} [options]
  */
 export async function reportActivity(state, { env = process.env, fetchImpl = fetch, retryAt } = {}) {

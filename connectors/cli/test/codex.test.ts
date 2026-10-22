@@ -17,10 +17,10 @@ it("resumes the same isolated conversation after a no-order decision, supplies f
   const fetchImpl = async (url: string, init: { body?: string }) => {
     if (url.includes("/state?")) {
       states.push(url); tick++;
-      return { ok: true, text: async () => `tick ${tick} · 0.1s/10s · ${tick < 3 ? "running" : "finished"} · you are p1\nYOU   p1: mineral 200` };
+      return new Response(`tick ${tick} · 0.1s/10s · ${tick < 3 ? "running" : "finished"} · you are p1\nYOU   p1: mineral 200`);
     }
     if (url.endsWith("/agent-status")) activities.push(JSON.parse(init.body!).state);
-    return { ok: true, json: async () => ({ status: "running" }) };
+    return Response.json({ status: "running" });
   };
   const spawnImpl = (_bin: string, args: string[], opts: { env: NodeJS.ProcessEnv }) => {
     launches.push({ args, env: opts.env });
@@ -52,7 +52,7 @@ it("resumes the same isolated conversation after a no-order decision, supplies f
 
 it("cancels an in-flight inference when the match finishes", async () => {
   const killed = vi.fn();
-  const fetchImpl = async (url: string) => ({ ok: true, text: async () => "tick 1 · 0.1s/10s · running · you are p1", json: async () => ({ status: url.endsWith("/status") ? "finished" : "running" }) });
+  const fetchImpl = async (url: string) => url.endsWith("/status") ? Response.json({ status: "finished" }) : new Response("tick 1 · 0.1s/10s · running · you are p1");
   const spawnImpl = () => {
     const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), kill: () => { killed(); setImmediate(() => child.emit("close", null)); } });
     return child;
@@ -65,8 +65,8 @@ it("tells a relaunched player that its earlier conversation is gone", async () =
   vi.spyOn(process.stdout, "write").mockReturnValue(true);
   const prompts: string[] = [];
   const fetchImpl = async (url: string) => url.includes("/state?")
-    ? { ok: true, text: async () => `tick 1 · 0.1s/10s · ${prompts.length ? "finished" : "running"} · you are p1\nYOU   p1: mineral 200` }
-    : { ok: true, json: async () => ({ status: "running" }) };
+    ? new Response(`tick 1 · 0.1s/10s · ${prompts.length ? "finished" : "running"} · you are p1\nYOU   p1: mineral 200`)
+    : Response.json({ status: "running" });
   const spawnImpl = (_bin: string, args: string[]) => {
     prompts.push(args.at(-1)!);
     const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), kill: vi.fn() });

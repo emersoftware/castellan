@@ -7,7 +7,7 @@ import { formerKind } from '../../shared/src/legacy.ts';
 /** @import { ClipArt } from '../src/render/clips.ts' */
 
 const root = new URL('../../../', import.meta.url).pathname;
-const sprites = `${root}packages/web/public/sprites`;
+const sprites = `${root}assets/sprites`;
 const sources = `${root}assets/animations/buildings/collapse`;
 const manifest = JSON.parse(await readFile(`${sprites}/manifest.json`, 'utf8'));
 /** @type {Map<ClipArt, ClipArt>} */

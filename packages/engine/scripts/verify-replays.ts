@@ -5,10 +5,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { replayArchive, type Outcome, type ReplayFile } from "@castellan/shared";
+import { localReplays } from "@castellan/shared/local-data";
 import { runReplay } from "../src";
 
 const root = resolve(import.meta.dirname, "../../..");
-const local = resolve(root, replayArchive.local), featured = resolve(root, replayArchive.featured);
+const local = localReplays(), featured = resolve(root, replayArchive.featured);
 const files = [
   ...readdirSync(local).filter((f) => f.endsWith(".json.gz")).map((f) => resolve(local, f)),
   ...readdirSync(featured).filter((f) => /^[0-9a-f]+\.json$/.test(f)).map((f) => resolve(featured, f)),

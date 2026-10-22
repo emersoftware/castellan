@@ -1,7 +1,7 @@
-import { matchLengthMs, type Ruleset } from "./ruleset";
-import type { SeriesProgress } from "./protocol";
-import { kindSpec, withMineralNames, withRecordedDefaults } from "./legacy";
-import { API_LIMITS } from "./http";
+import { matchLengthMs, type Ruleset } from "./ruleset.ts";
+import type { SeriesProgress } from "./protocol.ts";
+import { kindSpec, withMineralNames, withRecordedDefaults } from "./legacy.ts";
+import { API_LIMITS } from "./http.ts";
 
 /**
  * The rules in prose for an LLM player: what exists and how it works, never what to do.

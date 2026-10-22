@@ -5,23 +5,17 @@
  * interpolates movement, turns events into effects and sounds, and leaves
  * corpses on the field.
  */
-import { Application, Container, Graphics, RenderTexture, Sprite, type Filter } from "pixi.js";
-import type { DepositView, EntityView, GameEvent, KindSpec, ProjectileView, Ruleset, SoundName, SpectatorView } from "@castellan/shared";
-import { TILE_H, TILE_W, loadSprites, screenDir, terrainTexture, type SpriteArt, type SpriteSet } from "./sprites";
-import type { ClipArt } from "./clips";
-import { createOutlineFilter, createXrayFilter, depthTint, occluderTint } from "./xray";
+import { Application, Container, Graphics, Sprite } from "pixi.js";
+import type { DepositView, EntityView, Ruleset, SoundName, SpectatorView } from "@castellan/shared";
+import { TILE_H, TILE_W, loadSprites, terrainTexture } from "./sprites";
 import { createDitherFilter } from "./dither";
-import { RAMPS, PLAYER_RAMPS, dim } from "./palette";
-import { depositSprite, initialDepositAmount } from "./deposits";
-
-import { barrierAxes, currentKind, NEUTRAL_OWNER } from "@castellan/shared";
-
-import { animatedUnit, buildingLook, fall, strikeMs, unitLook, type FireLook, type Strike } from "./look";
 import { WorldCamera } from "./camera";
-import { SceneEffects, type Effect } from "./effects";
 import { SpritePicker, bindWorldInput } from "./input";
 import { iso } from "./projection";
 import { ScenePresentation } from "./presentation";
+import { PlaybackClock, type Moment } from "./clock";
+import { OcclusionPass } from "./occlusion";
+import { Battlefield } from "./battlefield";
 
 export interface HoverInfo {
   x: number;
@@ -37,56 +31,8 @@ export type SoundSink = (name: SoundName, pan: number, volume: number) => void;
 /** Only units on screen are heard walking and mining. */
 const ON_SCREEN_ONLY = new Set<SoundName>(["footstep", "pick"]);
 
-interface Drawn {
-  view: EntityView;
-  sprite: Sprite;
-  shadow: Graphics;
-  bar: Graphics;
-  /** Player colour index (PLAYER_RAMPS). */
-  color: number;
-  from: { x: number; y: number };
-  to: { x: number; y: number };
-  /** Screen direction 0..7 (S, SE, E, NE, N, NW, W, SW) the unit faces. */
-  dir: number;
-  shot?: Strike;
-  /** Simulation time of the next possible tile step; unchanged ticks are not idle. */
-  walkUntil?: number;
-  step?: { at: number; ms: number };
-  /** Grid steps completed before the current interpolated step. */
-  walkDistance?: number;
-  /** Units: drawn where an occluder hides them. Buildings: their depth silhouette. */
-  xray: Sprite | null;
-  outline: Sprite | null;
-  depth: Sprite | null;
-  flashUntil: number;
-  lungeUntil: number;
-  lunge: { x: number; y: number };
-  /** Half-tile footfalls walked so far, and whether the pick is in the rock: sound cues. */
-  footfalls?: number;
-  pickDown?: boolean;
-  /** Preserve the visible barrier shape and axis when it is destroyed. */
-  barrierArt?: ClipArt;
-  flame?: Sprite;
-  sparks?: Graphics;
-  /** One mask clips masonry, flame and particles together at a fixed ground edge. */
-  collapseLayer?: Container;
-}
-
-/** The piece a barrier shows: a door open or shut, a wall running along one axis (cut for doors beside it), or a post. */
-function barrierPiece(view: EntityView, axes: { alongX: boolean; alongY: boolean }, doorAt: (sign: number) => boolean): ClipArt {
-  if (view.kind === "door") return view.open ? "door-open" : "door";
-  if (axes.alongX === axes.alongY) return "wallpost";
-  const left = doorAt(1), right = doorAt(-1);
-  if (left && right) return "wall-door-both";
-  if (left) return "wall-door-left";
-  return right ? "wall-door-right" : "wall";
-}
-/** Grid steps between two points, Chebyshev like the engine: a diagonal step is one step, so feet keep the same cadence. */
-const gridSteps = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
-
 export class GameRenderer {
   private app!: Application;
-  private sprites!: SpriteSet;
   private root = new Container();
   private world = new Container();
   private ground = new Container();
@@ -96,32 +42,13 @@ export class GameRenderer {
   private hoverMark = new Graphics();
   private selectMark = new Graphics();
   private fog = new Graphics();
-  private visibility?: string[];
   /** Only units get x-ray outlines, behind buildings of their own colour. */
   private xrayLayer = new Container();
   private outlineLayer = new Container();
-  /** Occluders' silhouettes tinted with depth codes, rendered off-screen each frame. */
-  private depthWorld = new Container();
-  private depthLayer = new Container();
-  private depthRT!: RenderTexture;
-  private xrayFilter!: Filter;
-  private outlineFilter!: Filter;
-  /** Static occluders (rocks, mines) and their depth sprites. */
-  private staticDepth: { sprite: Sprite; depth: Sprite; x: number; y: number }[] = [];
-  private drawn = new Map<string, Drawn>();
-  private deposits = new Map<string, { view: DepositView; sprite: Sprite; shadow: Graphics; depth: Sprite }>();
-  private effects: Effect[] = [];
-  private transient = new SceneEffects(this.fx, () => this.presentationNow());
-  private shots = new Map<string, { graphic: Graphics; from: { x: number; y: number }; to: ProjectileView;
-    launchOffset?: { x: number; y: number; at: number } }>();
-  private frameAt = 0;
-  private tickMs = 100;
-  private first = true;
-  private gameMs = 0;
-  private gameTickMs = 100;
-  private lastTick = -1;
-  private pausedAt?: number;
-  private pauseOffset = 0;
+  private occlusion = new OcclusionPass(this.xrayLayer, this.outlineLayer);
+  /** Everything a frame changes; created once the sprites are loaded. */
+  private field!: Battlefield;
+  private clock = new PlaybackClock(() => this.now());
   private hoverCb: (h: HoverInfo | null) => void = () => {};
   private selectCb: (id: string | null) => void = () => {};
   /** The entity the viewer clicked; kept across frames until another click or `select(null)`. */
@@ -152,7 +79,7 @@ export class GameRenderer {
       ground: this.ground, fog: this.fog,
       units: [this.objects, this.shadows, this.outlineLayer, this.xrayLayer, this.fx, this.hoverMark, this.selectMark],
       overlays: [this.fx, this.outlineLayer, this.xrayLayer, this.hoverMark, this.selectMark],
-    }, () => this.revealParts(), () => this.now());
+    }, () => this.field.entities.revealParts(), () => this.now());
     this.viewCamera = new WorldCamera(this.world, this.width, this.height, () => this.now(), fitOnResize, interactive);
     this.camera = this.viewCamera;
     this.scene = this.presentation;
@@ -180,17 +107,14 @@ export class GameRenderer {
     ]);
     if (sprites.status === "rejected") throw sprites.reason;
     if (application.status === "rejected") throw application.reason;
-    this.sprites = sprites.value;
     const cv = this.app.canvas;
     Object.assign(cv.style, { width: "100%", height: "100%", imageRendering: "pixelated", display: "block" });
     this.host.appendChild(cv);
 
     this.objects.sortableChildren = true;
-    this.depthLayer.sortableChildren = true;
     this.xrayLayer.sortableChildren = true;
     this.outlineLayer.sortableChildren = true;
-    this.depthWorld.addChild(this.depthLayer);
-    // Fog darkens the ground only; objects on fogged tiles are dimmed whole (see fogDim), so a
+    // Fog darkens the ground only; objects on fogged tiles are dimmed whole (see FogOfWar), so a
     // tall building is never half-dark where it overlaps tiles of different visibility.
     this.world.addChild(this.ground, this.shadows, this.fog, this.hoverMark, this.selectMark, this.objects, this.outlineLayer, this.xrayLayer, this.fx);
     this.root.addChild(this.world);
@@ -198,6 +122,10 @@ export class GameRenderer {
     this.app.stage.addChild(this.root);
 
     this.buildGround();
+    this.field = new Battlefield({
+      objects: this.objects, shadows: this.shadows, fx: this.fx, fog: this.fog,
+      xray: this.xrayLayer, outlines: this.outlineLayer, depth: this.occlusion.layer,
+    }, sprites.value, this.ruleset, this.colors, this.clock, (name, x, y, volume) => this.play(name, x, y, volume));
     this.fit();
     this.resize = new ResizeObserver(() => this.fit());
     this.resize.observe(this.host);
@@ -216,7 +144,7 @@ export class GameRenderer {
         this.refreshHover();
       },
       select: () => {
-        const picked = this.pointer && this.picker.pick(this.pointer.x, this.pointer.y, this.drawn.values(), this.deposits.values());
+        const picked = this.pointer && this.pick(this.pointer);
         this.selectedId = picked ? picked.view.id : null;
         this.selectCb(this.selectedId);
       },
@@ -243,21 +171,8 @@ export class GameRenderer {
 
   /** Freeze the presentation clock along with a paused replay. */
   setPaused(paused: boolean) {
-    if (paused && this.pausedAt === undefined) this.pausedAt = this.now();
-    else if (!paused && this.pausedAt !== undefined) {
-      this.pauseOffset += this.now() - this.pausedAt;
-      this.pausedAt = undefined;
-    }
-  }
-
-  private presentationNow() { return (this.pausedAt ?? this.now()) - this.pauseOffset; }
-  private animationMs(now: number) { return this.gameMs + this.alpha(now) * this.gameTickMs; }
-
-  private *revealParts() {
-    for (const d of this.drawn.values()) yield {
-      building: !!this.ruleset.kinds[d.view.kind]?.building,
-      parts: [d.sprite, d.shadow, d.flame, d.sparks],
-    };
+    if (paused) this.clock.pause();
+    else this.clock.resume();
   }
 
   /**
@@ -279,166 +194,13 @@ export class GameRenderer {
 
   /** The next game state, animated from the last one. `tickMs` is how long until the state after it (for interpolation). */
   setFrame(v: SpectatorView, tickMs: number) {
-    this.present(v, tickMs, false);
+    this.field.show(v, tickMs);
+    this.refreshHover();
   }
 
   /** A state elsewhere in the game (seeking a replay): shown at once, without animations, effects or sounds. */
   seek(v: SpectatorView, tickMs: number) {
-    this.present(v, tickMs, true);
-  }
-
-  private present(v: SpectatorView, tickMs: number, jump: boolean) {
-    const now = this.presentationNow();
-    const alpha = this.alpha(now);
-    const previousGameMs = this.animationMs(now);
-    const sameTick = v.tick === this.lastTick;
-    const quiet = jump || this.first || sameTick;
-    this.lastTick = v.tick;
-    if (v.tick > 0 && Number.isFinite(v.timeMs)) this.gameTickMs = v.timeMs / v.tick;
-    this.gameMs = v.timeMs ?? v.tick * this.gameTickMs;
-    this.tickMs = tickMs;
-    // GameCanvas also resends the current snapshot when replay speed changes.
-    // Preserve its fraction instead of rewinding the animation by a tick.
-    this.frameAt = sameTick && !jump ? now - alpha * tickMs : now;
-    this.visibility = v.visibility;
-    this.fog.clear();
-    for (const rock of this.staticDepth) {
-      rock.sprite.visible = !v.visibility || v.visibility[rock.y]?.[rock.x] !== "0";
-      rock.sprite.tint = this.fogDim(RAMPS.neutral.key, rock.x, rock.y);
-    }
-    if (v.visibility) for (let y = 0; y < this.height; y++) for (let x = 0; x < this.width; x++) {
-      const visibility = v.visibility[y]?.[x];
-      if (visibility === "2") continue;
-      const { sx, sy } = iso(x, y);
-      // Unexplored tiles are opaque, so they can overlap: grow them a pixel so the
-      // ground's edge never peeks out as a dotted line along the map border.
-      const grow = visibility === "1" ? 0 : 1;
-      const hw = TILE_W / 2 + grow * 2, hh = TILE_H / 2 + grow;
-      this.fog.poly([sx, sy - hh, sx + hw, sy, sx, sy + hh, sx - hw, sy]).fill({ color: 0x000000, alpha: visibility === "1" ? 0.8 : 1 });
-    }
-    const seen = new Set<string>();
-
-    for (const e of v.entities) {
-      seen.add(e.id);
-      const d = this.drawn.get(e.id);
-      if (!d) {
-        this.addEntity(e);
-        continue;
-      }
-      // A remembered enemy (fog memory) keeps its id: when sighted again it
-      // reappears where it is now, not walking there from where it was last seen.
-      const recalled = d.view.lastSeenMs !== undefined;
-      if (animatedUnit(e.kind)) {
-        if (jump || recalled) {
-          d.walkUntil = undefined;
-          d.step = undefined;
-          d.walkDistance = 0;
-          d.pickDown = undefined;
-          d.from = d.to = { x: e.x, y: e.y };
-        }
-        else if (e.x !== d.to.x || e.y !== d.to.y) {
-          const dx = e.x - d.to.x, dy = e.y - d.to.y;
-          // Same timing as the engine: a diagonal step takes diagonalMove times
-          // as long, and steps are quantized to ticks (380 ms at 10 Hz is four
-          // ticks). Only an actual tile change renews this window.
-          const moveMs = (e.stats?.moveMs ?? this.ruleset.kinds[e.kind]?.moveMs ?? this.gameTickMs) * (dx && dy ? this.ruleset.diagonalMove ?? 1 : 1);
-          const cadence = Math.max(1, Math.round(moveMs / this.gameTickMs)) * this.gameTickMs;
-          const position = this.position(d, alpha, previousGameMs);
-          d.walkDistance = (d.walkDistance ?? 0) + gridSteps(position, d.from);
-          d.from = position;
-          d.to = { x: e.x, y: e.y };
-          d.step = { at: this.gameMs, ms: cadence };
-          d.walkUntil = this.gameMs + cadence;
-          d.dir = screenDir(dx - dy, (dx + dy) / 2);
-        }
-      } else {
-        if (!sameTick || jump || recalled) d.from = jump || recalled ? { x: e.x, y: e.y } : this.position(d, alpha, previousGameMs);
-        d.to = { x: e.x, y: e.y };
-        const mx = e.x - d.from.x;
-        const my = e.y - d.from.y;
-        if (Math.abs(mx) + Math.abs(my) > 0.01) d.dir = screenDir(mx - my, (mx + my) / 2);
-      }
-      d.view = e;
-      if (jump) d.shot = undefined;
-    }
-    for (const [id, d] of this.drawn) {
-      if (seen.has(id)) continue;
-      this.drawn.delete(id);
-      d.bar.destroy();
-      d.xray?.destroy();
-      d.outline?.destroy();
-      d.depth?.destroy();
-      if (quiet || (v.visibility && !v.events.some((e) => e.type === "death" && e.id === id))) {
-        this.clearCastleFire(d);
-        d.sprite.destroy();
-        d.shadow.destroy();
-      } else this.effects.push(this.corpse(d));
-    }
-
-    const depSeen = new Set<string>();
-    for (const dv of v.deposits) {
-      depSeen.add(dv.id);
-      const { art } = this.sprites(depositSprite(dv.amount, initialDepositAmount(this.ruleset.map, dv)));
-      let d = this.deposits.get(dv.id);
-      if (!d) {
-        const { sx, sy } = iso(dv.x, dv.y);
-        const sprite = new Sprite(art.texture);
-        sprite.anchor.set(art.anchorX, art.anchorY);
-        sprite.tint = RAMPS.neutral.key;
-        sprite.position.set(sx, sy + 2);
-        sprite.zIndex = (dv.x + dv.y) * 10 + 1;
-        const shadow = new Graphics().ellipse(sx, sy + 3, 12, 4).fill({ color: 0x000000, alpha: 0.35 });
-        this.shadows.addChild(shadow);
-        this.objects.addChild(sprite);
-        d = { view: dv, sprite, shadow, depth: this.depthSprite(art) };
-        this.deposits.set(dv.id, d);
-      }
-      d.sprite.texture = art.texture;
-      d.sprite.anchor.set(art.anchorX, art.anchorY);
-      d.sprite.scale.set(art.scale);
-      d.sprite.tint = this.fogDim(RAMPS.neutral.key, dv.x, dv.y);
-      d.depth.texture = art.silhouette;
-      d.view = dv;
-    }
-    for (const [id, d] of this.deposits) {
-      if (depSeen.has(id)) continue;
-      if (!quiet && !v.visibility) this.effects.push(this.transient.dust(d.view.x, d.view.y, RAMPS.neutral.key, 10));
-      d.sprite.destroy();
-      d.shadow.destroy();
-      d.depth.destroy();
-      this.deposits.delete(id);
-    }
-
-    if (jump) {
-      this.effects = this.effects.filter((effect) => {
-        if (!effect.destroy) return true;
-        effect.destroy();
-        return false;
-      });
-      for (const shot of this.shots.values()) shot.graphic.destroy();
-      this.shots.clear();
-    }
-    const activeShots = new Set((v.projectiles ?? []).map((p) => p.id));
-    for (const [id, shot] of this.shots) {
-      if (activeShots.has(id)) continue;
-      // Impact state already includes damage: stop the shot in this same frame.
-      shot.graphic.destroy();
-      this.shots.delete(id);
-    }
-    for (const p of v.projectiles ?? []) {
-      const shot = this.shots.get(p.id);
-      if (shot) {
-        if (!sameTick) shot.from = { x: shot.from.x + (shot.to.x - shot.from.x) * alpha, y: shot.from.y + (shot.to.y - shot.from.y) * alpha };
-        shot.to = p;
-      } else {
-        const graphic = new Graphics();
-        this.fx.addChild(graphic);
-        this.shots.set(p.id, { graphic, from: { x: p.x, y: p.y }, to: p });
-      }
-    }
-    this.layoutWalls();
-    if (!quiet) for (const ev of v.events) this.onEvent(ev, now, v.events);
-    this.first = false;
+    this.field.seek(v, tickMs);
     this.refreshHover();
   }
 
@@ -455,59 +217,6 @@ export class GameRenderer {
     const g = new Sprite(texture);
     g.position.set(-originX, -originY);
     this.ground.addChild(g);
-    // Terrain walls take the art of their style.
-    const style = this.ruleset.map.wallStyle ?? "rock";
-    const terrainWall = style === "wall";
-    const { art } = this.sprites(style);
-    for (const w of this.ruleset.map.walls ?? []) {
-      const { sx, sy } = iso(w.x, w.y);
-      const r = new Sprite(art.texture);
-      r.anchor.set(art.anchorX, art.anchorY);
-      r.scale.set(art.scale * (terrainWall ? 1 : 0.85 + ((w.x * 7 + w.y * 13) % 5) * 0.06));
-      r.tint = RAMPS.neutral.key;
-      r.position.set(sx, sy + (terrainWall ? 0 : 3));
-      r.zIndex = (w.x + w.y) * 10 + 4;
-      this.objects.addChild(r);
-      this.staticDepth.push({ sprite: r, depth: this.depthSprite(art), x: w.x, y: w.y });
-    }
-  }
-
-  /** An occluder's silhouette in the depth pass. */
-  private depthSprite(art: SpriteArt): Sprite {
-    const s = new Sprite(art.silhouette);
-    this.depthLayer.addChild(s);
-    return s;
-  }
-
-  /** Mirrors an occluder into the depth pass, tinted with its depth code, its owner's colour and its kind. */
-  private syncDepth(src: Sprite, depth: Sprite, colour?: number, kind?: KindSpec) {
-    depth.position.copyFrom(src.position);
-    depth.scale.copyFrom(src.scale);
-    depth.anchor.copyFrom(src.anchor);
-    depth.rotation = src.rotation;
-    depth.zIndex = src.zIndex;
-    depth.tint = occluderTint(src.zIndex, colour, kind);
-    depth.visible = src.visible && src.alpha > 0.5;
-  }
-
-  /**
-   * Walls run along x or y depending on their neighbours: the rendered piece
-   * runs along y; mirrored it runs along x; corners and lone walls are posts.
-   */
-  private layoutWalls() {
-    const at = new Map<string, Drawn>();
-    for (const d of this.drawn.values()) if (d.view.kind === "wall" || d.view.kind === "door") at.set(`${d.to.x},${d.to.y},${d.view.owner}`, d);
-    for (const d of at.values()) {
-      const axes = barrierAxes(d.to.x, d.to.y, (x, y) => at.has(`${x},${y},${d.view.owner}`));
-      const { alongX, alongY } = axes;
-      const kind = barrierPiece(d.view, axes, (sign) => at.get(`${d.to.x + (alongX ? sign : 0)},${d.to.y + (alongY ? sign : 0)},${d.view.owner}`)?.view.kind === "door");
-      const { art } = this.sprites(kind);
-      d.barrierArt = kind;
-      d.sprite.texture = art.texture;
-      d.sprite.anchor.set(art.anchorX, art.anchorY);
-      d.sprite.scale.set(alongX && !alongY ? -art.scale : art.scale, art.scale);
-      if (d.depth) d.depth.texture = art.silhouette;
-    }
   }
 
   /** Canvas at CSS size (the dither dot is one CSS pixel); zoom fits the map on first layout, and on each with `fitOnResize`. */
@@ -520,288 +229,42 @@ export class GameRenderer {
     // layer lives inside the panned/zoomed world: a screen rectangle here clips
     // everything left of the world's origin. Let Pixi project the unit bounds.
     this.xrayLayer.filterArea = undefined;
-    // Keep the depth source alive across resizes: the filters retain references
-    // to it while Pixi rebuilds their render instructions for the new viewport.
-    if (this.depthRT) this.depthRT.resize(w, h);
-    else this.depthRT = RenderTexture.create({ width: w, height: h, scaleMode: "nearest" });
-    if (!this.xrayFilter) {
-      this.xrayFilter = createXrayFilter(this.depthRT);
-      this.xrayLayer.filters = [this.xrayFilter];
-      this.outlineFilter = createOutlineFilter(this.depthRT);
-      this.outlineLayer.filters = [this.outlineFilter];
-    } else {
-      this.xrayFilter.resources.uDepth = this.depthRT.source;
-      this.xrayFilter.resources.xrayUniforms.uniforms.uScreen = new Float32Array([w, h]);
-      this.outlineFilter.resources.uDepth = this.depthRT.source;
-      this.outlineFilter.resources.xrayUniforms.uniforms.uScreen = new Float32Array([w, h]);
-    }
-
+    this.occlusion.resize(w, h);
     this.viewCamera.resize(w, h);
-  }
-
-  private addEntity(e: EntityView) {
-    const color = this.colorOf(e.owner);
-    const spec = this.ruleset.kinds[e.kind];
-    // Start facing the middle of the map.
-    const c = iso((this.width - 1) / 2, (this.height - 1) / 2);
-    const p = iso(e.x, e.y);
-    const dir = screenDir(c.sx - p.sx, c.sy - p.sy);
-    const { art } = this.sprites(e.kind, dir);
-    const sprite = new Sprite(art.texture);
-    sprite.anchor.set(art.anchorX, art.anchorY);
-    sprite.scale.set(art.scale);
-    sprite.tint = this.ownerTint(e.owner);
-    // A spawn/reveal can attack in this same frame, before the animation ticker
-    // runs. Arrow endpoints must already be on the map, never at Pixi's (0, 0).
-    sprite.position.set(p.sx, p.sy + (spec?.building ? 0 : 3));
-    let xray: Sprite | null = null;
-    let outline: Sprite | null = null;
-    const depth = this.depthSprite(art);
-    if (!spec?.building) {
-      xray = new Sprite(art.xray[color]);
-      this.xrayLayer.addChild(xray);
-      if (art.outline) {
-        outline = new Sprite(art.outline[color]);
-        this.outlineLayer.addChild(outline);
-      }
-    }
-    const r = !spec?.building ? 6 : currentKind(e.kind) === "castle" ? 22 : 12;
-    const shadow = new Graphics().ellipse(0, 0, r, r / 2.6).fill({ color: 0x000000, alpha: 0.4 });
-    this.shadows.addChild(shadow);
-    this.objects.addChild(sprite);
-    const bar = new Graphics();
-    this.fx.addChild(bar);
-    this.drawn.set(e.id, {
-      view: e, sprite, shadow, bar, color, from: { x: e.x, y: e.y }, to: { x: e.x, y: e.y },
-      dir, xray, outline, depth, flashUntil: 0, lungeUntil: 0, lunge: { x: 0, y: 0 },
-    });
   }
 
   // ───────────────────────── per frame ─────────────────────────
 
-  private alpha(now: number) {
-    return Math.min(1, Math.max(0, (now - this.frameAt) / this.tickMs));
-  }
-
-  private position(d: Drawn, alpha: number, gameMs: number) {
-    const k = d.step ? Math.min(1, Math.max(0, (gameMs - d.step.at) / d.step.ms)) : alpha;
-    return { x: d.from.x + (d.to.x - d.from.x) * k, y: d.from.y + (d.to.y - d.from.y) * k };
-  }
-
   private animate() {
     this.viewCamera.update();
     this.presentation.restore();
-    const now = this.presentationNow();
-    const a = this.alpha(now);
-    const animationMs = this.animationMs(now);
-    for (const d of this.drawn.values()) {
-      const { x, y } = this.position(d, a, animationMs);
-      const { sx, sy } = iso(x, y);
-      const moving = (d.from.x !== d.to.x || d.from.y !== d.to.y) && a < 1;
-      const building = this.ruleset.kinds[d.view.kind]?.building;
-      let ox = 0;
-      let oy = 0;
-      if (moving && !animatedUnit(d.view.kind)) oy = -Math.abs(Math.sin(a * Math.PI * 2)) * 1.2;
-      if (now < d.lungeUntil) {
-        const k = Math.sin(((d.lungeUntil - now) / 140) * Math.PI);
-        ox = d.lunge.x * k * 2.5;
-        oy += d.lunge.y * k * 1.5;
-      }
-      d.sprite.position.set(sx + ox, sy + oy + (building ? 0 : 3));
-      d.sprite.zIndex = Math.round((x + y) * 10) + 5;
-      d.sprite.tint = this.fogDim(now < d.flashUntil ? RAMPS.neutral.key : this.ownerTint(d.view.owner), d.to.x, d.to.y);
-      if (!building) {
-        if (d.shot && animationMs >= d.shot.at + (strikeMs(d.view.kind) ?? 0)) d.shot = undefined;
-        // Decide locomotion from confirmed simulation ticks, not the end of
-        // one tick's interpolation. This also avoids an idle flash just before
-        // the next movement snapshot arrives at the cadence boundary.
-        const walked = this.gameMs < (d.walkUntil ?? 0) ? (d.walkDistance ?? 0) + gridSteps({ x, y }, d.from) : undefined;
-        const look = unitLook(d.view, d.dir, animationMs, { walked, strike: d.shot });
-        d.dir = look.heading;
-        // Footfalls and pick strikes follow the animation.
-        if (look.footfalls !== undefined && d.footfalls !== undefined && look.footfalls > d.footfalls) this.play("footstep", x, y, 0.2);
-        d.footfalls = look.footfalls;
-        if (look.pickDown !== undefined && d.pickDown !== undefined && look.pickDown !== d.pickDown) this.play("pick", x, y, 0.4);
-        d.pickDown = look.pickDown;
-        const { art, flip } = this.sprites(d.view.kind, d.shot?.dir ?? d.dir, look.animation);
-        d.sprite.texture = art.texture;
-        d.sprite.anchor.set(art.anchorX, art.anchorY);
-        d.sprite.scale.set(flip ? -art.scale : art.scale, art.scale);
-        if (d.depth) d.depth.texture = art.silhouette;
-        if (d.xray) {
-          d.xray.texture = art.xray[d.color];
-          d.xray.anchor.copyFrom(d.sprite.anchor);
-          d.xray.scale.copyFrom(d.sprite.scale);
-          d.xray.position.copyFrom(d.sprite.position);
-          d.xray.tint = depthTint(d.sprite.zIndex);
-          // Hidden units must survive the mask composite behind visible units.
-          d.xray.zIndex = -d.sprite.zIndex;
-        }
-        if (d.outline && art.outline) {
-          d.outline.texture = art.outline[d.color];
-          d.outline.anchor.copyFrom(d.sprite.anchor);
-          d.outline.scale.copyFrom(d.sprite.scale);
-          d.outline.position.copyFrom(d.sprite.position);
-          d.outline.tint = depthTint(d.sprite.zIndex);
-          d.outline.zIndex = d.sprite.zIndex;
-        }
-      }
-      const standing = building ? buildingLook(d.view, animationMs) : undefined;
-      if (standing) {
-        const { art } = this.sprites(d.view.kind, 1, standing.animation);
-        d.sprite.texture = art.texture;
-        d.sprite.anchor.set(art.anchorX, art.anchorY);
-        d.sprite.scale.set(art.scale);
-        if (d.depth) d.depth.texture = art.silhouette;
-        const visible = !this.visibility || this.visibility[d.to.y]?.[d.to.x] === '2';
-        if (standing.fire && visible) this.drawCastleFire(d, standing.fire);
-        else this.clearCastleFire(d);
-      }
-      // Colour separates overlapping units; only the building tag enables x-ray.
-      if (d.depth) this.syncDepth(d.sprite, d.depth, d.view.owner === NEUTRAL_OWNER ? undefined : d.color, this.ruleset.kinds[d.view.kind]);
-      d.shadow.position.set(sx, sy + (building ? 2 : 3));
-      this.drawBar(d, sx);
-    }
-    for (const dep of this.deposits.values()) this.syncDepth(dep.sprite, dep.depth);
-    for (const o of this.staticDepth) this.syncDepth(o.sprite, o.depth);
-    for (const shot of this.shots.values()) {
-      const { from, to, graphic } = shot;
-      graphic.clear();
-      const x = from.x + (to.x - from.x) * a, y = from.y + (to.y - from.y) * a;
-      const head = iso(x, y), tail = iso(x - to.vx * 0.035, y - to.vy * 0.035);
-      // A archer can shoot before its interpolated step finishes. Start the
-      // visible arrow at that sprite and join the real trajectory in one tick.
-      if (shot.launchOffset) {
-        const k = Math.max(0, 1 - (animationMs - shot.launchOffset.at) / this.gameTickMs);
-        head.sx += shot.launchOffset.x * k; head.sy += shot.launchOffset.y * k;
-        tail.sx += shot.launchOffset.x * k; tail.sy += shot.launchOffset.y * k;
-      }
-      graphic.moveTo(tail.sx, tail.sy - 6).lineTo(head.sx, head.sy - 6).stroke({ width: 1, color: 0xaaaaaa });
-      graphic.rect(head.sx - 0.5, head.sy - 6.5, 1, 1).fill(0xffffff);
-    }
-    this.drawSelection(a, animationMs);
-    this.effects = this.effects.filter((e) => e.update(now));
+    const moment = this.clock.moment();
+    this.field.animate(moment);
+    this.drawSelection(moment);
     // Apply after effects create their fire/sparks and update their own alpha.
     this.presentation.apply();
     // Depth pass for the x-ray: occluders only, in the world's current view.
-    this.depthWorld.position.copyFrom(this.world.position);
-    this.depthWorld.scale.copyFrom(this.world.scale);
-    this.app.renderer.render({ container: this.depthWorld, target: this.depthRT, clear: true, clearColor: [0, 0, 0, 0] });
-  }
-
-  /** A colour as seen on tile (x, y): unchanged in sight, darkened like the fog on explored ground. */
-  private fogDim(color: number, x: number, y: number): number {
-    return !this.visibility || this.visibility[y]?.[x] === "2" ? color : dim(color, 0.2);
+    this.occlusion.render(this.app.renderer, this.world);
   }
 
   /** Rings on the ground under the selected and hovered entity or deposit, following their drawn position. */
-  private drawSelection(alpha: number, animationMs: number) {
+  private drawSelection(moment: Moment) {
     this.selectMark.clear();
     const ring = (id: string | null, selected: boolean) => {
       if (!id) return;
-      const d = this.drawn.get(id);
-      const deposit = d ? undefined : this.deposits.get(id);
-      if (!d && !deposit) return;
-      const { x, y } = d ? this.position(d, alpha, animationMs) : deposit!.view;
+      const figure = this.field.entities.figures.get(id);
+      const deposit = figure ? undefined : this.field.deposits.figures.get(id);
+      if (!figure && !deposit) return;
+      const { x, y } = figure ? this.field.entities.position(id, moment)! : deposit!.view;
       const { sx, sy } = iso(x, y);
-      const big = d ? this.ruleset.kinds[d.view.kind]?.building : false;
+      const big = figure ? this.ruleset.kinds[figure.view.kind]?.building : false;
       const w = (big ? 0.62 : 0.4) * TILE_W, h = (big ? 0.62 : 0.4) * TILE_H;
-      const color = !selected ? 0xffffff : d ? this.ownerTint(d.view.owner) : 0xffff55;
+      const color = !selected ? 0xffffff : figure ? figure.tint : 0xffff55;
       this.selectMark.ellipse(sx, sy + 2, w, h).stroke({ width: 1, color, alpha: selected ? 0.95 : 0.6 });
       if (selected) this.selectMark.ellipse(sx, sy + 2, w + 2, h + 1).stroke({ width: 1, color: 0x000000, alpha: 0.5 });
     };
     if (this.hoverId !== this.selectedId) ring(this.hoverId, false);
     ring(this.selectedId, true);
-  }
-
-  private drawBar(d: Drawn, sx: number) {
-    const { hp, maxHp } = d.view;
-    d.bar.clear();
-    if (hp >= maxHp) return;
-    const w = this.ruleset.kinds[d.view.kind]?.building ? 22 : 12;
-    const top = Math.round(d.sprite.y - d.sprite.height - 4);
-    const left = Math.round(sx - w / 2);
-    d.bar.rect(left - 0.5, top - 0.5, w + 1, 2.5).fill(0x000000);
-    d.bar.rect(left, top, (w * hp) / maxHp, 1.5).fill(hp / maxHp > 0.35 ? this.ownerTint(d.view.owner) : RAMPS.neutral.key);
-  }
-
-  // ───────────────────────── events → effects & sound ─────────────────────────
-
-  private onEvent(ev: GameEvent, now: number, events: GameEvent[] = []) {
-    if (ev.type === "attack") {
-      const from = this.drawn.get(ev.from);
-      const to = ev.to ? this.drawn.get(ev.to) : undefined;
-      if (!from) return;
-      // A real shot carries its launch vector even if its target has just died
-      // or left the visible frame. Movement heading never defines this facing.
-      const projectile = ev.projectile ? this.shots.get(ev.projectile)?.to : undefined;
-      const death = events.find((e): e is Extract<GameEvent, { type: "death" }> => e.type === "death" && e.id === ev.to);
-      // A shootAt shot has a point instead of a target.
-      const targetPosition = to?.to ?? death ?? ev.at;
-      if (!targetPosition && !projectile) return;
-      const spec = this.ruleset.kinds[from.view.kind];
-      const a = iso(from.to.x, from.to.y);
-      const b = projectile ? iso(from.to.x + projectile.vx, from.to.y + projectile.vy) : iso(targetPosition!.x, targetPosition!.y);
-      const dx = Math.sign(b.sx - a.sx);
-      const attackDir = b.sx !== a.sx || b.sy !== a.sy ? screenDir(b.sx - a.sx, b.sy - a.sy) : from.dir;
-      if ((spec?.range ?? 1) > 1) {
-        from.dir = attackDir;
-        // A shot drawn from a clip leaves the shooter's sprite.
-        if (strikeMs(from.view.kind) !== undefined) {
-          const position = this.position(from, this.alpha(now), this.animationMs(now));
-          const visible = iso(position.x, position.y);
-          const shot = ev.projectile && this.shots.get(ev.projectile);
-          if (shot) shot.launchOffset = { x: visible.sx - a.sx, y: visible.sy - a.sy, at: this.gameMs };
-          // Settle at the authoritative tile promptly, without delaying release.
-          from.walkDistance = (from.walkDistance ?? 0) + gridSteps(position, from.from);
-          from.from = position;
-          from.step = { at: this.gameMs, ms: this.gameTickMs };
-          from.sprite.position.set(visible.sx, visible.sy + 3);
-          from.walkUntil = undefined;
-          from.shot = { at: this.gameMs, dir: from.dir };
-        }
-        if (!ev.projectile && to) this.effects.push(this.transient.arrow(from.sprite, to.sprite));
-        this.play(spec?.building ? "tower" : "arrow", from.to.x, from.to.y, 0.35);
-      } else if (targetPosition) {
-        const animatedAttack = strikeMs(from.view.kind) !== undefined;
-        if (animatedAttack) {
-          // The engine may hit one tick after a step. Preserve that step's
-          // cadence and walking heading instead of rushing its remainder in
-          // one tick; only the strike faces the target during recovery.
-          if (this.gameMs >= (from.walkUntil ?? 0)) from.dir = attackDir;
-          from.shot = { at: this.gameMs, dir: attackDir };
-        } else from.dir = attackDir;
-        from.lungeUntil = animatedAttack ? 0 : now + 140;
-        from.lunge = { x: dx, y: Math.sign(b.sy - a.sy) };
-        if (to) to.flashUntil = now + 90;
-        this.effects.push(this.transient.dust(targetPosition.x, targetPosition.y, RAMPS.neutral.key, 3, 5));
-        this.play("sword", targetPosition.x, targetPosition.y, 0.5);
-      }
-    } else if (ev.type === "projectile_end") {
-      if (ev.reason !== "miss") {
-        this.effects.push(this.transient.dust(ev.x, ev.y, RAMPS.neutral.key, 3, 5));
-        this.play("hit", ev.x, ev.y, 0.5);
-        const target = ev.target && this.drawn.get(ev.target);
-        if (target) target.flashUntil = now + 90;
-      }
-    } else if (ev.type === "death") {
-      const vital = this.ruleset.kinds[ev.kind]?.vital;
-      const building = this.ruleset.kinds[ev.kind]?.building;
-      this.play(vital ? "horn" : building ? "collapse" : "death", ev.x, ev.y, vital ? 0.8 : building ? 0.7 : 0.4);
-      if (vital) this.effects.push(this.transient.floatText(currentKind(ev.kind) === "king" ? "KING DOWN" : `${ev.kind.toUpperCase()} DESTROYED`, ev.x, ev.y, RAMPS.neutral.key, 3200, 12));
-    } else if (ev.type === "spawn") {
-      const building = this.ruleset.kinds[ev.kind]?.building;
-      this.effects.push(this.transient.dust(ev.x, ev.y, 0xaaaaaa, building ? 14 : 6));
-      this.play(building ? "build" : "spawn", ev.x, ev.y, 0.5);
-    } else if (ev.type === "chat") {
-      const king = [...this.drawn.values()].find((d) => d.view.owner === ev.owner && currentKind(d.view.kind) === "king");
-      if (king) {
-        this.effects.push(this.transient.bubble(`${ev.channel === "private" ? `[private → ${ev.to}] ` : ev.channel === "team" ? "[team] " : ""}${ev.text}`, king.sprite, PLAYER_RAMPS[king.color].key));
-        this.play("chat", king.to.x, king.to.y, 0.6);
-      }
-    } else if (ev.type === "match_end") {
-      this.play("fanfare", this.width / 2, this.height / 2, 0.6);
-    }
   }
 
   /** Pans with the screen position; quieter the farther off-screen, where footsteps and picks go silent. */
@@ -817,99 +280,22 @@ export class GameRenderer {
     this.sound(name, pan, volume * Math.max(0.15, 1 - off / 400));
   }
 
-  /** A fallen unit stays on the field and fades out, like AoE corpses. */
-  private corpse(d: Drawn): Effect {
-    const { way, art: fallen, at } = fall(d.view, this.ruleset.kinds[d.view.kind], d.barrierArt);
-    const collapsing = way === "collapse";
-    const animated = collapsing || way === "death";
-    const start = this.presentationNow();
-    const facing = d.shot?.dir ?? d.dir;
-    const barrierFlip = d.sprite.scale.x < 0;
-    let previous = start, elapsed = 0;
-    d.sprite.tint = collapsing ? this.ownerTint(d.view.owner) : dim(this.ownerTint(d.view.owner), 0.45);
-    if (way === "rubble") this.effects.push(this.transient.dust(d.to.x, d.to.y, 0xaaaaaa, 24, 14));
-    else if (way === "corpse") {
-      d.sprite.anchor.set(0.5, 0.5);
-      d.sprite.rotation = (Math.PI / 2) * Math.sign(d.sprite.scale.x);
-      d.sprite.y -= 3;
-    }
-    d.sprite.zIndex -= 3;
-    if (collapsing) {
-      const layer = new Container(); layer.sortableChildren = true; layer.zIndex = d.sprite.zIndex;
-      layer.addChild(d.sprite);
-      if (d.flame) layer.addChild(d.flame);
-      if (d.sparks) layer.addChild(d.sparks);
-      this.objects.addChild(layer); d.collapseLayer = layer;
-    }
-    const destroy = () => {
-      this.clearCastleFire(d);
-      if (d.collapseLayer) {
-        d.collapseLayer.destroy({ children: true });
-        d.collapseLayer = undefined;
-      } else d.sprite.destroy();
-      d.shadow.destroy();
-    };
-    return {
-      destroy,
-      update: (now) => {
-        // Follow replay speed, including changes during the fall. Keep advancing
-        // after the final snapshot so a lethal King hit can finish its animation.
-        elapsed += Math.max(0, now - previous) * (animated ? this.gameTickMs / this.tickMs : 1);
-        previous = now;
-        const look = at(elapsed);
-        if (look.animation) {
-          const { art, flip } = this.sprites(fallen, facing, look.animation);
-          d.sprite.texture = art.texture;
-          d.sprite.anchor.set(art.anchorX, art.anchorY);
-          const mirrored = collapsing && d.barrierArt ? barrierFlip : flip;
-          d.sprite.scale.set(mirrored ? -art.scale : art.scale, art.scale);
-        }
-        if (look.fire) this.drawCastleFire(d, look.fire);
-        else this.clearCastleFire(d);
-        d.sprite.alpha = look.alpha;
-        d.shadow.alpha = look.shadow;
-        if (d.sprite.alpha > 0) return true;
-        destroy();
-        return false;
-      },
-    };
-  }
-
-  private clearCastleFire(d: Drawn) {
-    d.flame?.destroy(); d.sparks?.destroy();
-    d.flame = undefined; d.sparks = undefined;
-  }
-
-  /** Fire and sparks use the dedicated key inside the actual game dither pass. */
-  private drawCastleFire(d: Drawn, fire: FireLook) {
-    const { art } = this.sprites(d.view.kind, 1, fire.animation);
-    const layer = d.collapseLayer ?? this.objects;
-    if (!d.flame) { d.flame = new Sprite(art.texture); layer.addChild(d.flame); }
-    d.flame.texture = art.texture;
-    d.flame.anchor.set(art.anchorX, art.anchorY);
-    d.flame.scale.set(art.scale);
-    d.flame.position.copyFrom(d.sprite.position);
-    d.flame.tint = dim(RAMPS.fire.key, fire.intensity);
-    d.flame.zIndex = d.sprite.zIndex + 1;
-    if (!d.sparks) { d.sparks = new Graphics(); layer.addChild(d.sparks); }
-    d.sparks.position.copyFrom(d.sprite.position);
-    d.sparks.zIndex = d.sprite.zIndex + 2;
-    d.sparks.clear();
-    for (const p of fire.particles) {
-      d.sparks.rect(p.x, p.y, p.size, p.size).fill(dim(RAMPS.fire.key, p.heat * fire.intensity));
-    }
-  }
-
   // ───────────────────────── input ─────────────────────────
+
+  /** The entity or deposit drawn under a canvas point. */
+  private pick(point: { x: number; y: number }) {
+    return this.picker.pick(point.x, point.y, this.field.entities.figures.values(), this.field.deposits.figures.values());
+  }
 
   private hoverShown = true;
   private refreshHover() {
     this.hoverMark.clear();
     // The sprite under the pointer first (bodies stand above their tile), else the tile itself.
-    const picked = this.pointer ? this.picker.pick(this.pointer.x, this.pointer.y, this.drawn.values(), this.deposits.values()) : null;
+    const picked = this.pointer ? this.pick(this.pointer) : null;
     this.hoverId = picked ? picked.view.id : null;
-    const h = picked ? { x: picked.kind === "entity" ? this.drawn.get(picked.view.id)!.to.x : picked.view.x, y: picked.kind === "entity" ? this.drawn.get(picked.view.id)!.to.y : picked.view.y } : this.hovered;
-    if (!h || (!picked && this.visibility && this.visibility[h.y]?.[h.x] !== "2")) {
+    const figure = picked?.kind === "entity" ? this.field.entities.figures.get(picked.view.id) : undefined;
+    const h = figure ? figure.tile : picked ? { x: picked.view.x, y: picked.view.y } : this.hovered;
+    if (!h || (!picked && !this.field.fog.sees(h))) {
       // Every frame refreshes the hover; telling the page "nothing" again would re-render it per frame.
       if (this.hoverShown) this.hoverCb(null);
       this.hoverShown = false;
@@ -919,21 +305,10 @@ export class GameRenderer {
     const { sx, sy } = iso(h.x, h.y);
     // A picked sprite gets a ring under its drawn position (see drawSelection); a bare tile gets a diamond.
     if (!picked) this.hoverMark.poly([sx, sy - TILE_H / 2, sx + TILE_W / 2, sy, sx, sy + TILE_H / 2, sx - TILE_W / 2, sy]).stroke({ width: 1, color: 0xffffff, alpha: 0.7 });
-    const entity = picked?.kind === "entity" ? picked.view : picked ? undefined : [...this.drawn.values()].find((d) => d.to.x === h.x && d.to.y === h.y)?.view;
-    const deposit = picked?.kind === "deposit" ? picked.view : picked ? undefined : [...this.deposits.values()].find((d) => d.view.x === h.x && d.view.y === h.y)?.view;
+    const entity = picked?.kind === "entity" ? picked.view : picked ? undefined : [...this.field.entities.figures.values()].find((f) => f.tile.x === h.x && f.tile.y === h.y)?.view;
+    const deposit = picked?.kind === "deposit" ? picked.view : picked ? undefined : [...this.field.deposits.figures.values()].find((d) => d.view.x === h.x && d.view.y === h.y)?.view;
     const rock = (this.ruleset.map.walls ?? []).some((w) => w.x === h.x && w.y === h.y);
     this.hoverCb({ x: h.x, y: h.y, entity, deposit,
       rock: rock && this.ruleset.map.wallStyle !== "wall", terrainWall: rock && this.ruleset.map.wallStyle === "wall" });
   }
-
-  // ───────────────────────── helpers ─────────────────────────
-
-  private colorOf(owner: string): number {
-    return (this.colors[owner] ?? 0) % PLAYER_RAMPS.length;
-  }
-
-  private ownerTint(owner: string): number {
-    return owner === NEUTRAL_OWNER ? RAMPS.neutral.key : PLAYER_RAMPS[this.colorOf(owner)].key;
-  }
-
 }

@@ -75,6 +75,10 @@ it("releases finished and restored sandboxes while retaining the final views and
   rooms.push(restored);
   expect(restored.state).toBe("finished");
   expect(restored.replay()!.hashes).toEqual(original.replay()!.hashes);
+  // A finished match's record is complete: later calls browse it and are not part of the game.
+  const calls = restored.replay()!.experiment!.calls.length;
+  restored.experiment.call("p1", "GET /state").answer(200);
+  expect(restored.replay()!.experiment!.calls).toHaveLength(calls);
   expect(disposals).toHaveLength(8);
   for (const room of rooms) { room.close(); room.close(); }
   for (const dispose of disposals) expect(dispose).toHaveBeenCalledTimes(1);

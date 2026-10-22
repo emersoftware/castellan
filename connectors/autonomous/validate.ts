@@ -8,7 +8,7 @@ import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { createMatch, type Match, type PlayerOrder } from "../../packages/engine/src/index";
 import { MAPS, rules, type EntityView, type GameEvent, type Order, type OrderResult, type PlayerView, type ReplayFile, type Ruleset } from "../../packages/shared/src/index";
-import { eco, rush, type Bot } from "../../packages/sim/src/bots";
+import { eco, rush, type Bot } from "../../packages/bots/src/index";
 import { AutonomousPlayer } from "./src/player";
 
 export type Participant = { id: string; name: string; side: number; team: number };

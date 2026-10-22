@@ -1,7 +1,7 @@
 /** Current-rules reference-bot audit; no model calls. JSONL output, one independent match per row. */
 import { createMatch } from "@castellan/engine";
 import { MAPS, rules, type EntityKind } from "@castellan/shared";
-import { BOTS } from "./bots";
+import { BOTS } from "@castellan/bots";
 
 const FIGHTERS: EntityKind[] = ["knight", "archer", "tower"];
 const seconds = Number(process.argv[2] ?? 90);

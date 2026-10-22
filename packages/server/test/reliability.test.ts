@@ -115,7 +115,7 @@ it("persists a pending trace after the bounded finish deadline instead of blocki
     tickRate: 10, seed: 1, sides: "fixed", prepMs: 0, botLatencyMs: 1000, chat: false, onFinish: (replay) => { saved = replay; } });
   vi.useFakeTimers();
   try {
-    room.openCall("p1", "GET /wait"); // disconnected client: no onResponse
+    room.experiment.call("p1", "GET /wait"); // disconnected client: no onResponse
     room.touch("p1"); room.touch("p2");
     await vi.advanceTimersByTimeAsync(500);
     expect(room.state).toBe("finished"); expect(saved).toBeUndefined();
@@ -129,7 +129,7 @@ it("finishes saving a finished room's replay before close resolves", async () =>
   const room = await Room.create({ ruleset: { ...rules, matchMs: 200 }, players: [{ name: "a" }, { name: "b" }],
     tickRate: 10, seed: 1, sides: "fixed", prepMs: 0, botLatencyMs: 1000, chat: false,
     onFinish: async () => { await new Promise((resolve) => setTimeout(resolve, 20)); saved = true; } });
-  room.openCall("p1", "GET /wait"); // an unanswered call defers publication, so close() starts the save
+  room.experiment.call("p1", "GET /wait"); // an unanswered call defers publication, so close() starts the save
   room.touch("p1"); room.touch("p2");
   await vi.waitFor(() => expect(room.state).toBe("finished"), { timeout: 5000, interval: 10 });
   await room.close();

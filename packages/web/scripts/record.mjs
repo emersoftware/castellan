@@ -10,6 +10,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import puppeteer from "puppeteer-core";
+import { localData } from "@castellan/shared/local-data";
 import { encodeMp4 } from "./ffmpeg.mjs";
 import { defaultServer } from "../../shared/src/http.ts";
 
@@ -43,7 +44,7 @@ const id = positionals[0];
 if (!id) throw new Error("usage: node scripts/record.mjs <replayId> [--speed 2] [--fps 30] [--out file.mp4]");
 const speed = Number(o.speed);
 const fps = Number(o.fps);
-const out = resolve(o.out ?? `../../videos/${id}-${o.speed}x.mp4`);
+const out = resolve(o.out ?? localData("videos", `${id}-${o.speed}x.mp4`));
 mkdirSync(dirname(out), { recursive: true });
 
 const browser = await puppeteer.launch({
@@ -87,7 +88,7 @@ try {
     if (k % 300 === 0) console.log(`  frame ${k}/${frames} (${((Date.now() - started) / 1000).toFixed(0)}s)`);
   }
   ffmpeg.stdin.end();
-  // The board's sounds, in seconds of this video (scripts in packages/video mix them).
+  // The board's sounds, in seconds of this video, for mixing its soundtrack.
   const sounds = await page.evaluate(() => window.__record.sounds);
   writeFileSync(out.replace(/\.mp4$/, ".sounds.json"), JSON.stringify(sounds.map((x) => ({ ...x, t: +((x.ms - fromMs) / 1000 / speed).toFixed(3) }))));
   await new Promise((r, j) => ffmpeg.on("close", (c) => (c === 0 ? r() : j(new Error(`ffmpeg exit ${c}`)))));

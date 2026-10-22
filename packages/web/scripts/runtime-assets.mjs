@@ -1,5 +1,5 @@
 // @ts-check
-// Distribution copies only: source art/music remains untouched in public/ and assets/.
+// Distribution copies only: source art and music stay untouched in assets/; the site serves public/game-assets.
 import { readFile, writeFile, mkdir, copyFile, stat } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -7,8 +7,8 @@ import { execFileSync } from 'node:child_process';
 import sharp from 'sharp';
 import { buildHeroSprites } from './hero-assets.mjs';
 import { CLIP_ART as kinds } from '../src/render/clips.ts';
-const root = resolve(import.meta.dirname, '../public');
-const out = resolve(root, 'game-assets');
+const root = resolve(import.meta.dirname, '../../../assets');
+const out = resolve(import.meta.dirname, '../public/game-assets');
 const inputs = ['sprites/manifest.json', ...kinds.map(k => `sprites/${k}/manifest.json`)];
 for (const path of [...inputs]) {
   const m = JSON.parse(await readFile(resolve(root,path),'utf8'));

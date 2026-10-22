@@ -35,8 +35,8 @@ verify the current checkout and processes.
 
 ## Sources and package boundaries
 
-Read [README.md](README.md), [TESTING.md](TESTING.md), and the affected component's
-documentation before changing its contract. Prefer the existing implementation
+Read [README.md](README.md), [docs/testing.md](docs/testing.md), [docs/architecture.md](docs/architecture.md)
+and the affected component's README before changing its contract. Prefer the existing implementation
 and documented behavior over conventions imported from another project.
 
 - `packages/shared` owns rules, wire types, the player guide and text views.
@@ -45,6 +45,10 @@ and documented behavior over conventions imported from another project.
   Keep model/provider calls and wall-clock scheduling outside the simulation.
 - `packages/sandbox` owns QuickJS script execution and deterministic budgets.
   `packages/server` owns live worker supervision, rooms, authorization and storage.
+- `packages/bots` owns the reference bots. `packages/sim` owns headless simulation and
+  balance tools; the server uses it only for development scripts.
+- Loop keepers load `@castellan/shared` and `@castellan/cli` with Node's own type
+  stripping: keep explicit `.ts` imports and erasable syntax in those packages.
 - `packages/web` presents recorded or observed state. Do not infer a successful
   action, installed script or running script engine merely from a submitted command.
 - `connectors` are clients of the same game API. Reuse the shared turn, seat and
@@ -82,19 +86,21 @@ code; the rules below summarize the project's expectations.
 ## Fairness, isolation and lifecycle
 
 Read [connectors/README.md](connectors/README.md) for the shared turn contract and
-[the sandbox contract](docs/components/sandbox.md) before changing execution.
+[the sandbox contract](docs/architecture.md#script-sandbox) before changing execution.
 
 - Preserve the common starting prompt and observation flow. Explicit experimental
   directives must be recorded; do not silently tune one model's strategy.
 - Start each match with a fresh private harness session and empty workspace.
   Resume that session between decisions; do not load personal/project context or
-  cross-match memory. Series history follows [SERIES.md](SERIES.md).
+  cross-match memory. Series history follows [docs/series.md](docs/series.md).
 - Keep player credentials, spectator capabilities and private observations separate.
   Do not poll player `/state` to monitor a harness: it consumes observations.
   Use supervisor `/status` for readiness and termination checks.
-- Keep credentials and native run directories outside the repository. Do not put
-  keys or live access tokens in logs, replay fixtures, commits or reports. Use
-  private file permissions and inspect fixtures before adding them.
+- Keep credentials and native run directories outside the repository: match data
+  (replays, runs, reports, videos) lives in `~/.local/share/castellan` (`CASTELLAN_DATA`),
+  credentials in `~/.config/castellan`. Do not put keys or live access tokens in logs,
+  replay fixtures, commits or reports. Use private file permissions and inspect
+  fixtures before adding them.
 - Document the actual tool allowlist and residual harness tools. Configuration
   isolation is not an OS sandbox; report the distinction accurately.
 - Here, a script engine means QuickJS running JavaScript in WebAssembly: one per
@@ -123,7 +129,7 @@ Read [connectors/README.md](connectors/README.md) for the shared turn contract a
 
 ## Validation and delivery
 
-Follow [TESTING.md](TESTING.md): test the observable contract at its owning
+Follow [docs/testing.md](docs/testing.md): test the observable contract at its owning
 boundary, demonstrate regressions for bug fixes, and clean up real resources.
 Avoid tests that merely repeat the implementation or duplicate existing coverage.
 

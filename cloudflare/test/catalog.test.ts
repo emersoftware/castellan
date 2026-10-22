@@ -129,7 +129,7 @@ it("counts a shared loss in addition to each side's one win and one defeat", () 
 
 it.each([["low", "low"], ["PRIVATE-INVALID-EFFORT", null]])("reads fresh payloads and publishes only safe catalogue metadata (effort %s)", async (declaredEffort, expectedEffort) => {
   const root = await mkdtemp(join(tmpdir(), "castellan-catalog-test-")); directories.push(root);
-  const featured = join(root, replayArchive.featured), local = join(root, replayArchive.local);
+  const featured = join(root, replayArchive.featured), local = join(root, "replays");
   await mkdir(featured, { recursive: true }); await mkdir(local);
   const old = entry(fixture).summary;
   old.savedAt = "2026-09-01T00:00:00.000Z";
@@ -147,7 +147,7 @@ it.each([["low", "low"], ["PRIVATE-INVALID-EFFORT", null]])("reads fresh payload
     const replay = structuredClone(fixture); replay.id = id; replay.players[0].name = name;
     await writeFile(join(local, `${id}.json.gz`), gzipSync(JSON.stringify(replay)));
   }
-  const publication = await collectPublication(root);
+  const publication = await collectPublication(root, local);
   expect(publication.replays).toHaveLength(1);
   expect(publication.excluded).toBe(2);
   expect(publication.replays[0].summary.savedAt).toBe(old.savedAt);

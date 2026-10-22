@@ -2,12 +2,12 @@
 // that the current engine reproduces, for the balance optimizer's recorded battles.
 //   npx tsx src/extract-recent.mts > /tmp/castellan-opt/battles-recent.json
 import { readFileSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { recordingOf, resimulate } from "@castellan/engine";
 import type { ReplayFile, SpectatorView } from "@castellan/shared";
+import { localReplays } from "@castellan/shared/local-data";
 import { assertBalanceReplay, replayContinuation, type Snapshot } from "./battles";
-const dir = process.env.REPLAYS ?? resolve(import.meta.dirname, "../../../replays");
+const dir = process.env.REPLAYS ?? localReplays();
 const out: Snapshot[] = [];
 let games = 0, skipped = 0;
 for (const f of readdirSync(dir).filter((f) => /^[0-9a-f]{8}\.json\.gz$/.test(f))) {

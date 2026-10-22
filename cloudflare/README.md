@@ -25,8 +25,8 @@ eligible local recording, even old games removed from the public catalog.
 The selected IDs must exist and be publishable. A series goes in only when
 you select all its games. Add `--dry-run` to preview the selection.
 
-The sources are `replays/*.json.gz` and the existing `packages/web/public/featured`
-catalogue. Local replay payloads win over the catalogue. The importer keeps existing
+The sources are the local replay archive (`~/.local/share/castellan/replays/*.json.gz`,
+or `REPLAY_DIR`) and the existing `packages/web/public/featured` catalogue. Local replay payloads win over the catalogue. The importer keeps existing
 editorial titles and original `savedAt` values. It skips built-in bots, legacy bot
 names and `demo:*` recordings. It rebuilds a series only from all 3 finished portable
 replays, never from private checkpoint files, because those contain tokens.

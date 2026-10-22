@@ -2,7 +2,7 @@
 // Keep the wall's masonry and ground anchor; leave a real opening between neighbours.
 import { readFile, writeFile } from 'node:fs/promises';
 /** @import { ClipArt } from '../src/render/clips.ts' */
-const base = new URL('../public/sprites/', import.meta.url);
+const base = new URL('../../../assets/sprites/', import.meta.url);
 const wall = (await readFile(new URL('wall.png', base))).toString('base64');
 const opening = 'M30 114V88Q30 75 45 73Q60 75 60 88V114Z';
 const wallImage = `<image width="103" height="108" href="data:image/png;base64,${wall}"`;
