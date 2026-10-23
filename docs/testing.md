@@ -17,8 +17,8 @@ errors, no wall clock, unseeded randomness or Node APIs in the simulation packag
 justified exception is `// eslint-disable-next-line <rule> -- <reason>`. Engine and bots name
 their numbers. `pnpm check:copies` runs [jscpd](https://github.com/kucherenko/jscpd) (`.jscpd.json`): a
 new copied block of 5 lines and 50 tokens fails. `.jscpd-baseline.json` freezes the copies in art
-generators and browser diagnostics, which need inputs or a browser to verify a refactor; it may only
-shrink (`pnpm exec jscpd` lists them). The `.githooks/pre-commit` hook runs Knip and jscpd and lints
+generators and browser diagnostics, which need inputs or a browser to verify a refactor (`pnpm exec
+jscpd` lists them). Regenerate it with `--update-baseline` only to drop fixed copies; review rejects additions. The `.githooks/pre-commit` hook runs Knip and jscpd and lints
 the staged files; `pnpm install` enables it through `prepare`.
 `pnpm typecheck` also rejects unused locals and parameters and includes the web client.
 It also checks `packages/shared` and the CLI client under Node's own rules (explicit
