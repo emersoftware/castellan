@@ -1,5 +1,6 @@
 // @ts-check
 // What every keeper knows about the game: where its server is and how a seat reads it.
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { client, query } from "@castellan/cli";
@@ -8,6 +9,13 @@ export { observedSeat, seatOver, seatPlaying, serverUrl } from "@castellan/share
 
 /** A private keeper file in ~/.config/castellan. */
 export const configFile = name => join(homedir(), ".config", "castellan", name);
+
+/** A fresh private directory for one match's native harness files, in ~/.local/state/castellan/<harness>. */
+export async function runDirectory(harness) {
+  const runs = join(homedir(), ".local", "state", "castellan", harness);
+  await mkdir(runs, { recursive: true, mode: 0o700 });
+  return mkdtemp(join(runs, "run-"));
+}
 
 /**
  * Requests made as this seat. They declare no agent: keepers report their configuration themselves.

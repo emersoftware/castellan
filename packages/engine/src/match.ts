@@ -15,6 +15,7 @@ import { UnitScripts } from "./unit-scripts";
 import { PlayerVision } from "./vision";
 import type { Entity, Intent, Deposit, Player } from "./entities";
 import { validateOrder } from "./validate";
+import { fingerprint } from "./fingerprint";
 
 export interface MatchConfig {
   ruleset: Ruleset;
@@ -64,6 +65,10 @@ export interface PlayerOrder {
 
 /** Events kept for `view(player, since)`. */
 const EVENT_WINDOW_TICKS = 600;
+/** What `view(player)` reports without `since`: events, combat and attacks of this last stretch. */
+const RECENT_EVENTS_MS = 10_000;
+/** A unit shows its heading for this long after a step. */
+const HEADING_MS = 1000;
 
 /**
  * A match: the whole game state and the rules that advance it one tick at a
@@ -302,10 +307,11 @@ export class Match {
       });
   }
 
-  /** What `player` sees. Events are those with tick ≥ `since` (default: the last 10 s). */
+  /** What `player` sees. Events are those with tick ≥ `since` (default: the last `RECENT_EVENTS_MS`). */
   view(player: PlayerId, since?: number): PlayerView {
     const p = this.player(player);
-    const events = this.events(player, since ?? this.clock.tick - this.clock.ticks(10_000));
+    const from = since ?? this.clock.tick - this.clock.ticks(RECENT_EVENTS_MS);
+    const events = this.events(player, from);
     return {
       tick: this.clock.tick,
       timeMs: this.clock.ms(this.clock.tick),
@@ -321,9 +327,9 @@ export class Match {
       projectiles: this.combat.views(player),
       scripts: this.scripts.view(p),
       availableActions: this.production.availableActions(p, !p.alive ? ["player eliminated"] : this._outcome ? ["match over"] : []),
-      combat: this.vision.combatSummary(player, since ?? this.clock.tick - this.clock.ticks(10_000)),
+      combat: this.vision.combatSummary(player, from),
       events,
-      underAttack: this.underAttack(player, since ?? this.clock.tick - this.clock.ticks(10_000)),
+      underAttack: this.underAttack(player, from),
       lastSeen: this.vision.remembered(player),
       outcome: this._outcome ?? undefined,
     };
@@ -487,12 +493,7 @@ export class Match {
 
   /** Compact fingerprint of the state, to detect replay desyncs. */
   hash(): string {
-    let h = 0x811c9dc5;
-    const mix = (n: number) => {
-      h ^= n & 0xff; h = Math.imul(h, 0x01000193);
-      h ^= (n >>> 8) & 0xff; h = Math.imul(h, 0x01000193);
-      h ^= (n >>> 16) & 0xff; h = Math.imul(h, 0x01000193);
-    };
+    const { mix, digest } = fingerprint();
     mix(this.clock.tick);
     for (const p of this.players) mix(p.mineral);
     for (const e of this.ents.values()) {
@@ -525,7 +526,7 @@ export class Match {
     }
     this.vision.hashKnowledge(mix);
     this.combat.hashProjectiles(mix);
-    return (h >>> 0).toString(16).padStart(8, "0");
+    return digest();
   }
 
   dispose(): void {
@@ -1043,7 +1044,7 @@ export class Match {
       attackMs: e.spec.attackMs ? this.clock.ms(this.clock.ticks(e.spec.attackMs)) : 0,
       moveMs: e.spec.moveMs ? this.clock.ms(this.clock.ticks(e.spec.moveMs)) : 0,
     };
-    if (e.lastStep && this.clock.tick - e.lastStep.tick <= this.clock.ticks(1000)) v.heading = arrow(e.lastStep.dx, e.lastStep.dy);
+    if (e.lastStep && this.clock.tick - e.lastStep.tick <= this.clock.ticks(HEADING_MS)) v.heading = arrow(e.lastStep.dx, e.lastStep.dy);
     const own = viewer === null || viewer === e.owner;
     if (own && e.training?.length) v.training = e.training.map((job) => ({ kind: job.kind,
       ...(job.completesAtTick !== undefined ? { completesAtMs: this.clock.ms(job.completesAtTick) } : {}),
@@ -1051,7 +1052,7 @@ export class Match {
     if (own && e.doing) v.doing = e.doing;
     if (own && e.actionResult) v.actionResult = { ...e.actionResult };
     if (e.spec.gathers && e.doing.startsWith("gather ")) {
-      const deposit = this.deps.get(e.doing.slice(7));
+      const deposit = this.deps.get(e.doing.slice("gather ".length));
       if (deposit && dist(e.x, e.y, deposit.x, deposit.y) <= 1) v.gathering = { x: deposit.x, y: deposit.y };
     }
     const o = own ? e.order : null;

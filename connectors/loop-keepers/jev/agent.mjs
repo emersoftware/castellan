@@ -6,14 +6,13 @@
 // also owns language: its plan may carry a chat message and unit scripts. Unit
 // scripts remain the reflex layer, as code does in the drone controller.
 //   plan (async: first, on targets met, failures, empty menu, every 20 s) → summarize → options → Jev picks one → act → repeat
-import { appendFile, mkdir, mkdtemp } from "node:fs/promises";
-import { homedir } from "node:os";
+import { appendFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 import { launchConfiguration, reportActivity, reportConfiguration } from "../metadata.mjs";
-import { observedSeat, seat, seatOver } from "../game.mjs";
+import { observedSeat, runDirectory, seat, seatOver } from "../game.mjs";
 import { promptOf } from "../turns.mjs";
 import { client, query } from "@castellan/cli";
 import { dist as tileDistance, routes } from "@castellan/shared";
@@ -221,9 +220,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   const opts = options(args);
   const key = await loadKey(env);
   if (!key) throw new Error("set OPENROUTER_API_KEY, save it in ~/.config/castellan/openrouter-api-key, or log in with `opencode auth login`");
-  const runs = join(homedir(), ".local", "state", "castellan", "jev");
-  await mkdir(runs, { recursive: true, mode: 0o700 });
-  const root = await mkdtemp(join(runs, "run-"));
+  const root = await runDirectory("jev");
   const goal = promptOf(env);
   console.error(`castellan jev: ${opts.planner} (${opts.effort}) plans, ${opts.jev} chooses; logs ${root}`);
   await reportConfiguration(launchConfiguration({ connector: "jev", model: `${opts.planner}+${opts.jev}`, effort: opts.effort, prompt: goal, env }), { env, fetchImpl });

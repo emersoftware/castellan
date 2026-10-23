@@ -102,13 +102,19 @@ function ensureScript(code: string, state: { set?: string }, kind: EntityKind = 
   return [{ type: "script", kind, code }];
 }
 
-/** Lean economy, early knights; once 5 are out they all attack and keep attacking. */
+// Each bot's army size to attack with and its worker target. Tests and recorded benchmarks rely on these values.
+const RUSH = { attackAt: 5, workers: 6 };
+const ECO = { attackAt: 8, workers: 9 };
+const TURTLE = { attackAt: 8, workers: 6, towersFromWorkers: 5, towerSpots: [{ x: 7, y: 7 }, { x: 7, y: 3 }, { x: 3, y: 7 }] };
+const ARCHER_ARMY = { attackAt: 8, workers: 9 };
+
+/** Lean economy, early knights; once RUSH.attackAt are out they all attack and keep attacking. */
 export function rush(r: Ruleset = rules): Bot {
   const s: { set?: string } = {};
   let committed = false;
   return (v) => {
-    committed ||= count(v, "knight") >= 5;
-    return [...ensureScript(committed ? scouting(v, r, ATTACK_SCRIPT) : DEFEND_SCRIPT, s), ...spend(v, r, 6)];
+    committed ||= count(v, "knight") >= RUSH.attackAt;
+    return [...ensureScript(committed ? scouting(v, r, ATTACK_SCRIPT) : DEFEND_SCRIPT, s), ...spend(v, r, RUSH.workers)];
   };
 }
 
@@ -116,14 +122,14 @@ export function eco(r: Ruleset = rules): Bot {
   const s: { set?: string } = {};
   return (v) => {
     const knights = count(v, "knight");
-    const script = knights >= 8 ? scouting(v, r, ATTACK_SCRIPT) : DEFEND_SCRIPT;
-    return [...ensureScript(script, s), ...spend(v, r, 9)];
+    const script = knights >= ECO.attackAt ? scouting(v, r, ATTACK_SCRIPT) : DEFEND_SCRIPT;
+    return [...ensureScript(script, s), ...spend(v, r, ECO.workers)];
   };
 }
 
 function turtle(r: Ruleset = rules): Bot {
   const s: { set?: string } = {};
-  const spots = [[7, 7], [7, 3], [3, 7]];
+  const spots = TURTLE.towerSpots;
   return (v) => {
     const out: Order<EntityKind>[] = [];
     const n = castle(v);
@@ -131,19 +137,19 @@ function turtle(r: Ruleset = rules): Bot {
     const towers = count(v, "tower");
     const pending = hasBuildOrder(v);
     const towerCost = r.kinds.tower.cost;
-    if (n && count(v, "worker") >= 5 && towers < spots.length && !pending && mineral(v) >= towerCost) {
+    if (n && count(v, "worker") >= TURTLE.towersFromWorkers && towers < spots.length && !pending && mineral(v) >= towerCost) {
       if (locked(v, "tower", r)) {
         const research = unlock(v, "tower", r, mineral(v));
         if (research.length) return research;
       } else {
-        const [x, y] = spots[towers];
+        const { x, y } = spots[towers];
         const w = v.mine.find((e) => e.kind === "worker");
         if (w) out.push({ type: "build", unit: w.id, kind: "tower", x: flip ? r.map.width - 1 - x : x, y: flip ? r.map.height - 1 - y : y });
         return out;
       }
     }
-    const script = count(v, "knight") >= 8 ? scouting(v, r, ATTACK_SCRIPT) : DEFEND_SCRIPT;
-    return [...ensureScript(script, s), ...spend(v, r, 6, towers < spots.length ? towerCost : 0)];
+    const script = count(v, "knight") >= TURTLE.attackAt ? scouting(v, r, ATTACK_SCRIPT) : DEFEND_SCRIPT;
+    return [...ensureScript(script, s), ...spend(v, r, TURTLE.workers, towers < spots.length ? towerCost : 0)];
   };
 }
 
@@ -151,9 +157,9 @@ function turtle(r: Ruleset = rules): Bot {
 function kite(r: Ruleset = rules): Bot {
   const s: { set?: string } = {};
   return (v) => {
-    const go = count(v, "archer") >= 8;
+    const go = count(v, "archer") >= ARCHER_ARMY.attackAt;
     const code = go ? scouting(v, r, KITE_SCRIPT.replace("self.memory.go", "true")) : KITE_SCRIPT;
-    return [...ensureScript(code, s, "archer"), ...spend(v, r, 9, 0, "archer")];
+    return [...ensureScript(code, s, "archer"), ...spend(v, r, ARCHER_ARMY.workers, 0, "archer")];
   };
 }
 
@@ -167,14 +173,14 @@ function archers(r: Ruleset = rules): Bot {
     const target = v.enemy.find((e) => e.kind === "castle")
       ?? [...v.enemy].sort((a, b) => Math.min(...archers.map((u) => Math.hypot(a.x - u.x, a.y - u.y)))
         - Math.min(...archers.map((u) => Math.hypot(b.x - u.x, b.y - u.y))))[0];
-    const attack: Order[] = archers.length >= 8 ? archers.filter((unit) => {
+    const attack: Order[] = archers.length >= ARCHER_ARMY.attackAt ? archers.filter((unit) => {
       if (target) return unit.order !== `attack ${target.id}`;
       const point = scouted.has(unit.id) ? goal : centre;
       return unit.order !== `move ${point.x},${point.y}`;
     }).map((unit) => target
       ? ({ type: "attack", unit: unit.id, target: target.id })
       : ({ type: "move", unit: unit.id, ...(scouted.has(unit.id) ? goal : centre) })) : [];
-    return [...attack, ...spend(v, r, 9, 0, "archer")];
+    return [...attack, ...spend(v, r, ARCHER_ARMY.workers, 0, "archer")];
   };
 }
 

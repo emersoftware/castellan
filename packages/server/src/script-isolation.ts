@@ -2,7 +2,7 @@ import { Worker } from "node:worker_threads";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import { RUN_LIMITS, type RunLimits, type ScriptLimits } from "@castellan/shared";
-import type { RunResult, ScriptHost, ScriptWorld, UnitRun } from "@castellan/sandbox";
+import type { RunResult, ScriptHost, ScriptResult, ScriptWorld, UnitRun } from "@castellan/sandbox";
 import { channelViews, FAILED, HEADER_BYTES, IDLE, REQUEST, REQUEST_LENGTH_SLOT, RESPONSE, RESPONSE_LENGTH_SLOT, RUNNING, STARTING, STATE_SLOT } from "./script-channel.ts";
 
 const TRANSPORT_BYTES = 1024 * 1024;
@@ -74,7 +74,7 @@ export function createIsolatedScriptHost(limits: ScriptLimits, seed: number, iso
   function waitWhile(state: number, timeout: number): boolean {
     return waitForStateChange(header, state, timeout);
   }
-  function read(): { ok: true; value: unknown } | { ok: false; error: string } {
+  function read(): ScriptResult<{ value: unknown }> {
     const length = Atomics.load(header, RESPONSE_LENGTH_SLOT);
     if (length < 1 || length > bytes.length) return { ok: false, error: "invalid sandbox response length" };
     try { return JSON.parse(decoder.decode(bytes.subarray(0, length))); }

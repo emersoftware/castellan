@@ -6,6 +6,7 @@ export function segmentCircleHit(ax: number, ay: number, bx: number, by: number,
   const a = dx * dx + dy * dy;
   if (a === 0) return null;
   const b = 2 * (ox * dx + oy * dy);
+  // eslint-disable-next-line @typescript-eslint/no-magic-numbers -- the quadratic formula
   const discriminant = b * b - 4 * a * c;
   if (discriminant < 0) return null;
   const t = (-b - Math.sqrt(discriminant)) / (2 * a);

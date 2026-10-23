@@ -27,6 +27,25 @@ import { MIN_INTERVAL_MS, turnFor } from "./turns.mjs";
  */
 
 /**
+ * Polls the supervisor's status, which never consumes this seat's observations, and calls `over` once
+ * the seat's match has ended, so a decision in flight cannot keep the process alive. Returns a cancel function.
+ * @param {{ status: () => Promise<import("@castellan/shared").SeatStatus> }} game
+ * @param {number} pollMs
+ * @param {() => void} over
+ */
+export function watchMatchEnd(game, pollMs, over) {
+  /** @type {NodeJS.Timeout | undefined} */
+  let timer;
+  let done = false;
+  const poll = async () => {
+    try { if (seatOver(await game.status())) { done = true; over(); return; } } catch { /* the next poll retries */ }
+    if (!done) timer = setTimeout(poll, pollMs);
+  };
+  timer = setTimeout(poll, pollMs);
+  return () => { done = true; clearTimeout(timer); };
+}
+
+/**
  * Plays the seat until its match ends: 0 when it finished, 1 when stopped first.
  * @param {Keeper} keeper
  */
@@ -34,24 +53,16 @@ export async function playSeat({ name, prompt, decide, env = process.env, fetchI
   maxFailures = Infinity, backoffMs = failures => Math.min(30_000, 2000 * failures), warn = text => console.error(text) }) {
   /** @type {string | undefined} */
   let session;
-  /** @type {NodeJS.Timeout | undefined} */
-  let watcher;
   let stopped = false, finished = false, lastDeliveredTick = 0, failures = 0;
   const abort = new AbortController();
-  const stop = () => { stopped = true; abort.abort(); };
+  let endWatch = () => {};
+  const stop = () => { stopped = true; abort.abort(); endWatch(); };
   const game = seat({ env, fetchImpl, signal: abort.signal });
   const delay = ms => sleep(ms, undefined, { signal: abort.signal });
-  // A decision in flight when the match ends would otherwise keep the process alive.
-  // The supervisor's status never consumes this seat's observations.
-  const watch = async () => {
-    if (stopped) return;
-    try { if (seatOver(await game.status())) { finished = true; stop(); return; } } catch { /* the next poll retries */ }
-    if (!stopped) watcher = setTimeout(watch, pollMs);
-  };
   process.on("SIGINT", stop); process.on("SIGTERM", stop);
   signal?.addEventListener("abort", stop, { once: true });
   if (signal?.aborted) stop();
-  watcher = setTimeout(watch, pollMs);
+  else endWatch = watchMatchEnd(game, pollMs, () => { finished = true; stop(); });
   try {
     while (!stopped) {
       const started = Date.now();
@@ -87,7 +98,7 @@ export async function playSeat({ name, prompt, decide, env = process.env, fetchI
     }
     return finished ? 0 : 1;
   } finally {
-    stop(); clearTimeout(watcher);
+    stop();
     process.off("SIGINT", stop); process.off("SIGTERM", stop);
     signal?.removeEventListener("abort", stop);
     await reportActivity("stopped", { env, fetchImpl });

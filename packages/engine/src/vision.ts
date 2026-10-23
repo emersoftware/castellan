@@ -4,6 +4,11 @@ import type { Entity, Deposit } from "./entities";
 import type { SimulationClock } from "./clock";
 import { dist } from "@castellan/shared";
 
+/** How long combat records stay available to combat summaries. */
+const COMBAT_MEMORY_MS = 120_000;
+/** Combat summaries group records by square areas of this many tiles, and split a group after this gap. */
+const ENCOUNTER_AREA = 6, ENCOUNTER_GAP_MS = 5000;
+
 /** An enemy entity as last seen, and the tick it was. */
 type Sighting = Extract<LastSeen, { owner: PlayerId }> & { tick: number };
 
@@ -38,7 +43,7 @@ export class PlayerVision {
   }
 
   trimCombat() {
-    for (const [player, records] of this.combatLog) this.combatLog.set(player, records.filter(r => r.tick >= this.clock.tick - this.clock.ticks(120_000)));
+    for (const [player, records] of this.combatLog) this.combatLog.set(player, records.filter(r => r.tick >= this.clock.tick - this.clock.ticks(COMBAT_MEMORY_MS)));
   }
 
   /** Remembered enemy buildings and deposits that are outside `player`'s vision now, most recent first. */
@@ -74,15 +79,14 @@ export class PlayerVision {
   }
 
   combatSummary(player: PlayerId, since: number): CombatSummary {
-    const retained = Math.max(0, this.clock.tick - this.clock.ticks(120_000));
+    const retained = Math.max(0, this.clock.tick - this.clock.ticks(COMBAT_MEMORY_MS));
     const from = Math.max(retained, since, 0);
     const encounters: CombatSummary["encounters"] = [];
     for (const r of this.combatLog.get(player) ?? []) {
       if (r.tick < from) continue;
-      // Six-tile areas and five seconds of separation define reporting groups,
-      // not tactical entities or a source of hidden attacker information.
-      const x = Math.floor(r.x / 6) * 6, y = Math.floor(r.y / 6) * 6;
-      let group = [...encounters].reverse().find(g => g.x === x && g.y === y && r.tick - g.toTick <= this.clock.ticks(5000));
+      // Areas and gaps define reporting groups, not tactical entities or a source of hidden attacker information.
+      const x = Math.floor(r.x / ENCOUNTER_AREA) * ENCOUNTER_AREA, y = Math.floor(r.y / ENCOUNTER_AREA) * ENCOUNTER_AREA;
+      let group = [...encounters].reverse().find(g => g.x === x && g.y === y && r.tick - g.toTick <= this.clock.ticks(ENCOUNTER_GAP_MS));
       if (!group) { group = { x, y, fromTick: r.tick, toTick: r.tick, damage: {}, losses: [] }; encounters.push(group); }
       group.toTick = r.tick;
       if (r.damage) group.damage[r.owner] = (group.damage[r.owner] ?? 0) + r.damage;

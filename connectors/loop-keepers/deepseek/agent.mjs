@@ -1,14 +1,13 @@
 // @ts-check
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { cli, runtimeDir, VERSION, verifyRuntime } from "./runtime.mjs";
 import { loadKey } from "./key.mjs";
-import { launchConfiguration, reportConfiguration } from "../metadata.mjs";
-import { serverUrl } from "../game.mjs";
+import { launchConfiguration, recordDirective, reportConfiguration } from "../metadata.mjs";
+import { runDirectory, serverUrl } from "../game.mjs";
 import { MIN_INTERVAL_MS, promptOf } from "../turns.mjs";
 import { exitOf, playSeat } from "../decisions.mjs";
 /** @import { Effort } from "@castellan/shared" */
@@ -107,9 +106,7 @@ async function main(args = process.argv.slice(2), env = process.env, { fetchImpl
   const key = opts.check ? undefined : await loadKey(env);
   if (!opts.check && !key) throw new Error("set DEEPSEEK_API_KEY or run node connectors/loop-keepers/deepseek/key.mjs");
   await verifyRuntime();
-  const runs = join(homedir(), ".local", "state", "castellan", "deepseek");
-  await mkdir(runs, { recursive: true, mode: 0o700 });
-  const root = await mkdtemp(join(runs, "run-"));
+  const root = await runDirectory("deepseek");
   const player = await preparePlayer({ root, token: env.CASTELLAN_TOKEN ?? "check-only", server: serverUrl(env.CASTELLAN_SERVER), key, ...opts, env });
   if (opts.check) {
     const child = spawnImpl(process.execPath, [...player.args, "--dump-config"], { cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "inherit"] });
@@ -119,7 +116,7 @@ async function main(args = process.argv.slice(2), env = process.env, { fetchImpl
     return code;
   }
   const prompt = promptOf(env);
-  if (env.CASTELLAN_DIRECTIVE) await writeFile(join(root, "run.json"), JSON.stringify({ ...player.metadata, directive: env.CASTELLAN_DIRECTIVE }, null, 2), { mode: 0o600 });
+  await recordDirective(root, player.metadata, env);
   console.error(`castellan deepseek: ${opts.model} (${opts.effort}), dsh ${VERSION}; logs ${root}${env.CASTELLAN_DIRECTIVE ? `; directive: ${env.CASTELLAN_DIRECTIVE}` : ""}`);
   await reportConfiguration(launchConfiguration({ connector: "deepseek-harness", model: opts.model,
     effort: opts.effort, connectorVersion: VERSION, prompt, env }), { env, fetchImpl });

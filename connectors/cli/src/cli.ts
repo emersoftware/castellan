@@ -70,7 +70,8 @@ const num = (v: string | undefined) => (v === undefined ? undefined : Number(v))
 const read = (file: string) => readFileSync(file === "-" ? 0 : file, "utf8");
 const c = client();
 
-async function main(): Promise<string | number | void> {
+/** The text to print, if any; failures and agent runs set the exit code. */
+async function main(): Promise<string | void> {
   const { values: o, positionals: [name, ...args] } = parse();
   const json = o.json;
   switch (name) {
@@ -115,18 +116,19 @@ async function main(): Promise<string | number | void> {
     case "run-series": {
       const command = dash < 0 ? [] : argv.slice(dash + 1);
       if (!command.length) throw new Error("usage: castellan run -- <command...>");
-      return name === "run-series" ? cmd.runSeries(c, command) : cmd.run(c, command);
+      process.exitCode = await (name === "run-series" ? cmd.runSeries(c, command) : cmd.run(c, command));
+      return;
     }
     default:
       console.log(USAGE);
-      return name && !o.help ? 1 : 0;
+      process.exitCode = name && !o.help ? 1 : 0;
+      return;
   }
 }
 
 main().then(
   (out) => {
-    if (typeof out === "number") process.exitCode = out;
-    else if (out !== undefined) console.log(out);
+    if (out !== undefined) console.log(out);
   },
   (e) => {
     console.error(e instanceof Error ? e.message : String(e));

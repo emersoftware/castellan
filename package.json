@@ -5,7 +5,7 @@
   "scripts": {
     "docs:rules": "tsx docs/generate-rules.mts",
     "docs:check": "tsx docs/generate-rules.mts --check",
-    "test": "pnpm check:unused && pnpm lint && pnpm docs:check && vitest run",
+    "test": "pnpm check:unused && pnpm lint && pnpm check:copies && pnpm docs:check && vitest run",
     "test:engine": "pnpm test --project engine --project sandbox --project sim",
     "test:integration": "pnpm test --project server --project connectors --project catalog",
     "test:agents": "pnpm test --project agents",
@@ -30,6 +30,7 @@
     "arena": "tsx connectors/open-arena/src/cli.mjs",
     "check:unused": "knip --treat-config-hints-as-errors --treat-tag-hints-as-errors",
     "lint": "eslint --cache --cache-location node_modules/.cache/eslint/ .",
+    "check:copies": "jscpd --baseline .jscpd-baseline.json --fail-on-new-clones --reporters silent",
     "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
@@ -39,6 +40,7 @@
     "@types/node": "^24.0.0",
     "eslint": "10.13.0",
     "globals": "17.13.0",
+    "jscpd": "5.4.2",
     "jsdom": "^30.1.1",
     "knip": "6.42.1",
     "tsx": "^4.20.0",

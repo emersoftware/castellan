@@ -8,6 +8,13 @@ import { DIRS, inBounds, type Grid } from "./grid";
 import type { Movement } from "./movement";
 import type { PlayerVision } from "./vision";
 
+/** Mix the match seed and the seat index into each player's script seed; changing them changes every replay. */
+const MATCH_SEED_FACTOR = 31, SEAT_SEED_FACTOR = 7919;
+/** Script log lines a player's units may emit per decision round; the rest are dropped. */
+const LOGS_PER_ROUND = 10;
+/** Recent distinct errors kept per script kind for the player's view. */
+const KEPT_ERRORS = 3;
+
 /** One player's script VM and what it has installed. */
 interface Seat {
   host: ScriptHost;
@@ -41,7 +48,7 @@ export class UnitScripts {
     const allocated: ScriptHost[] = [];
     try {
       world.players.forEach((player, i) => {
-        const seed = (matchSeed * 31 + i * 7919) >>> 0;
+        const seed = (matchSeed * MATCH_SEED_FACTOR + i * SEAT_SEED_FACTOR) >>> 0;
         const host = factory(rules().script, seed);
         allocated.push(host);
         this.seats.set(player.id, { host, seed, scripts: new Map() });
@@ -111,7 +118,7 @@ export class UnitScripts {
       const r = runs[e.id];
       if (this.rules().reactiveOrders) e.scriptEvents = [];
       if (r.error) this.remember(seat, player, e, r.error, emit, r.operationalFailure);
-      if (r.log && logs++ < 10) emit({ tick: this.clock.tick, type: "log", owner: player.id, unit: e.id, message: r.log });
+      if (r.log && logs++ < LOGS_PER_ROUND) emit({ tick: this.clock.tick, type: "log", owner: player.id, unit: e.id, message: r.log });
       choose(e, r);
     }
   }
@@ -185,7 +192,7 @@ export class UnitScripts {
     if (!script) return;
     if (script.errors.at(-1) !== message || (operationalFailure && !seat.operationalFailureReported)) {
       script.errors.push(message);
-      if (script.errors.length > 3) script.errors.shift();
+      if (script.errors.length > KEPT_ERRORS) script.errors.shift();
       if (!operationalFailure || !seat.operationalFailureReported) {
         emit({ tick: this.clock.tick, type: "script_error", owner: player.id, kind: e.kind, unit: e.id, message,
           ...(operationalFailure ? { operationalFailure } : {}) });

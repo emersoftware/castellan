@@ -1,0 +1,30 @@
+{
+  "minLines": 5,
+  "minTokens": 50,
+  "format": [
+    "typescript",
+    "javascript",
+    "tsx"
+  ],
+  "path": [
+    "packages",
+    "connectors",
+    "cloudflare",
+    "tools",
+    "docs",
+    "assets"
+  ],
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/test/**",
+    "**/*.test.*",
+    "**/public/**",
+    "**/*.d.ts",
+    "connectors/autonomous/**"
+  ],
+  "gitignore": true,
+  "reporters": [
+    "console"
+  ]
+}

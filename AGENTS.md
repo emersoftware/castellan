@@ -134,7 +134,7 @@ Follow [docs/testing.md](docs/testing.md): test the observable contract at its o
 boundary, demonstrate regressions for bug fixes, and clean up real resources.
 Avoid tests that merely repeat the implementation or duplicate existing coverage.
 
-Keep `pnpm check:unused` clean; it also runs before `pnpm test`. Remove confirmed
+Keep `pnpm check:unused`, `pnpm lint` and `pnpm check:copies` clean; they also run before `pnpm test`. Remove confirmed
 dead code and unnecessary exports instead of leaving deprecated aliases or stubs.
 Trace runtime consumers, including historical replays and generated harness
 wrappers, before deletion. Register genuine external entry points in `knip.jsonc`

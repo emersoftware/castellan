@@ -1,7 +1,10 @@
 import { API_LIMITS, isChatChannel, type Order } from "@castellan/shared";
 
+/** Ids, kinds and other string fields of an order are shorter than this. */
+const STRING_FIELD_LIMIT = 64;
+
 const isInt = (n: unknown) => typeof n === "number" && Number.isInteger(n);
-const isStr = (s: unknown) => typeof s === "string" && s.length > 0 && s.length < 64;
+const isStr = (s: unknown) => typeof s === "string" && s.length > 0 && s.length < STRING_FIELD_LIMIT;
 
 /** The fields each order type needs, checked in this order. */
 const FIELDS: Record<Order["type"], Record<string, (v: unknown) => boolean>> = {

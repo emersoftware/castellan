@@ -115,9 +115,12 @@ export interface UnitRun {
   operationalFailure?: true;
 }
 
+/** A script operation's value, or a readable error. */
+export type ScriptResult<T extends object = Record<never, never>> = ({ ok: true } & T) | { ok: false; error: string };
+
 export interface ScriptHost {
   /** Compiles `code` for `kind` (null removes it). Returns a readable error on failure. */
-  setScript(kind: string, code: string | null): { ok: true } | { ok: false; error: string };
+  setScript(kind: string, code: string | null): ScriptResult;
   hasScript(kind: string): boolean;
   /** Runs the script of each listed unit. Units whose kind has no script hold. */
   run(world: ScriptWorld, unitIds: string[]): Record<string, UnitRun>;
@@ -237,7 +240,7 @@ export function createScriptHost(limits: ScriptLimits, seed: number): ScriptHost
 
 /** Run finite decision scenarios in a fresh VM without changing a live match. */
 export function testScript(code: string, kind: string, worlds: ScriptWorld[], limits: ScriptLimits, seed = 0, factory: ScriptHostFactory = createScriptHost):
-  { ok: false; error: string } | { ok: true; frames: { tick: number; runs: Record<string, UnitRun> }[] } {
+  ScriptResult<{ frames: { tick: number; runs: Record<string, UnitRun> }[] }> {
   const host = factory(limits, seed);
   try {
     const compiled = host.setScript(kind, code);
@@ -299,7 +302,7 @@ ${code}
 }
 
 /** Compile-checks a script without any match. Used to answer uploads immediately. */
-export function validateScript(code: string, limits: ScriptLimits): { ok: true } | { ok: false; error: string } {
+export function validateScript(code: string, limits: ScriptLimits): ScriptResult {
   const host = createScriptHost(limits, 0);
   try {
     return host.setScript("check", code);

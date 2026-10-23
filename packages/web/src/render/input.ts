@@ -61,6 +61,9 @@ export function bindWorldInput(cv: HTMLCanvasElement, world: Container, viewport
   }, { passive: false });
 }
 
+/** What a canvas point picked. */
+type Picked = { kind: "entity"; view: EntityView } | { kind: "deposit"; view: DepositView };
+
 /** Resolves overlapping sprites by depth and actual opaque pixels. */
 export class SpritePicker {
   /** Readable copies of sprite sheets, to hit-test only opaque pixels. */
@@ -70,8 +73,8 @@ export class SpritePicker {
    * whose box holds it, the one drawn in front (highest depth), then the smallest. Only
    * what is drawn (and so visible from the current view) can be picked.
    */
-  pick(px: number, py: number, entities: Iterable<{ sprite: Sprite; view: EntityView }>, deposits: Iterable<{ sprite: Sprite; view: DepositView }>): { kind: "entity"; view: EntityView } | { kind: "deposit"; view: DepositView } | null {
-    let best: { kind: "entity"; view: EntityView } | { kind: "deposit"; view: DepositView } | null = null;
+  pick(px: number, py: number, entities: Iterable<{ sprite: Sprite; view: EntityView }>, deposits: Iterable<{ sprite: Sprite; view: DepositView }>): Picked | null {
+    let best: Picked | null = null;
     let front = -Infinity, area = Infinity;
     const consider = (sprite: Sprite, item: NonNullable<typeof best>) => {
       if (!sprite.visible || !sprite.parent) return;

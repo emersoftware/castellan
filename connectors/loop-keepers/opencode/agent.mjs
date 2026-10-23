@@ -1,12 +1,12 @@
 // @ts-check
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { connectorVersion, launchConfiguration, reportConfiguration } from "../metadata.mjs";
-import { configFile, serverUrl } from "../game.mjs";
+import { configFile, runDirectory, serverUrl } from "../game.mjs";
 import { loadKey as loadDeepSeekKey } from "../deepseek/key.mjs";
 import { MIN_INTERVAL_MS, promptOf } from "../turns.mjs";
 import { exitOf, playSeat } from "../decisions.mjs";
@@ -154,9 +154,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
   if (!key) throw new Error(anthropic ? "set ANTHROPIC_API_KEY or save it in ~/.config/castellan/anthropic-api-key (mode 600)"
     : provider === "deepseek" ? "set DEEPSEEK_API_KEY or run node connectors/loop-keepers/deepseek/key.mjs"
     : "set OPENROUTER_API_KEY, save it in ~/.config/castellan/openrouter-api-key, or log in with `opencode auth login`");
-  const runs = join(homedir(), ".local", "state", "castellan", "opencode");
-  await mkdir(runs, { recursive: true, mode: 0o700 });
-  const root = await mkdtemp(join(runs, "run-"));
+  const root = await runDirectory("opencode");
   const player = await preparePlayer({ root, token: env.CASTELLAN_TOKEN, server: serverUrl(env.CASTELLAN_SERVER), key, workspace: anthropic?.workspace, ...opts, env });
   const base = promptOf(env);
   // Optional experiment instruction for this player only; kept across relaunches.

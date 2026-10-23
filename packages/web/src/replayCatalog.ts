@@ -25,7 +25,7 @@ export function rulesFamily(version: string | undefined): string | null {
 
 /** Sort order for rules families, newest first: releases (0.29, 0.27) before the numbered prototypes (v26 … v16). */
 export function newerFamily(a: string, b: string): number {
-  const rank = (family: string): [number, number, string] => {
+  const rank = (family: string): [release: number, order: number, letter: string] => {
     const release = /^(\d+)\.(\d+)$/.exec(family);
     if (release) return [1, Number(release[1]) * 1000 + Number(release[2]), ""];
     const prototype = /^v(\d+)([a-z]?)$/.exec(family)!;

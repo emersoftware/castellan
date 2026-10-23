@@ -4,6 +4,7 @@
  */
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { transform } from "esbuild";
+import type { ScriptResult } from "@castellan/sandbox";
 import { API_LIMITS, HISTORY_SECTIONS, chatLine, declaredAgent, isChatChannel, playerGuide, routes, viewToText,
   type HistorySection, type Order, type OrderResult, type PlayerId, type Ruleset } from "@castellan/shared";
 import { agentConfiguration, type PlayerCall } from "../experiment";
@@ -229,7 +230,7 @@ export const playerRoutes: FastifyPluginAsync<PlayerRoutesOptions> = async (app,
 };
 
 /** Strips TypeScript types (never type-checks) and compile-checks the result. */
-async function prepareScript(code: string | null, lang: "js" | "ts", ruleset: Ruleset): Promise<{ ok: true; code: string | null } | { ok: false; error: string }> {
+async function prepareScript(code: string | null, lang: "js" | "ts", ruleset: Ruleset): Promise<ScriptResult<{ code: string | null }>> {
   if (code === null) return { ok: true, code: null };
   const js = lang === "ts" ? await stripTypes(code) : { ok: true as const, code };
   if (!js.ok) return js;
@@ -242,7 +243,7 @@ async function prepareScript(code: string | null, lang: "js" | "ts", ruleset: Ru
  * scripts and /run code are both bodies, so they may `return` at the top level;
  * a module transform would turn that into CommonJS the sandbox cannot run.
  */
-async function stripTypes(body: string): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
+async function stripTypes(body: string): Promise<ScriptResult<{ code: string }>> {
   try {
     const out = await transform(`(function () {\n${body}\n});`, { loader: "ts", format: "esm" });
     const m = /^\(function\s*\(\)\s*\{\n?([\s\S]*)\n?\}\);?\s*$/.exec(out.code.trim());

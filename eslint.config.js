@@ -10,6 +10,11 @@ const instanceofOnlyErrors = {
   selector: "BinaryExpression[operator='instanceof'][right.name!=/Error$/]",
   message: "Branch on a discriminated union, not on a class; instanceof is only for errors.",
 };
+/** A returned tuple says what each element is. */
+const labeledTupleReturns = {
+  selector: ":function > TSTypeAnnotation > TSTupleType > :not(TSNamedTupleMember)",
+  message: "Label the elements of a returned tuple ([x: number, y: number]) or return an object.",
+};
 const DETERMINISM = "The simulation must replay identically: use the match clock and the seeded random generator.";
 
 export default defineConfig([
@@ -30,7 +35,7 @@ export default defineConfig([
       // tsc's noUnusedLocals and noUnusedParameters check TypeScript.
       "@typescript-eslint/no-unused-vars": "off",
       "@typescript-eslint/no-unused-expressions": ["error", { allowShortCircuit: true, allowTernary: true }],
-      "no-restricted-syntax": ["error", instanceofOnlyErrors],
+      "no-restricted-syntax": ["error", instanceofOnlyErrors, labeledTupleReturns],
     },
   },
   {
@@ -50,12 +55,17 @@ export default defineConfig([
           .map(([object, property]) => ({ object, property, message: DETERMINISM }))],
       "no-restricted-globals": ["error",
         ...["setTimeout", "setInterval", "setImmediate", "fetch"].map((name) => ({ name, message: DETERMINISM }))],
-      "no-restricted-syntax": ["error", instanceofOnlyErrors,
+      "no-restricted-syntax": ["error", instanceofOnlyErrors, labeledTupleReturns,
         { selector: "NewExpression[callee.name='Date'][arguments.length=0], CallExpression[callee.name='Date']", message: DETERMINISM }],
     },
   },
   {
     files: ["packages/{engine,bots}/src/**"],
-    rules: { "no-restricted-imports": ["error", { patterns: [{ group: ["node:*"], message: DETERMINISM }] }] },
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [{ group: ["node:*"], message: DETERMINISM }] }],
+      // A number with a meaning gets a name; one the players see belongs in the ruleset.
+      "@typescript-eslint/no-magic-numbers": ["error", { ignore: [-1, 0, 1, 2], enforceConst: true, ignoreArrayIndexes: true,
+        ignoreEnums: true, ignoreNumericLiteralTypes: true, ignoreReadonlyClassProperties: true, ignoreTypeIndexes: true }],
+    },
   },
 ]);

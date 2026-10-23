@@ -1,14 +1,13 @@
 // @ts-check
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { cli, VERSION, verifyRuntime } from "./runtime.mjs";
 import { loadKey } from "./key.mjs";
-import { launchConfiguration, reportConfiguration } from "../metadata.mjs";
-import { serverUrl } from "../game.mjs";
+import { launchConfiguration, recordDirective, reportConfiguration } from "../metadata.mjs";
+import { runDirectory, serverUrl } from "../game.mjs";
 import { MIN_INTERVAL_MS, promptOf } from "../turns.mjs";
 import { exitOf, lineReader, playSeat } from "../decisions.mjs";
 
@@ -98,9 +97,7 @@ export async function main(args = process.argv.slice(2), env = process.env, { fe
   const key = opts.check ? "check-only" : await loadKey(env);
   if (!key) throw new Error("set MINIMAX_API_KEY or run node connectors/loop-keepers/minimax/key.mjs");
   await verifyRuntime();
-  const runs = join(homedir(), ".local", "state", "castellan", "minimax");
-  await mkdir(runs, { recursive: true, mode: 0o700 });
-  const root = await mkdtemp(join(runs, "run-"));
+  const root = await runDirectory("minimax");
   const player = await preparePlayer({ root, token: env.CASTELLAN_TOKEN ?? "check-only", server: serverUrl(env.CASTELLAN_SERVER), key, ...opts, env });
   if (opts.check) {
     const child = spawnImpl(process.execPath, [cli, "provider", "list", "--json"], { cwd: player.workspace, env: player.env, stdio: ["ignore", "pipe", "inherit"] });
@@ -110,7 +107,7 @@ export async function main(args = process.argv.slice(2), env = process.env, { fe
     return code;
   }
   const prompt = promptOf(env);
-  if (env.CASTELLAN_DIRECTIVE) await writeFile(join(root, "run.json"), JSON.stringify({ ...player.metadata, directive: env.CASTELLAN_DIRECTIVE }, null, 2), { mode: 0o600 });
+  await recordDirective(root, player.metadata, env);
   console.error(`castellan minimax: ${opts.model} (${opts.effort}), mcode ${VERSION}; logs ${root}`);
   await reportConfiguration(launchConfiguration({ connector: "minimax-code", model: opts.model, effort: opts.effort, connectorVersion: VERSION, prompt, env }), { env, fetchImpl });
   const totals = { decisions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, incomplete: false };

@@ -5,6 +5,13 @@ export const DIRS: Record<string, [number, number]> = {
   N: [0, -1], NE: [1, -1], E: [1, 0], SE: [1, 1], S: [0, 1], SW: [-1, 1], W: [-1, 0], NW: [-1, -1],
 };
 export const DIR_LIST = Object.values(DIRS);
+/** Path cost of a straight step when costs are rounded unit movement times (×10). */
+export const STRAIGHT_STEP_COST = 10;
+// Path heuristics. Path choices, and so recorded replays, depend on these exact values.
+/** dist() rounds to the nearest tile, so range r reaches r + this. */
+const ROUNDED_RANGE_SLACK = 0.5;
+/** Lower bound of cost per tile of straight-line gap under rounded (×10) costs, and tiles per unit of cost under unit costs. */
+const ROUNDED_COST_PER_TILE = 9.9, UNIT_COST_TILES = 1.415;
 /** The same directions rotated 180°: the second player's point of view. */
 const DIR_LIST_ROTATED = DIR_LIST.map(([dx, dy]) => [-dx, -dy] as [number, number]);
 
@@ -70,9 +77,9 @@ export function findPath(
   const arrived = (x: number, y: number) => dist(x, y, gx, gy) <= range;
   // Lower bound on the cost left: the straight-line gap to the disc of radius range + 0.5.
   const h = (x: number, y: number) => {
-    const gap = Math.max(0, hypot(x - gx, y - gy) - range - 0.5);
+    const gap = Math.max(0, hypot(x - gx, y - gy) - range - ROUNDED_RANGE_SLACK);
     if (straightCost !== undefined) return gap * Math.min(straightCost, diagonalCost! / Math.SQRT2);
-    return diagonalCost ? gap * 9.9 : gap / 1.415;
+    return diagonalCost ? gap * ROUNDED_COST_PER_TILE : gap / UNIT_COST_TILES;
   };
   if (arrived(sx, sy)) return [];
   const size = W * H;
@@ -97,7 +104,7 @@ export function findPath(
       const ny = cy + dy;
       const ni = ny * W + nx;
       if (!canStep(g, cx, cy, dx, dy) || avoid?.has(ni)) continue;
-      const next = c + (!diagonalCost ? 1 : dx && dy ? diagonalCost : straightCost ?? 10);
+      const next = c + (!diagonalCost ? 1 : dx && dy ? diagonalCost : straightCost ?? STRAIGHT_STEP_COST);
       if (cost[ni] !== -1 && cost[ni] <= next) continue;
       cost[ni] = next;
       from[ni] = cur;

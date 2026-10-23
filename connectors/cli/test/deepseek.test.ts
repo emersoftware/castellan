@@ -14,7 +14,9 @@ import { options, preparePlayer, usage } from "../../loop-keepers/deepseek/agent
 // @ts-expect-error Plain Node runtime configuration.
 import { cli } from "../../loop-keepers/deepseek/runtime.mjs";
 // @ts-expect-error Plain Node credential helper.
-import { loadKey, saveKey } from "../../loop-keepers/deepseek/key.mjs";
+import { loadKey } from "../../loop-keepers/deepseek/key.mjs";
+// @ts-expect-error Plain Node credential helper.
+import { savePrivateKey } from "../../loop-keepers/api-key.mjs";
 
 const exec = promisify(execFile);
 const dirs: string[] = [];
@@ -39,13 +41,13 @@ describe("DeepSeek connector", () => {
     const path = join(await temp(), "config", "key");
     const env = { CASTELLAN_DEEPSEEK_KEY_FILE: path };
     expect(await loadKey(env)).toBe("");
-    await saveKey("fake-test-key", path);
+    await savePrivateKey("fake-test-key", path);
     expect((await stat(path)).mode & 0o777).toBe(0o600);
     expect(await loadKey(env)).toBe("fake-test-key");
     expect(await loadKey({ ...env, DEEPSEEK_API_KEY: "env-key" })).toBe("env-key");
     await chmod(path, 0o644);
     await expect(loadKey(env)).rejects.toThrow("must be private");
-    await expect(saveKey("bad\nkey", path)).rejects.toThrow();
+    await expect(savePrivateKey("bad\nkey", path)).rejects.toThrow();
   });
 
   it.skipIf(!available)("isolates player profiles and keeps the API key out of files", async () => {

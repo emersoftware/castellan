@@ -6,6 +6,11 @@ import { dist } from "@castellan/shared";
 import { hypot } from "./grid";
 import { segmentCircleHit } from "./projectiles";
 
+/** Time between attacks of a unit whose spec sets none. */
+const DEFAULT_ATTACK_MS = 1000;
+/** Floating-point slack, so a shot whose remaining path equals one step ends this tick. */
+const STEP_TOLERANCE = 1e-9;
+
 interface Projectile extends ProjectileView { attack: number; launchedAt: number; source: string; aimedAt: string; fromX: number; fromY: number; minRange: number }
 
 /** Within attack range, and not inside the attacker's blind spot (`minRange`). */
@@ -47,7 +52,7 @@ export class Combat {
       if (it.t === "shoot") {
         // Like an attack, but toward a visible point in range; the shot hits the first hostile on its path.
         if (!this.canSee(e.owner, Math.round(it.x), Math.round(it.y)) || !inAttackRange(e, it)) { this.feedback.result(e, "blocked", undefined, "point not visible or not in range"); continue; }
-        e.nextAttack = T + this.clock.ticks(e.spec.attackMs ?? 1000);
+        e.nextAttack = T + this.clock.ticks(e.spec.attackMs ?? DEFAULT_ATTACK_MS);
         this.feedback.result(e, "acted", "attack");
         const dx = it.x - e.x, dy = it.y - e.y, distance = hypot(dx, dy) || 1;
         const id = `p${this.nextProjectileId++}`;
@@ -59,7 +64,7 @@ export class Combat {
       }
       const target = this.entities.get(it.id);
       if (!target || !this.canSee(e.owner, target.x, target.y) || !this.hostile(target.owner, e.owner) || !inAttackRange(e, target)) { this.feedback.result(e, "blocked", undefined, "target no longer visible or in range"); continue; }
-      e.nextAttack = T + this.clock.ticks(e.spec.attackMs ?? 1000);
+      e.nextAttack = T + this.clock.ticks(e.spec.attackMs ?? DEFAULT_ATTACK_MS);
       this.feedback.result(e, "acted", "attack");
       if ((e.spec.range ?? 1) > 1) {
         const dx = target.x - e.x, dy = target.y - e.y;
@@ -114,7 +119,7 @@ export class Combat {
         emit({ tick: this.clock.tick, type: "projectile_end", id: p.id, x: p.x, y: p.y,
           ...(target ? { target: target.id } : {}), dmg, reason: target ? "hit" : "blocked" });
         this.projectiles.delete(p.id);
-      } else if (remaining <= step + 1e-9) {
+      } else if (remaining <= step + STEP_TOLERANCE) {
         emit({ tick: this.clock.tick, type: "projectile_end", id: p.id, x: p.endX, y: p.endY, dmg: 0, reason: "miss" });
         this.projectiles.delete(p.id);
       } else { p.x = nx; p.y = ny; }

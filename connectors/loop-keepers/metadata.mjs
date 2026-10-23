@@ -3,7 +3,8 @@
 // environment dumps, prompts, config files, credentials, or executable paths.
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { resolve } from "node:path";
+import { writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ApiError } from "@castellan/cli";
 import { routes } from "@castellan/shared";
@@ -112,3 +113,8 @@ async function main() {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch(() => {
   console.error("castellan: experiment configuration was not recorded (metadata reporter failed).");
 });
+
+/** Records the experimental directive given to this player in its run directory, beside the run's metadata. */
+export async function recordDirective(root, metadata, env = process.env) {
+  if (env.CASTELLAN_DIRECTIVE) await writeFile(join(root, "run.json"), JSON.stringify({ ...metadata, directive: env.CASTELLAN_DIRECTIVE }, null, 2), { mode: 0o600 });
+}

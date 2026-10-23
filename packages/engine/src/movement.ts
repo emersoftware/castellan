@@ -4,7 +4,10 @@ import type { Entity, Intent } from "./entities";
 import type { SimulationClock } from "./clock";
 import type { Board } from "./board";
 import { dist, mapToSeat } from "@castellan/shared";
-import { DIR_LIST, SEAT_DIRS, canStep, findPath, inBounds, type Grid } from "./grid";
+import { DIR_LIST, SEAT_DIRS, STRAIGHT_STEP_COST, canStep, findPath, inBounds, type Grid } from "./grid";
+
+/** Consecutive blocked steps before a unit plans around the units next to it. */
+const BLOCKED_STEPS_BEFORE_DETOUR = 3;
 
 /** Owns routes, arrival and its allocation, and seat-relative spatial choices; commits moves to the board. */
 export class Movement {
@@ -71,7 +74,7 @@ export class Movement {
   }
 
   private pathDiagonalCost(e: Entity): number {
-    return this.rules().tickPathCosts ? this.clock.ticks(e.spec.moveMs! * this.rules().diagonalMove) : Math.round(10 * this.rules().diagonalMove);
+    return this.rules().tickPathCosts ? this.clock.ticks(e.spec.moveMs! * this.rules().diagonalMove) : Math.round(STRAIGHT_STEP_COST * this.rules().diagonalMove);
   }
 
   private pathStraightCost(e: Entity): number | undefined {
@@ -211,7 +214,7 @@ export class Movement {
       if (h(x, y) < here && this.canStep(e, x, y) && (!best || h(x, y) < h(best[0], best[1]))) best = [x, y];
     }
     // Still stuck after a moment: plan around the units next to us.
-    if (!best && e.blocked >= 3) {
+    if (!best && e.blocked >= BLOCKED_STEPS_BEFORE_DETOUR) {
       const avoid = new Set<number>();
       for (const [dx, dy] of DIR_LIST) {
         const x = e.x + dx;

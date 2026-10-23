@@ -1,6 +1,6 @@
 # Tests
 
-`pnpm test` checks unused code, lints, checks the generated rules and runs every Vitest project. Tests
+`pnpm test` checks unused code, lints, looks for copied code, checks the generated rules and runs every Vitest project. Tests
 never call paid models. Real-model matches are balance experiments, not
 regression tests.
 
@@ -13,8 +13,12 @@ configuration exceptions. It runs before every `pnpm test`, including filtered r
 `pnpm lint` runs ESLint (`eslint.config.js`): the recommended JavaScript and TypeScript rules,
 unused variables in plain `.mjs`/`.js` scripts, no `any` outside tests, `instanceof` only for
 errors, and no wall clock, unseeded randomness or Node APIs in the simulation packages. A
-justified exception is `// eslint-disable-next-line <rule> -- <reason>`. The `.githooks/pre-commit`
-hook runs Knip and lints the staged files; `pnpm install` enables it through `prepare`.
+justified exception is `// eslint-disable-next-line <rule> -- <reason>`. Engine and bots name
+their numbers. `pnpm check:copies` runs [jscpd](https://github.com/kucherenko/jscpd) (`.jscpd.json`): a
+new copied block of 5 lines and 50 tokens fails. `.jscpd-baseline.json` freezes the copies in art
+generators and browser diagnostics, which need inputs or a browser to verify a refactor; it may only
+shrink (`pnpm exec jscpd` lists them). The `.githooks/pre-commit` hook runs Knip and jscpd and lints
+the staged files; `pnpm install` enables it through `prepare`.
 `pnpm typecheck` also rejects unused locals and parameters and includes the web client.
 It also checks `packages/shared` and the CLI client under Node's own rules (explicit
 `.ts` imports, type-only imports marked, erasable syntax), because the loop keepers load

@@ -5,6 +5,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { reportActivity } from "../metadata.mjs";
 import { observedSeat, seat, seatOver, seatPlaying } from "../game.mjs";
 import { MIN_INTERVAL_MS, turnFor } from "../turns.mjs";
+import { watchMatchEnd } from "../decisions.mjs";
 
 const conversationId = value => typeof value === "string" && /^[a-f0-9-]{36}$/.test(value);
 
@@ -123,21 +124,15 @@ export async function drivePlayer({ env = process.env, args = [], prompt, onConv
   if (!env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN");
   const abort = new AbortController(), game = seat({ env, fetchImpl, signal: abort.signal, redirect: "error" });
   let session, conversation, stopped = false, finished = false, lastDeliveredTick = 0, failures = 0,
-    instructionsDelivered = false, watcher;
-  const stop = () => { stopped = true; abort.abort(); };
+    instructionsDelivered = false, endWatch = () => {};
+  const stop = () => { stopped = true; abort.abort(); endWatch(); };
   const delay = ms => sleep(ms, undefined, { signal: abort.signal });
-  const watch = async () => {
-    if (stopped) return;
-    try { if (seatOver(await game.status())) { finished = true; stop(); return; } }
-    catch { /* Main loop handles connection failures; a status poll never consumes observations. */ }
-    if (!stopped) watcher = setTimeout(watch, pollMs);
-  };
   process.on("SIGINT", stop); process.on("SIGTERM", stop);
   try {
     // /status deliberately does not connect a seat. Join once without spending a model turn.
     const initial = await game.observation(0);
     if (seatOver(observedSeat(initial))) return 0;
-    watcher = setTimeout(watch, pollMs);
+    endWatch = watchMatchEnd(game, pollMs, () => { finished = true; stop(); });
     while (!stopped) {
       try {
         const status = await game.status();
@@ -179,7 +174,7 @@ export async function drivePlayer({ env = process.env, args = [], prompt, onConv
     }
     return finished ? 0 : 1;
   } finally {
-    stop(); clearTimeout(watcher);
+    stop();
     await session?.stop();
     process.off("SIGINT", stop); process.off("SIGTERM", stop);
     await reportActivity("stopped", { env, fetchImpl });
