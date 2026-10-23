@@ -11,3 +11,6 @@ export function localData(...parts: string[]): string {
 
 /** The server's replay archive, one file per replay id: REPLAY_DIR, or `replays` in the local data. */
 export const localReplays = (): string => process.env.REPLAY_DIR || localData("replays");
+
+/** The file in a replay archive that lists its matches, newest first. */
+export const REPLAY_INDEX = "index.json";

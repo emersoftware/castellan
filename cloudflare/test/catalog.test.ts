@@ -6,7 +6,6 @@ import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import type { ReplayFile } from "../../packages/shared/src/protocol";
 import { rules } from "../../packages/shared/src/rules";
-import { replayArchive } from "../../packages/shared/src/replayArchive";
 import { createMatch } from "../../packages/engine/src";
 import { collectPublication, completeSeries, publicationSQL, publicReplay, type Publication, type Published } from "../catalog";
 
@@ -97,7 +96,7 @@ it("publishes only complete, correctly ordered series and computes the team scor
   expect(completeSeries([entries[0], entries[0], entries[1]])).toEqual([]);
 });
 
-it.each([true, undefined])("publishes losses while preserving historical tied series (%s)", (drawsAreLosses) => {
+it.each([true, false])("publishes losses while preserving historical tied series (%s)", (drawsAreLosses) => {
   const entries = [1, 2, 3].map(n => {
     const replay = structuredClone(fixture);
     replay.id = `tied${n}`;
@@ -111,8 +110,8 @@ it.each([true, undefined])("publishes losses while preserving historical tied se
   expect(summary.score).toEqual({ p1: 0, p2: 0 });
   expect(summary.losses).toEqual({ p1: drawsAreLosses ? 3 : 0, p2: drawsAreLosses ? 3 : 0 });
   expect(summary.winners).toEqual([]);
-  expect(summary.allDefeated).toBe(drawsAreLosses);
-  expect(summary.games.every(g => g.outcome?.allDefeated === drawsAreLosses)).toBe(true);
+  expect(summary.allDefeated ?? false).toBe(drawsAreLosses);
+  expect(summary.games.every(g => (g.outcome?.allDefeated ?? false) === drawsAreLosses)).toBe(true);
 });
 
 it("counts a shared loss in addition to each side's one win and one defeat", () => {
@@ -129,12 +128,9 @@ it("counts a shared loss in addition to each side's one win and one defeat", () 
 
 it.each([["low", "low"], ["PRIVATE-INVALID-EFFORT", null]])("reads fresh payloads and publishes only safe catalogue metadata (effort %s)", async (declaredEffort, expectedEffort) => {
   const root = await mkdtemp(join(tmpdir(), "castellan-catalog-test-")); directories.push(root);
-  const featured = join(root, replayArchive.featured), local = join(root, "replays");
-  await mkdir(featured, { recursive: true }); await mkdir(local);
-  const old = entry(fixture).summary;
-  old.savedAt = "2026-09-01T00:00:00.000Z";
-  await writeFile(join(featured, replayArchive.index), JSON.stringify([old]));
-  await writeFile(join(featured, `${fixture.id}.json`), JSON.stringify(fixture));
+  const local = join(root, "replays");
+  await mkdir(join(root, "cloudflare"), { recursive: true }); await mkdir(local);
+  await writeFile(join(root, "cloudflare/titles.json"), JSON.stringify({ replays: { [fixture.id]: "The comeback" }, series: {} }));
   const fresh = { ...structuredClone(fixture), token: "PRIVATE-TOP-LEVEL", players: fixture.players.map((p) => ({ ...p, token: "PRIVATE-PLAYER" })),
     experiment: { players: {
       p1: { configuration: { effort: declaredEffort, promptSha256: "PRIVATE-PROMPT", connectorVersion: "PRIVATE-VERSION" } },
@@ -150,8 +146,9 @@ it.each([["low", "low"], ["PRIVATE-INVALID-EFFORT", null]])("reads fresh payload
   const publication = await collectPublication(root, local);
   expect(publication.replays).toHaveLength(1);
   expect(publication.excluded).toBe(2);
-  expect(publication.replays[0].summary.savedAt).toBe(old.savedAt);
-  expect(publication.replays[0].summary.title).toBe(old.title);
+  // Listed by when the match ended, whatever the file's date; editorial titles win.
+  expect(publication.replays[0].summary.savedAt).toBe(new Date(Date.parse(fixture.createdAt) + fixture.finalTick * 1000 / fixture.tickRate).toISOString());
+  expect(publication.replays[0].summary.title).toBe("The comeback");
   expect(publication.replays[0].replay.players[0].name).toBe("Fresh agent");
   expect(publication.replays[0].summary.players).toEqual([
     { ...fixture.players[0], name: "Fresh agent", effort: expectedEffort },
@@ -172,4 +169,9 @@ it("keeps recorded sandbox interruptions, which the viewer needs to re-simulate,
   const failure = { tick: 5, player: "p1", message: "sandbox watchdog timeout after 250ms; player VM terminated" };
   const replay = { ...structuredClone(fixture), experiment: { operationalFailures: [failure], players: { p1: { configuration: { promptSha256: "PRIVATE" } } } } } as unknown as ReplayFile;
   expect(publicReplay(replay).experiment).toEqual({ operationalFailures: [failure] });
+});
+
+it("keeps the provenance of a rewritten recording", () => {
+  const migrated = { at: "2026-10-22", originalSha256: "a".repeat(64), effortFromNames: { p1: "high" as const } };
+  expect(publicReplay({ ...structuredClone(fixture), migrated }).migrated).toEqual(migrated);
 });

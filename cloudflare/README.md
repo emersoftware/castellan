@@ -25,10 +25,10 @@ eligible local recording, even old games removed from the public catalog.
 The selected IDs must exist and be publishable. A series goes in only when
 you select all its games. Add `--dry-run` to preview the selection.
 
-The sources are the local replay archive (`~/.local/share/castellan/replays/*.json.gz`,
-or `REPLAY_DIR`) and the existing `packages/web/public/featured` catalogue. Local replay payloads win over the catalogue. The importer keeps existing
-editorial titles and original `savedAt` values. It skips built-in bots, legacy bot
-names and `demo:*` recordings. It rebuilds a series only from all 3 finished portable
+The source is the local replay archive (`~/.local/share/castellan/replays/*.json.gz`,
+or `REPLAY_DIR`); `cloudflare/titles.json` holds editorial titles. A battle is dated by
+when its match ended. The importer skips built-in bots (also by their bare names)
+and `demo:*` recordings. It rebuilds a series only from all 3 finished portable
 replays, never from private checkpoint files, because those contain tokens.
 Published replays include their recorded chat and scripts, like the local viewer.
 
@@ -61,7 +61,7 @@ pnpm exec vitest run cloudflare/test packages/web/test
 
 `pnpm build:cloudflare` selects `.env.cloudflare` and the `/api/*` read API.
 The ordinary `pnpm build`, `pnpm server` and `pnpm web` keep local match hosting.
-`.assetsignore` keeps static featured recordings out of Cloudflare uploads.
+`.assetsignore` keeps the asset build's signature file out of Cloudflare uploads.
 The public site reads its catalogue and replays only from D1. Static Assets serves
 SPA deep links. Missing API records return JSON 404s.
 

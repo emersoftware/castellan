@@ -1,4 +1,4 @@
-import type { ActionFeedback, Doing, KindSpec, PlayerId, RecordedKind, UnitOrder } from "@castellan/shared";
+import type { ActionFeedback, Doing, KindSpec, PlayerId, EntityKind, UnitOrder } from "@castellan/shared";
 import type { ScriptActionResult, ScriptEvent } from "@castellan/sandbox";
 
 export type Intent =
@@ -13,7 +13,7 @@ export type Intent =
 
 export interface Entity {
   id: string;
-  kind: RecordedKind;
+  kind: EntityKind;
   spec: KindSpec;
   owner: PlayerId;
   x: number;
@@ -40,8 +40,8 @@ export interface Entity {
   /** Actual outcome of this unit's most recent script decision, available next tick. */
   lastActionResult?: ScriptActionResult;
   actionResult?: ActionFeedback;
-  construction?: { kind: RecordedKind; x: number; y: number; completesAtTick: number };
-  training?: { kind: RecordedKind; completesAtTick?: number }[];
+  construction?: { kind: EntityKind; x: number; y: number; completesAtTick: number };
+  training?: { kind: EntityKind; completesAtTick?: number }[];
 }
 
 export interface Deposit {

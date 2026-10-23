@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useParams } from "@tanstack/react-router";
-import { currentRuleset, pages, readMoment, type GameEvent, type RecordedKind, type ReplayFile, type SpectatorView } from "@castellan/shared";
+import { pages, readMoment, type GameEvent, type EntityKind, type ReplayFile, type SpectatorView } from "@castellan/shared";
 import { api, playerColors } from "../api";
 import { EventFeed, OutcomeBanner, PlayerList } from "../components/Hud";
 import { playerPerspective } from "../perspective";
@@ -42,7 +42,7 @@ const FROM = num("from"), TO = num("to", Infinity), FADE_IN = num("fadeIn"), FAD
 const ramp = (t: number, a: number, ms: number) => (ms > 0 ? Math.min(1, Math.max(0, (t - a) / ms)) : 1);
 const ease = (t: number) => t * t * (3 - 2 * t);
 /** With nobody fighting, the camera looks at the armies. */
-const ARMY = new Set<RecordedKind>(["knight", "archer"]);
+const ARMY = new Set<EntityKind>(["knight", "archer"]);
 
 /**
  * Where the camera looks, per tick: the middle of the biggest group that hit or was hit in the last 1.5 s
@@ -103,7 +103,7 @@ export function Record() {
     if (!replay || !check || !host.current) return;
     const shot = frames.current;
     let renderer: GameRenderer | null = null, cancelled = false;
-    GameRenderer.create(host.current, currentRuleset(replay.ruleset), playerColors(replay.players)).then((created) => {
+    GameRenderer.create(host.current, replay.ruleset, playerColors(replay.players)).then((created) => {
       if (cancelled) { created.destroy(); return; }
       renderer = created;
       const clock = renderer.manualClock();

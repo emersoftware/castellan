@@ -2,15 +2,15 @@
  * The world model: everything the player knows, built only from its own view
  * (PlayerView) and the public rules, plus memory of what it saw before.
  */
-import type { EntityView, GameEvent, PlayerId, PlayerStats, PlayerView, RecordedKind, Ruleset } from "@castellan/shared";
+import type { EntityView, GameEvent, PlayerId, PlayerStats, PlayerView, EntityKind, Ruleset } from "@castellan/shared";
 import { ObservedClock } from "./clock";
 import { Frame, dist, groupNearby, type DepositCluster, type Pt } from "./geometry";
 import type { Sighting, ThreatGroup } from "./types";
 
 /** Mineral-equivalent danger of a kind when it is on the move. */
 const THREAT_VALUE: Record<string, number> = { knight: 100, archer: 100, worker: 10, king: 20 };
-const ARMY_KINDS: RecordedKind[] = ["knight", "archer"];
-const MOBILE_THREAT_KINDS: RecordedKind[] = ["knight", "archer", "king", "worker"];
+const ARMY_KINDS: EntityKind[] = ["knight", "archer"];
+const MOBILE_THREAT_KINDS: EntityKind[] = ["knight", "archer", "king", "worker"];
 
 interface KnownDeposit { id: string; x: number; y: number; amount: number; seenTick: number; visible: boolean }
 

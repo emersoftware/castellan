@@ -78,8 +78,8 @@ export const playerRoutes: FastifyPluginAsync<PlayerRoutesOptions> = async (app,
 
   app.get(routes.currentSeries, async (req, reply) => series.current(bearer(req) ?? "") ?? reply.code(401).send({ error: "a valid series participant token is required" }));
 
-  // With a token: the guide to that player's room (its map). Without: the defaults. /rules is the former path.
-  for (const path of [routes.guide, routes.rules]) app.get(path, async (req) => {
+  // With a token: the guide to that player's room (its map). Without: the defaults.
+  app.get(routes.guide, async (req) => {
     const room = rooms.seat(bearer(req) ?? "")?.room;
     const r = room?.ruleset ?? ruleset;
     const guide = playerGuide(r, { chat: room?.chat ?? true, teams: room?.teams, playerCount: room?.players.length, tickRate: room?.tickRate ?? tickRate ?? 10 }, room?.seriesProgress?.());
@@ -148,7 +148,7 @@ export const playerRoutes: FastifyPluginAsync<PlayerRoutesOptions> = async (app,
       code = stripped.code;
     }
     const view = seat.room.view(seat.player);
-    const out = await runOnceIsolated(code, { view, rules: seat.room.ruleset ?? ruleset });
+    const out = await runOnceIsolated(code, { view, game: seat.room.ruleset ?? ruleset });
     if (out.operationalFailure && out.error) seat.room.experiment.operationalFailure(seat.player, out.error);
     const allowed = new Set<Order["type"]>(["move", "attack", "gather", "build", "train", "upgrade", "stop"]);
     const orders = out.orders.filter((o): o is Order => !!o && typeof o === "object" && allowed.has((o as Order).type));

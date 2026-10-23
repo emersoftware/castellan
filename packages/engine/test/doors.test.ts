@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { rules, MAPS, playerGuide, viewToText, type RecordedKind, type Ruleset, type ReplayFile } from "@castellan/shared";
+import { rules, MAPS, playerGuide, viewToText, type EntityKind, type Ruleset, type ReplayFile } from "@castellan/shared";
 import { createMatch, runReplay, type Match, type PlayerOrder } from "../src";
 import { Board } from "../src/board";
 import { SimulationClock } from "../src/clock";
@@ -12,7 +12,7 @@ const players = [{ id: "a", name: "A", side: 0, team: 0 }, { id: "b", name: "B",
 const entity = (m: Match, kind: string, owner = "a") => m.spectate().entities.find(e => e.kind === kind && e.owner === owner)!;
 const step = (m: Match, n = 1) => { for (let i = 0; i < n; i++) m.step([]); };
 const move = (m: Match, id: string, x: number, y: number, player = "a") => m.step([{ player, order: { type: "move", unit: id, x, y } }]);
-const spawn = (m: Match, kind: RecordedKind, owner: string, x: number, y: number) => { let id = ""; m.stage(s => { id = s.spawn(kind, owner, x, y); }); return id; };
+const spawn = (m: Match, kind: EntityKind, owner: string, x: number, y: number) => { let id = ""; m.stage(s => { id = s.spawn(kind, owner, x, y); }); return id; };
 const weaken = (m: Match, id: string) => m.stage(s => s.setHealth(id, 1));
 async function setup(team = false, corridor = true) {
   // Instant walls and doors: these tests are about passage, not construction time.

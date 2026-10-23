@@ -17,8 +17,6 @@ export const routes = {
   replays: "/replays",
   spectate: "/spectate",
   guide: "/guide",
-  /** Former name of `guide`, still answered for existing clients. */
-  rules: "/rules",
   status: "/status",
   state: "/state",
   history: "/history",

@@ -1,10 +1,10 @@
 /// <reference lib="webworker" />
 /**
  * Re-simulates a replay off the main thread with the real engine and sandbox,
- * streaming frames back in batches, under today's names, and checking the recorded state hashes.
+ * streaming frames back in batches and checking the recorded state hashes.
  */
 import { acceptedScripts, type ScriptLoad } from "./scripts";
-import { currentFrame, type ReplayFile, type SpectatorView } from "@castellan/shared";
+import { type ReplayFile, type SpectatorView } from "@castellan/shared";
 import { playRecording, recordingWithShutdowns, type ReplayOptions } from "@castellan/engine";
 
 export type WorkerIn = { replay: ReplayFile; options?: ReplayOptions };
@@ -40,7 +40,7 @@ self.onmessage = async (e: MessageEvent<WorkerIn>) => {
         const own = v.perspectives?.[p.id]?.players.find(q => q.id === p.id);
         if (own) own.agentActivity = currentActivity.get(p.id);
       }
-      batch.push(currentFrame(v));
+      batch.push(v);
       // The viewer can start on frame zero. The landing needs the first death
       // to choose its opening; neither should wait for a full transport batch.
       const firstCasualty = !sentFirstCasualty && v.events.some(event => event.type === "death");

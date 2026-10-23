@@ -78,10 +78,10 @@ it("never hits inside the shooter's blind spot: adjacent enemies survive point s
   expect(hp(m, knight.id)).toBe(knight.hp);
 });
 
-it("keeps recordings made before the blind-spot rule simulating as they were played", async () => {
-  // Without the field, rules older than 0.29.0 let an adjacent enemy intercept the shot.
-  const legacy = { version: "v26-coordinated-movement", projectiles: { ...rules.projectiles, blindSpot: undefined } };
-  const { m } = await setup([{ kind: "tower", x: 2, y: 4 }, { kind: "knight", x: 5, y: 4 }, { kind: "king", x: 0, y: 0 }], 9, legacy);
+it("lets an adjacent enemy intercept the shot when the rules have no blind spot", async () => {
+  // Recordings before 0.29.0 were played without it.
+  const noBlindSpot = { projectiles: { ...rules.projectiles, blindSpot: false } };
+  const { m } = await setup([{ kind: "tower", x: 2, y: 4 }, { kind: "knight", x: 5, y: 4 }, { kind: "king", x: 0, y: 0 }], 9, noBlindSpot);
   const knight = m.view("a").enemy.find(e => e.kind === "knight")!;
   m.step([script("a", "tower", "self.shootAt(4, 4);")]);
   advance(m, 4);

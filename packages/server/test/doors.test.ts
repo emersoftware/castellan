@@ -8,7 +8,7 @@ import { buildServer } from "../src/app";
 it("serves consistent castle/door rules and default maps for duels and FFA", async () => {
   const app = await buildServer({ replayDir: await mkdtemp(join(tmpdir(), "castellan-doors-")), prepMs: 0 });
   try {
-    const { ruleset, guide } = (await app.inject({ method: "GET", url: "/rules" })).json();
+    const { ruleset, guide } = (await app.inject({ method: "GET", url: "/guide" })).json();
     expect(ruleset.version).toBe(rules.version);
     expect(ruleset.kinds.worker.builds).toEqual(["tower", "wall", "door", "castle"]);
     expect(JSON.stringify({ruleset,guide})).not.toMatch(/nexus/i);
@@ -35,7 +35,7 @@ it("plays another version's stats only when the server allows it (experiments)",
     process.env.CASTELLAN_CUSTOM_STATS = "1";
     const room = (await app.inject({ method: "POST", url: "/rooms", payload: { stats } })).json();
     const token = room.players[0].token;
-    const r = (await app.inject({ method: "GET", url: "/rules", headers: { authorization: `Bearer ${token}` } })).json();
+    const r = (await app.inject({ method: "GET", url: "/guide", headers: { authorization: `Bearer ${token}` } })).json();
     expect(r.ruleset.version).toBe(`${rules.version}+stats:old`);
     expect(r.ruleset.kinds.knight).toMatchObject({ hp: 80, def: 4, symbol: "K", scriptable: true });
     expect(r.ruleset.kinds.knight.aimMs).toBeUndefined();

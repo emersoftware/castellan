@@ -3,13 +3,12 @@
 // Run from any directory: node packages/web/scripts/archer-animations.mjs
 import { mkdirSync, copyFileSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { formerKind } from '../../shared/src/legacy.ts';
+import { artFolder } from './art-sources.mjs';
 /** @import { EntityKind } from '../../shared/src/ruleset.ts' */
 const root = resolve(import.meta.dirname, '../../..');
 /** @type {EntityKind} */
 const kind = 'archer';
-// The art predates the archer's rename.
-const art = formerKind(kind);
+const art = artFolder(kind);
 const out = resolve(root, `assets/sprites/${kind}`);
 mkdirSync(out, { recursive: true });
 const manifest = {};

@@ -3,7 +3,7 @@
 import sharp from 'sharp';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { ff, probe } from './ffmpeg.mjs';
-import { formerKind } from '../../shared/src/legacy.ts';
+import { artFolder } from './art-sources.mjs';
 /** @import { ClipArt } from '../src/render/clips.ts' */
 
 const root = new URL('../../../', import.meta.url).pathname;
@@ -30,8 +30,7 @@ for (const [kind, file] of files) {
     console.log('castle: inward fall is owned by castle-damage.mjs; preserved newer atlas');
     continue;
   }
-  // Tower art predates its rename.
-  const dir = `${sources}/${kind === "tower" ? formerKind(kind) : kind}`;
+  const dir = `${sources}/${artFolder(kind)}`;
   await mkdir(dir, { recursive: true });
   if (prepare) {
     try {

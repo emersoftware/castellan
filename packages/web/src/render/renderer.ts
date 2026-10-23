@@ -5,7 +5,7 @@
  * interpolates movement, turns events into effects and sounds, and leaves
  * corpses on the field.
  */
-import { Application, Container, Graphics, Sprite } from "pixi.js";
+import { Application, Container, Graphics, Sprite, type Texture } from "pixi.js";
 import type { DepositView, EntityView, Ruleset, SoundName, SpectatorView } from "@castellan/shared";
 import { TILE_H, TILE_W, loadSprites, terrainTexture } from "./sprites";
 import { createDitherFilter } from "./dither";
@@ -46,6 +46,9 @@ export class GameRenderer {
   private xrayLayer = new Container();
   private outlineLayer = new Container();
   private occlusion = new OcclusionPass(this.xrayLayer, this.outlineLayer);
+  private dither = createDitherFilter();
+  /** This map's ground; unlike the sprite atlas, no other renderer uses it. */
+  private terrain?: Texture;
   /** Everything a frame changes; created once the sprites are loaded. */
   private field!: Battlefield;
   private clock = new PlaybackClock(() => this.now());
@@ -118,7 +121,7 @@ export class GameRenderer {
     // tall building is never half-dark where it overlaps tiles of different visibility.
     this.world.addChild(this.ground, this.shadows, this.fog, this.hoverMark, this.selectMark, this.objects, this.outlineLayer, this.xrayLayer, this.fx);
     this.root.addChild(this.world);
-    this.root.filters = [createDitherFilter()];
+    this.root.filters = [this.dither];
     this.app.stage.addChild(this.root);
 
     this.buildGround();
@@ -205,8 +208,13 @@ export class GameRenderer {
   }
 
   destroy() {
-    this.presentation.destroy();
     this.resize?.disconnect();
+    // The application destroys the stage's objects but not their filters or textures. Release this
+    // renderer's own while its GL context still exists; the sprite atlas is cached for every renderer.
+    this.presentation.destroy();
+    this.occlusion.destroy();
+    this.dither.destroy();
+    this.terrain?.destroy(true);
     this.app.destroy(true, { children: true, texture: false });
   }
 
@@ -214,6 +222,7 @@ export class GameRenderer {
 
   private buildGround() {
     const { texture, originX, originY } = terrainTexture(this.width, this.height);
+    this.terrain = texture;
     const g = new Sprite(texture);
     g.position.set(-originX, -originY);
     this.ground.addChild(g);

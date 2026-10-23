@@ -57,7 +57,7 @@ describe("three-game series", () => {
     expect((await request(`/series/${id}`)).body.players.map((p: { name: string }) => p.name)).toEqual(["player1", "player2", "player3", "player4"]);
     expect((await request("/history", tokens[0])).body.games).toEqual([]);
     expect((await request("/history?game=1", tokens[0])).status).toBe(403);
-    const guide = (await request("/rules", tokens[0])).body.guide;
+    const guide = (await request("/guide", tokens[0])).body.guide;
     expect(guide).toContain("Game 1 of 3");
     expect(guide).toContain("If the match ends without a winning side, every player loses.");
     expect(guide).toContain("everyone loses the series");

@@ -17,10 +17,6 @@ it("finds the script a unit runs at a given moment of a replay", () => {
   expect(scriptAt(loads, rules, "p1", "wall", 25)).toBeNull();
 });
 
-it("reads an upload recorded under a former kind name", () => {
-  const loads = acceptedScripts({ tick: 10, input: [{ player: "p1", order: { type: "script", kind: "ranger", code: "self.hold(); // old" } }], results: [{ ok: true }], events: [] });
-  expect(scriptAt(loads, rules, "p1", "archer", 20)?.code).toBe("self.hold(); // old");
-});
 
 /** A real recording: orders applied by the engine, so its results decide what each player runs. */
 async function record(orders: ReplayFile["orders"], finalTick: number): Promise<ReplayFile> {

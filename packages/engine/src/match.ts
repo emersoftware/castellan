@@ -1,8 +1,8 @@
 import type {
   ChatMessage, DepositView, EntityView, GameEvent, KindSpec, MatchStatus, Order, OrderResult, Outcome, PlayerId, PlayerStats,
-  Doing, OrderEndReason, PlayerView, RecordedKind, Ruleset, SpectatorView, UnderAttack, UnitOrder,
+  Doing, OrderEndReason, PlayerView, EntityKind, Ruleset, SpectatorView, UnderAttack, UnitOrder,
 } from "@castellan/shared";
-import { barrierAxes, dist, matchLengthMs, NEUTRAL_OWNER, seatToMap, withMineralNames, withRecordedDefaults } from "@castellan/shared";
+import { barrierAxes, dist, matchLengthMs, NEUTRAL_OWNER, seatToMap } from "@castellan/shared";
 import { createScriptHost, type ScriptAction, type ScriptHostFactory, type UnitRun } from "@castellan/sandbox";
 import { DIRS, inBounds } from "./grid";
 import { Board } from "./board";
@@ -46,7 +46,7 @@ export interface Stage {
   /** New stats from now on (e.g. a balance candidate); every entity keeps its share of health. */
   useRuleset(ruleset: Ruleset): void;
   /** A new entity with `hpShare` of its health; returns its id. */
-  spawn(kind: RecordedKind, owner: PlayerId, x: number, y: number, hpShare?: number): string;
+  spawn(kind: EntityKind, owner: PlayerId, x: number, y: number, hpShare?: number): string;
   remove(id: string): void;
   /** Moves a unit to a free tile. */
   relocate(id: string, x: number, y: number): void;
@@ -95,7 +95,7 @@ export class Match {
 
   constructor(cfg: MatchConfig) {
     if (cfg.players.some(p => p.id === NEUTRAL_OWNER)) throw new Error(`Player id ${NEUTRAL_OWNER} is reserved for scenario walls`);
-    this.rules = withRecordedDefaults(withMineralNames(cfg.ruleset));
+    this.rules = cfg.ruleset;
     this.tickRate = cfg.tickRate;
     this.clock = new SimulationClock(cfg.tickRate);
     this.orderProgress = new OrderTracker(this.clock);
@@ -561,7 +561,7 @@ export class Match {
           || this.board.occupant(w.x, w.y) !== null || this.board.door(w.x, w.y)) {
           throw new Error(`Invalid or occupied neutral wall tile ${w.x},${w.y}`);
         }
-        this.spawn(kind as RecordedKind, NEUTRAL_OWNER, w.x, w.y);
+        this.spawn(kind as EntityKind, NEUTRAL_OWNER, w.x, w.y);
       }
     }
   }
@@ -577,7 +577,7 @@ export class Match {
     return owner === NEUTRAL_OWNER ? this.ruleset.kinds[kind] : this.production.specFor(this.player(owner), kind);
   }
 
-  private spawn(kind: RecordedKind, owner: PlayerId, x: number, y: number): Entity {
+  private spawn(kind: EntityKind, owner: PlayerId, x: number, y: number): Entity {
     const spec = this.specOf(owner, kind);
     const e: Entity = {
       id: `e${this.nextId++}`, kind, spec, owner, x, y, hp: spec.hp,
@@ -844,10 +844,10 @@ export class Match {
   }
 
   /** Check the prospective layout, including reserved builds, in either construction order. */
-  private makesDoorCorner(owner: PlayerId, kind: RecordedKind, x: number, y: number): boolean {
-    const lines = (k: RecordedKind | undefined) => !!(k && (this.ruleset.kinds[k]?.barrier || this.ruleset.kinds[k]?.alliedPassage));
+  private makesDoorCorner(owner: PlayerId, kind: EntityKind, x: number, y: number): boolean {
+    const lines = (k: EntityKind | undefined) => !!(k && (this.ruleset.kinds[k]?.barrier || this.ruleset.kinds[k]?.alliedPassage));
     if (!lines(kind)) return false;
-    const at = (tx: number, ty: number): RecordedKind | undefined => {
+    const at = (tx: number, ty: number): EntityKind | undefined => {
       if (tx === x && ty === y) return kind;
       if (!inBounds(this.board, tx, ty)) return undefined;
       const entity = this.ents.get(this.board.door(tx, ty) ?? this.board.occupant(tx, ty) ?? "");

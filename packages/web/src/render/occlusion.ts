@@ -47,6 +47,14 @@ export class OcclusionPass {
     this.world.scale.copyFrom(world.scale);
     renderer.render({ container: this.world, target: this.texture, clear: true, clearColor: [0, 0, 0, 0] });
   }
+
+  /** Releases the depth texture, both filters and the silhouettes; their art is the shared sprite atlas and stays. */
+  destroy() {
+    this.xray?.destroy();
+    this.outline?.destroy();
+    this.texture?.destroy(true);
+    this.world.destroy({ children: true });
+  }
 }
 
 /** Mirror an occluder into the depth pass, tinted with its depth code, its owner's colour and its kind. */

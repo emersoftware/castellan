@@ -4,8 +4,7 @@
  * deliberately new matches. The old view-only recordings cannot reproduce those states.
  */
 import { createMatch, resimulate, type Match, type MatchConfig, type PlayerOrder } from "@castellan/engine";
-import { rules as baseRules, currentKind, kindSpec, type EntityKind, type GameEvent, type Order, type RecordedKind, type ReplayFile, type Ruleset } from "@castellan/shared";
-import { candidateForRecordedNames } from "./names";
+import { rules as baseRules, type EntityKind, type GameEvent, type Order, type ReplayFile, type Ruleset } from "@castellan/shared";
 
 export interface Snapshot {
   format?: "castellan-battle-v2";
@@ -15,7 +14,7 @@ export interface Snapshot {
   version: string;
   map: { name: string; width: number; height: number; walls: { x: number; y: number }[]; seats: number };
   players: { id: string; team: number; upgrades: Record<string, number> }[];
-  entities: { id: string; kind: RecordedKind; owner: string; x: number; y: number; hp: number; maxHp: number; order?: string }[];
+  entities: { id: string; kind: EntityKind; owner: string; x: number; y: number; hp: number; maxHp: number; order?: string }[];
   scripts: Record<string, Record<string, string>>;
   continuation?: {
     config: MatchConfig;
@@ -77,7 +76,7 @@ const KING_VALUE = 600;
 /** Damage only counts against these. In army strength a castle counts as one tower: most of its cost is economy. */
 const TARGETS: EntityKind[] = ["knight", "archer", "tower", "castle"];
 const armyValue = (r: Ruleset, kind: EntityKind) => (kind === "castle" ? mineralValue(r, "tower") : TARGETS.includes(kind) ? mineralValue(r, kind) : 0);
-const mineralValue = (r: Ruleset, kind: EntityKind) => (kind === "king" ? KING_VALUE : kindSpec(r, kind)?.cost ?? 0);
+const mineralValue = (r: Ruleset, kind: EntityKind) => (kind === "king" ? KING_VALUE : r.kinds[kind]?.cost ?? 0);
 
 /** What the replayed prefix of a battle left behind: entity kinds and owners, and shots still in flight with their shooter. */
 interface BattleHistory { kinds: Map<string, EntityKind>; owners: Map<string, string>; shots: Map<string, string> }
@@ -105,7 +104,7 @@ export async function resumeBattle(s: Snapshot, ruleset?: Ruleset, variant: Vari
   if (c.operationalFailures?.length) throw new Error(`Battle ${s.id} has operational sandbox failures; wall-clock watchdog outcomes are not reproducible balance samples`);
   if (c.orders.some((o) => o.tick >= c.tick || o.tick < 0)) throw new Error(`Battle ${s.id}: order outside replay prefix`);
   const history: BattleHistory = { kinds: new Map(), owners: new Map(), shots: new Map() };
-  const met = (id: string, kind: RecordedKind, owner: string) => { history.kinds.set(id, currentKind(kind)); history.owners.set(id, owner); };
+  const met = (id: string, kind: EntityKind, owner: string) => { history.kinds.set(id, kind); history.owners.set(id, owner); };
   const { match: m, check } = await resimulate({ config: c.config, orders: c.orders, hashes: { [c.tick]: c.hash }, until: c.tick }, {
     start: (match) => { for (const e of match.spectate().entities) met(e.id, e.kind, e.owner); },
     after: (_match, { events }) => {
@@ -123,11 +122,11 @@ export async function resumeBattle(s: Snapshot, ruleset?: Ruleset, variant: Vari
     const { map } = m.ruleset;
     const random = seeded(variant.seed ?? 1);
     m.stage((stage) => {
-      if (ruleset) stage.useRuleset({ ...m.ruleset, version: ruleset.version, ...candidateForRecordedNames(ruleset, m.ruleset) });
+      if (ruleset) stage.useRuleset({ ...m.ruleset, version: ruleset.version, kinds: ruleset.kinds, upgrades: ruleset.upgrades });
       const entities = m.spectate(undefined, { includePerspectives: false }).entities;
       if (variant.open) for (const e of entities) if (e.kind === "wall" || e.kind === "door") stage.remove(e.id);
       if (variant.jitter) for (const e of entities) {
-        if (kindSpec(m.ruleset, currentKind(e.kind))?.building || !m.inspect(e.id)) continue;
+        if (m.ruleset.kinds[e.kind]?.building || !m.inspect(e.id)) continue;
         const to = jittered(e.x, e.y, variant.jitter, map, random, stage.isFree);
         if (to) stage.relocate(e.id, to.x, to.y);
       }
@@ -153,7 +152,7 @@ export async function runBattle(s: Snapshot, ruleset: Ruleset = baseRules, varia
     const fielded: Record<string, number> = {}, ownerOf = new Map<string, string>(), hp = new Map<string, number>();
     const maxHp = new Map<string, number>();
     // A designed battle is staged on an empty map; a recorded one already stands where its replay left it.
-    const field = (id: string, e: { id: string; kind: RecordedKind; owner: string }, kind: EntityKind) => {
+    const field = (id: string, e: { id: string; kind: EntityKind; owner: string }, kind: EntityKind) => {
       const view = m.inspect(id)!;
       ids.set(e.id, id);
       kindOf.set(id, kind);
@@ -164,16 +163,16 @@ export async function runBattle(s: Snapshot, ruleset: Ruleset = baseRules, varia
     };
     if (s.continuation) {
       for (const e of m.spectate(undefined, { includePerspectives: false }).entities) {
-        const kind = currentKind(e.kind);
-        if (kindSpec(r, kind)) field(e.id, e, kind);
+        const kind = e.kind;
+        if (r.kinds[kind]) field(e.id, e, kind);
       }
     } else m.stage((stage) => {
       for (const p of s.players) for (const [id, level] of Object.entries(p.upgrades)) if (r.upgrades[id]) stage.setResearch(p.id, id, Math.min(level, r.upgrades[id].levels.length));
       for (const e of s.entities) {
-        const kind = currentKind(e.kind);
-        if (!kindSpec(r, kind)) continue;
+        const kind = e.kind;
+        if (!r.kinds[kind]) continue;
         if (variant.open && (e.kind === "wall" || e.kind === "door")) continue;
-        const { x, y } = variant.jitter && !kindSpec(r, kind)!.building
+        const { x, y } = variant.jitter && !r.kinds[kind]!.building
           ? jittered(e.x, e.y, variant.jitter, s.map, random, (x, y) => !taken.has(`${x},${y}`)) ?? e : e;
         if (taken.has(`${x},${y}`)) continue;
         taken.add(`${x},${y}`);
@@ -205,9 +204,9 @@ export async function runBattle(s: Snapshot, ruleset: Ruleset = baseRules, varia
     const damage = (fromKind: EntityKind | undefined, fromOwner: string | undefined, target: string, dmg: number) => {
       const tk = kindOf.get(target), owner = ownerOf.get(target);
       if (!tk || !owner || !TARGETS.includes(tk) || !dmg) return;
-      const left = hp.get(target) ?? kindSpec(r, tk)!.hp;
+      const left = hp.get(target) ?? r.kinds[tk]!.hp;
       hp.set(target, left - dmg);
-      const v = (Math.max(0, Math.min(dmg, left)) * mineralValue(r, tk)) / (maxHp.get(target) ?? kindSpec(r, tk)!.hp);
+      const v = (Math.max(0, Math.min(dmg, left)) * mineralValue(r, tk)) / (maxHp.get(target) ?? r.kinds[tk]!.hp);
       side(owner).taken[tk] = (side(owner).taken[tk] ?? 0) + v;
       if (fromKind && fromOwner && TARGETS.includes(fromKind)) side(fromOwner).dealt[fromKind] = (side(fromOwner).dealt[fromKind] ?? 0) + v;
     };
@@ -218,9 +217,9 @@ export async function runBattle(s: Snapshot, ruleset: Ruleset = baseRules, varia
     const account = (e: GameEvent) => {
       if (e.type === "script_error") errors++;
       else if (e.type === "spawn") {
-        kindOf.set(e.id, currentKind(e.kind)); ownerOf.set(e.id, e.owner);
+        kindOf.set(e.id, e.kind); ownerOf.set(e.id, e.owner);
         // Full health, even if the unit already fell in the tick it appeared.
-        const full = m.inspect(e.id)?.maxHp ?? kindSpec(r, currentKind(e.kind))!.hp;
+        const full = m.inspect(e.id)?.maxHp ?? r.kinds[e.kind]!.hp;
         hp.set(e.id, full); maxHp.set(e.id, full);
       }
       else if (e.type === "attack") {
@@ -235,7 +234,7 @@ export async function runBattle(s: Snapshot, ruleset: Ruleset = baseRules, varia
         if (k) lastHit.set(e.target, k);
         damage(k, shotOwner.get(e.id), e.target, e.dmg);
       } else if (e.type === "death" && e.by) {
-        const kind = currentKind(e.kind), v = mineralValue(r, kind);
+        const kind = e.kind, v = mineralValue(r, kind);
         const k = lastHit.get(e.id) ?? "?";
         destroyedBy[k] = (destroyedBy[k] ?? 0) + v;
         lost[e.owner] = (lost[e.owner] ?? 0) + v;

@@ -43,10 +43,8 @@ it("still awards victory for killing the King on the last tick", async () => {
   } finally { m.dispose(); }
 });
 
-it.each([true, false, undefined])("replays the recorded no-draw policy (%s), independent of today's default", async (drawsAreLosses) => {
-  const ruleset: Ruleset = { ...rules, matchMs: 200 };
-  if (drawsAreLosses === undefined) delete ruleset.drawsAreLosses;
-  else ruleset.drawsAreLosses = drawsAreLosses;
+it.each([true, false])("replays the recorded no-draw policy (%s), independent of today's default", async (drawsAreLosses) => {
+  const ruleset: Ruleset = { ...rules, matchMs: 200, drawsAreLosses };
   const players = [{ id: "p1", name: "one" }, { id: "p2", name: "two" }];
   const m = await createMatch({ ruleset, players, seed: 1, tickRate: 10 });
   try {
@@ -68,7 +66,7 @@ it.each([true, false, undefined])("replays the recorded no-draw policy (%s), ind
   } finally { m.dispose(); }
 });
 
-it.each([true, undefined])("handles mutual elimination using the recorded no-draw policy (%s)", async (drawsAreLosses) => {
+it.each([true, false])("handles mutual elimination using the recorded no-draw policy (%s)", async (drawsAreLosses) => {
   const ruleset: Ruleset = { ...rules, drawsAreLosses, matchMs: 5000,
     defaultScripts: {}, kinds: { ...rules.kinds, worker: { ...rules.kinds.worker, atk: 1000 } },
     map: { ...rules.map, deposits: [], sharedDeposits: [], start: [{ kind: "king", x: 15, y: 15 }, { kind: "worker", x: 15, y: 16 }] } };
@@ -78,7 +76,7 @@ it.each([true, undefined])("handles mutual elimination using the recorded no-dra
       unit: m.view(player).mine.find(e => e.kind === "worker")!.id,
       target: m.view(player === "p1" ? "p2" : "p1").mine.find(e => e.kind === "king")!.id } })));
     expect(m.outcome).toMatchObject({ reason: "vital_lost", winner: null, winners: [] });
-    expect(m.outcome?.allDefeated).toBe(drawsAreLosses);
+    expect(m.outcome?.allDefeated ?? false).toBe(drawsAreLosses);
     expect(playerResult(m.outcome!, "p1")).toBe(drawsAreLosses ? "loss" : "draw");
   } finally { m.dispose(); }
 });

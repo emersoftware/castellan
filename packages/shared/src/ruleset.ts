@@ -1,10 +1,6 @@
-import type { LegacyKind } from "./legacy.ts";
-
 /** Every kind of entity in today's rules (see rules.ts). */
 export const ENTITY_KINDS = ["worker", "king", "knight", "archer", "castle", "tower", "wall", "door"] as const;
 export type EntityKind = (typeof ENTITY_KINDS)[number];
-/** A kind as a match's rules name it: today's name, or a former one in old recordings (see `currentKind`). */
-export type RecordedKind = EntityKind | LegacyKind;
 
 /**
  * The shape of the rules (see rules.ts): every number, every kind of entity and the
@@ -16,8 +12,8 @@ export interface Ruleset {
   /** Match length before the time limit; four-seat maps use `fourSeatMatchMs` (see `matchLengthMs`). */
   matchMs: number;
   fourSeatMatchMs: number;
-  /** Everyone loses when a match ends without a winner. Absent/false preserves historical draws. */
-  drawsAreLosses?: boolean;
+  /** Everyone loses when a match ends without a winner; false makes it a draw. */
+  drawsAreLosses: boolean;
   /** Clock-stopped phase where players may read rules and upload scripts. */
   prepMs: number;
   startMineral: number;
@@ -33,25 +29,24 @@ export interface Ruleset {
   trainingQueueLimit: number;
   /** A diagonal step takes this many times a straight one; paths account for it. */
   diagonalMove: number;
-  /** Coordinate departing friendly units and spread shared move destinations. Absent preserves old replays. */
-  coordinatedMovement?: boolean;
+  /** Coordinate departing friendly units and spread shared move destinations. */
+  coordinatedMovement: boolean;
   /** Price paths using this unit's rounded straight/diagonal tick durations. Absent preserves old routes. */
-  tickPathCosts?: boolean;
-  /** An enemy that damages one of your entities stays visible to you this long, wherever it is (absent in older rules: 0). */
+  tickPathCosts: boolean;
+  /** An enemy that damages one of your entities stays visible to you this long, wherever it is (0: never). */
   revealAttackerMs: number;
   /** A unit's `lastAttacker()` names an enemy that hit it within this time. */
   lastAttackerMs: number;
-  /** Scripts perceive everything the player sees ("player"), or only within the unit's own vision ("unit", older rules). */
+  /** Scripts perceive everything the player sees ("player"), or only within the unit's own vision ("unit"). */
   scriptSight: "player" | "unit";
-  /** Run scripts during orders, with explicit interruption controls and event callbacks. Absent in older replays. */
-  reactiveOrders?: boolean;
+  /** Run scripts during orders, with explicit interruption controls and event callbacks; false lets orders run first. */
+  reactiveOrders: boolean;
   /**
    * Ranged attacks are real projectiles (Euclidean tiles/s). Only hostile entities stop
    * them, never rock; `flyOver` building kinds are hit only by a shot aimed at them.
-   * `blindSpot`: nothing closer to the shooter than its `minRange` can be hit along the path
-   * (absent in recordings made before the field: on from 0.29.0, see `blindSpotOnPath`).
+   * `blindSpot`: nothing closer to the shooter than its `minRange` can be hit along the path.
    */
-  projectiles: { speed: number; unitRadius: number; buildingRadius: number; flyOver: RecordedKind[]; blindSpot?: boolean };
+  projectiles: { speed: number; unitRadius: number; buildingRadius: number; flyOver: EntityKind[]; blindSpot: boolean };
   kinds: Record<string, KindSpec>;
   /** Research belongs to a player and affects one kind. */
   upgrades: Record<string, UpgradeSpec>;
@@ -65,7 +60,7 @@ export interface Ruleset {
 }
 
 interface UpgradeSpec {
-  kind: RecordedKind;
+  kind: EntityKind;
   /** "unlock" makes the kind producible (see KindSpec.requires); its level value is unused. */
   stat: "atk" | "attackMs" | "moveMs" | "range" | "unlock";
   /**
@@ -117,9 +112,9 @@ export interface KindSpec {
   /** Can extract mineral from deposits. */
   gathers?: boolean;
   /** Building kinds this unit can place. */
-  builds?: RecordedKind[];
+  builds?: EntityKind[];
   /** Unit kinds this building produces. */
-  trains?: RecordedKind[];
+  trains?: EntityKind[];
   /** Gatherers unload mineral next to it. */
   dropoff?: boolean;
 }
@@ -142,7 +137,7 @@ export interface MapSpec {
   /** Destructible wall ruins owned by the scenario, never a competing player. Absolute coordinates, placed once. */
   neutralWalls?: { x: number; y: number }[];
   /** The first seat's corner. Every other seat gets the same layout, rotated. */
-  start: { kind: RecordedKind; x: number; y: number }[];
+  start: { kind: EntityKind; x: number; y: number }[];
   deposits: { x: number; y: number; amount: number }[];
   /** Deposits placed once (they should be symmetric by themselves). */
   sharedDeposits: { x: number; y: number; amount: number }[];

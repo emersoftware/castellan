@@ -103,7 +103,7 @@ export async function buildArena({ config, auditToken, emit, dataDir, arenaDir, 
       const response = await fetch(url, { method: req.method, headers, body: payload, redirect: 'manual', signal: AbortSignal.timeout(40_000) });
       const bytes = Buffer.from(await response.arrayBuffer());
       let value = bytes;
-      if (url.pathname === '/guide' || url.pathname === '/rules') {
+      if (url.pathname === '/guide') {
         if (url.searchParams.get('format') === 'text') value = Buffer.from(`${bytes}\n\n${directive(actor)}`);
         else { const guide = JSON.parse(bytes); guide.guide += `\n\n${directive(actor)}`; value = Buffer.from(JSON.stringify(guide)); }
       }

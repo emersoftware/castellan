@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { MAPS, rules, type Order, type RecordedKind, type Ruleset } from "../../../packages/shared/src/index";
+import { MAPS, rules, type Order, type EntityKind, type Ruleset } from "../../../packages/shared/src/index";
 import { AutonomousPlayer } from "../src/player";
 import { attachPlayer, createExperiment, type Experiment } from "../validate";
 
@@ -22,7 +22,7 @@ function constructionRules(): Ruleset {
 /** Scenario setup only. No private entity, identifier or position is sent to the player. */
 function spawnFixture(experiment: Experiment, kind: string, owner: string, x: number, y: number): string {
   let id = "";
-  experiment.match.stage((stage) => { id = stage.spawn(kind as RecordedKind, owner, x, y); });
+  experiment.match.stage((stage) => { id = stage.spawn(kind as EntityKind, owner, x, y); });
   return id;
 }
 

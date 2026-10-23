@@ -93,6 +93,9 @@ export class ScenePresentation {
 
   destroy() {
     this.revealGroundFilter?.destroy();
+    for (const c of [...this.layers.units, this.layers.ground, this.layers.fog]) {
+      for (const f of c.filters ?? []) if (Object.prototype.hasOwnProperty.call(f, "shown")) f.destroy();
+    }
     this.revealAlphas.clear();
   }
 }

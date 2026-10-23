@@ -3,7 +3,7 @@
 import sharp from 'sharp';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { ff, probe } from './ffmpeg.mjs';
-import { formerKind } from '../../shared/src/legacy.ts';
+import { artFolder } from './art-sources.mjs';
 /** @import { EntityKind } from '../../shared/src/ruleset.ts' */
 const root = new URL('../../../', import.meta.url).pathname;
 const spriteDir = `${root}assets/sprites`;
@@ -23,8 +23,7 @@ function key(data) {
  return data;
 }
 for(const [kind,s] of settings) {
- // Tower art predates its rename.
- const dir=`${root}assets/animations/buildings/${kind === "tower" ? formerKind(kind) : kind}`;
+ const dir=`${root}assets/animations/buildings/${artFolder(kind)}`;
  const out=`${spriteDir}/${kind}`;
  await mkdir(out,{recursive:true}); await mkdir(`${dir}/frames`,{recursive:true});
  const ref=key(await sharp(`${dir}/reference.png`).ensureAlpha().raw().toBuffer());

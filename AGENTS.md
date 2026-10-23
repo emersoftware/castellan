@@ -117,7 +117,8 @@ Read [connectors/README.md](connectors/README.md) for the shared turn contract a
   user's requested scope; repeated failures call for local diagnosis before more
   spending. A paid match is an experiment, not a regression test.
 - Record model, effort, harness version, prompt/configuration, ruleset, seed,
-  sides and replay ID. Check actual metadata rather than display names.
+  sides and replay ID. Check actual metadata rather than display names. The only
+  exception is `migrated.effortFromNames` in rewritten old replays, marked as read from names.
 - Count each replay ID once, even if its file exists in several directories.
   Report differing copies and which directories were searched. Calculate counts
   and timings from the recordings; do not estimate or infer them from names.

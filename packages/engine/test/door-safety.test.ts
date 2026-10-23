@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { rules, type RecordedKind, type Ruleset } from '@castellan/shared';
+import { rules, type EntityKind, type Ruleset } from '@castellan/shared';
 import { createMatch, type Match } from '../src';
 
 const matches: Match[] = [];
@@ -11,7 +11,7 @@ async function setup(base: Ruleset = rules) {
    defaultScripts: Object.fromEntries(Object.keys(base.kinds).map(k=>[k,'self.hold();'])),
    map: {name:'door-safety',description:'',width:12,height:12,start:[{kind:'king',x:0,y:0}],walls:[],deposits:[],sharedDeposits:[]} };
  const m=await createMatch({ruleset,players:[{id:'a',name:'A'},{id:'b',name:'B'}],seed:1,tickRate:10});matches.push(m);
- const spawn=(kind:RecordedKind,owner:string,x:number,y:number)=>{let id='';m.stage(s=>{id=s.spawn(kind,owner,x,y);});return m.inspect(id)!;};
+ const spawn=(kind:EntityKind,owner:string,x:number,y:number)=>{let id='';m.stage(s=>{id=s.spawn(kind,owner,x,y);});return m.inspect(id)!;};
  return {m,spawn,ruleset};
 }
 const step=(m:Match,n=10)=>Array.from({length:n},()=>m.step([]).events).flat();

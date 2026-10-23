@@ -3,7 +3,8 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
-import { replayArchive, replayPlayerSummaries, type ReplayFile, type ReplayPlayerSummary } from "@castellan/shared";
+import { replayPlayerSummaries, type ReplayFile, type ReplayPlayerSummary } from "@castellan/shared";
+import { REPLAY_INDEX } from "@castellan/shared/local-data";
 
 interface IndexEntry {
   id: string;
@@ -34,7 +35,7 @@ export class ReplayArchive {
       await rename(`${path}.tmp`, path);
       const index = (await this.index()).filter((r) => r.id !== replay.id);
       index.unshift({ id: replay.id, createdAt: replay.createdAt, players: replayPlayerSummaries(replay), outcome: replay.outcome, finalTick: replay.finalTick, tickRate: replay.tickRate, rulesVersion: replay.ruleset.version, map: replay.ruleset.map.name });
-      const indexPath = join(this.dir, replayArchive.index);
+      const indexPath = join(this.dir, REPLAY_INDEX);
       await writeFile(`${indexPath}.tmp`, JSON.stringify(index, null, 1));
       await rename(`${indexPath}.tmp`, indexPath);
     });
@@ -70,7 +71,7 @@ export class ReplayArchive {
   /** The index; only a missing one is empty. An unreadable index is an error, never rewritten from scratch. */
   private async index(): Promise<IndexEntry[]> {
     try {
-      return JSON.parse(await readFile(join(this.dir, replayArchive.index), "utf8"));
+      return JSON.parse(await readFile(join(this.dir, REPLAY_INDEX), "utf8"));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
       throw error;

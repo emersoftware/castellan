@@ -1,5 +1,5 @@
 /** Shared shapes of the player: plan, tasks, episodes and journal entries. */
-import type { PlayerId, RecordedKind } from "@castellan/shared";
+import type { PlayerId, EntityKind } from "@castellan/shared";
 import type { Pt } from "./geometry";
 
 type Posture = "boom" | "defend" | "attack" | "retreat";
@@ -52,7 +52,7 @@ export interface Episode {
 
 export interface Sighting {
   id: string;
-  kind: RecordedKind;
+  kind: EntityKind;
   owner: PlayerId;
   x: number;
   y: number;
@@ -69,7 +69,7 @@ export interface ThreatGroup {
   y: number;
   owner: PlayerId;
   /** Closest own asset and its distance. */
-  near: { id: string; kind: RecordedKind; d: number } | null;
+  near: { id: string; kind: EntityKind; d: number } | null;
   tick: number;
 }
 

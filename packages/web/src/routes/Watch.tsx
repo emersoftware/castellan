@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { currentFrame, currentRuleset, pages, readMoment, type GameEvent, type Ruleset, type SpectatorMessage, type SpectatorView } from "@castellan/shared";
+import { pages, readMoment, type GameEvent, type Ruleset, type SpectatorMessage, type SpectatorView } from "@castellan/shared";
 import { api, fmtTime, playerColors, spectateUrl } from "../api";
 import { GameCanvas } from "../components/GameCanvas";
 import { ViewerTop, DepositPanel, OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, UnitPanel, notableEvents } from "../components/Hud";
@@ -53,12 +53,11 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series 
       ws = new WebSocket(spectateUrl(id));
       ws.onmessage = (m) => {
         const msg = JSON.parse(m.data) as SpectatorMessage;
-        // Shown under today's names, like replays.
         if (msg.type === "hello") {
-          setRuleset(currentRuleset(msg.ruleset));
+          setRuleset(msg.ruleset);
           setTickMs(1000 / msg.tickRate);
         }
-        const view = currentFrame(msg.view);
+        const view = msg.view;
         setFrame(view);
         if (view.perspectives) setPlayerEvents((old) => Object.fromEntries(Object.entries(view.perspectives!).map(([id, p]) => [id, [...(old[id] ?? []), ...notable(p.events)].slice(-KEPT)])));
         if (view.events?.length) setEvents((old) => [...old, ...notable(view.events)].slice(-KEPT));

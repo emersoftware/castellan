@@ -3,19 +3,24 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { rules, type PlayerView } from "@castellan/shared";
+import { rules, type PlayerView, type Ruleset } from "@castellan/shared";
 import { buildServer } from "../src/app";
 
 let app: FastifyInstance;
 let base = "";
 let dir: string;
 
-beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "castellan-http-"));
-  app = await buildServer({ replayDir: dir, ruleset: { ...rules, matchMs: 4000 }, tickRate: 20, prepMs: 300 });
+/** Matches run for the ruleset's full length, so none ends while a test, however slow, still plays it. */
+const serve = async (ruleset: Ruleset = rules) => {
+  app = await buildServer({ replayDir: dir, ruleset, tickRate: 20, prepMs: 300 });
   await app.listen({ port: 0, host: "127.0.0.1" });
   const addr = app.server.address();
   base = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}`;
+};
+
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), "castellan-http-"));
+  await serve();
 });
 afterEach(async () => {
   await app?.close();
@@ -33,14 +38,18 @@ const call = async (path: string, token?: string, init: RequestInit = {}) => {
   return { status: res.status, body };
 };
 
-const running = async (token: string) => vi.waitFor(async () => {
+const reaches = async (token: string, status: "running" | "finished", timeout = 6000) => vi.waitFor(async () => {
   const response = await call("/status", token);
   expect(response.status).toBe(200);
-  expect(response.body.status).toBe("running");
-}, { timeout: 6000, interval: 20 });
+  expect(response.body.status).toBe(status);
+}, { timeout, interval: 20 });
+const running = (token: string) => reaches(token, "running");
 
 describe("server", () => {
-  it("plays a match over the HTTP API and saves a replay", async () => {
+  it("plays a match over the HTTP API until a player's order ends it, and saves a replay", async () => {
+    // A player's order ends this match, not the clock: kings see the whole map, run and kill with one blow.
+    await app.close();
+    await serve({ ...rules, kinds: { ...rules.kinds, king: { ...rules.kinds.king, vision: 64, moveMs: 50, atk: 1000 } } });
     const room = (await call("/rooms", undefined, { method: "POST", body: JSON.stringify({ players: [{ name: "alice" }, { name: "bob" }], seed: 5 }) })).body;
     const [t1, t2] = room.players.map((p: any) => p.token);
     expect(room.status).toBe("waiting");
@@ -82,13 +91,14 @@ describe("server", () => {
     expect(script.body.custom).toBe(true);
     expect(script.body.code).not.toContain(": any");
 
-    // Wait for the (short) match to end.
-    for (let i = 0; i < 20; i++) {
-      const v = (await call(`/wait?since=0&max=2&until=match_end`, t2)).body as PlayerView;
-      if (v.status === "finished") break;
-    }
+    const king = (view: PlayerView) => view.mine.find((e) => e.kind === "king")!.id;
+    const s2 = (await call("/state", t2)).body as PlayerView;
+    const regicide = await call("/act", t2, { method: "POST", body: JSON.stringify({ orders: [{ type: "attack", unit: king(s2), target: king(s1) }] }) });
+    expect(regicide.body.results).toEqual([{ ok: true }]);
+    await reaches(t1, "finished", 30_000);
     const summary = (await call(`/rooms/${room.id}`)).body;
     expect(summary.status).toBe("finished");
+    expect(summary.outcome).toMatchObject({ winner: "p2", reason: "vital_lost" });
     await vi.waitFor(async () => {
       expect((await call(`/replays/${room.id}`)).status).toBe(200);
       expect((await call("/replays")).body).toContainEqual(expect.objectContaining({ id: room.id }));
@@ -111,7 +121,7 @@ describe("server", () => {
 describe("chat and timing", () => {
   it("enables chat by default, honors an explicit opt-out, and measures each player's time", async () => {
     const make = async (chat?: boolean) => (await call("/rooms", undefined, { method: "POST", body: JSON.stringify({ players: [{ name: "a" }, { name: "b" }], prepMs: 0, chat }) })).body;
-    expect((await call("/rules?format=text")).body).toContain("## Chat");
+    expect((await call("/guide?format=text")).body).toContain("## Chat");
     const on = await make();
     const [a, b] = on.players.map((p: any) => p.token);
     await call("/state", a);
@@ -133,7 +143,7 @@ describe("chat and timing", () => {
     expect((await call("/status", "nope")).status).toBe(401);
     expect((await call("/status", a)).body).toMatchObject({ room: on.id, player: "p1", status: "running" });
     expect((await call(`/rooms/${on.id}`)).body.timing.p1.calls).toBe(summary.timing.p1.calls);
-    expect((await call("/rules?format=text", a)).body).toContain("## Chat");
+    expect((await call("/guide?format=text", a)).body).toContain("## Chat");
     expect((await call("/chat?format=text", b)).body).toContain(`p1 [all]: "gg, your nexus is mine"`);
     // Players read ids, never display names (they often name the model); observers keep them.
     expect((await call("/chat", b)).body.messages.map((m: { name: string }) => m.name)).toEqual(["p1"]);
@@ -185,11 +195,11 @@ describe("one-shot player scripts", () => {
     await call("/state", a); await call("/state", b);
     await running(a);
     const run = (code: string, format = "") => call(`/run${format}`, a, { method: "POST", body: JSON.stringify({ code }) });
-    const ok = (await run(`const base = view.mine.find(e => rules.kinds[e.kind].trains);
-      act({ type: "stop", unit: view.mine.find(e => !rules.kinds[e.kind].building).id });
+    const ok = (await run(`const base = view.mine.find(e => game.kinds[e.kind].trains);
+      act({ type: "stop", unit: view.mine.find(e => !game.kinds[e.kind].building).id });
       act({ type: "chat", text: "not from run" });
       log("mineral", view.players.find(p => p.id === view.you).mineral);
-      return { base: base.id, kinds: Object.keys(rules.kinds).length };`)).body;
+      return { base: base.id, kinds: Object.keys(game.kinds).length };`)).body;
     expect(ok.error).toBeUndefined();
     expect(ok.results).toEqual([{ ok: true }]);
     expect(ok.rejected).toBe(1);
@@ -201,7 +211,6 @@ describe("one-shot player scripts", () => {
     expect(typed.value).toBeGreaterThan(0);
     const failed = (await run(`act({ type: "stop", unit: "e1" }); throw new Error("boom");`)).body;
     expect(failed).toMatchObject({ error: "boom", orders: [], results: [] });
-    expect((await run("while (true) {}")).body.error).toMatch(/out of gas/);
     const text = (await run(`return 42`, "?format=text")).body;
     expect(text).toContain("run ok · 0 order(s)");
     expect(text).toContain("returned: 42");

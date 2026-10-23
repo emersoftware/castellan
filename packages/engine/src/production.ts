@@ -1,4 +1,4 @@
-import type { ActionAvailability, GameEvent, KindSpec, OrderResult, PlayerId, RecordedKind, Ruleset } from "@castellan/shared";
+import type { ActionAvailability, GameEvent, KindSpec, OrderResult, PlayerId, EntityKind, Ruleset } from "@castellan/shared";
 import type { SimulationClock } from "./clock";
 import type { Entity, Player } from "./entities";
 import type { Movement } from "./movement";
@@ -15,7 +15,7 @@ export class Production {
     /** Owners whose buildings are inert ruins: nothing is delivered for them. */
     ruined: ReadonlySet<PlayerId>;
   }, private movement: Pick<Movement, "freeNeighbor">,
-  private spawn: (kind: RecordedKind, owner: PlayerId, x: number, y: number) => Entity) {}
+  private spawn: (kind: EntityKind, owner: PlayerId, x: number, y: number) => Entity) {}
 
   /** A kind's stats for `player`: the rules' base with each completed research level applied. */
   specFor(player: Player, kind: string): KindSpec {

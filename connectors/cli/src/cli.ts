@@ -75,7 +75,6 @@ async function main(): Promise<string | number | void> {
   const json = o.json;
   switch (name) {
     case "guide":
-    case "rules":
       return cmd.guide(c, { json });
     case "history":
       return cmd.history(c, { json, game: num(o.game), section: o.section, offset: num(o.offset), limit: num(o.limit) });

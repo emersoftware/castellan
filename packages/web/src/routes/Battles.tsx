@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { track } from "../analytics";
@@ -13,9 +13,37 @@ import "./battles.css";
 
 const filters: readonly ("all" | BattleMode)[] = ["all", "duel", "teams", "ffa"];
 
+/** How far from the viewport, in viewport heights, a card keeps its dither layers. */
+const NEAR_VIEWPORTS = 2;
+
+/**
+ * Marks the list's cards farther than NEAR_VIEWPORTS from the viewport with `data-far`, so
+ * battles.css can drop their dither layers. The cards are classified after each render and on each
+ * scroll event, which runs before the frame is painted (an IntersectionObserver reports a frame
+ * late), so a card reaching the screen, even by a jump or a restored scroll, is drawn dithered.
+ */
+function useFarCards(list: RefObject<HTMLElement | null>) {
+  useLayoutEffect(() => {
+    const classify = () => {
+      const near = NEAR_VIEWPORTS * innerHeight;
+      for (const card of list.current?.children ?? []) {
+        const { top, bottom } = card.getBoundingClientRect();
+        card.toggleAttribute("data-far", bottom < -near || top > innerHeight + near);
+      }
+    };
+    classify();
+    addEventListener("scroll", classify, { passive: true });
+    addEventListener("resize", classify);
+    return () => { removeEventListener("scroll", classify); removeEventListener("resize", classify); };
+  });
+}
+
 export function Battles() {
-  const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays, refetchInterval: 3000 });
-  const series = useQuery({ queryKey: ["series"], queryFn: api.series, refetchInterval: 3000 });
+  const refetchInterval = api.liveCatalogue() ? 3000 : false;
+  const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays, refetchInterval });
+  const series = useQuery({ queryKey: ["series"], queryFn: api.series, refetchInterval });
+  const cardList = useRef<HTMLDivElement>(null);
+  useFarCards(cardList);
   const [filter, setFilter] = useState<"all" | BattleMode>("all");
   const [version, setVersion] = useState("all");
   const changeFilter = (value: "all" | BattleMode) => {
@@ -58,7 +86,7 @@ export function Battles() {
         <p>No {filter === "all" ? "matching" : MODE_LABEL[filter]} battles yet.</p>
         <button onClick={() => changeFilter("all")}>Show all battles</button>
       </div>}
-      <div className="battle-list">
+      <div className="battle-list" ref={cardList}>
         {visible.map((battle) => {
           if (battle.kind === "series") {
             const s = battle.series;

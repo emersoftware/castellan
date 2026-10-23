@@ -1,4 +1,4 @@
-import type { CombatSummary, GameEvent, LastSeen, PlayerId, RecordedKind, Ruleset } from "@castellan/shared";
+import type { CombatSummary, GameEvent, LastSeen, PlayerId, EntityKind, Ruleset } from "@castellan/shared";
 import { eventOwner } from "@castellan/shared";
 import type { Entity, Deposit } from "./entities";
 import type { SimulationClock } from "./clock";
@@ -17,7 +17,7 @@ export class PlayerVision {
   /** View-only fog memory (not hashed, never shown to scripts): enemy buildings as last seen, and when each deposit was seen. */
   private seenBuildings = new Map<PlayerId, Map<string, Sighting>>();
   private seenUnits = new Map<PlayerId, Map<string, Sighting>>();
-  private combatLog = new Map<PlayerId, { tick: number; id: string; kind: RecordedKind; owner: PlayerId; x: number; y: number; damage: number; death: boolean }[]>();
+  private combatLog = new Map<PlayerId, { tick: number; id: string; kind: EntityKind; owner: PlayerId; x: number; y: number; damage: number; death: boolean }[]>();
   private seenDeposits = new Map<PlayerId, Map<string, number>>();
 
   constructor(private rules: () => Ruleset, private clock: Readonly<SimulationClock>, private world: {

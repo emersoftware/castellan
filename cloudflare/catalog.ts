@@ -5,7 +5,7 @@ import { gunzipSync } from "node:zlib";
 import type { ReplayFile, SeriesSummary } from "../packages/shared/src/protocol";
 import { seriesStandings } from "../packages/shared/src/outcome";
 import { replayPlayerSummaries, type ReplayPlayerSummary } from "../packages/shared/src/replayMetadata";
-import { replayArchive } from "../packages/shared/src/replayArchive";
+import { REPLAY_INDEX } from "../packages/shared/src/localData";
 import { hasScriptedBot } from "../packages/web/src/replayCatalog";
 
 interface Entry {
@@ -43,6 +43,8 @@ export function publicReplay(value: ReplayFile): ReplayFile {
     orders: value.orders, hashes: value.hashes, finalTick: value.finalTick, outcome: value.outcome,
     ...(value.timing ? { timing: value.timing } : {}), ...(value.chat !== undefined ? { chat: value.chat } : {}),
     ...(value.series ? { series: { id: value.series.id, gameNumber: value.series.gameNumber, totalGames: 3 } } : {}),
+    // A rewritten recording names the original it came from and which efforts were read from player names.
+    ...(value.migrated ? { migrated: value.migrated } : {}),
     // The viewer needs recorded sandbox interruptions to re-simulate the match; nothing else of the manifest is public.
     ...(value.experiment?.operationalFailures?.length ? { experiment: { operationalFailures: value.experiment.operationalFailures } as ReplayFile["experiment"] } : {}),
   };
@@ -73,35 +75,30 @@ export function completeSeries(entries: Publication["replays"], titles: Record<s
   return series;
 }
 
-/** `root` is the repository, whose featured copies are published along with the `local` archive's matches. */
+/** The `local` archive's agent matches, titled from the repository's `cloudflare/titles.json` under `root`. */
 export async function collectPublication(root: string, local: string): Promise<Publication> {
   let titles: { replays: Record<string, string>; series: Record<string, string> } = { replays: {}, series: {} };
   try { titles = JSON.parse(await readFile(join(root, "cloudflare/titles.json"), "utf8")); }
   catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; }
-  const featured = join(root, replayArchive.featured);
-  const previous = new Map((await optionalIndex(join(featured, replayArchive.index))).map((e) => [e.id, e]));
-  const localIndex = new Map((await optionalIndex(join(local, replayArchive.index))).map((e) => [e.id, e]));
-  const files = new Map<string, { path: string; compressed: boolean }>();
-  for (const id of previous.keys()) files.set(id, { path: join(featured, `${id}.json`), compressed: false });
+  const localIndex = new Map((await optionalIndex(join(local, REPLAY_INDEX))).map((e) => [e.id, e]));
+  const files = new Map<string, string>();
   let localFiles: string[] = [];
   try { localFiles = await readdir(local); }
   catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; }
-  for (const file of localFiles.filter((file) => file.endsWith(".json.gz"))) files.set(file.slice(0, -8), { path: join(local, file), compressed: true });
+  for (const file of localFiles.filter((file) => file.endsWith(".json.gz"))) files.set(file.slice(0, -8), join(local, file));
   const replays: Publication["replays"] = [];
   let excluded = 0;
-  for (const [id, { path, compressed }] of files) {
-    const bytes = await readFile(path);
-    const raw: ReplayFile = JSON.parse((compressed ? gunzipSync(bytes) : bytes).toString("utf8"));
+  for (const [id, path] of files) {
+    const raw: ReplayFile = JSON.parse(gunzipSync(await readFile(path)).toString("utf8"));
     if (raw.id !== id) throw new Error(`Replay ID does not match filename: ${path}`);
     if (hasScriptedBot(raw.players) || hasScriptedBot(localIndex.get(id)?.players ?? []) || raw.players.some((p) => /^demo:/i.test(p.name))) { excluded++; continue; }
     const replay = publicReplay(raw);
-    const old = previous.get(id);
     // When the match ended: file times move when recordings are copied or rewritten.
-    const savedAt = old?.savedAt ?? new Date(Date.parse(replay.createdAt) + replay.finalTick * 1000 / replay.tickRate).toISOString();
+    const savedAt = new Date(Date.parse(replay.createdAt) + replay.finalTick * 1000 / replay.tickRate).toISOString();
     replays.push({ replay, summary: {
-      id, title: titles.replays[id] ?? old?.title ?? `${replay.players.map((p) => p.name).join(" vs. ")} — ${replay.ruleset.map.name ?? "Open field"}`,
+      id, title: titles.replays[id] ?? `${replay.players.map((p) => p.name).join(" vs. ")} — ${replay.ruleset.map.name ?? "Open field"}`,
       createdAt: replay.createdAt, savedAt, players: replayPlayerSummaries(raw), outcome: replay.outcome,
-      finalTick: replay.finalTick, tickRate: replay.tickRate, rulesVersion: replay.ruleset.version, map: replay.ruleset.map.name ?? old?.map,
+      finalTick: replay.finalTick, tickRate: replay.tickRate, rulesVersion: replay.ruleset.version, map: replay.ruleset.map.name,
     } });
   }
   replays.sort((a, b) => b.summary.savedAt.localeCompare(a.summary.savedAt) || a.replay.id.localeCompare(b.replay.id));

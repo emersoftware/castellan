@@ -16,7 +16,7 @@ import leftWall from '../../../../assets/sprites/wall-door-left/manifest.json';
 import rightWall from '../../../../assets/sprites/wall-door-right/manifest.json';
 import bothWall from '../../../../assets/sprites/wall-door-both/manifest.json';
 import fireSites from '../../../../assets/sprites/castle/fire-pixels.json';
-import { currentKind, type KindSpec, type RecordedKind } from '@castellan/shared';
+import { type KindSpec, type EntityKind } from '@castellan/shared';
 import { screenDir, type AnimationFrame } from './sprites';
 import type { ClipArt } from './clips';
 import { corpseFade } from './corpseFade';
@@ -42,7 +42,7 @@ const once = (action: Action, meta: Clip, timeMs: number): AnimationFrame =>
   ({ action, frame: Math.min(meta.frameCount - 1, Math.floor(Math.max(0, timeMs) * meta.fps / 1000)) });
 
 /** Units drawn from clips step from tile to tile; the rest hop. */
-export const animatedUnit = (kind: RecordedKind) => units.has(currentKind(kind));
+export const animatedUnit = (kind: EntityKind) => units.has(kind);
 
 /** Turnaround rows: S, SE, E, NE, N; the west half mirrors them. */
 const ROW = [0, 1, 2, 3, 4, 3, 2, 1];
@@ -53,23 +53,22 @@ export interface Strike { at: number; dir: number }
  * Archers loose an arrow, the rest strike in melee. The engine's attack event is the release or the impact,
  * so the clip starts at the frame marking it; the recovery after it is presentation only.
  */
-function strikeOf(kind: RecordedKind): { action: Action; ms: number; marks: 'releaseFrames' | 'impactFrames' } {
-  return currentKind(kind) === 'archer'
+function strikeOf(kind: EntityKind): { action: Action; ms: number; marks: 'releaseFrames' | 'impactFrames' } {
+  return kind === 'archer'
     ? { action: 'shoot', ms: 300, marks: 'releaseFrames' }
     : { action: 'attack', ms: 400, marks: 'impactFrames' };
 }
 
 /** How long a strike's clip plays; undefined when the kind has none and lunges instead. */
-export function strikeMs(kind: RecordedKind): number | undefined {
+export function strikeMs(kind: EntityKind): number | undefined {
   const strike = strikeOf(kind);
-  return clip(currentKind(kind), strike.action) ? strike.ms : undefined;
+  return clip(kind, strike.action) ? strike.ms : undefined;
 }
 
 // The source clips contain different numbers of steps: the Archer loop covers
 // roughly one tile of foot travel; Knight/King/Worker cover two. Drive phase by world
 // distance so faster units and diagonal moves take proportionally more steps.
-function pose(recorded: RecordedKind, timeMs: number, walked: number | undefined, strike: Strike | undefined): AnimationFrame | undefined {
-  const kind = currentKind(recorded);
+function pose(kind: EntityKind, timeMs: number, walked: number | undefined, strike: Strike | undefined): AnimationFrame | undefined {
   const { action, ms, marks } = strikeOf(kind);
   const blow = clip(kind, action);
   if (blow && strike && timeMs >= strike.at && timeMs < strike.at + ms) {
@@ -99,7 +98,7 @@ export interface UnitLook {
  * A living unit at `timeMs`, heading `heading`: striking, else mining when it stands at its deposit, walking or idle.
  * `walked`: tiles covered in the current walk, absent while it stands.
  */
-export function unitLook(unit: { kind: RecordedKind; x: number; y: number; gathering?: { x: number; y: number } }, heading: number, timeMs: number,
+export function unitLook(unit: { kind: EntityKind; x: number; y: number; gathering?: { x: number; y: number } }, heading: number, timeMs: number,
   motion: { walked?: number; strike?: Strike }): UnitLook {
   const { walked, strike } = motion;
   const mining = !strike && walked === undefined ? unit.gathering : undefined;
@@ -107,7 +106,7 @@ export function unitLook(unit: { kind: RecordedKind; x: number; y: number; gathe
     const dx = mining.x - unit.x, dy = mining.y - unit.y;
     heading = screenDir(dx - dy, (dx + dy) / 2);
   }
-  const mine = mining && clip(currentKind(unit.kind), 'mine');
+  const mine = mining && clip(unit.kind, 'mine');
   const animation = mine ? loop('mine', mine, timeMs) : pose(unit.kind, timeMs, walked, strike);
   // Frames where the pick hits the rock, per row.
   const pickDown = animation?.action === 'mine' ? animation.frame >= [11, 11, 7, 7, 7][ROW[heading]] && animation.frame < 21 : undefined;
@@ -133,10 +132,10 @@ function fireParticles(emitters: readonly FireEmitter[], timeMs: number): FirePa
   return particles;
 }
 
-interface Health { kind: RecordedKind; hp: number; maxHp: number }
+interface Health { kind: EntityKind; hp: number; maxHp: number }
 /** The castle's two reviewed art stages describe destruction; ignition uses remaining HP. */
 function damageStage({ kind, hp, maxHp }: Health): 25 | 50 | undefined {
-  if (currentKind(kind) !== 'castle' || maxHp <= 0) return undefined;
+  if (kind !== 'castle' || maxHp <= 0) return undefined;
   const health = Math.max(0, hp) / maxHp;
   return health <= .25 ? 50 : health <= .75 ? 25 : undefined;
 }
@@ -144,7 +143,7 @@ const burning = ({ hp, maxHp }: Health) => maxHp > 0 && hp / maxHp <= .5;
 
 /** A standing building with clips (castles, towers): its damage stage or idle loop, and the fire burning on it. */
 export function buildingLook(building: Health, timeMs: number): { animation: AnimationFrame; fire?: FireLook } | undefined {
-  const kind = currentKind(building.kind);
+  const { kind } = building;
   const idle = clip(kind, 'idle', buildings);
   if (!idle) return undefined;
   const stage = damageStage(building);
@@ -169,7 +168,7 @@ export interface Fall {
 /** How an entity of `spec` goes when it dies; `barrierArt` is the wall piece it showed. */
 export function fall(entity: Health, spec: KindSpec | undefined, barrierArt?: ClipArt): Fall {
   const building = !!spec?.building;
-  const kind = currentKind(entity.kind);
+  const { kind } = entity;
   const art = building ? barrierArt ?? kind : kind;
   const fadeMs = building ? 1500 : 6000;
   const stage = damageStage(entity);

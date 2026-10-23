@@ -1,5 +1,5 @@
 /** Everything that crosses the wire between the server and its clients. */
-import type { RecordedKind } from "./ruleset.ts";
+import type { EntityKind } from "./ruleset.ts";
 
 export type PlayerId = string;
 /** Reserved entity owner for inert scenario walls; never a participant or winner. */
@@ -43,7 +43,7 @@ export type UnitOrder =
   | { type: "move"; x: number; y: number }
   | { type: "attack"; target: string }
   | { type: "gather"; deposit?: string }
-  | { type: "build"; kind: RecordedKind; x: number; y: number };
+  | { type: "build"; kind: EntityKind; x: number; y: number };
 
 interface MineralChange { spent: number; remaining: number; pending?: number }
 export type OrderResult = ({ ok: true; id?: string } | { ok: false; reason: string }) & { mineral?: MineralChange };
@@ -118,7 +118,7 @@ export interface Outcome {
 
 export interface EntityView {
   id: string;
-  kind: RecordedKind;
+  kind: EntityKind;
   owner: PlayerId;
   x: number;
   y: number;
@@ -131,9 +131,9 @@ export interface EntityView {
   /** Effective stats (including upgrades), with timings quantized to the match tick. */
   stats?: { atk: number; def: number; range: number; attackMs: number; moveMs: number };
   /** Visible work at a site; the building does not exist or function until completion. */
-  construction?: { kind: RecordedKind; x: number; y: number; completesAtMs: number };
+  construction?: { kind: EntityKind; x: number; y: number; completesAtMs: number };
   /** Private to owner (and omniscient spectators). Only the first entry is active. */
-  training?: { kind: RecordedKind; completesAtMs?: number }[];
+  training?: { kind: EntityKind; completesAtMs?: number }[];
   /** Current order in words, e.g. "move 10,5", "gather d3". Absent = script/idle. */
   order?: string;
   /** The owner's script suspended this order; it can explicitly resume or cancel it. */
@@ -194,8 +194,8 @@ export interface OrderProgress {
 
 export interface ActionAvailability {
   /** Current checks only; acceptance can change before the next tick. */
-  train: { building: string; kind: RecordedKind; cost: number; queue: number; queueLimit: number; blockedBy: string[]; exitBlocked: boolean }[];
-  build: { kind: RecordedKind; cost: number; blockedBy: string[]; siteCheckRequired: true }[];
+  train: { building: string; kind: EntityKind; cost: number; queue: number; queueLimit: number; blockedBy: string[]; exitBlocked: boolean }[];
+  build: { kind: EntityKind; cost: number; blockedBy: string[]; siteCheckRequired: true }[];
   research: { upgrade: string; level: number; cost: number | null; blockedBy: string[] }[];
 }
 
@@ -206,7 +206,7 @@ export interface CombatSummary {
   truncated: boolean;
   encounters: { x: number; y: number; fromTick: number; toTick: number;
     damage: Record<PlayerId, number>;
-    losses: { id: string; kind: RecordedKind; owner: PlayerId; x: number; y: number }[] }[];
+    losses: { id: string; kind: EntityKind; owner: PlayerId; x: number; y: number }[] }[];
 }
 
 /** What a connector reports its agent is doing (POST /agent-status). */
@@ -262,19 +262,19 @@ export interface PlayerStats {
 }
 
 export type GameEvent =
-  | { tick: number; type: "training_queued"; owner: PlayerId; building: string; kind: RecordedKind; position: number }
-  | { tick: number; type: "construction_started"; owner: PlayerId; builder: string; kind: RecordedKind; x: number; y: number; completesAtMs: number }
+  | { tick: number; type: "training_queued"; owner: PlayerId; building: string; kind: EntityKind; position: number }
+  | { tick: number; type: "construction_started"; owner: PlayerId; builder: string; kind: EntityKind; x: number; y: number; completesAtMs: number }
   | { tick: number; type: "research_started"; owner: PlayerId; upgrade: string; level: number; completesAtMs: number; mineral: MineralChange }
   | { tick: number; type: "upgrade_completed"; owner: PlayerId; upgrade: string; level: number }
   /** `to`: the attacked entity; a shot aimed with shootAt has `at`, the point it was launched toward, instead. */
   | { tick: number; type: "attack"; from: string; to?: string; at?: { x: number; y: number }; dmg: number; projectile?: string }
   | { tick: number; type: "projectile_end"; id: string; x: number; y: number; target?: string; dmg: number; reason: "hit" | "blocked" | "miss" }
-  | { tick: number; type: "death"; id: string; kind: RecordedKind; owner: PlayerId; x: number; y: number; by?: PlayerId }
-  | { tick: number; type: "spawn"; id: string; kind: RecordedKind; owner: PlayerId; x: number; y: number; builder?: string; mineral?: MineralChange }
+  | { tick: number; type: "death"; id: string; kind: EntityKind; owner: PlayerId; x: number; y: number; by?: PlayerId }
+  | { tick: number; type: "spawn"; id: string; kind: EntityKind; owner: PlayerId; x: number; y: number; builder?: string; mineral?: MineralChange }
   | { tick: number; type: "unload"; id: string; owner: PlayerId; amount: number }
   | { tick: number; type: "depleted"; id: string }
   | { tick: number; type: "order_end"; id: string; owner: PlayerId; reason: OrderEndReason }
-  | { tick: number; type: "script_error"; owner: PlayerId; kind: RecordedKind; unit?: string; message: string; operationalFailure?: true }
+  | { tick: number; type: "script_error"; owner: PlayerId; kind: EntityKind; unit?: string; message: string; operationalFailure?: true }
   | { tick: number; type: "log"; owner: PlayerId; unit: string; message: string }
   | { tick: number; type: "chat"; owner: PlayerId; text: string; channel?: ChatChannel; to?: PlayerId }
   /** A player lost its vital entity while its team plays on: its units are gone (and its buildings, unless the rules keep ruins). */
@@ -289,22 +289,22 @@ export type OrderEndReason = "arrived" | "completed" | "replaced" | "stopped" | 
 /** The player an event belongs to, if any. */
 export const eventOwner = (e: GameEvent): PlayerId | undefined => ("owner" in e ? e.owner : undefined);
 /** The kind of entity an event is about, if any. */
-export const eventKind = (e: GameEvent): RecordedKind | undefined => ("kind" in e ? e.kind : undefined);
+export const eventKind = (e: GameEvent): EntityKind | undefined => ("kind" in e ? e.kind : undefined);
 
 export type LastSeen =
-  | { id: string; kind: RecordedKind; owner: PlayerId; x: number; y: number; hp: number; maxHp: number; ruin?: boolean; entityType?: "unit"; positionCleared?: boolean; seenMs: number }
+  | { id: string; kind: EntityKind; owner: PlayerId; x: number; y: number; hp: number; maxHp: number; ruin?: boolean; entityType?: "unit"; positionCleared?: boolean; seenMs: number }
   | { id: string; kind: "deposit"; x: number; y: number; amount: number; seenMs: number };
 
 export interface UnderAttack {
   id: string;
-  kind: RecordedKind;
+  kind: EntityKind;
   x: number;
   y: number;
   hp: number;
   maxHp: number;
   /** Damage taken in the window. */
   damage: number;
-  attackers: { id: string; kind: RecordedKind; owner: PlayerId }[];
+  attackers: { id: string; kind: EntityKind; owner: PlayerId }[];
   unseenAttackers: number;
 }
 
@@ -392,6 +392,11 @@ export interface ReplayFile {
   /** How each player used its time, measured by the server. */
   timing?: Record<PlayerId, PlayerTiming>;
   chat?: boolean;
+  /**
+   * This recording was rewritten under today's names and with every rule field explicit; the original is archived.
+   * `effortFromNames`: efforts its harnesses did not record, read from each player's display name during the rewrite.
+   */
+  migrated?: { at: string; originalSha256: string; effortFromNames?: Record<PlayerId, import("./replayMetadata.ts").Effort> };
 }
 
 /**

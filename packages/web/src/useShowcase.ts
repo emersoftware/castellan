@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { currentFrame, currentRuleset, type SpectatorView } from "@castellan/shared";
+import { type SpectatorView } from "@castellan/shared";
 import { parseShowcaseManifest, readShowcaseChunk } from "./showcaseRecording";
 
-/** Decorative playback reads verified frames, under today's names. It never executes player code. */
+/** Decorative playback reads verified frames. It never executes player code. */
 export function useShowcase(id: string) {
   const base = `/showcase/${encodeURIComponent(id)}/`;
   const manifest = useQuery({
@@ -13,7 +13,7 @@ export function useShowcase(id: string) {
       if (!response.ok) throw new Error("Couldn’t load this battle.");
       const recording = parseShowcaseManifest(await response.json());
       if (recording.id !== id) throw new Error("Unexpected showcase recording.");
-      return { ...recording, ruleset: currentRuleset(recording.ruleset) };
+      return recording;
     },
     staleTime: Infinity,
     retry: false,
@@ -58,7 +58,7 @@ export function useShowcase(id: string) {
             throw new Error("Incomplete showcase recording.");
           }
           if (abort.signal.aborted) return;
-          chunks.set(index, frames.map(currentFrame));
+          chunks.set(index, frames);
         } catch (error) {
           if (abort.signal.aborted) return;
           failed = true;

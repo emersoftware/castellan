@@ -1,5 +1,4 @@
 import type { GameEvent, PlayerId, ProjectileView, Ruleset } from "@castellan/shared";
-import { blindSpotOnPath } from "@castellan/shared";
 import type { ScriptActionResult } from "@castellan/sandbox";
 import type { Entity, Intent } from "./entities";
 import type { SimulationClock } from "./clock";
@@ -87,7 +86,7 @@ export class Combat {
   /** Sweep each segment, so fast shots cannot tunnel through an occupied tile. */
   private advanceProjectiles(damage: Map<string, number>, lastHit: Map<string, PlayerId>, emit: (e: GameEvent) => void) {
     const config = this.rules().projectiles;
-    const blindSpot = blindSpotOnPath(this.rules());
+    const blindSpot = this.rules().projectiles.blindSpot;
     for (const p of this.projectiles.values()) {
       if (p.launchedAt === this.clock.tick) continue;
       const remaining = hypot(p.endX - p.x, p.endY - p.y);

@@ -1,8 +1,6 @@
 node_modules
 **/node_modules
 **/dist
-replays
 .git
-files.zip
 # The DevDay deck ships with the public site only.
 packages/web/public/devday

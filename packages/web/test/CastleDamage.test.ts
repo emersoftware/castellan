@@ -15,7 +15,6 @@ it('selects the two approved states and ignites at half health', () => {
   expect(look('castle',50,100,1000).fire?.animation).toEqual({action:'fire25',frame:12});
   expect(look('castle',26,100,0).animation).toEqual({action:'damaged25',frame:0});
   expect(look('castle',25,100,1000).fire?.animation).toEqual({action:'fire50',frame:12});
-  expect(look('nexus',25,100,1000).fire?.animation).toEqual({action:'fire50',frame:12});
   expect(look('tower',25,100,1000).fire).toBeUndefined();
   expect(look('castle',1,0,1000).fire).toBeUndefined();
 });

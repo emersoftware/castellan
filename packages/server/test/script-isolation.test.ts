@@ -86,9 +86,9 @@ it("uses the factory for live scripts and isolated probes without changing deter
 it("supervises one-shot execution and validation, returning no orders on timeout", async () => {
   expect(await validateScriptIsolated("self.hold();", rules.script)).toEqual({ ok: true });
   expect((await validateScriptIsolated("self.hold(", rules.script)).ok).toBe(false);
-  expect(await runOnceIsolated("act({type:'stop',unit:'e1'}); return view.tick;", { view: { tick: 7 }, rules: {} }))
+  expect(await runOnceIsolated("act({type:'stop',unit:'e1'}); return view.tick;", { view: { tick: 7 }, game: {} }))
     .toMatchObject({ orders: [{ type: "stop", unit: "e1" }], value: 7 });
-  const timeout = await runOnceIsolated("act({type:'stop',unit:'e1'}); let n=0; for(let i=0;i<100000000;i++) n+=i; return n;", { view: {}, rules: {} },
+  const timeout = await runOnceIsolated("act({type:'stop',unit:'e1'}); let n=0; for(let i=0;i<100000000;i++) n+=i; return n;", { view: {}, game: {} },
     { ...RUN_LIMITS, gas: 1_000_000_000 }, { timeoutMs: 40, startupTimeoutMs: 10000 });
   expect(timeout).toMatchObject({ orders: [], logs: [], value: null, error: expect.stringContaining("watchdog timeout"), operationalFailure: true });
   // A crafted wrapper escape can execute during the compile check. Even that
@@ -105,7 +105,7 @@ it("does not trust a script's forged operational error message", async () => {
   const result = h.run(world, ["e1"]).e1;
   expect(result.error).toContain("sandbox watchdog");
   expect(result.operationalFailure).toBeUndefined();
-  const once = await runOnceIsolated("throw new Error('sandbox worker failed');", { view: {}, rules: {} });
+  const once = await runOnceIsolated("throw new Error('sandbox worker failed');", { view: {}, game: {} });
   expect(once.error).toBe("sandbox worker failed");
   expect(once.operationalFailure).toBeUndefined();
 });

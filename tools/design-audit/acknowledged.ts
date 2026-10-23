@@ -10,7 +10,8 @@ export const acknowledged: Record<string, Record<string, string>> = {
     "packages/engine/src/board.ts":
       "The board's tile vocabulary (who stands, doors, construction sites; place, move, remove, reserve, release): each method keeps the rule that any static change bumps the path version, and no caller does tile-index arithmetic.",
     "packages/shared/src/outcome.ts": "Four readings of the same recorded outcome (winners, a player's result, its text, a series' standings), each used by server, web or catalogue.",
-    "packages/shared/src/legacy.ts": "Adapters for recordings made under former names and fields; each one has historical replays as callers.",
+    "packages/web/src/render/occlusion.ts":
+      "The renderer's depth pass (create, refresh, render, release) and the one rule for mirroring an occluder into it; a GPU resource needs its release beside its creation.",
     "connectors/castellan-bot/src/geometry.ts": "The bot's point-based view of the shared tile geometry plus its seat frame; the adapters keep tile math in shared.",
     "packages/shared/src/http.ts": "The HTTP contract's vocabulary (address, routes, limits, tools, pages, agent header) shared by server, web, worker and connectors; each helper keeps one rule beside the names it uses.",
   },
@@ -24,6 +25,7 @@ export const acknowledged: Record<string, Record<string, string>> = {
   },
   "pass-through": {
     "packages/engine/src/order-progress.ts#clear": "The tracker's own command; its per-entity history map stays private.",
+    "packages/web/src/render/look.ts#animatedUnit": "The art's answer to whether a kind walks from clips; the clip table stays private.",
     "packages/engine/src/vision.ts#deposits": "The vision module's query for what a player knows; the knowledge map stays private.",
     "connectors/loop-keepers/minimax/key.mjs#saveKey": "Supplies the MiniMax key file as the default path for the shared private-key writer.",
     "packages/server/src/rooms.ts#get": "The registry's lookup by room id; add keeps the id and token indexes consistent.",
@@ -37,7 +39,6 @@ export const acknowledged: Record<string, Record<string, string>> = {
     '"json" @ connectors/cli,connectors/loop-keepers,packages/web': "Content-type sniffing and output-format flags of different tools.",
     '"chat" @ connectors/cli,packages/shared,packages/web': "The game tool and history section vs the CLI's command word and a replay timeline mark.",
     '"guide" @ connectors/cli,packages/shared': "The game tool vs the CLI's own command word.",
-    '"rules" @ connectors/cli,packages/web': "The CLI's former command word vs the script global's former name highlighted in the docs.",
     '"history" @ connectors/cli,packages/shared': "The game tool vs the CLI's own command word (the CLI vocabulary already diverges: exec, script-test).",
     '"act" @ connectors/cli,packages/shared': "The game tool vs the CLI's own command word.",
     '"script" @ connectors/cli,packages/shared': "The game tool vs the CLI's own command word.",
@@ -47,7 +48,6 @@ export const acknowledged: Record<string, Record<string, string>> = {
     '"HEAD" @ cloudflare,packages/server': "HTTP method vs git ref.",
     '"right" @ connectors/cli,packages/web': "CLI map-corner names vs wall-door art sides.",
     '"left" @ connectors/cli,packages/web': "CLI map-corner names vs wall-door art sides.",
-    '"agent" @ connectors/loop-keepers,packages/shared': "The legacy king kind vs the Cursor agent binary.",
     '"no-store" @ cloudflare,connectors/loop-keepers': "The Worker's cache policy vs a header in the preflight's fake server.",
     '"init" @ connectors/castellan-bot,connectors/loop-keepers': "A castellan journal entry vs an agy stream event.",
     '"tools" @ connectors/loop-keepers,packages/web': "A dsh patch id vs a docs section anchor.",
@@ -70,7 +70,6 @@ export const acknowledged: Record<string, Record<string, string>> = {
     '"packages" @ packages/server,packages/web': "Repo path segment in two unrelated fingerprints (experiment provenance vs showcase cache).",
     '"src" @ packages/server,packages/web': "Repo path segment in two unrelated fingerprints (experiment provenance vs showcase cache).",
     '"pnpm-lock.yaml" @ packages/server,packages/web': "The lockfile path in two unrelated fingerprints (experiment provenance vs showcase cache).",
-    '"mineral" @ packages/shared,packages/web': "The label legacy text is rewritten to vs the mineral portrait's sprite name.",
     '"draw" @ packages/shared,packages/web': "Outcome summary text vs the spectator Versus text; the two texts already differ.",
     '"private" @ packages/shared,packages/web': "A chat channel vs the watch page's access-denied label.",
     '"finished" @ connectors/open-arena,packages/shared,packages/web': "The match status, also read from /status by the arena's exporter as an API client, vs the series page's display word.",

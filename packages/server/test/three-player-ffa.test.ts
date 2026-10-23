@@ -37,7 +37,7 @@ it.each(["fixed", "random"] as const)("starts exactly three opponents in distinc
   expect(new Set(lobby.players.map(p => p.team)).size).toBe(3);
   if (sides === "fixed") expect(lobby.players.map(p => p.side)).toEqual([0, 1, 2]);
   const headers = { authorization: `Bearer ${lobby.players[0].token}` };
-  const { guide } = (await app.inject({ url: "/rules", headers })).json<{ guide: string }>();
+  const { guide } = (await app.inject({ url: "/guide", headers })).json<{ guide: string }>();
   expect(guide).toContain("Three-player free-for-all (1v1v1)");
   expect(guide).toContain("The empty corner has no base or personal deposits.");
   expect(guide).not.toContain("Four-player free-for-all");

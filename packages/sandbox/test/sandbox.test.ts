@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { createScriptHost, initSandbox, testScript, validateScript, type ScriptWorld } from "../src";
-import { rules } from "@castellan/shared";
+import { createScriptHost, initSandbox, runOnce, testScript, validateScript, type ScriptWorld } from "../src";
+import { RUN_LIMITS, rules } from "@castellan/shared";
 
 const world: ScriptWorld = {
   tick: 5,
@@ -121,6 +121,11 @@ describe("sandbox", () => {
     h.setScript("knight", "self.move('N')");
     expect(h.run(world, ["e1"]).e1.action).toEqual({ a: "move", dir: "N" });
     h.dispose();
+  });
+
+  it("stops a one-shot run with its own gas, without a clock, and returns none of its orders", () => {
+    expect(runOnce("act({ type: 'stop', unit: 'e1' }); while (true) {}", { view: {}, game: {} }, RUN_LIMITS))
+      .toEqual({ orders: [], logs: [], value: null, error: `out of gas (${RUN_LIMITS.gas})` });
   });
 
   it("keeps memory per unit and is deterministic", () => {

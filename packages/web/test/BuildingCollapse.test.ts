@@ -6,7 +6,7 @@ import { PLAYER_RAMPS } from '../src/render/palette';
 import { createField, frameAt, stubArt } from './support/battlefield';
 
 const cases = [
-  { kind: 'castle', art: 'castle' }, { kind: 'nexus', art: 'castle' }, { kind: 'tower', art: 'tower' },
+  { kind: 'castle', art: 'castle' }, { kind: 'tower', art: 'tower' },
   { kind: 'wall', art: 'wallpost' },
   { kind: 'wall', art: 'wall', neighbor: 'wall' },
   { kind: 'wall', art: 'wall-door-left', neighbor: 'door' },
@@ -14,7 +14,7 @@ const cases = [
 ];
 
 function setup(kind: string, open = false, neighbor?: string) {
-  const ruleset = kind === 'nexus' ? { ...rules, kinds: { ...rules.kinds, nexus: rules.kinds.castle } } : rules;
+  const ruleset = rules;
   const h = createField({ ruleset, colors: { a: 2 }, art: stubArt({ scale: 1 / 3, anchorX: .5, anchorY: .75 }) });
   const rocks = h.layers.objects.children.length;
   const entity: EntityView = { id: 'u', kind, owner: 'a', x: 4, y: 4, hp: 100, maxHp: 100, open };

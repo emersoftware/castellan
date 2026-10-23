@@ -67,7 +67,7 @@
         "test/**/*.test.ts",
         "scripts/{archer-animations,assets,building-animations,building-collapse,castle-damage,door-sprites,templates,unit-animations}.mjs",
         "scripts/{check-building-collapse,check-castle-damage,check-doors,check-landing-audio,check-worker-idle,record,shot}.mjs",
-        "scripts/favicon.mts", "scripts/sync-replays.ts"
+        "scripts/favicon.mts"
       ],
       "ignoreBinaries": ["ffmpeg", "ffprobe"],
       // The DevDay deck is a prebuilt static site with its own bundled scripts.

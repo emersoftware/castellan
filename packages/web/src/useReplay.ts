@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { currentRuleset, type ReplayFile, type SpectatorView } from "@castellan/shared";
+import { type ReplayFile, type SpectatorView } from "@castellan/shared";
 import type { WorkerIn, WorkerOut } from "./replay.worker";
 import type { ScriptLoad } from "./scripts";
 import type { ReplayOptions } from "@castellan/engine";
@@ -9,7 +9,6 @@ import { frameCompactor } from "./compactFrames";
  * Re-simulates a replay in a worker. `frames` fills progressively, with `scripts`
  * (the uploads the engine installed so far); `check` arrives at the end (did the
  * browser reproduce the recorded state hashes?).
- * Frames and `ruleset` show today's names; the simulation keeps the recorded rules.
  */
 export function useReplayFrames(replay: ReplayFile | undefined | null, attempt = 0, { includePerspectives = true }: ReplayOptions = {}) {
   const frames = useRef<SpectatorView[]>([]);
@@ -17,7 +16,7 @@ export function useReplayFrames(replay: ReplayFile | undefined | null, attempt =
   const [loaded, setLoaded] = useState(0);
   const [check, setCheck] = useState<{ verified: boolean; desyncAt?: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const ruleset = useMemo(() => replay && currentRuleset(replay.ruleset), [replay]);
+  const ruleset = useMemo(() => replay && replay.ruleset, [replay]);
   useEffect(() => {
     if (!replay) return;
     frames.current = [];

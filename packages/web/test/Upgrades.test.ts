@@ -4,7 +4,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { EventFeed, PlayerList, Tooltip } from "../src/components/Hud";
 import type { SpectatorView } from "@castellan/shared";
-import { currentFrame, rules, type GameEvent, type RecordedKind } from "@castellan/shared";
+import { rules, type GameEvent } from "@castellan/shared";
 import { fall, unitLook } from "../src/render/look";
 
 vi.mock("../src/audio/sfx", () => ({ sfx: { muted: true } }));
@@ -35,31 +35,4 @@ it("shows completed upgrades but not work in progress, effective stats and repla
   } } })));
   expect(host.textContent).toContain("atk 14");
   expect(host.textContent).toContain("move 300ms");
-});
-
-it("shows current labels and animations for legacy replay data read through the viewer boundary", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  host = document.createElement("div"); document.body.append(host); root = createRoot(host);
-  const view = currentFrame({ tick: 10, timeMs: 1000, matchMs: 15000, status: "running", deposits: [], events: [], entities: [],
-    players: [{ id: "p1", name: "One", capital: 1700, pop: 5, popCap: 30, team: 0, alive: true,
-      upgrades: { ranger_damage: 1, turret_range: 1 } }],
-  } as unknown as SpectatorView);
-  await act(async () => root!.render(createElement(PlayerList, { view, names: {}, colors: {} })));
-  expect(host.textContent).toContain("1700");
-  expect(host.textContent).toContain("archer damage L1");
-  expect(host.textContent).toContain("tower range L1");
-  expect(host.textContent).not.toMatch(/capital|ranger|turret/);
-  const { events } = currentFrame({ players: [], entities: [], events: [
-    { type: "spawn", tick: 10, id: "e1", owner: "p1", kind: "ranger", x: 3, y: 3 },
-    // The engine names the builder of everything built, also under a recording's former kind names.
-    { type: "spawn", tick: 10, id: "e2", owner: "p1", kind: "turret", x: 4, y: 3, builder: "e9" },
-  ] as GameEvent[] });
-  await act(async () => root!.render(createElement(EventFeed, { names: {}, colors: {}, events })));
-  expect(host.textContent).toContain("trained an archer");
-  expect(host.textContent).toContain("built a tower");
-  expect(host.textContent).not.toMatch(/ranger|turret/);
-  const pose = (kind: RecordedKind) => unitLook({ kind, x: 0, y: 0 }, 2, 700, { strike: { at: 100, dir: 2 } });
-  expect(pose("ranger")).toEqual(pose("archer"));
-  const collapse = (kind: RecordedKind) => fall({ kind, hp: 0, maxHp: 1 }, rules.kinds.tower).at(800);
-  expect(collapse("turret")).toEqual(collapse("tower"));
 });

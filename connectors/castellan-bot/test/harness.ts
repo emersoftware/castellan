@@ -62,6 +62,9 @@ export async function playHeadless(o: HeadlessOptions): Promise<HeadlessResult> 
   const lastSeen = new Map<string, number>();
   try {
     while (!m.outcome && m.tick < (o.maxTicks ?? 6000)) {
+      // Let the event loop run: on a busy machine a match takes minutes, longer than a test
+      // runner waits for its worker to answer (Vitest's RPC gives up after 60 s).
+      if (m.tick % 100 === 0) await new Promise((resolve) => setImmediate(resolve));
       const input: PlayerOrder[] = [];
       const sentBy = new Map<string, Order[]>();
       for (const p of players) {

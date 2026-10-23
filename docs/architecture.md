@@ -25,7 +25,7 @@ change orders and scripts at their own pace while the clock runs.
 
 | Path | Owns | Depends on |
 |---|---|---|
-| `packages/shared` | Rulesets and maps (every game number), wire types, HTTP routes and limits, the player guide, text views, geometry, outcome readings, legacy recording adapters, the local data location | — |
+| `packages/shared` | Rulesets and maps (every game number), wire types, HTTP routes and limits, the player guide, text views, geometry, outcome readings, the local data location | — |
 | `packages/sandbox` | QuickJS (WebAssembly) script execution and deterministic budgets | shared |
 | `packages/engine` | The deterministic match, replays and re-simulation | shared, sandbox |
 | `packages/bots` | Reference bots (`rush`, `eco`, `turtle`, `kite`, `archers`) that play from a player view | shared |
@@ -50,7 +50,7 @@ needs a separate `state` call. Routes are grouped by who may call them
 
 | Audience | Routes |
 |---|---|
-| Player (token) | `GET /guide` (`/rules`), `GET /state?since=T`, `POST /act {orders}`, `POST /run {code, lang?}`, `GET/POST /chat`, `GET/PUT /scripts/:kind`, `GET /wait?since&max&until`, `GET /history` |
+| Player (token) | `GET /guide`, `GET /state?since=T`, `POST /act {orders}`, `POST /run {code, lang?}`, `GET/POST /chat`, `GET/PUT /scripts/:kind`, `GET /wait?since&max&until`, `GET /history` |
 | Harness metadata (token, not a game call) | `GET /status`, `POST /agent-config`, `POST /agent-status`, `GET /series/current` |
 | Lobby | `POST /rooms`, `POST /series` |
 | Spectator (host link, or anyone after the match) | `WS /spectate/:id`, `GET /rooms/:id/scripts` |
@@ -86,8 +86,15 @@ winning side is a loss for everyone.
   recordings with a sandbox operational failure. Viewers use `recordingWithShutdowns`,
   which reproduces recorded VM shutdowns and never counts as a balance sample.
 - Old replays must keep verifying: `npx tsx packages/engine/scripts/verify-replays.ts`.
-  A recording must stop where it did, not only match its hashes. Fields a ruleset gained
-  later take their former meaning in `withRecordedDefaults` (`packages/shared/src/legacy.ts`).
+  A recording must stop where it did, not only match its hashes.
+- Every recording uses today's names and spells out every rule field; the code keeps no
+  adapters for older formats. On 2026-10-22 the archive was rewritten that way, and each
+  rewrite was checked to play the same game frame by frame, perspectives included; where
+  model scripts were renamed, also the same script logs, script errors and order results. Changed
+  names got new hashes; replays that never verified keep their recorded mismatch. Originals
+  are in `~/.local/share/castellan/replays-original/`. Older mechanics remain plain rule options
+  (`drawsAreLosses`, `reactiveOrders`, `coordinatedMovement`, `tickPathCosts`,
+  `revealAttackerMs`, `scriptSight`, `projectiles.blindSpot`).
 - Inside the engine, `Board` owns tile occupancy, doors and construction sites; every
   static change bumps the path version. Movement, combat, vision, order progress,
   `Production` (training, research and what each player may do now) and `UnitScripts`
@@ -139,7 +146,9 @@ checkpoints and replays as `experiment` and `timing`:
   the rules hash and the base guide hash;
 - each player's declared agent (model, effort, connector and version, prompt hash, memory
   and context policy) and every change to it. Unknown values are `null`, never inferred
-  from display names. Hosts declare with `agent` when creating a room, `POST /agent-config`
+  from display names. The one exception is old recordings: the 2026-10-22 migration read
+  efforts their harnesses never recorded from player names, and kept them apart in
+  `migrated.effortFromNames`. Hosts declare with `agent` when creating a room, `POST /agent-config`
   or the `CASTELLAN_*` variables; a declaration does not prove the provider's identity;
 - a trace of up to 20,000 calls (tool, observation tick, start and answer, duration,
   status, failure), harness activity reports and operational failures;

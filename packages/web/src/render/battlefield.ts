@@ -1,5 +1,5 @@
 import { Sprite, type Container, type Graphics } from "pixi.js";
-import { currentKind, type GameEvent, type Ruleset, type SpectatorView } from "@castellan/shared";
+import { type GameEvent, type Ruleset, type SpectatorView } from "@castellan/shared";
 import type { Arrival, Moment, PlaybackClock } from "./clock";
 import { SceneDeposits } from "./deposits";
 import { SceneEffects, type Effect } from "./effects";
@@ -133,13 +133,13 @@ export class Battlefield {
       const vital = kinds[ev.kind]?.vital;
       const building = kinds[ev.kind]?.building;
       this.play(vital ? "horn" : building ? "collapse" : "death", ev.x, ev.y, vital ? 0.8 : building ? 0.7 : 0.4);
-      if (vital) this.effects.push(this.transient.floatText(currentKind(ev.kind) === "king" ? "KING DOWN" : `${ev.kind.toUpperCase()} DESTROYED`, ev.x, ev.y, RAMPS.neutral.key));
+      if (vital) this.effects.push(this.transient.floatText(ev.kind === "king" ? "KING DOWN" : `${ev.kind.toUpperCase()} DESTROYED`, ev.x, ev.y, RAMPS.neutral.key));
     } else if (ev.type === "spawn") {
       const building = kinds[ev.kind]?.building;
       this.effects.push(this.transient.dust(ev.x, ev.y, 0xaaaaaa, building ? 14 : 6));
       this.play(building ? "build" : "spawn", ev.x, ev.y, 0.5);
     } else if (ev.type === "chat") {
-      const king = [...this.entities.figures.values()].find((f) => f.view.owner === ev.owner && currentKind(f.view.kind) === "king");
+      const king = [...this.entities.figures.values()].find((f) => f.view.owner === ev.owner && f.view.kind === "king");
       if (!king) return;
       this.effects.push(this.transient.bubble(`${ev.channel === "private" ? `[private → ${ev.to}] ` : ev.channel === "team" ? "[team] " : ""}${ev.text}`, king.sprite, king.tint));
       this.play("chat", king.tile.x, king.tile.y, 0.6);

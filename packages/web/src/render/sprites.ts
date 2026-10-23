@@ -8,7 +8,6 @@
  * behind a building or a rock.
  */
 import { Rectangle, Texture } from "pixi.js";
-import { currentKind } from "@castellan/shared";
 import { CLIP_ART } from "./clips";
 import { spriteMasks } from "./xray";
 import { averageTerrainPatches } from "./terrain";
@@ -124,7 +123,6 @@ async function buildSprites(base: string): Promise<SpriteSet> {
   await Promise.all([statics, animated]);
   const fallback = arts.get("knight_2") ?? [...arts.values()][0];
   return (kind, dir = 2, animation) => {
-    kind = currentKind(kind);
     if (animation) {
       // Buildings have one view, never mirrored; units a turnaround.
       const rows = animations.get(`${kind}:${animation.action}`);

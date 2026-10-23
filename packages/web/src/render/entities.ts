@@ -5,7 +5,7 @@
  * fading corpse when it dies. Barriers show the piece their neighbours call for.
  */
 import { Container, Graphics, Sprite } from "pixi.js";
-import { barrierAxes, currentKind, NEUTRAL_OWNER, type EntityView, type Ruleset, type SoundName, type SpectatorView } from "@castellan/shared";
+import { barrierAxes, NEUTRAL_OWNER, type EntityView, type Ruleset, type SoundName, type SpectatorView } from "@castellan/shared";
 import type { ClipArt } from "./clips";
 import type { Arrival, Moment, PlaybackClock } from "./clock";
 import type { FogOfWar } from "./fog";
@@ -244,7 +244,7 @@ export class SceneEntities {
         this.layers.outlines.addChild(outline);
       }
     }
-    const r = !spec?.building ? 6 : currentKind(e.kind) === "castle" ? 22 : 12;
+    const r = !spec?.building ? 6 : e.kind === "castle" ? 22 : 12;
     const shadow = new Graphics().ellipse(0, 0, r, r / 2.6).fill({ color: 0x000000, alpha: 0.4 });
     this.layers.shadows.addChild(shadow);
     this.layers.objects.addChild(sprite);

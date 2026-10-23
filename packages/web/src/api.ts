@@ -1,4 +1,4 @@
-import { publishedRoutes, replayArchive, routes, type MatchStatus, type Outcome, type PlayerTiming, type ReplayFile, type ReplayPlayerSummary, type RoomMode, type SeriesReplay, type SeriesSummary } from "@castellan/shared";
+import { publishedRoutes, routes, type MatchStatus, type Outcome, type PlayerTiming, type ReplayFile, type ReplayPlayerSummary, type RoomMode, type SeriesReplay, type SeriesSummary } from "@castellan/shared";
 import { analyticsHeaders } from "./analytics";
 import { catalogBattles } from "./replayCatalog";
 
@@ -41,8 +41,8 @@ export interface ReplaySummary {
   tickRate: number;
   map?: string;
   rulesVersion?: string;
-  /** Bundled locally, recorded by the local server, or published to D1. */
-  source: "featured" | "local" | "published";
+  /** Recorded by your local server, or published to D1. */
+  source: "local" | "published";
 }
 
 async function json<T>(res: Response): Promise<T> {
@@ -63,31 +63,17 @@ export const api = {
   /** Live room: the code each player's scriptable kinds run now. */
   roomScripts: (id: string) => apiFetch(`${routes.rooms}/${id}/scripts`, { headers: spectatorToken() ? { authorization: `Bearer ${spectatorToken()}` } : {} }).then((r) => json<LiveScripts>(r)),
 
-  /** Featured replays ship with the site; a local server adds yours. Only the battles the catalog lists. */
+  /** Whether the catalogue grows while you watch: a local server records battles and series games; the published one changes only when replays are published. */
+  liveCatalogue: () => !published(),
+  /** The published catalogue on the public site, your local server's archive otherwise. Only the battles the catalog lists. */
   async replays(): Promise<ReplaySummary[]> {
-    if (published()) {
-      const entries = await apiFetch(publishedRoutes.replays).then((r) => json<Omit<ReplaySummary, "source">[]>(r));
-      return catalogBattles(entries.map((entry) => ({ ...entry, source: "published" as const })));
-    }
-    const responses = await Promise.allSettled([
-      fetch(`${replayArchive.featuredUrl}/${replayArchive.index}`).then(r => json<Omit<ReplaySummary, "source">[]>(r)),
-      apiFetch(routes.replays).then(r => json<Omit<ReplaySummary, "source">[]>(r)),
-    ]);
-    if (responses.every(r => r.status === "rejected")) throw new Error("Battle catalogue unavailable");
-    const featured = responses[0].status === "fulfilled" ? responses[0].value.map(x => ({ ...x, source: "featured" as const })) : [];
-    const local = responses[1].status === "fulfilled" ? responses[1].value.map(x => ({ ...x, source: "local" as const })) : [];
-    const seen = new Set(featured.map((f) => f.id));
-    return catalogBattles([...featured, ...local.filter((l) => !seen.has(l.id))]);
+    const source = published() ? "published" as const : "local" as const;
+    const entries = await apiFetch(published() ? publishedRoutes.replays : routes.replays).then((r) => json<Omit<ReplaySummary, "source">[]>(r))
+      .catch((error: Error) => { throw published() ? error : new Error(`Battle catalogue unavailable: ${error.message}`); });
+    return catalogBattles(entries.map((entry) => ({ ...entry, source })));
   },
 
-  async replay(id: string): Promise<ReplayFile> {
-    if (published()) return apiFetch(`${publishedRoutes.replays}/${id}`).then((r) => json<ReplayFile>(r));
-    try {
-      return await fetch(`${replayArchive.featuredUrl}/${id}.json`).then((r) => json<ReplayFile>(r));
-    } catch {
-      return apiFetch(`${routes.replays}/${id}`).then((r) => json<ReplayFile>(r));
-    }
-  },
+  replay: (id: string) => apiFetch(`${published() ? publishedRoutes.replays : routes.replays}/${id}`).then((r) => json<ReplayFile>(r)),
 };
 
 export function spectateUrl(id: string) {

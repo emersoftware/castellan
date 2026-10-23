@@ -1,11 +1,7 @@
 node_modules
 dist
-replays
 *.log
 .DS_Store
-videos
-files.zip
-/*.png
 assets/raw/v1/
 assets/raw/v2/
 
@@ -29,14 +25,9 @@ assets/animations/**/result.json
 .env.*.local
 cloudflare/worker-configuration.d.ts
 
-# Local experiments, session tooling and generated evidence.
-/reports/
-/research_notes/
-/work/
-/runs/
+# Agent session tooling, local evidence and scratch files. Match data lives in ~/.local/share/castellan.
 /.agents/
 /.claude/
-/agent/
 /skills-lock.json
 connectors/*/evidence/
 *.tmp.*

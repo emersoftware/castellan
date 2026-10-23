@@ -17,8 +17,8 @@ them without a build step.
 
 Knip's normal mode includes tests and development tools: a tested helper is a
 consumer, not proof that a feature is still reachable in the product. Trace the
-runtime callers before removing a feature. Historical replay adapters are live
-consumers; a `legacy` name or a cache's `stale` state alone is not dead code.
+runtime callers before removing a feature. Rule options that only recorded replays use are
+live consumers; a cache's `stale` state alone is not dead code.
 
 Keep `knip.jsonc` entry points explicit for shell commands, workers and browser
 scripts. Do not make all source files entry points or ignore whole packages to

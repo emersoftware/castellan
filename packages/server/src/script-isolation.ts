@@ -14,7 +14,7 @@ let workerSource: string | undefined;
 export type WorkerRequest =
   | { op: "setScript"; kind: string; code: string | null }
   | { op: "run"; world: ScriptWorld; unitIds: string[] }
-  | { op: "runOnce"; code: string; input: { view: unknown; rules: unknown }; limits: RunLimits }
+  | { op: "runOnce"; code: string; input: { view: unknown; game: unknown }; limits: RunLimits }
   | { op: "validate"; code: string; limits: ScriptLimits };
 export type WorkerMessage = { type: "ready" } | { type: "result"; value: unknown } | { type: "error"; error: string };
 
@@ -160,7 +160,7 @@ function isolatedRequest<T>(request: WorkerRequest, isolation: IsolationLimits):
 /** /run gets a fresh supervised VM; compilation and result formatting are inside
  * the same worker as evaluation. No orders are returned after a timeout.
  */
-export async function runOnceIsolated(code: string, input: { view: unknown; rules: unknown }, limits: RunLimits = RUN_LIMITS, isolation: IsolationLimits = ISOLATION_LIMITS): Promise<RunResult> {
+export async function runOnceIsolated(code: string, input: { view: unknown; game: unknown }, limits: RunLimits = RUN_LIMITS, isolation: IsolationLimits = ISOLATION_LIMITS): Promise<RunResult> {
   try { return await isolatedRequest<RunResult>({ op: "runOnce", code, input, limits }, isolation); }
   catch (error) { return { orders: [], logs: [], value: null, error: (error as Error).message, operationalFailure: true }; }
 }

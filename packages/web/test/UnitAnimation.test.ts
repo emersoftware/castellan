@@ -2,7 +2,6 @@
 import { expect, it, vi } from 'vitest';
 import { rules, type EntityView } from '@castellan/shared';
 import { fall, strikeMs, unitLook, type Strike } from '../src/render/look';
-import { currentKind } from '@castellan/shared';
 import { TILE_H, TILE_W } from '../src/render/sprites';
 import { createField, frameAt } from './support/battlefield';
 import workerAtlas from '../../../assets/sprites/worker/manifest.json';
@@ -28,7 +27,7 @@ function setup(kind:string,ruleset:typeof rules={...rules,diagonalMove:1}){
   const lastOf=(drawn:string)=>h.sprites.mock.calls.filter(c=>c[0]===drawn).at(-1)!;
   return {...h,unit,target,frame,lastOf,last:()=>lastOf(kind)};
 }
-it.each(['knight','king','agent','worker'])('keeps %s walking between tile updates and freezes on pause',kind=>{
+it.each(['knight','king','worker'])('keeps %s walking between tile updates and freezes on pause',kind=>{
   const h=setup(kind);h.field.show(h.frame(1),100);
   const moved={...h.unit,x:5,stats:{atk:0,def:10,range:0,attackMs:1000,moveMs:500}};
   for(let tick=2;tick<=6;tick++){
@@ -115,10 +114,6 @@ it('freezes a melee approach on pause and discards it on seek',()=>{
   h.field.show(h.frame(3,[moved,target]),100);h.animate();
   expect(h.last()[2]?.action).toBe('walk');
 });
-it('presents historic unit and building names without altering replay data',()=>{
-  expect(currentKind('agent')).toBe('king');expect(currentKind('nexus')).toBe('castle');expect(currentKind('knight')).toBe('knight');
-});
-
 it('keeps the existing melee lunge when an attack atlas has not been published',()=>{
   const available=vi.spyOn(look,'strikeMs').mockReturnValue(undefined);
   try {

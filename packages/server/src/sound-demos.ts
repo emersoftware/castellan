@@ -10,7 +10,7 @@ import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { createMatch, type PlayerOrder } from "@castellan/engine";
 import { hasBuildOrder, type Bot } from "@castellan/bots";
-import { rules, type EntityKind, type GameEvent, type Order, type PlayerView, type RecordedKind, type ReplayFile, type SoundName } from "@castellan/shared";
+import { rules, type EntityKind, type GameEvent, type Order, type PlayerView, type ReplayFile, type SoundName } from "@castellan/shared";
 import { localReplays } from "@castellan/shared/local-data";
 import { ReplayArchive } from "./archive";
 
@@ -116,8 +116,8 @@ async function play(a: Demo, b: Demo, seed: number) {
   }
 }
 
-function note(e: GameEvent, kinds: Map<string, RecordedKind>, heard: Set<SoundName>) {
-  const building = (k?: RecordedKind) => !!k && !!rules.kinds[k]?.building;
+function note(e: GameEvent, kinds: Map<string, EntityKind>, heard: Set<SoundName>) {
+  const building = (k?: EntityKind) => !!k && !!rules.kinds[k]?.building;
   if (e.type === "spawn") {
     kinds.set(e.id, e.kind);
     heard.add(building(e.kind) && e.builder ? "build" : "spawn");

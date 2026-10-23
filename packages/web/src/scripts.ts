@@ -1,4 +1,4 @@
-import { currentKind, type RecordedKind, type Ruleset } from "@castellan/shared";
+import { type EntityKind, type Ruleset } from "@castellan/shared";
 import type { ResimulatedTick } from "@castellan/engine";
 
 /** The script a unit of `kind` owned by `owner` runs at `tick`, or null if the kind has none. */
@@ -10,11 +10,11 @@ export interface ScriptLoad { tick: number; player: string; kind: string; code: 
 /** The uploads a re-simulated tick installed. The engine rejects some (a compile error, a stopped VM); those never ran. */
 export function acceptedScripts({ tick, input, results }: ResimulatedTick): ScriptLoad[] {
   return input.flatMap(({ player, order }, i) =>
-    order.type === "script" && results[i]?.ok ? [{ tick, player, kind: currentKind(order.kind), code: order.code }] : []);
+    order.type === "script" && results[i]?.ok ? [{ tick, player, kind: order.kind, code: order.code }] : []);
 }
 
 /** From the scripts the engine installed: the last one for that player and kind by `tick`, else the default. */
-export function scriptAt(loads: readonly ScriptLoad[], ruleset: Ruleset, owner: string, kind: RecordedKind, tick: number): LoadedScript | null {
+export function scriptAt(loads: readonly ScriptLoad[], ruleset: Ruleset, owner: string, kind: EntityKind, tick: number): LoadedScript | null {
   if (!ruleset.kinds[kind]?.scriptable) return null;
   let last: ScriptLoad | undefined;
   for (const load of loads) {

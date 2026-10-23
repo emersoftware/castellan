@@ -20,7 +20,7 @@ try {
  await new Promise(r=>setTimeout(r,300));assert.equal(await portrait(),still);
  const preview=await page.evaluateHandle(async()=>{
    const {GameRenderer}=await import(/** @type {string} */ (performance.getEntriesByType('resource').map(e=>e.name).find(u=>u.includes('/src/render/renderer.ts'))));
-   const {ruleset}=await fetch('/featured/ef3532ef.json').then(r=>r.json());
+   const {ruleset}=await fetch('/showcase/a21dc6cf.json').then(r=>r.json());
    const host=document.createElement('div');host.style.cssText='position:fixed;inset:0;background:black;z-index:100';document.body.append(host);
    const renderer=await GameRenderer.create(host,{...ruleset,map:{...ruleset.map,width:16,height:16,walls:[]}},{a:0,b:1,c:2,d:3},{interactive:false});
    const clock=renderer.manualClock();

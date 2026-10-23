@@ -1,15 +1,13 @@
 import { matchLengthMs, type Ruleset } from "./ruleset.ts";
 import type { SeriesProgress } from "./protocol.ts";
-import { kindSpec, withMineralNames, withRecordedDefaults } from "./legacy.ts";
 import { API_LIMITS } from "./http.ts";
 
 /**
  * The rules in prose for an LLM player: what exists and how it works, never what to do.
- * Served by `GET /rules` and by every reference connector, so there is one copy.
+ * Served by `GET /guide` and by every reference connector, so there is one copy.
  * `room` describes the match; a series game also gets the series standings, the only part that changes during a match.
  */
 export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean; playerCount?: number; tickRate?: number } = {}, series?: SeriesProgress): string {
-  r = withRecordedDefaults(withMineralNames(r));
   const k = r.kinds;
   const tickRate = room.tickRate ?? 10;
   const effectiveMs = (ms: number) => Math.round(Math.max(1, Math.round(ms * tickRate / 1000)) * 1000 / tickRate);
@@ -114,7 +112,7 @@ Every call, as an MCP tool of the same name or HTTP with your player token; play
 - history (GET /history): completed earlier games of your series; a single game has none.
 
 ## Orders (POST /act {"orders":[...]}, several per call)
-- {"type":"train","building":"<castle id>","kind":${(kindSpec(r, "castle")?.trains ?? []).map(kind => JSON.stringify(kind)).join("|")}}
+- {"type":"train","building":"<castle id>","kind":${(k.castle.trains ?? []).map(kind => JSON.stringify(kind)).join("|")}}
 - {"type":"build","unit":"<worker id>","kind":${(k.worker.builds ?? []).map((kind) => JSON.stringify(kind)).join("|")},"x":X,"y":Y}
 - {"type":"move","unit":"<id>","x":X,"y":Y}
 - {"type":"attack","unit":"<id>","target":"<enemy id>"} (chases until the target dies)

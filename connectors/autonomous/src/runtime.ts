@@ -21,7 +21,7 @@ export function httpTransport(server:string,token:string,timeoutMs=10000):Player
     return await response.json() as T;
   }
   return {
-    rules:async()=>(await request<{ruleset:Ruleset}>('/rules')).ruleset,
+    rules:async()=>(await request<{ruleset:Ruleset}>('/guide')).ruleset,
     status:()=>request('/status'),
     state:(since)=>request(`/state?since=${Math.max(0,since)}`),
     act:(orders,since)=>request('/act',{orders,since:Math.max(0,since)}),
