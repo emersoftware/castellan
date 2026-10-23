@@ -5,17 +5,23 @@ import { fileURLToPath } from "node:url";
 import { localReplays } from "@castellan/shared/local-data";
 import { buildServer } from "./app";
 
+// The server process reads its environment here only; buildServer and the modules below take options.
 const root = resolve(fileURLToPath(import.meta.url), "../../../..");
 const localEnv = resolve(root, "packages/server/.env.local");
 if (existsSync(localEnv)) loadEnvFile(localEnv);
-const port = Number(process.env.PORT ?? 4400);
+const env = process.env;
+const port = Number(env.PORT ?? 4400);
 const app = await buildServer({
   replayDir: resolve(localReplays()),
-  webDir: process.env.WEB_DIR ?? resolve(root, "packages/web/dist"),
-  tickRate: process.env.TICK_RATE ? Number(process.env.TICK_RATE) : undefined,
-  prepMs: process.env.PREP_MS ? Number(process.env.PREP_MS) : undefined,
+  webDir: env.WEB_DIR ?? resolve(root, "packages/web/dist"),
+  tickRate: env.TICK_RATE ? Number(env.TICK_RATE) : undefined,
+  prepMs: env.PREP_MS ? Number(env.PREP_MS) : undefined,
+  // Access logs never include queries, headers or bodies.
+  accessLog: env.LOG === "1",
+  customStats: env.CASTELLAN_CUSTOM_STATS === "1",
+  analytics: { key: env.POSTHOG_PROJECT_TOKEN, host: env.POSTHOG_HOST, environment: env.NODE_ENV },
 });
-await app.listen({ port, host: process.env.HOST ?? "0.0.0.0" });
+await app.listen({ port, host: env.HOST ?? "0.0.0.0" });
 console.log(`Castellan server on http://localhost:${port}`);
 
 let stopping = false;

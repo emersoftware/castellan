@@ -308,6 +308,9 @@ export interface UnderAttack {
   unseenAttackers: number;
 }
 
+/** The characters of `PlayerView.visibility` rows. */
+export const VISIBILITY = { unexplored: "0", explored: "1", visible: "2" } as const;
+
 /** What one player sees. `tick` is the next tick to be simulated; use it as `since`. */
 export interface PlayerView {
   series?: SeriesProgress;
@@ -321,7 +324,7 @@ export interface PlayerView {
   players: PlayerStats[];
   /** ASCII map, one string per row (y), one char per column (x). */
   grid: string[];
-  /** 0 = unexplored, 1 = explored, 2 = currently visible. */
+  /** One `VISIBILITY` character per tile: unexplored, explored or currently visible. */
   visibility: string[];
   mine: EntityView[];
   /** Your teammates' entities (team matches only). */

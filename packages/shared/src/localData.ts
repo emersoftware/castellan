@@ -6,10 +6,12 @@ import { join } from "node:path";
  * repository, so every checkout and worktree shares one archive: CASTELLAN_DATA, or ~/.local/share/castellan.
  */
 export function localData(...parts: string[]): string {
+  // eslint-disable-next-line no-restricted-properties -- every tool and checkout locates the shared archive the same way
   return join(process.env.CASTELLAN_DATA || join(homedir(), ".local", "share", "castellan"), ...parts);
 }
 
 /** The server's replay archive, one file per replay id: REPLAY_DIR, or `replays` in the local data. */
+// eslint-disable-next-line no-restricted-properties -- as localData
 export const localReplays = (): string => process.env.REPLAY_DIR || localData("replays");
 
 /** The file in a replay archive that lists its matches, newest first. */

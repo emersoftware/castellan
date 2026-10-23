@@ -10,15 +10,12 @@ vi.mock("posthog-node", () => ({ PostHog: vi.fn(function () { return sdk; }) }))
 let app: FastifyInstance, dir: string;
 beforeEach(async () => {
   vi.clearAllMocks();
-  vi.stubEnv("POSTHOG_PROJECT_TOKEN", "phc_test");
-  vi.stubEnv("POSTHOG_HOST", "https://eu.i.posthog.com");
   dir = await mkdtemp(join(tmpdir(), "castellan-analytics-"));
-  app = await buildServer({ replayDir: dir });
+  app = await buildServer({ replayDir: dir, analytics: { key: "phc_test", host: "https://eu.i.posthog.com", environment: "test" } });
 });
 afterEach(async () => {
   await app.close();
   await rm(dir, { recursive: true, force: true });
-  vi.unstubAllEnvs();
 });
 
 it("captures successful room/series creation with browser identity and no capabilities or names", async () => {

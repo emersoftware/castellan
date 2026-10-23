@@ -19,17 +19,18 @@ export interface LobbyOptions {
   ruleset: Ruleset;
   tickRate?: number;
   prepMs?: number;
+  customStats?: boolean;
 }
 
-export const lobbyRoutes: FastifyPluginAsync<LobbyOptions> = async (app, { rooms, series, archive, analytics, ruleset, tickRate, prepMs }) => {
+export const lobbyRoutes: FastifyPluginAsync<LobbyOptions> = async (app, { rooms, series, archive, analytics, ruleset, tickRate, prepMs, customStats }) => {
   const createRoom = async (req: FastifyRequest, reply: FastifyReply) => {
     const body = (req.body ?? {}) as {
       players?: { name?: string; bot?: string; team?: number; agent?: unknown }[]; seed?: number; prepMs?: number; tickRate?: number; botLatencyMs?: number;
       map?: string; sides?: "random" | "fixed"; chat?: boolean; mode?: RoomMode;
       stats?: { label: string; kinds: Record<string, Record<string, unknown>>; upgrades: Ruleset["upgrades"] };
     };
-    // Experiments only (server started with CASTELLAN_CUSTOM_STATS=1): play today's engine with another version's stats.
-    if (body.stats && process.env.CASTELLAN_CUSTOM_STATS !== "1") return reply.code(400).send({ error: "custom stats are disabled on this server" });
+    // Experiments only (`customStats`): play today's engine with another version's stats.
+    if (body.stats && !customStats) return reply.code(400).send({ error: "custom stats are disabled on this server" });
     const map = MAPS[body.map ?? "open"];
     if (!map) return reply.code(400).send({ error: `unknown map ${body.map}; available: ${Object.keys(MAPS).join(", ")}` });
     if (body.mode !== undefined && !isRoomMode(body.mode)) return reply.code(400).send({ error: 'mode must be "teams" or "ffa"' });

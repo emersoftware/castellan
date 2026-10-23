@@ -16,6 +16,8 @@ const labeledTupleReturns = {
   message: "Label the elements of a returned tuple ([x: number, y: number]) or return an object.",
 };
 const DETERMINISM = "The simulation must replay identically: use the match clock and the seeded random generator.";
+/** Libraries and the server take configuration as options; the process entry point reads the environment. */
+const processEnv = { object: "process", property: "env", message: "Read the environment in the process entry point and pass options." };
 
 export default defineConfig([
   globalIgnores([
@@ -52,12 +54,17 @@ export default defineConfig([
     rules: {
       "no-restricted-properties": ["error",
         ...[["Date", "now"], ["Math", "random"], ["performance", "now"], ["crypto", "randomUUID"], ["crypto", "getRandomValues"]]
-          .map(([object, property]) => ({ object, property, message: DETERMINISM }))],
+          .map(([object, property]) => ({ object, property, message: DETERMINISM })), processEnv],
       "no-restricted-globals": ["error",
         ...["setTimeout", "setInterval", "setImmediate", "fetch"].map((name) => ({ name, message: DETERMINISM }))],
       "no-restricted-syntax": ["error", instanceofOnlyErrors, labeledTupleReturns,
         { selector: "NewExpression[callee.name='Date'][arguments.length=0], CallExpression[callee.name='Date']", message: DETERMINISM }],
     },
+  },
+  {
+    files: ["packages/{sandbox,server}/src/**"],
+    ignores: ["packages/server/src/main.ts"],
+    rules: { "no-restricted-properties": ["error", processEnv] },
   },
   {
     files: ["packages/{engine,bots}/src/**"],

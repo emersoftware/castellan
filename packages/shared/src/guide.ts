@@ -1,5 +1,5 @@
 import { matchLengthMs, type Ruleset } from "./ruleset.ts";
-import type { SeriesProgress } from "./protocol.ts";
+import { VISIBILITY, type SeriesProgress } from "./protocol.ts";
 import { API_LIMITS } from "./http.ts";
 
 /**
@@ -94,7 +94,7 @@ Explored ground stays on the map as ":", and enemy buildings and deposits stay a
 Enemies' mineral, population, score, kills, research and queues are hidden; identities, teams and eliminations are public. Chat ignores vision.
 Events are filtered by what you could see when they happened. Attack targets and build sites must be visible; an attack order ends when its target leaves vision.
 Workers use only discovered deposits. enemyBase() returns a visible enemy base or null.
-Symbols: ? unexplored, : explored outside vision. Visibility rows: 0 unexplored, 1 explored, 2 visible.
+Symbols: ? unexplored, : explored outside vision. Visibility rows: ${VISIBILITY.unexplored} unexplored, ${VISIBILITY.explored} explored, ${VISIBILITY.visible} visible.
 
 ## Walls and doors
 One tile each. A door lets its owner's and teammates' units through, one unit per tile, and opens while one stands in it; enemies must destroy it to pass.

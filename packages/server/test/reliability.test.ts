@@ -188,8 +188,7 @@ it("omits player and spectator capabilities from enabled access logs", async () 
   const dir = await mkdtemp(join(tmpdir(), "castellan-logs-"));
   try {
     const source = `import { buildServer } from ${JSON.stringify(fileURLToPath(new URL("../src/app.ts", import.meta.url)))};
-      process.env.LOG = "1";
-      const app = await buildServer({ replayDir: ${JSON.stringify(dir)} });
+      const app = await buildServer({ replayDir: ${JSON.stringify(dir)}, accessLog: true });
       await app.inject('/health?token=private-player-sentinel&spectator=private-spectator-sentinel');
       await app.close();`;
     const { stdout, stderr } = await promisify(execFile)(process.execPath, ["--import", "tsx", "--input-type=module", "-e", source]);

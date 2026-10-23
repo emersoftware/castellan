@@ -12,16 +12,17 @@ function browserId(req: FastifyRequest, header: string) {
   return typeof value === "string" && uuid.test(value) ? value : undefined;
 }
 
-export function serverAnalytics(app: FastifyInstance) {
-  const key = process.env.POSTHOG_PROJECT_TOKEN;
-  const host = process.env.POSTHOG_HOST;
+/** The PostHog project and host (without both, no events are sent) and the environment events are tagged with. */
+export interface AnalyticsOptions { key?: string; host?: string; environment?: string }
+
+export function serverAnalytics(app: FastifyInstance, { key, host, environment }: AnalyticsOptions = {}) {
   let client: PostHog | undefined;
   if (key && host) {
     try {
       client = new PostHog(key, { host, enableExceptionAutocapture: false });
       client.on("error", () => { /* Delivery failures must not affect match hosting. */ });
     } catch { app.log.warn("PostHog initialization failed"); }
-  } else if (process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "test") {
+  } else if (environment !== "production" && environment !== "test") {
     app.log.warn("POSTHOG_PROJECT_TOKEN / POSTHOG_HOST variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once configured");
   }
 
@@ -30,7 +31,7 @@ export function serverAnalytics(app: FastifyInstance) {
     return {
       distinctId: distinctId ?? fallback,
       properties: {
-        ...analyticsTags(process.env.NODE_ENV),
+        ...analyticsTags(environment),
         actor_type: distinctId ? "browser" : "host",
         $process_person_profile: false,
         $session_id: distinctId ? browserId(req, analyticsHeaders.sessionId) : undefined,

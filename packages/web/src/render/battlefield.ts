@@ -1,5 +1,5 @@
 import { Sprite, type Container, type Graphics } from "pixi.js";
-import { type GameEvent, type Ruleset, type SpectatorView } from "@castellan/shared";
+import { VISIBILITY, type GameEvent, type Ruleset, type SpectatorView } from "@castellan/shared";
 import type { Arrival, Moment, PlaybackClock } from "./clock";
 import { SceneDeposits } from "./deposits";
 import { SceneEffects, type Effect } from "./effects";
@@ -67,7 +67,7 @@ export class Battlefield {
     const before = this.clock.advance(frame, tickMs, arrival);
     this.fog.show(frame.visibility);
     for (const rock of this.rocks) {
-      rock.sprite.visible = !frame.visibility || frame.visibility[rock.y]?.[rock.x] !== "0";
+      rock.sprite.visible = !frame.visibility || frame.visibility[rock.y]?.[rock.x] !== VISIBILITY.unexplored;
       rock.sprite.tint = this.fog.shade(RAMPS.neutral.key, rock);
     }
     for (const crumbled of this.entities.sync(frame, before, arrival)) this.effects.push(this.transient.dust(crumbled.x, crumbled.y, 0xaaaaaa, 24, 14));

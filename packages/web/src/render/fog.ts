@@ -1,4 +1,5 @@
 import type { Graphics } from "pixi.js";
+import { VISIBILITY } from "@castellan/shared";
 import { TILE_H, TILE_W } from "./sprites";
 import { iso } from "./projection";
 import { dim } from "./palette";
@@ -23,19 +24,19 @@ export class FogOfWar {
     if (!visibility) return;
     for (let y = 0; y < this.height; y++) for (let x = 0; x < this.width; x++) {
       const tile = visibility[y]?.[x];
-      if (tile === "2") continue;
+      if (tile === VISIBILITY.visible) continue;
       const { sx, sy } = iso(x, y);
       // Unexplored tiles are opaque, so they can overlap: grow them a pixel so the
       // ground's edge never peeks out as a dotted line along the map border.
-      const grow = tile === "1" ? 0 : 1;
+      const grow = tile === VISIBILITY.explored ? 0 : 1;
       const hw = TILE_W / 2 + grow * 2, hh = TILE_H / 2 + grow;
-      this.graphics.poly([sx, sy - hh, sx + hw, sy, sx, sy + hh, sx - hw, sy]).fill({ color: 0x000000, alpha: tile === "1" ? 0.8 : 1 });
+      this.graphics.poly([sx, sy - hh, sx + hw, sy, sx, sy + hh, sx - hw, sy]).fill({ color: 0x000000, alpha: tile === VISIBILITY.explored ? 0.8 : 1 });
     }
   }
 
   /** Whether a tile is in sight (always, without fog). */
   sees(at: { x: number; y: number }): boolean {
-    return !this.visibility || this.visibility[at.y]?.[at.x] === "2";
+    return !this.visibility || this.visibility[at.y]?.[at.x] === VISIBILITY.visible;
   }
 
   /** A colour as seen on a tile: unchanged in sight, darkened like the fog on explored ground. */

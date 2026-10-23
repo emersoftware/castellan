@@ -12,7 +12,6 @@ export function momentUrl(base: string, id: string, seconds: number, pov: string
 export function ShareMoment({ id, seconds, pov }: { id: string; seconds: number; pov: string | null }) {
   const [message, setMessage] = useState('');
   const [fallback, setFallback] = useState('');
-  if (id === 'dropped') return null;
   const share = async () => {
     const url = momentUrl(location.href, id, seconds, pov);
     setMessage(''); setFallback('');

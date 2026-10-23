@@ -12,7 +12,8 @@ exports (including package barrels), dependencies, unresolved imports, and stale
 configuration exceptions. It runs before every `pnpm test`, including filtered runs.
 `pnpm lint` runs ESLint (`eslint.config.js`): the recommended JavaScript and TypeScript rules,
 unused variables in plain `.mjs`/`.js` scripts, no `any` outside tests, `instanceof` only for
-errors, and no wall clock, unseeded randomness or Node APIs in the simulation packages. A
+errors, no wall clock, unseeded randomness or Node APIs in the simulation packages, and no
+`process.env` in library packages or the server outside its entry point (`main.ts`). A
 justified exception is `// eslint-disable-next-line <rule> -- <reason>`. Engine and bots name
 their numbers. `pnpm check:copies` runs [jscpd](https://github.com/kucherenko/jscpd) (`.jscpd.json`): a
 new copied block of 5 lines and 50 tokens fails. `.jscpd-baseline.json` freezes the copies in art

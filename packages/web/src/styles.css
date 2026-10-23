@@ -107,11 +107,6 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
 .page-head { text-align: center; margin-bottom: 32px; }
 .page-head .brand { color: var(--grey); font-size: 13px; text-transform: uppercase; }
 .page-head h1 { color: var(--white); font-weight: 400; font-size: 40px; margin: 10px 0 8px; text-transform: uppercase; }
-.drop {
-  display: block; border: 1px dashed var(--dark-grey); padding: 22px; text-align: center; margin-bottom: 32px; cursor: pointer; color: var(--grey);
-}
-.drop.over, .drop:hover { border-color: var(--light-grey); color: var(--light-grey); }
-.drop .error { color: var(--b-light); margin-top: 8px; }
 .battle-list { display: grid; gap: 12px; text-align: left; margin-bottom: 28px; }
 .battle { display: block; border: 1px solid var(--line); padding: 16px 20px; background: var(--panel); color: var(--light-grey); }
 .battle:hover { border-color: var(--grey); color: var(--light-grey); }

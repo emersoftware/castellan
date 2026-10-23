@@ -1,5 +1,5 @@
 import type { CombatSummary, GameEvent, LastSeen, PlayerId, EntityKind, Ruleset } from "@castellan/shared";
-import { eventOwner } from "@castellan/shared";
+import { eventOwner, VISIBILITY } from "@castellan/shared";
 import type { Entity, Deposit } from "./entities";
 import type { SimulationClock } from "./clock";
 import { dist } from "@castellan/shared";
@@ -156,7 +156,7 @@ export class PlayerVision {
 
   rows(player: PlayerId): string[] {
     const { width, height } = this.rules().map;
-    return Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => this.canSee(player, x, y) ? "2" : this.explored.get(player)?.has(y * width + x) ? "1" : "0").join(""));
+    return Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => this.canSee(player, x, y) ? VISIBILITY.visible : this.explored.get(player)?.has(y * width + x) ? VISIBILITY.explored : VISIBILITY.unexplored).join(""));
   }
 
   canSeeEvent(player: PlayerId, event: GameEvent): boolean {

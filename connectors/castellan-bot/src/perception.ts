@@ -2,7 +2,7 @@
  * The world model: everything the player knows, built only from its own view
  * (PlayerView) and the public rules, plus memory of what it saw before.
  */
-import type { EntityView, GameEvent, PlayerId, PlayerStats, PlayerView, EntityKind, Ruleset } from "@castellan/shared";
+import { VISIBILITY, type EntityView, type GameEvent, type PlayerId, type PlayerStats, type PlayerView, type EntityKind, type Ruleset } from "@castellan/shared";
 import { ObservedClock } from "./clock";
 import { Frame, dist, groupNearby, type DepositCluster, type Pt } from "./geometry";
 import type { Sighting, ThreatGroup } from "./types";
@@ -128,7 +128,7 @@ export function perceive(view: PlayerView, rules: Ruleset, mem: Memory): World {
     if (l.kind === "deposit" || l.ruin) continue;
     mem.enemyBuildings.set(l.id, { id: l.id, kind: l.kind, owner: l.owner, x: l.x, y: l.y, hp: l.hp, maxHp: l.maxHp, tick: mem.clock.tickAt(l.seenMs), building: true });
   }
-  const vis = (p: Pt) => view.visibility[p.y]?.[p.x] === "2";
+  const vis = (p: Pt) => view.visibility[p.y]?.[p.x] === VISIBILITY.visible;
   for (const [id, s] of mem.sightings) {
     // A unit remembered at a visible tile and not there now has moved on; drop it. Old sightings fade.
     if (!view.enemy.some((e) => e.id === id) && (vis(s) || tick - s.tick > ticks(60))) mem.sightings.delete(id);
@@ -176,7 +176,7 @@ export function perceive(view: PlayerView, rules: Ruleset, mem: Memory): World {
     return ch !== undefined && !BLOCK.has(ch) && !mine.some((e) => rules.kinds[e.kind]?.building && e.x === p.x && e.y === p.y)
       && !mine.some((e) => e.construction && e.construction.x === p.x && e.construction.y === p.y);
   };
-  const explored = (p: Pt) => (view.visibility[p.y]?.[p.x] ?? "0") !== "0";
+  const explored = (p: Pt) => (view.visibility[p.y]?.[p.x] ?? VISIBILITY.unexplored) !== VISIBILITY.unexplored;
   const bases = frame.bases();
   const enemyBases: World["enemyBases"] = [];
   for (const b of mem.enemyBuildings.values()) if (b.kind === "castle" && enemyPlayers.some((p) => p.id === b.owner)) enemyBases.push({ pos: { x: b.x, y: b.y }, owner: b.owner, known: true });

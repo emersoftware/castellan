@@ -11,7 +11,7 @@ import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { publishedApi, rules, type Ruleset } from "@castellan/shared";
 import { ReplayArchive } from "./archive";
-import { serverAnalytics } from "./analytics";
+import { serverAnalytics, type AnalyticsOptions } from "./analytics";
 import { Rooms } from "./rooms";
 import { SeriesStore } from "./series";
 import { lobbyRoutes } from "./routes/lobby";
@@ -26,6 +26,11 @@ export interface ServerOptions {
   ruleset?: Ruleset;
   tickRate?: number;
   prepMs?: number;
+  /** Log each request's method and path. */
+  accessLog?: boolean;
+  /** Let POST /rooms play another version's stats (experiments only). */
+  customStats?: boolean;
+  analytics?: AnalyticsOptions;
 }
 
 export async function buildServer(opts: ServerOptions): Promise<FastifyInstance> {
@@ -37,15 +42,15 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   await series.load();
 
   // Player/spectator capabilities can be in WebSocket/query URLs. Never log
-  // queries, headers or bodies, including when LOG=1 enables access logging.
-  const app = Fastify({ logger: process.env.LOG === "1" ? { serializers: { req: (req) => ({ method: req.method, url: req.url?.split("?")[0] }) } } : false, bodyLimit: 64 * 1024 });
+  // queries, headers or bodies, including when access logging is on.
+  const app = Fastify({ logger: opts.accessLog ? { serializers: { req: (req) => ({ method: req.method, url: req.url?.split("?")[0] }) } } : false, bodyLimit: 64 * 1024 });
   await app.register(cors, { origin: true });
   await app.register(websocket);
-  const analytics = serverAnalytics(app);
+  const analytics = serverAnalytics(app, opts.analytics);
 
   await app.register(publicRoutes, { rooms, series, archive });
   await app.register(spectatorRoutes, { rooms });
-  await app.register(lobbyRoutes, { rooms, series, archive, analytics, ruleset, tickRate: opts.tickRate, prepMs: opts.prepMs });
+  await app.register(lobbyRoutes, { rooms, series, archive, analytics, ruleset, tickRate: opts.tickRate, prepMs: opts.prepMs, customStats: opts.customStats });
   await app.register(playerRoutes, { rooms, series, ruleset, tickRate: opts.tickRate });
 
   if (opts.webDir && existsSync(opts.webDir)) {

@@ -1,5 +1,5 @@
 import type { ChatMessage, EntityView, GameEvent, PlayerId, PlayerView, SeatState } from "./protocol.ts";
-import { MATCH_STATUSES, NEUTRAL_OWNER } from "./protocol.ts";
+import { MATCH_STATUSES, NEUTRAL_OWNER, VISIBILITY } from "./protocol.ts";
 import { playerResult, winnersOf } from "./outcome.ts";
 import { ENTITY_KINDS } from "./ruleset.ts";
 
@@ -50,7 +50,7 @@ export function viewToText(v: PlayerView): string {
     const visible = v.deposits.reduce((sum, d) => sum + d.amount, 0);
     const remembered = v.lastSeen.reduce((sum, d) => sum + (d.kind === "deposit" ? d.amount : 0), 0);
     const tiles = v.visibility.join("");
-    const unexplored = [...tiles].filter(tile => tile === "0").length;
+    const unexplored = [...tiles].filter(tile => tile === VISIBILITY.unexplored).length;
     lines.push("", `idle now (hold, no order): ${idle.join(" · ")}`,
       `economy: resources in sight ${visible} · last seen outside vision ${remembered} (may have changed)${tiles.length ? ` · unexplored ${Math.round(unexplored / tiles.length * 100)}%` : ""}`);
   }
