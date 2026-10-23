@@ -181,13 +181,18 @@ export function jevClient({ key, model, fetchImpl = fetch }) {
   };
 }
 
-/** The planner keeps one conversation per match (its last exchanges) and answers with a JSON plan. */
-function plannerSession({ key, model, effort, rules, you, goal, fetchImpl = fetch }) {
-  const system = { role: "system", content: `You are the planner for player ${you} in Castellan. ${goal}
+/** The planner's system prompt: the shared goal, how its plan becomes orders, the reply format and the room's rules. */
+function plannerPrompt(you, goal, rules) {
+  return `You are the planner for player ${you} in Castellan. ${goal}
 Another model chooses each order from bounded actions built from your plan: it trains or builds only toward your targets, attacks visible enemies, moves the army to your waypoint, sends idle workers to mine, and scouts.
 Reply with a JSON object: objective (string); targets (object: unit or building kind → total wanted, counting alive, queued and under construction; upgrade id → level); waypoint ({x,y} where the army goes when told, or null); notes (string); optionally message ({to: a player id or "all", text: at most 200 characters}); optionally scripts (object: unit kind → JavaScript function body, at most 4096 bytes, installed as that kind's per-tick script).
 
-${rules}` };
+${rules}`;
+}
+
+/** The planner keeps one conversation per match (its last exchanges) and answers with a JSON plan. */
+function plannerSession({ key, model, effort, rules, you, goal, fetchImpl = fetch }) {
+  const system = { role: "system", content: plannerPrompt(you, goal, rules) };
   let history = [], cost = 0;
   return {
     get cost() { return cost; },
