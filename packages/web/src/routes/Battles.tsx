@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { Link } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { track } from "../analytics";
+import { pages } from "@castellan/shared";
 import { api } from "../api";
 import { Versus } from "../components/Versus";
 import { BattleCard, MODE_LABEL, battleMode, type BattleMode } from "../components/BattleCard";
@@ -13,49 +14,59 @@ import "./battles.css";
 
 const filters: readonly ("all" | BattleMode)[] = ["all", "duel", "teams", "ffa"];
 
-/** How far from the viewport, in viewport heights, a card keeps its dither layers. */
-const NEAR_VIEWPORTS = 2;
+/** Battles per page: enough to browse, few enough that every card keeps its dither layers cheaply. */
+const PAGE_SIZE = 24;
 
 /**
- * Marks the list's cards farther than NEAR_VIEWPORTS from the viewport with `data-far`, so
- * battles.css can drop their dither layers. The cards are classified after each render and on each
- * scroll event, which runs before the frame is painted (an IntersectionObserver reports a frame
- * late), so a card reaching the screen, even by a jump or a restored scroll, is drawn dithered.
+ * The view lives in the address (`/battles?mode=duel&rules=v26&page=2`), so going back from a replay
+ * returns to the same page and filters, and a view can be shared. Defaults stay out of the URL. `rules`
+ * holds the family's label ("v0.29"), which, unlike "0.29", is not read back as a number.
  */
-function useFarCards(list: RefObject<HTMLElement | null>) {
-  useLayoutEffect(() => {
-    const classify = () => {
-      const near = NEAR_VIEWPORTS * innerHeight;
-      for (const card of list.current?.children ?? []) {
-        const { top, bottom } = card.getBoundingClientRect();
-        card.toggleAttribute("data-far", bottom < -near || top > innerHeight + near);
-      }
-    };
-    classify();
-    addEventListener("scroll", classify, { passive: true });
-    addEventListener("resize", classify);
-    return () => { removeEventListener("scroll", classify); removeEventListener("resize", classify); };
-  });
+export interface BattlesSearch { mode?: BattleMode; rules?: string; page?: number }
+
+export function battlesSearch(search: Record<string, unknown>): BattlesSearch {
+  const mode = filters.find((value): value is BattleMode => value !== "all" && value === search.mode);
+  const page = Number(search.page);
+  return {
+    ...(mode ? { mode } : {}),
+    ...(typeof search.rules === "string" && search.rules ? { rules: search.rules } : {}),
+    ...(Number.isInteger(page) && page > 1 ? { page } : {}),
+  };
+}
+
+/** Newer and older pages of the list; a disabled end renders without a link. */
+function BattlePages({ page, count }: { page: number; count: number }) {
+  if (count < 2) return null;
+  const go = (next: number) => (search: BattlesSearch) => ({ ...search, page: next > 1 ? next : undefined });
+  return <nav className="battles-pages" aria-label="Battle pages">
+    <Link to={pages.battles} search={go(page - 1)} disabled={page === 1} className="btn">Newer</Link>
+    <span>Page {page} of {count}</span>
+    <Link to={pages.battles} search={go(page + 1)} disabled={page === count} className="btn">Older</Link>
+  </nav>;
 }
 
 export function Battles() {
   const refetchInterval = api.liveCatalogue() ? 3000 : false;
   const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays, refetchInterval });
   const series = useQuery({ queryKey: ["series"], queryFn: api.series, refetchInterval });
-  const cardList = useRef<HTMLDivElement>(null);
-  useFarCards(cardList);
-  const [filter, setFilter] = useState<"all" | BattleMode>("all");
-  const [version, setVersion] = useState("all");
-  const changeFilter = (value: "all" | BattleMode) => {
-    if (value !== filter) track("battle_filter_changed", { mode: value });
-    setFilter(value);
-  };
+  const search: BattlesSearch = useSearch({ from: pages.battles });
+  const navigate = useNavigate({ from: pages.battles });
+  // A filter starts again from the first page and keeps the scroll where the filters are.
+  const refine = (next: BattlesSearch) => void navigate({ search: (prev: BattlesSearch) => ({ ...prev, ...next, page: undefined }), replace: true, resetScroll: false });
   useEffect(() => sfx.holdMusic("theme"), []);
   const battles = battleList(replays.data ?? [], series.data ?? []);
   const modeOf = (battle: (typeof battles)[number]) => battleMode(battle.kind === "replay" ? battle.replay : battle.series);
   const families = [...new Set(battles.flatMap(battle => battle.family ?? []))].sort(newerFamily);
+  const filter = search.mode ?? "all";
+  const version = families.find(family => familyLabel(family) === search.rules) ?? "all";
+  const changeFilter = (value: "all" | BattleMode) => {
+    if (value !== filter) track("battle_filter_changed", { mode: value });
+    refine({ mode: value === "all" ? undefined : value });
+  };
   const onVersion = battles.filter(battle => version === "all" || battle.family === version);
   const visible = onVersion.filter(battle => filter === "all" || modeOf(battle) === filter);
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const page = Math.min(search.page ?? 1, pageCount);
 
   return (
     <div className="page battles">
@@ -74,7 +85,7 @@ export function Battles() {
           </button>)}
         </div>
         <label className="battles-version">Rules
-          <select value={version} onChange={event => { track("battle_version_changed", { version: event.target.value }); setVersion(event.target.value); }}>
+          <select value={version} onChange={event => { track("battle_version_changed", { version: event.target.value }); refine({ rules: event.target.value === "all" ? undefined : familyLabel(event.target.value) }); }}>
             <option value="all">All versions</option>
             {families.map(family => <option key={family} value={family}>{familyLabel(family)}</option>)}
           </select>
@@ -86,8 +97,8 @@ export function Battles() {
         <p>No {filter === "all" ? "matching" : MODE_LABEL[filter]} battles yet.</p>
         <button onClick={() => changeFilter("all")}>Show all battles</button>
       </div>}
-      <div className="battle-list" ref={cardList}>
-        {visible.map((battle) => {
+      <div className="battle-list">
+        {visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((battle) => {
           if (battle.kind === "series") {
             const s = battle.series;
             return <article key={`series-${s.id}`} className="battle replay-row"><Link to={s.status === "finished" ? "/series/$id/replay" : "/series/$id/watch"} params={{ id: s.id }} className="battle-open" onClick={() => track("series_selected", { series_id: s.id, live: s.status !== "finished" })}>
@@ -101,6 +112,7 @@ export function Battles() {
           return <BattleCard key={battle.replay.id} replay={battle.replay} />;
         })}
       </div>
+      <BattlePages page={page} count={pageCount} />
       <footer>Castellan · a strategy game for agents</footer>
     </div>
   );

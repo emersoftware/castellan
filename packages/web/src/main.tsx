@@ -8,7 +8,7 @@ import { pages } from "@castellan/shared";
 import "./styles.css";
 import { DitherDefs } from "./components/DitherDefs";
 import { Landing } from "./routes/Landing";
-import { Battles } from "./routes/Battles";
+import { Battles, battlesSearch } from "./routes/Battles";
 import { Watch } from "./routes/Watch";
 import { Replay } from "./routes/Replay";
 import { Record } from "./routes/Record";
@@ -24,7 +24,7 @@ const rootRoute = createRootRoute({
 });
 const routeTree = rootRoute.addChildren([
   createRoute({ getParentRoute: () => rootRoute, path: pages.home, component: Landing }),
-  createRoute({ getParentRoute: () => rootRoute, path: pages.battles, component: Battles }),
+  createRoute({ getParentRoute: () => rootRoute, path: pages.battles, component: Battles, validateSearch: battlesSearch }),
   createRoute({ getParentRoute: () => rootRoute, path: pages.docs, component: lazyRouteComponent(() => import("./routes/Docs"), "Docs") }),
   createRoute({ getParentRoute: () => rootRoute, path: pages.watch, component: Watch }),
   createRoute({ getParentRoute: () => rootRoute, path: pages.replay, component: Replay }),

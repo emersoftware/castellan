@@ -15,10 +15,8 @@
 .battle-version { color: var(--grey); }
 .battles .battle-list { gap: 0; }
 .battles .battle, .battles-empty, .battles .load-state { filter: url(#castellan-dither); will-change: transform; }
-/* The compositor works on every dithered layer each frame, on screen or not: with three per card,
-   ~950 of them, scrolling fell below 10 frames a second. Cards far from the viewport (Battles
-   marks them) drop their layers; they stay laid out, so going back restores the scroll exactly. */
-.battles .battle[data-far], .battles .battle[data-far] .title, .battles .battle[data-far] .btn.primary { filter: none; will-change: auto; }
+.battles-pages { display: flex; justify-content: center; align-items: center; gap: 16px; margin: 28px 0 8px; font-size: 13px; color: var(--grey); font-variant-numeric: tabular-nums; filter: url(#castellan-dither); will-change: transform; }
+.battles-pages .btn[aria-disabled="true"] { opacity: .35; }
 .battles-empty { padding: 24px 0 40px; }
 .battles-empty p { margin: 0 0 20px; }
 .battles button:focus-visible, .battles a:focus-visible, .battles summary:focus-visible { outline: 1px solid var(--white); outline-offset: 4px; }
