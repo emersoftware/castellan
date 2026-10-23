@@ -334,7 +334,7 @@ const NOT_A_DECISION = /^(utf-?8|string|number|object|function|boolean|undefined
 
 function isDecisionLiteral(node: ts.StringLiteral | ts.NoSubstitutionTemplateLiteral): boolean {
   const text = node.text;
-  if (text.length < 3 || /\s/.test(text) || NOT_A_DECISION.test(text) || /^[#\d.\-]|px$|%$|^(rgba?|hsla?|var)\(/.test(text)) return false;
+  if (text.length < 3 || /\s/.test(text) || NOT_A_DECISION.test(text) || /^[#\d.-]|px$|%$|^(rgba?|hsla?|var)\(/.test(text)) return false;
   for (let p: ts.Node = node.parent; !ts.isSourceFile(p); p = p.parent) {
     if (ts.isImportDeclaration(p) || ts.isExportDeclaration(p) || ts.isLiteralTypeNode(p) || ts.isJsxAttribute(p) || ts.isExternalModuleReference(p)) return false;
     if (ts.isCallExpression(p) && (p.expression.kind === ts.SyntaxKind.ImportKeyword || p.expression.getText() === "require")) return false;

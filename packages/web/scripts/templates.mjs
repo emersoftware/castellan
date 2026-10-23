@@ -23,7 +23,7 @@ const cube = (cx, cy, a) => {
 const svg = (w, h, body) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="#ff00ff"/>${body}</svg>`;
 
 // Units: five tiles in a row, a reference cube at the far left.
-const W = 1536, H = 1024, a = 90;
+const W = 1536, H = 1024;
 let units = cube(110, 170, 60);
 for (let i = 0; i < 5; i++) units += diamond(190 + i * 290, 900, 120);
 await sharp(Buffer.from(svg(W, H, units))).png().toFile(resolve(OUT, "units.png"));

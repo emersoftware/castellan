@@ -266,7 +266,7 @@ export class Match {
       emit({ tick: T, type: "death", id, kind: e.kind, owner: e.owner, x: e.x, y: e.y, by });
       if (e.spec.vital) {
         const owner = this.player(e.owner);
-        if (owner.alive) (owner.alive = false), fallen.push(owner);
+        if (owner.alive) { owner.alive = false; fallen.push(owner); }
       }
     }
     this.checkEnd(T, emit);

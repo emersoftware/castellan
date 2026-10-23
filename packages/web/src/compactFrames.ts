@@ -23,7 +23,7 @@ export function frameCompactor(): (frame: SpectatorView) => SpectatorView {
       if (s && same(s, v.stats)) v.stats = s;
       else stats.set(key, v.stats);
     }
-    if (kept) kept.unshift(v), kept.length = Math.min(kept.length, 4);
+    if (kept) { kept.unshift(v); kept.length = Math.min(kept.length, 4); }
     else views.set(v.id, [v]);
     return v;
   };

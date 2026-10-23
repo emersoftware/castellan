@@ -1,0 +1,7 @@
+#!/bin/sh
+# Fast checks before each commit; `pnpm test` and `pnpm typecheck` remain the full gate.
+# Knip reads the whole working tree; ESLint reads only the staged files. Skip once with --no-verify.
+set -e
+pnpm -s check:unused
+files=$(git diff --cached --name-only --diff-filter=ACMR -- '*.js' '*.mjs' '*.ts' '*.tsx' '*.mts')
+[ -z "$files" ] || pnpm -s exec eslint --cache --cache-location node_modules/.cache/eslint/ --no-warn-ignored $files

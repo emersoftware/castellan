@@ -3,9 +3,8 @@ import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import { RUN_LIMITS, type RunLimits, type ScriptLimits } from "@castellan/shared";
 import type { RunResult, ScriptHost, ScriptWorld, UnitRun } from "@castellan/sandbox";
+import { channelViews, FAILED, HEADER_BYTES, IDLE, REQUEST, REQUEST_LENGTH_SLOT, RESPONSE, RESPONSE_LENGTH_SLOT, RUNNING, STARTING, STATE_SLOT } from "./script-channel.ts";
 
-const STARTING = 0, IDLE = 1, REQUEST = 2, RESPONSE = 3, FAILED = 4, RUNNING = 5;
-const HEADER_BYTES = 16;
 const TRANSPORT_BYTES = 1024 * 1024;
 const WORKER_URL = new URL("./script-worker.mjs", import.meta.url);
 let workerSource: string | undefined;
@@ -22,10 +21,10 @@ export type WorkerMessage = { type: "ready" } | { type: "result"; value: unknown
  * this thread was descheduled. Always re-read the shared state before killing it. */
 export function waitForStateChange(header: Int32Array, state: number, timeout: number): boolean {
   const deadline = performance.now() + timeout;
-  while (Atomics.load(header, 0) === state) {
+  while (Atomics.load(header, STATE_SLOT) === state) {
     const remaining = deadline - performance.now();
-    if (remaining <= 0) return Atomics.load(header, 0) !== state;
-    Atomics.wait(header, 0, state, remaining);
+    if (remaining <= 0) return Atomics.load(header, STATE_SLOT) !== state;
+    Atomics.wait(header, STATE_SLOT, state, remaining);
   }
   return true;
 }
@@ -60,7 +59,7 @@ function worker(data: unknown) {
  */
 export function createIsolatedScriptHost(limits: ScriptLimits, seed: number, isolation: IsolationLimits = ISOLATION_LIMITS): ScriptHost {
   const shared = new SharedArrayBuffer(HEADER_BYTES + TRANSPORT_BYTES);
-  const header = new Int32Array(shared, 0, 4), bytes = new Uint8Array(shared, HEADER_BYTES);
+  const { header, bytes } = channelViews(shared);
   const encoder = new TextEncoder(), decoder = new TextDecoder();
   const w = worker({ mode: "host", shared, limits, seed });
   const installed = new Set<string>();
@@ -76,16 +75,16 @@ export function createIsolatedScriptHost(limits: ScriptLimits, seed: number, iso
     return waitForStateChange(header, state, timeout);
   }
   function read(): { ok: true; value: unknown } | { ok: false; error: string } {
-    const length = Atomics.load(header, 2);
+    const length = Atomics.load(header, RESPONSE_LENGTH_SLOT);
     if (length < 1 || length > bytes.length) return { ok: false, error: "invalid sandbox response length" };
     try { return JSON.parse(decoder.decode(bytes.subarray(0, length))); }
     catch { return { ok: false, error: "invalid sandbox response" }; }
   }
   if (!waitWhile(STARTING, isolation.startupTimeoutMs)) stop("sandbox worker startup timed out");
-  else if (Atomics.load(header, 0) === FAILED) {
+  else if (Atomics.load(header, STATE_SLOT) === FAILED) {
     const response = read();
     stop(`sandbox worker startup failed: ${response.ok ? "unknown error" : response.error}`);
-  } else if (Atomics.load(header, 0) !== IDLE) stop("sandbox worker failed to initialize");
+  } else if (Atomics.load(header, STATE_SLOT) !== IDLE) stop("sandbox worker failed to initialize");
   if (failure) throw new Error(failure);
 
   function call(request: WorkerRequest) {
@@ -93,19 +92,19 @@ export function createIsolatedScriptHost(limits: ScriptLimits, seed: number, iso
     const encoded = encoder.encode(JSON.stringify(request));
     if (encoded.length > bytes.length) return { ok: false as const, error: "sandbox request exceeds transport limit" };
     bytes.set(encoded);
-    Atomics.store(header, 1, encoded.length);
-    Atomics.store(header, 0, REQUEST);
-    Atomics.notify(header, 0);
+    Atomics.store(header, REQUEST_LENGTH_SLOT, encoded.length);
+    Atomics.store(header, STATE_SLOT, REQUEST);
+    Atomics.notify(header, STATE_SLOT);
     const dispatchMs = isolation.dispatchTimeoutMs ?? 1000;
     if (!waitWhile(REQUEST, dispatchMs)) {
       stop(`sandbox dispatch timeout after ${dispatchMs}ms; player VM terminated`);
       return { ok: false as const, error: failure! };
     }
-    if (Atomics.load(header, 0) === RUNNING && !waitWhile(RUNNING, isolation.timeoutMs)) {
+    if (Atomics.load(header, STATE_SLOT) === RUNNING && !waitWhile(RUNNING, isolation.timeoutMs)) {
       stop(`sandbox watchdog timeout after ${isolation.timeoutMs}ms; player VM terminated`);
       return { ok: false as const, error: failure! };
     }
-    if (Atomics.load(header, 0) !== RESPONSE) {
+    if (Atomics.load(header, STATE_SLOT) !== RESPONSE) {
       stop("sandbox worker stopped unexpectedly");
       return { ok: false as const, error: failure! };
     }

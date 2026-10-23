@@ -65,7 +65,7 @@ export async function playOpen(seatId = process.env.CASTELLAN_ARENA_SEAT ?? proc
     memoryPolicy: 'fresh-container-home; no-cross-match-memory', contextPolicy: 'open-arena; turns-mjs-protocol; resume-between-decisions; default-harness-tools' }, { env });
   const game = seat({ env }); let session, lastTick = 0, child, stopping = false, over = false;
   const started = Date.now();
-  const terminate = () => { stopping = true; if (child) { try { process.kill(-child.pid, 'SIGTERM'); } catch {} } };
+  const terminate = () => { stopping = true; if (child) { try { process.kill(-child.pid, 'SIGTERM'); } catch { /* the process group already exited */ } } };
   process.on('SIGTERM', terminate); process.on('SIGINT', terminate);
   const run = async (prompt, interview = false) => {
     await emit({ kind: interview ? 'interview_input' : 'decision_input', prompt, session });
@@ -74,7 +74,7 @@ export async function playOpen(seatId = process.env.CASTELLAN_ARENA_SEAT ?? proc
     child = spawn('setpriv', ['--bounding-set=-all', `--reuid=${player.uid}`, `--regid=${player.uid}`, '--clear-groups', '--no-new-privs', 'sh', '-c', 'cd "$1"; shift; exec "$@"', 'arena', home, ...args],
       { cwd: '/', env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const running = child; let pending = '', complete = false, bytes = 0, writes = Promise.resolve();
-    const stopChild = () => { try { process.kill(-running.pid, 'SIGKILL'); } catch {} };
+    const stopChild = () => { try { process.kill(-running.pid, 'SIGKILL'); } catch { /* the process group already exited */ } };
     let timeoutReason;
     const watchdog = decisionWatchdog({ idleMs: config.idleMs, remainingMs: Math.max(1, config.maxMs - (Date.now() - started)),
       onTimeout: reason => { timeoutReason = reason; stopChild(); } });
@@ -129,7 +129,7 @@ export async function playOpen(seatId = process.env.CASTELLAN_ARENA_SEAT ?? proc
       }
     }
     // The watcher cancels a thinking model at match end; the next separate turn is the recorded interview.
-    const watcher = setInterval(() => { void game.status().then(s => { if (seatOver(s)) { over = true; if (child) { try { process.kill(-child.pid, 'SIGTERM'); } catch {} } } }).catch(() => {}); }, 1000);
+    const watcher = setInterval(() => { void game.status().then(s => { if (seatOver(s)) { over = true; if (child) { try { process.kill(-child.pid, 'SIGTERM'); } catch { /* the process group already exited */ } } } }).catch(() => {}); }, 1000);
     try {
       while (!stopping && !over && Date.now() - started < config.maxMs) {
         const observation = await game.observation(lastTick), status = observedSeat(observation);

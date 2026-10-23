@@ -5,7 +5,7 @@
   "scripts": {
     "docs:rules": "tsx docs/generate-rules.mts",
     "docs:check": "tsx docs/generate-rules.mts --check",
-    "test": "pnpm check:unused && pnpm docs:check && vitest run",
+    "test": "pnpm check:unused && pnpm lint && pnpm docs:check && vitest run",
     "test:engine": "pnpm test --project engine --project sandbox --project sim",
     "test:integration": "pnpm test --project server --project connectors --project catalog",
     "test:agents": "pnpm test --project agents",
@@ -28,16 +28,22 @@
     "cloud:deploy": "pnpm build:cloudflare && pnpm cloud:typecheck && wrangler deploy",
     "castellan-bot": "pnpm --filter @castellan/castellan-bot play",
     "arena": "tsx connectors/open-arena/src/cli.mjs",
-    "check:unused": "knip --treat-config-hints-as-errors --treat-tag-hints-as-errors"
+    "check:unused": "knip --treat-config-hints-as-errors --treat-tag-hints-as-errors",
+    "lint": "eslint --cache --cache-location node_modules/.cache/eslint/ .",
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@castellan/cli": "workspace:*",
     "@cloudflare/workers-types": "^5.20261001.1",
+    "@eslint/js": "10.0.1",
     "@types/node": "^24.0.0",
+    "eslint": "10.13.0",
+    "globals": "17.13.0",
     "jsdom": "^30.1.1",
     "knip": "6.42.1",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
+    "typescript-eslint": "8.72.0",
     "vitest": "^3.2.0",
     "wrangler": "^4.145.0"
   },

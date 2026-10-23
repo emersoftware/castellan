@@ -88,8 +88,8 @@ async function key(file) {
       alpha[i] = 0;
       queue.push(i);
     };
-    for (let x = 0; x < w; x++) (visit(x), visit((h - 1) * w + x));
-    for (let y = 0; y < h; y++) (visit(y * w), visit(y * w + w - 1));
+    for (let x = 0; x < w; x++) { visit(x); visit((h - 1) * w + x); }
+    for (let y = 0; y < h; y++) { visit(y * w); visit(y * w + w - 1); }
     while (queue.length) {
       const i = queue.pop();
       const x = i % w, y = (i / w) | 0;

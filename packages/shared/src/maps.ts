@@ -14,7 +14,7 @@ const symmetric = (tiles: Tile[]): Tile[] => {
   const out: Tile[] = [];
   for (const t of tiles.flatMap((t) => [t, { x: W - 1 - t.x, y: H - 1 - t.y }])) {
     const k = `${t.x},${t.y}`;
-    if (!seen.has(k)) (seen.add(k), out.push(t));
+    if (!seen.has(k)) { seen.add(k); out.push(t); }
   }
   return out;
 };

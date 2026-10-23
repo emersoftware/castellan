@@ -170,7 +170,7 @@ export async function drivePlayer({ env = process.env, args = [], prompt, onConv
       } catch (error) {
         await session?.stop(); session = undefined;
         if (stopped) break;
-        if (++failures >= maxFailures) throw new Error(`Antigravity stopped after ${failures} failures: ${/** @type {Error} */ (error).message}`);
+        if (++failures >= maxFailures) throw new Error(`Antigravity stopped after ${failures} failures: ${/** @type {Error} */ (error).message}`, { cause: error });
         console.error(`castellan antigravity: ${/** @type {Error} */ (error).message}; retrying with the same conversation and observation cursor`);
         const wait = retryMs * failures;
         await reportActivity("connector_retry", { env, fetchImpl, retryAt: new Date(Date.now() + wait).toISOString() });

@@ -34,7 +34,7 @@ const call = async (path: string, token?: string, init: RequestInit = {}) => {
   });
   const text = await res.text();
   let body: any = text;
-  try { body = JSON.parse(text); } catch {}
+  try { body = JSON.parse(text); } catch { /* not JSON: keep the text */ }
   return { status: res.status, body };
 };
 

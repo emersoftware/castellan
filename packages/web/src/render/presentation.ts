@@ -24,8 +24,8 @@ export class ScenePresentation {
    */
   dissolve(units: number, world = 1, fog = world) {
     const set = (c: Container, shown: number) => {
-      if (shown >= 1) { if (c.filters?.length) c.filters = c.filters.filter((f) => !(f as { shown?: number }).hasOwnProperty("shown")); return; }
-      const f = (c.filters?.find((x) => Object.prototype.hasOwnProperty.call(x, "shown")) as (Filter & { shown: number }) | undefined) ?? createDissolveFilter();
+      if (shown >= 1) { if (c.filters?.length) c.filters = c.filters.filter((f) => !Object.hasOwn(f, "shown")); return; }
+      const f = (c.filters?.find((x) => Object.hasOwn(x, "shown")) as (Filter & { shown: number }) | undefined) ?? createDissolveFilter();
       f.shown = shown;
       if (!c.filters?.includes(f)) c.filters = [...(c.filters ?? []), f];
     };

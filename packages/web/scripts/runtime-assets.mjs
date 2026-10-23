@@ -23,7 +23,7 @@ hash.update(await readFile(new URL('./hero-assets.mjs', import.meta.url)));
 hash.update(JSON.stringify(kinds));
 for (const path of inputs) hash.update(path).update(await readFile(resolve(root,path)));
 const signature = hash.digest('hex');
-let cached; try { cached=JSON.parse(await readFile(resolve(out,'build.json'),'utf8')); } catch {}
+let cached; try { cached=JSON.parse(await readFile(resolve(out,'build.json'),'utf8')); } catch { /* no previous build */ }
 let heroReady = false;
 try {
   for (const path of ['manifest.json', ...kinds.map(kind => `${kind}/manifest.json`)]) {
@@ -33,7 +33,7 @@ try {
     await Promise.all(images.map(image => stat(resolve(out, 'hero-sprites', image))));
   }
   heroReady = true;
-} catch {}
+} catch { /* a hero copy is missing */ }
 if (cached?.signature === signature) {
   // Full-size art/music is checked in. A clean checkout lacks only the ignored
   // hero copies; generating those must not require an audio encoder in CI.

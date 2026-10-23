@@ -37,7 +37,7 @@ const partitions = splitReplays(recordedIds);
 const partition = (b: number) => partitions.get(recordedIds[b].split("#")[0]);
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(`${OUT_DIR}/split.json`, JSON.stringify({ format: "castellan-balance-split-v1", replays: Object.fromEntries(partitions) }, null, 2));
-let jobs: [number, number][] = [];
+const jobs: [number, number][] = [];
 for (let b = 0; b < battles; b++) for (let v = 0; v < STAGINGS; v++) jobs.push([b, v]);
 const SYNTH = process.env.SYNTHETIC !== "0";
 if (SYNTH) for (let i = 0; i < SYNTHETIC_COUNT; i++) jobs.push([battles + i, 0]);
