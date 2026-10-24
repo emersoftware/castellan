@@ -63,7 +63,7 @@ and benchmark processes when you compare timings.
 
 The landing plays a generated, board-only recording instead of running the
 simulation in the browser. `pnpm --filter @castellan/web showcase:build`
-regenerates it from `public/showcase/a21dc6cf.json`. It verifies recorded hashes
+regenerates it from `public/showcase/<SHOWCASE_REPLAY>.json` (`src/showcase.ts`). It verifies recorded hashes
 and every decoded frame, and caches the result by source/content hashes.
 `predev` and `prebuild` run it automatically. Git ignores generated chunks and
 smaller hero sprites. Watch and the full replay viewer keep their data paths

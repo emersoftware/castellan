@@ -1,0 +1,112 @@
+[
+  {
+    "action": "hack",
+    "direction": "s",
+    "approximateStoredBounds": [
+      25.29,
+      14.85,
+      82.83,
+      102.82
+    ],
+    "method": "Approximate 14-frame source contact-sheet preflight only; exact full-resolution export boundary checks still required."
+  },
+  {
+    "action": "hack",
+    "direction": "se",
+    "approximateStoredBounds": [
+      8.64,
+      14.85,
+      76.76,
+      102.16
+    ],
+    "method": "Approximate 14-frame source contact-sheet preflight only; exact full-resolution export boundary checks still required."
+  },
+  {
+    "action": "hack",
+    "direction": "e",
+    "approximateStoredBounds": [
+      7.91,
+      18.16,
+      85.3,
+      101.5
+    ],
+    "method": "Approximate 14-frame source contact-sheet preflight only; exact full-resolution export boundary checks still required."
+  },
+  {
+    "action": "hack",
+    "direction": "ne",
+    "approximateStoredBounds": [
+      14.5,
+      18.16,
+      95.86,
+      101.5
+    ],
+    "method": "Approximate 14-frame source contact-sheet preflight only; exact full-resolution export boundary checks still required."
+  },
+  {
+    "action": "hack",
+    "direction": "n",
+    "approximateStoredBounds": [
+      32.18,
+      18.16,
+      95.01,
+      102.82
+    ],
+    "method": "Approximate 14-frame source contact-sheet preflight only; exact full-resolution export boundary checks still required."
+  },
+  {
+    "action": "convert",
+    "direction": "s",
+    "approximateStoredBounds": [
+      6.69,
+      12.87,
+      85.4,
+      101.5
+    ],
+    "method": "Approximate 14-frame source contact-sheet preflight only; exact full-resolution export boundary checks still required."
+  },
+  {
+    "action": "convert",
+    "direction": "se",
+    "approximateStoredBounds": [
+      21.62,
+      5.59,
+      77.84,
+      101.5
+    ],
+    "method": "Approximate 14-frame source contact-sheet preflight only; exact full-resolution export boundary checks still required."
+  },
+  {
+    "action": "convert",
+    "direction": "e",
+    "approximateStoredBounds": [
+      35.6,
+      12.21,
+      107.7,
+      101.5
+    ],
+    "method": "Approximate 14-frame source contact-sheet preflight only; exact full-resolution export boundary checks still required."
+  },
+  {
+    "action": "convert",
+    "direction": "ne",
+    "approximateStoredBounds": [
+      38.44,
+      8.9,
+      110.53,
+      101.5
+    ],
+    "method": "Approximate 14-frame source contact-sheet preflight only; exact full-resolution export boundary checks still required."
+  },
+  {
+    "action": "convert",
+    "direction": "n",
+    "approximateStoredBounds": [
+      33.2,
+      12.87,
+      105.3,
+      101.5
+    ],
+    "method": "Approximate 14-frame source contact-sheet preflight only; exact full-resolution export boundary checks still required."
+  }
+]

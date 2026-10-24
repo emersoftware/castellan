@@ -326,7 +326,8 @@ controller changes to reproduce interventions without unrelated observations.
   target on the ground. Motes leave the staff crystal tracked per frame, sorted by
   depth, and burst with the new heal clip's reviewed flares, as do the MOSS sound
   effects. The Wizard displays at 0.92 of its export and its SW-facing SE row is
-  mirrored for SE. Hack and convert clips remain to be regenerated.
+  mirrored for SE. New hack (staff thrust) and convert (staff raised) clips followed,
+  with their own reviewed flares; convert no longer borrows the hack gesture.
 - The hidden-dropoff regression was demonstrated in an isolated source copy:
   removing the controller-visibility filter makes the worker reveal a hidden
   Castle and fails the privacy test. The corrected implementation passes.

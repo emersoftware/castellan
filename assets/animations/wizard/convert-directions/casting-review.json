@@ -1,6 +1,18 @@
 {
-  "frameIndexing": "zero-based exported atlas frames",
+  "requireExactLoop": true,
+  "frameIndexing": "zero-based exported frames",
   "views": {
+    "s": {
+      "seed": [
+        42,
+        31.5
+      ],
+      "pulses": [
+        6
+      ],
+      "reason": "Crystal reaches its highest point during the two-arm overhead lift before the horizontal ceremonial sway.",
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
+    },
     "se": {
       "seed": [
         39,
@@ -9,19 +21,42 @@
       "pulses": [
         12
       ],
-      "reason": "Reviewed overhead crest of the vertical staff lift, with arms raised; chosen from the exported SE frame sequence and dithered preview.",
-      "status": "provisional SE pilot; other directions pending"
+      "reason": "Retained reviewed SW-facing pilot; crystal reaches the highest overhead point at frame12.",
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
+    },
+    "e": {
+      "seed": [
+        69,
+        33.5
+      ],
+      "pulses": [
+        8
+      ],
+      "reason": "Highest crystal point on the single-shaft overhead lift, with both hands on that same staff.",
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
     },
     "ne": {
       "seed": [
-        75,
+        74,
         32
       ],
       "pulses": [
-        11
+        16
       ],
-      "reason": "Provisional overhead crest with both arms lifted; marked sheet review pending.",
-      "status": "pilot review pending"
+      "reason": "Retained NE candidate confirmed: overhead staff crest during the two-arm hold, immediately before lowering forward.",
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
+    },
+    "n": {
+      "seed": [
+        73,
+        31.5
+      ],
+      "pulses": [
+        8
+      ],
+      "reason": "First full two-arm overhead crest; back stays facing camera while the staff begins its slow sway.",
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
     }
-  }
+  },
+  "sourceFacingConvention": "Stored SE faces SW; runtime preview uses the SE/SW mirror swap."
 }

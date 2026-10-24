@@ -12,6 +12,7 @@ from space_client import AnimationClient, AnimationEndpoint, recover
 class RecoveryTests(unittest.TestCase):
     def test_error_page_reconnects_same_event_stream_without_resubmission(self):
         client=object.__new__(AnimationClient)
+        client.animation_attempts=6
         client.httpx_kwargs={};client.ssl_verify=True;client.headers={};client.cookies={}
         client.sse_url='https://example.test/queue/data';client.pending_lock=threading.Lock()
         client.pending_messages_per_event={'job-a':deque()};client.pending_event_ids={'job-a'}
@@ -30,7 +31,7 @@ class RecoveryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'sprite.png';path.write_bytes(b'png')
             endpoint=object.__new__(AnimationEndpoint)
-            endpoint.client=SimpleNamespace(animation_uploads={})
+            endpoint.client=SimpleNamespace(animation_uploads={},animation_attempts=6)
             bad=httpx.HTTPStatusError('upstream',request=httpx.Request('POST','https://example.test/upload'),response=httpx.Response(502,request=httpx.Request('POST','https://example.test/upload')))
             with patch('space_client.Endpoint._upload_file',side_effect=[bad,{'path':'/tmp/gradio/sprite.png'}]) as upload, patch('space_client.time.sleep'), patch('space_client.record'):
                 a=endpoint._upload_file({'path':str(path)},0)
@@ -52,9 +53,21 @@ class RecoveryTests(unittest.TestCase):
             self.assertEqual(operation.call_count,1)
     def test_lost_submission_response_never_launches_second_job(self):
         client=object.__new__(AnimationClient)
+        client.animation_attempts=6
         request=httpx.Request('POST','https://example.test/queue/join')
         with patch.object(client,'submit',side_effect=httpx.ReadTimeout('lost',request=request)) as submit,patch('space_client.record'):
             with self.assertRaisesRegex(RuntimeError,'inspect the job'):client.generate(api_name='/output_video')
             self.assertEqual(submit.call_count,1)
+
+    def test_single_attempt_never_resubmits_completed_upstream_failure(self):
+        from unittest.mock import Mock
+        client=object.__new__(AnimationClient)
+        client.animation_attempts=1
+        job=Mock();job.done.return_value=True
+        job.result.side_effect=AppError('Workflow node failed')
+        with patch.object(client,'submit',return_value=job) as submit,patch('space_client.time.sleep') as sleep,patch('space_client.record'):
+            with self.assertRaises(AppError):client.generate(api_name='/output_video')
+            self.assertEqual(submit.call_count,1)
+            sleep.assert_not_called()
 
 if __name__=='__main__':unittest.main()

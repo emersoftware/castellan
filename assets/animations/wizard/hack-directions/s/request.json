@@ -1,0 +1,21 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "kind": "wizard",
+  "action": "hack",
+  "stage": "hack",
+  "direction": "s",
+  "prompt": "Seamless quick arm loop. Front view, torso and pointed hood stay facing camera. One sharp short forward staff jab toward the camera, diagonally down and forward, then retracts to starting pose. Staff stays diagonally tilted outside the shoulder, the entire same rigid staff and small matte faceted stone stay visible. Free hand makes one angular gesture. Only arms move, feet planted, same plain robe and hood shape. Fixed isometric camera, flat magenta background. Preserve the empty black hood opening.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 6,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": true,
+  "source": "assets/wizard/source/idle.png",
+  "source_view": 0,
+  "reference_policy": "Approved standing turnaround, original 544 reference resized to435 then padded back to544; identical first and last images.",
+  "resume_pass": "casting-resume-20261024",
+  "retry_attempts": 1
+}

@@ -11,11 +11,12 @@ import { fileURLToPath } from "node:url";
 import type { ReplayFile, SpectatorView } from "@castellan/shared";
 import { playRecording, recordingWithShutdowns } from "@castellan/engine";
 import { cameraActivity, planShowcaseCamera, type CameraActivity } from "../src/showcaseCamera";
+import { SHOWCASE_REPLAY } from "../src/showcase";
 import { decodeShowcaseChunk, encodeShowcaseChunk, parseShowcaseManifest, type ShowcaseManifest } from "../src/showcaseRecording";
 
 const web = resolve(import.meta.dirname, "..");
 const root = resolve(web, "../..");
-const replayPath = resolve(process.argv[2] ?? join(web, "public/showcase/a21dc6cf.json"));
+const replayPath = resolve(process.argv[2] ?? join(web, "public/showcase", `${SHOWCASE_REPLAY}.json`));
 const replay: ReplayFile = JSON.parse(await readFile(replayPath, "utf8"));
 if (replay.format !== 1 || !/^[a-zA-Z0-9-]+$/.test(replay.id)
   || !Number.isSafeInteger(replay.tickRate) || replay.tickRate <= 0) throw new Error("Unsupported showcase replay.");

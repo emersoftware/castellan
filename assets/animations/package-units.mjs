@@ -7,11 +7,13 @@ import {execFileSync} from 'node:child_process';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
 const [kind,action]=process.argv.slice(2);
 const requestedDirection=process.argv.find(arg=>arg.startsWith('--direction='))?.split('=')[1];
+const candidate=process.argv.includes('--candidate');
+const exportBase=candidate?'export-candidate':'export';
 if(requestedDirection&&!/^(s|se|e|ne|n)$/.test(requestedDirection))throw new Error('Unknown --direction');
 if(!['knight','king','ranger','worker','wizard'].includes(kind)||!['idle','walk','attack','death','mine','heal','hack','convert'].includes(action)||action==='convert'&&kind!=='wizard')throw new Error('Usage: node assets/animations/package-units.mjs knight|king|ranger|worker|wizard idle|walk|attack|death|mine|heal|hack|convert');
 const here=join(root,'assets/animations',kind,`${action}-directions`);
 const sharp=createRequire(join(root,'packages/web/package.json'))('sharp');
-const output=join(here,requestedDirection?`export-${requestedDirection}`:'export');
+const output=join(here,requestedDirection?`${exportBase}-${requestedDirection}`:exportBase);
 mkdirSync(output,{recursive:true});
 // Fallen hands/equipment can extend below the standing ground line. Preserve
 // the same 0.35 raster scale and ground position, with extra transparent space.
@@ -134,6 +136,6 @@ const exportedViews=requestedDirection?[requestedDirection]:base;
 await sharp({create:{width:28*112,height:exportedViews.length*frameHeight,channels:4,background:{r:0,g:0,b:0,alpha:0}}}).composite(atlas).png().toFile(join(output,`${kind}-${action}.png`));
 writeFileSync(join(output,'manifest.json'),JSON.stringify({image:`${kind}-${action}.png`,fps:12,frameCount:28,frameWidth:112,frameHeight,storedScale:3,anchorX:.5,anchorY:290/canvasHeight,loop:!['attack','death'].includes(action),rows:exportedViews,directions:entries,status:requestedDirection?'Partial pilot; not for publishing':'Generated; inspect previews before publishing'},null,2)+'\n');
 
-const exportFolder=requestedDirection?`export-${requestedDirection}`:'export';
+const exportFolder=requestedDirection?`${exportBase}-${requestedDirection}`:exportBase;
 const cells=directions.filter(d=>entries[d]).map(d=>`<figure><img src="${exportFolder}/${action}-${d}.gif"/><figcaption>${d.toUpperCase()}</figcaption></figure>`).join('');
-writeFileSync(join(here,requestedDirection?`index-${requestedDirection}.html`:'index.html'),`<!doctype html><html lang="en"><meta charset="utf-8"><title>${kind} ${action}</title><style>body{background:#191b22;color:#eee;font:18px system-ui;padding:24px}main{display:grid;grid-template-columns:repeat(4,1fr)}figure{margin:8px;text-align:center}img{width:100%;max-width:320px;background:#292e39}h1{text-transform:capitalize}</style><h1>${kind}: ${action}</h1><p>${requestedDirection?'Partial pilot; unavailable directions are omitted.':'Eight directions. Five generated views plus three mirrored views.'}</p><main>${cells}</main></html>`);
+writeFileSync(join(here,`index${candidate?'-candidate':''}${requestedDirection?`-${requestedDirection}`:''}.html`),`<!doctype html><html lang="en"><meta charset="utf-8"><title>${kind} ${action}</title><style>body{background:#191b22;color:#eee;font:18px system-ui;padding:24px}main{display:grid;grid-template-columns:repeat(4,1fr)}figure{margin:8px;text-align:center}img{width:100%;max-width:320px;background:#292e39}h1{text-transform:capitalize}</style><h1>${kind}: ${action}</h1><p>${requestedDirection?'Partial pilot; unavailable directions are omitted.':'Eight directions. Five generated views plus three mirrored views.'}</p><main>${cells}</main></html>`);

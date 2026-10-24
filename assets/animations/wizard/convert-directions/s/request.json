@@ -1,0 +1,21 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "kind": "wizard",
+  "action": "convert",
+  "stage": "convert",
+  "direction": "s",
+  "prompt": "Seamless ceremonial arm loop. Front view, facing camera throughout. Both hands lift the same plain staff across above the pointed hood, holding it almost horizontal overhead. Both arms raised, slow gentle sway, then brings the staff forward and returns. Head and pointed hood remain upright and motionless, the hood keeps its original pointed shape. Feet planted. Same plain robe, same rigid wooden staff with one small solid matte faceted stone. Fixed isometric camera, flat magenta background. Preserve the empty black hood opening.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 6,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": true,
+  "source": "assets/wizard/source/idle.png",
+  "source_view": 0,
+  "reference_policy": "Approved standing turnaround, prepared as original 544 reference, resized to435 and padded back to544; identical first and last images.",
+  "resume_pass": "casting-resume-20261024",
+  "retry_attempts": 1
+}

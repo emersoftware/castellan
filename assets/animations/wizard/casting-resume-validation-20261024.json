@@ -1,0 +1,159 @@
+{
+  "status": "passed",
+  "actions": [
+    {
+      "action": "hack",
+      "cells": 140,
+      "measuredPoints": 140,
+      "sha256": "e2c5b94db01e7c7ce93152a37185a6aad04dc27a6e144312611f84aaf15c4e6b",
+      "rows": [
+        {
+          "direction": "s",
+          "bottomRange": [
+            101,
+            102
+          ],
+          "pulses": [
+            8
+          ]
+        },
+        {
+          "direction": "se",
+          "bottomRange": [
+            100,
+            100
+          ],
+          "pulses": [
+            12,
+            25
+          ]
+        },
+        {
+          "direction": "e",
+          "bottomRange": [
+            101,
+            101
+          ],
+          "pulses": [
+            8
+          ]
+        },
+        {
+          "direction": "ne",
+          "bottomRange": [
+            100,
+            101
+          ],
+          "pulses": [
+            8,
+            20
+          ]
+        },
+        {
+          "direction": "n",
+          "bottomRange": [
+            100,
+            101
+          ],
+          "pulses": [
+            8
+          ]
+        }
+      ],
+      "checks": [
+        "28 frames/12fps/112px/ground101.5/scale3",
+        "nonempty cells and transparent borders",
+        "pixel-identical first/last frames",
+        "every measured point near bright opaque crystal pixels"
+      ],
+      "visualReview": "All source sheets, directional GIFs, marked 28-frame sheets and engine dither reviewed. Stored SE faces SW; dither uses publisher mirror swap and sizeFactor0.92."
+    },
+    {
+      "action": "convert",
+      "cells": 140,
+      "measuredPoints": 140,
+      "sha256": "6da71399134cacaa05cf699403e4caf514981a66f95f400bd497827d66c0b74a",
+      "rows": [
+        {
+          "direction": "s",
+          "bottomRange": [
+            100,
+            100
+          ],
+          "pulses": [
+            6
+          ]
+        },
+        {
+          "direction": "se",
+          "bottomRange": [
+            100,
+            100
+          ],
+          "pulses": [
+            12
+          ]
+        },
+        {
+          "direction": "e",
+          "bottomRange": [
+            100,
+            101
+          ],
+          "pulses": [
+            8
+          ]
+        },
+        {
+          "direction": "ne",
+          "bottomRange": [
+            100,
+            101
+          ],
+          "pulses": [
+            16
+          ]
+        },
+        {
+          "direction": "n",
+          "bottomRange": [
+            99,
+            101
+          ],
+          "pulses": [
+            8
+          ]
+        }
+      ],
+      "checks": [
+        "28 frames/12fps/112px/ground101.5/scale3",
+        "nonempty cells and transparent borders",
+        "pixel-identical first/last frames",
+        "every measured point near bright opaque crystal pixels"
+      ],
+      "visualReview": "All source sheets, directional GIFs, marked 28-frame sheets and engine dither reviewed. Stored SE faces SW; dither uses publisher mirror swap and sizeFactor0.92."
+    }
+  ],
+  "excludedCheck": "GIF raw-buffer equality is not used; palette encoding is not the runtime mirror contract.",
+  "interruptedCheck": {
+    "startedAt": "2026-10-24T14:39:22.166Z",
+    "endedAt": "2026-10-24T14:39:49.146Z",
+    "executorSession": 15733,
+    "exitCode": 137,
+    "cause": "unestablished; no diagnostic output",
+    "rerun": "Bounded scalar checks only; no buffer assertion formatting."
+  },
+  "finalCopyChecks": {
+    "status": "passed",
+    "artifacts": [
+      "atlas",
+      "manifest",
+      "cast-points.json",
+      "marked contact sheet"
+    ],
+    "against": "reviewed export-candidate copies",
+    "sourceHashesVerified": 12,
+    "legacyHackHashVerified": true,
+    "healUnchanged": true
+  }
+}

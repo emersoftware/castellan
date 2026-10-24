@@ -31,7 +31,7 @@ it("draws each Wizard row facing the way it is used: SE and SW swap the mirror o
 });
 
 it("publishes the reviewed Wizard exports unchanged, with a held one-shot death", () => {
-  expect(Object.keys(atlas)).toEqual(["idle", "walk", "heal", "hack", "death"]);
+  expect(Object.keys(atlas)).toEqual(["idle", "walk", "heal", "hack", "convert", "death"]);
   for (const [action, clip] of Object.entries(atlas)) {
     const published = readFileSync(resolve(root, "assets/sprites/wizard", clip.image));
     expect(published.equals(readFileSync(resolve(root, `assets/animations/wizard/${action}-directions/export`, clip.image)))).toBe(true);
@@ -52,16 +52,15 @@ function setup() {
   return { ...h, lastWizard };
 }
 
-it("faces its target with the heal or hack gesture only while the view shows the ability, through pause and seek", () => {
+it("faces its target with the heal, hack or convert gesture only while the view shows the ability, through pause and seek", () => {
   const h = setup();
   h.field.show(frameAt(1, [wizard, knight]), 100); h.animate();
   expect(h.lastWizard()[2]?.action).toBe("idle");
   // East on the map (dx = 2) is screen direction SE.
   h.field.show(frameAt(2, [{ ...wizard, casting: { action: "heal", target: "k" } }, knight]), 100); h.animate();
   expect(h.lastWizard().slice(1, 3)).toEqual([1, expect.objectContaining({ action: "heal" })]);
-  // Conversion shares the hack gesture; its target ring tells them apart.
   h.field.show(frameAt(3, [{ ...wizard, casting: { action: "convert", target: "k", progressMs: 1500 } }, knight]), 100); h.animate();
-  expect(h.lastWizard()[2]?.action).toBe("hack");
+  expect(h.lastWizard()[2]?.action).toBe("convert");
   h.clock.pause(); const frozen = h.lastWizard()[2]; h.time(9000); h.animate();
   expect(h.lastWizard()[2]).toEqual(frozen);
   h.clock.resume();
@@ -92,11 +91,21 @@ it("stacks the spiral just over the visible body and its health bar, not over th
   expect(gap()).toBeLessThanOrEqual(6.5);
 });
 
+/**
+ * Shows `entities` tick by tick through `to` (the clock follows 100 ms ticks); returns the motes in flight after the last.
+ * Casting clips burst at their flares, so motes appear once one goes by.
+ */
+function play(h: ReturnType<typeof setup>, entities: EntityView[], from: number, to: number) {
+  for (let tick = from; tick <= to; tick++) { h.time(1000 + tick * 100); h.field.show(frameAt(tick, entities), 100); h.animate(); }
+  return motes(h);
+}
+/** A tick when both a SE hack burst (flare at frame 12) and an E one (frame 8) are still travelling. */
+const IN_FLIGHT = 15;
+
 it("sends motes from the staff among the field's objects, at the depth of the tiles they cross", () => {
   const h = setup();
-  h.field.show(frameAt(1, [{ ...wizard, casting: { action: "hack", target: "k" } }, knight]), 100); h.animate();
-  const sent = motes(h);
-  expect(sent).toHaveLength(16);
+  const sent = play(h, [{ ...wizard, casting: { action: "hack", target: "k" } }, knight], 1, IN_FLIGHT);
+  expect(sent.length).toBeGreaterThan(0);
   // Wizard at (4, 4), target at (6, 4): depths from 80 to 100, just in front of units on the same tile.
   for (const mote of sent) {
     expect(mote.zIndex).toBeGreaterThanOrEqual(86);
@@ -134,49 +143,43 @@ it("bursts heal motes from the crystal at each flare and lets them travel to the
 it("lets a channel's motes linger briefly when it ends on a tick, and never after a seek", () => {
   const h = setup();
   const channel = { ...wizard, casting: { action: "hack" as const, target: "k", progressMs: 2000 } };
-  h.field.show(frameAt(1, [wizard, knight]), 100); h.animate();
-  expect(motes(h)).toHaveLength(0);
-  h.field.show(frameAt(2, [channel, knight]), 100); h.animate();
-  expect(motes(h)).toHaveLength(16);
+  const flying = play(h, [channel, knight], 1, IN_FLIGHT).length;
+  expect(flying).toBeGreaterThan(0);
   // Stopped without a confirming event: the last motes fall grey and fade.
-  h.time(1100); h.field.show(frameAt(3, [wizard, knight]), 100); h.animate();
-  expect(motes(h).map((mote) => mote.tint)).toEqual(Array(16).fill(STOPPED));
-  h.time(1700); h.animate();
+  expect(play(h, [wizard, knight], IN_FLIGHT + 1, IN_FLIGHT + 1).map((mote) => mote.tint)).toEqual(Array(flying).fill(STOPPED));
+  h.time(1000 + (IN_FLIGHT + 1) * 100 + 600); h.animate();
   expect(motes(h)).toHaveLength(0);
-  h.field.show(frameAt(4, [channel, knight]), 100); h.animate();
+  play(h, [channel, knight], IN_FLIGHT + 2, IN_FLIGHT + 2);
   h.field.seek(frameAt(1, [wizard, knight]), 100); h.animate();
   expect(motes(h)).toHaveLength(0);
 });
 
 it("confirms only the caster an event names, of the event's own action", () => {
   const h = setup();
+  // The rival at (4, 6) faces the knight at (6, 4) to the E; the Wizard at (4, 4), to the SE.
   const rival: EntityView = { ...wizard, id: "r", owner: "c", y: 6 };
   const converting = (caster: EntityView) => ({ ...caster, casting: { action: "convert" as const, target: "k" } });
-  h.field.show(frameAt(1, [converting(wizard), converting(rival), knight]), 100); h.animate();
-  const converted: GameEvent = { tick: 1, type: "converted", id: "k", kind: "knight", owner: "a", from: "b", x: 6, y: 4, wizard: "w" };
-  h.time(1100); h.field.show(frameAt(2, [wizard, rival, { ...knight, owner: "a" }], { events: [converted] }), 100); h.animate();
-  const tints = motes(h).map((mote) => mote.tint);
+  play(h, [converting(wizard), converting(rival), knight], 1, IN_FLIGHT);
+  const converted: GameEvent = { tick: IN_FLIGHT, type: "converted", id: "k", kind: "knight", owner: "a", from: "b", x: 6, y: 4, wizard: "w" };
+  h.time(1000 + (IN_FLIGHT + 1) * 100); h.field.show(frameAt(IN_FLIGHT + 1, [wizard, rival, { ...knight, owner: "a" }], { events: [converted] }), 100); h.animate();
+  const tints = new Set(motes(h).map((mote) => mote.tint));
   // The winner's motes reach the target in its colour; the rival's fall grey, never shown as a success.
-  expect(tints.filter((tint) => tint === PLAYER_RAMPS[0].key)).toHaveLength(16);
-  expect(tints.filter((tint) => tint === STOPPED)).toHaveLength(16);
-  expect(tints).not.toContain(PLAYER_RAMPS[2].key);
+  expect([...tints].sort()).toEqual([PLAYER_RAMPS[0].key, STOPPED].sort());
 });
 
 it("shows no caster as successful when a hack's event withholds the caster", () => {
   const h = setup();
-  h.field.show(frameAt(1, [{ ...wizard, casting: { action: "hack", target: "k" } }, knight]), 100); h.animate();
-  const anonymous: GameEvent = { tick: 1, type: "hypno", id: "k", kind: "knight", owner: "b", x: 6, y: 4, active: true };
-  h.time(1100); h.field.show(frameAt(2, [wizard, { ...knight, hypno: true }], { events: [anonymous] }), 100); h.animate();
+  play(h, [{ ...wizard, casting: { action: "hack", target: "k" } }, knight], 1, IN_FLIGHT);
+  const anonymous: GameEvent = { tick: IN_FLIGHT, type: "hypno", id: "k", kind: "knight", owner: "b", x: 6, y: 4, active: true };
+  h.time(1000 + (IN_FLIGHT + 1) * 100); h.field.show(frameAt(IN_FLIGHT + 1, [wizard, { ...knight, hypno: true }], { events: [anonymous] }), 100); h.animate();
   expect(motes(h)).toHaveLength(0);
 });
 
 it("drops a channel's ending on a seek, before it has faded", () => {
   const h = setup();
-  h.field.show(frameAt(1, [wizard, knight]), 100); h.animate();
-  h.field.show(frameAt(2, [{ ...wizard, casting: { action: "hack", target: "k" } }, knight]), 100); h.animate();
-  h.field.show(frameAt(3, [wizard, knight]), 100); h.animate();
-  expect(motes(h)).toHaveLength(16);
-  h.field.seek(frameAt(3, [wizard, knight]), 100); h.animate();
+  play(h, [{ ...wizard, casting: { action: "hack", target: "k" } }, knight], 1, IN_FLIGHT);
+  expect(play(h, [wizard, knight], IN_FLIGHT + 1, IN_FLIGHT + 1).length).toBeGreaterThan(0);
+  h.field.seek(frameAt(IN_FLIGHT + 1, [wizard, knight]), 100); h.animate();
   expect(motes(h)).toHaveLength(0);
 });
 

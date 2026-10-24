@@ -1,0 +1,48 @@
+{
+  "frames": 28,
+  "fps": 12,
+  "palettes": [
+    [
+      "#000000",
+      "#2d63c8",
+      "#b4dcff"
+    ],
+    [
+      "#000000",
+      "#d24a1c",
+      "#ffcaa0"
+    ],
+    [
+      "#000000",
+      "#23a19a",
+      "#b0fff4"
+    ],
+    [
+      "#000000",
+      "#8e3fc4",
+      "#eec4ff"
+    ]
+  ],
+  "directions": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n",
+    "nw",
+    "w",
+    "sw"
+  ],
+  "validatedFrames": 896,
+  "filters": [
+    "normalizeCharacterContrast",
+    "ditherPixels"
+  ],
+  "integrated": false,
+  "sizeFactor": 0.92,
+  "storedSEFacing": "sw",
+  "swappedMirrors": [
+    "se",
+    "sw"
+  ]
+}

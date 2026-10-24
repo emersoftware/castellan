@@ -1,53 +1,175 @@
 {
-  "frameIndexing": "zero-based exported atlas frames",
-  "requireExactLoop": false,
-  "acceptance": "Track the restored previously accepted/published hack atlas without changing its image. No reviewed burst gesture; empty pulses preserve a steady renderer stream.",
+  "requireExactLoop": true,
+  "frameIndexing": "zero-based exported frames",
   "views": {
     "s": {
       "seed": [
         42,
         31.5
       ],
-      "pulses": [],
-      "reason": "Previous accepted hack has a steady staff and no reviewed flare gesture. Measure the actual crystal each frame; do not use white arcs.",
-      "status": "verified: all 28 marked crystal points reviewed on restored published atlas"
+      "pulses": [
+        8
+      ],
+      "reason": "First full forward/downward thrust toward camera; crystal reaches the extended pose after the sharp transition at frame7.",
+      "guides": {
+        "7": [
+          42,
+          65
+        ],
+        "19": [
+          50,
+          42
+        ],
+        "20": [
+          50,
+          29
+        ]
+      },
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
     },
     "se": {
       "seed": [
-        39.3,
-        32.3
+        12,
+        65
       ],
-      "pulses": [],
-      "reason": "Previous accepted hack has a steady staff and no reviewed flare gesture. Measure the actual crystal each frame; do not use white arcs.",
-      "status": "verified: all 28 marked crystal points reviewed on restored published atlas"
+      "pulses": [
+        12,
+        25
+      ],
+      "reason": "Two completed SW-facing thrusts; both reach the reviewed fully extended pose after the two retractions. Stored SE remains SW-facing.",
+      "guides": {
+        "6": [
+          14,
+          47
+        ],
+        "7": [
+          31,
+          18
+        ],
+        "9": [
+          21,
+          29
+        ],
+        "10": [
+          14,
+          47
+        ],
+        "11": [
+          11,
+          61
+        ],
+        "19": [
+          14,
+          46
+        ],
+        "20": [
+          26,
+          23
+        ],
+        "21": [
+          41,
+          15
+        ],
+        "22": [
+          26,
+          22
+        ],
+        "23": [
+          13,
+          47
+        ],
+        "24": [
+          11,
+          60
+        ]
+      },
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
     },
     "e": {
       "seed": [
         69,
         33.5
       ],
-      "pulses": [],
-      "reason": "Previous accepted hack has a steady staff and no reviewed flare gesture. Measure the actual crystal each frame; do not use white arcs.",
-      "status": "verified: all 28 marked crystal points reviewed on restored published atlas"
+      "pulses": [
+        8
+      ],
+      "reason": "First fully extended rightward jab, with the angular free hand held out; the staff then holds through recovery.",
+      "guides": {
+        "5": [
+          89,
+          37
+        ],
+        "6": [
+          90,
+          51
+        ],
+        "7": [
+          61,
+          62
+        ],
+        "19": [
+          70,
+          54
+        ],
+        "20": [
+          75,
+          45
+        ],
+        "21": [
+          71,
+          35
+        ]
+      },
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
     },
     "ne": {
       "seed": [
-        73.4,
+        74,
         32
       ],
-      "pulses": [],
-      "reason": "Previous accepted hack has a steady staff and no reviewed flare gesture. Measure the actual crystal each frame; do not use white arcs.",
-      "status": "verified: all 28 marked crystal points reviewed on restored published atlas"
+      "pulses": [
+        8,
+        20
+      ],
+      "reason": "First short NE jab and the second fully extended jab at frame20; rear diagonal hood remains faceless.",
+      "guides": {
+        "7": [
+          91,
+          40
+        ],
+        "21": [
+          90,
+          28
+        ]
+      },
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
     },
     "n": {
       "seed": [
-        72.5,
+        73,
         31.5
       ],
-      "pulses": [],
-      "reason": "Previous accepted hack has a steady staff and no reviewed flare gesture. Measure the actual crystal each frame; do not use white arcs.",
-      "status": "verified: all 28 marked crystal points reviewed on restored published atlas"
+      "pulses": [
+        8
+      ],
+      "reason": "First full away-facing thrust; pointed hood and back remain visible, without a front-facing opening.",
+      "guides": {
+        "5": [
+          93,
+          32
+        ],
+        "6": [
+          88,
+          44
+        ],
+        "20": [
+          89,
+          29
+        ]
+      },
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
     }
   },
-  "arcReview": "SE frames 7\u20139 and 14\u201322 contain bright crescents. Every marked point remains on the staff crystal; SE x range 38.41\u201339.41, y 31.57\u201331.84, max adjacent-frame movement 0.28 stored px."
+  "measurementNotes": "Reviewed local search reacquisition guides at fast staff jumps; every output point is still a brightness-weighted centroid measured from the actual atlas. Guides do not supply output coordinates or interpolate missing crystals.",
+  "sourceFacingConvention": "Stored SE faces SW; runtime preview uses the SE/SW mirror swap."
 }

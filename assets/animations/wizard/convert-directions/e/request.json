@@ -1,21 +1,21 @@
 {
-  "space": "https://minimaxai-minimax-h3-turbo-lora.hf.space",
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
   "kind": "wizard",
   "action": "convert",
   "stage": "convert",
   "direction": "e",
-  "prompt": "Seamless slow ceremonial arm movement from this raised-arm pose. Both arms remain raised, gently sways the same rigid staff from side to side, then brings it slightly forward to the right and returns. The small faceted stone stays solid and matte. Body and feet hold their original position and orientation. Same plain robe, pointed hood and empty black hood opening. Fixed isometric camera, flat solid magenta background.",
+  "prompt": "Seamless slow ceremonial arm loop, same right-facing side view throughout. Both hands grasp different points of the same single rigid wooden staff. Lifts that one staff horizontally above the pointed hood, its midpoint centred over the head, then gently sways and brings it forward before returning. Both arms raised. One continuous wooden shaft with one small solid matte faceted stone on its end, exactly the same staff throughout. Pointed hood stays upright, head and feet fixed. Same plain robe and empty black hood opening. Fixed isometric camera and flat magenta background.",
   "canvas": "544x544 \u00b7 1:1 fast",
   "duration": 2,
-  "steps": 4,
+  "steps": 8,
   "seed": 42,
   "upsample": false,
   "lora": "larry",
   "reference": "reference.png",
   "first_and_last_frame": true,
-  "source": "assets/animations/wizard/convert-directions/rejected-invalid-multiview-20261024/e/generated.mp4",
+  "source": "assets/wizard/source/idle.png",
   "source_view": 2,
-  "source_frame": 24,
-  "source_sha256": "27753b021b37f26b6c5770710c30290d1c891167734ca3e2cf9c73384001c58c",
-  "reference_policy": "Clean raised-arm pose from retained bootstrap video; matching first and last conditioning images."
+  "reference_policy": "Approved standing turnaround, prepared as original 544 reference, resized to435 and padded back to544; identical first and last images.",
+  "resume_pass": "casting-resume-20261024",
+  "retry_attempts": 1
 }

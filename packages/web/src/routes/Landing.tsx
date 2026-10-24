@@ -8,15 +8,15 @@ import { GameCanvas } from "../components/GameCanvas";
 import { Portrait } from "../components/Portrait";
 import { useShowcase } from "../useShowcase";
 import { followUnits, shotAt } from "../showcaseCamera";
+import { SHOWCASE_REPLAY } from "../showcase";
 import { HERO_SPRITE_BASE, loadSprites } from "../render/sprites";
 import { sfx } from "../audio/sfx";
 import { BattleCard } from "../components/BattleCard";
 import { LoadState } from "../components/LoadState";
 import { SoundToggle } from "../components/Hud";
 
-const SHOWCASE = "a21dc6cf";
-/** Selected launch recordings: the hero free-for-all, the Opus/Sol duel and the Claude/Codex 2v2. */
-const FEATURED = [SHOWCASE, "692d3d82", "e241e67d"];
+/** Selected recordings: the hero free-for-all and the Opus/Sol duel under the current rules, and the Claude/Codex 2v2 (0.29.2). */
+const FEATURED = [SHOWCASE_REPLAY, "77e5b88e", "e241e67d"];
 
 /** Missing selections stay absent instead of being replaced by unrelated matches. */
 export function featuredBattles<T extends { id: string }>(entries: readonly T[]): T[] {
@@ -25,7 +25,7 @@ export function featuredBattles<T extends { id: string }>(entries: readonly T[])
 
 export function Landing() {
   const replays = useQuery({ queryKey: ["replays"], queryFn: api.replays });
-  const showcase = useShowcase(SHOWCASE);
+  const showcase = useShowcase(SHOWCASE_REPLAY);
   const [introDone, setIntroDone] = useState(false);
   const field = useRef<HTMLDivElement>(null);
   const [still, setStill] = useState(false);

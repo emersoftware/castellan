@@ -15,16 +15,20 @@ const action = process.argv[2];
 const direction = process.argv.find(arg => arg.startsWith("--direction="))?.split("=")[1];
 if (!["idle", "walk", "heal", "hack", "convert", "death"].includes(action)) throw new Error("Usage: node --import tsx assets/animations/wizard/preview.mts idle|walk|heal|hack|convert|death");
 const base = resolve(directory, `${action}-directions`);
-const exportFolder = direction ? `export-${direction}` : "export";
-const suffix = direction ? `-${direction}` : "";
+const candidate = process.argv.includes("--candidate");
+const suffix = `${candidate ? "-candidate" : ""}${direction ? `-${direction}` : ""}`;
+const exportFolder = `export${suffix}`;
 const meta = JSON.parse(await readFile(resolve(base, exportFolder, "manifest.json"), "utf8"));
 const { data, info } = await sharp(resolve(base, exportFolder, meta.image)).toColourspace("srgb").ensureAlpha().raw().toBuffer({ resolveWithObject: true });
 const pixels = new Uint8ClampedArray(data);
 normalizeCharacterContrast(pixels);
 const frames = resolve(base, `review${suffix}-frames`);
 await mkdir(frames, { recursive: true });
-const width = Math.round(meta.frameWidth / meta.storedScale);
-const height = Math.round(meta.frameHeight / meta.storedScale);
+// Match the publisher's Wizard size and its SW-facing stored SE row.
+const published = JSON.parse(await readFile(resolve(directory, "../../sprites/wizard/manifest.json"), "utf8"));
+const sizeFactor = published.idle.sizeFactor ?? 1;
+const width = Math.round(meta.frameWidth / meta.storedScale * sizeFactor);
+const height = Math.round(meta.frameHeight / meta.storedScale * sizeFactor);
 const cell = 48;
 const directions = Object.entries(meta.directions) as [string, { row: number; flip: boolean; screenDir: number }][];
 directions.sort((a, b) => a[1].screenDir - b[1].screenDir);
@@ -34,7 +38,7 @@ for (let frame = 0; frame < meta.frameCount; frame++) {
   for (const [column, [direction, position]] of directions.entries()) {
     const source = sharp(Buffer.from(pixels), { raw: { width: info.width, height: info.height, channels: 4 } })
       .extract({ left: frame * meta.frameWidth, top: position.row * meta.frameHeight, width: meta.frameWidth, height: meta.frameHeight });
-    if (position.flip) source.flop();
+    if (position.flip !== (direction === "se" || direction === "sw")) source.flop();
     const resized = await source.resize(width, height).raw().toBuffer();
     for (const [team, ramp] of PLAYER_RAMPS.entries()) {
       const tinted = new Uint8ClampedArray(resized);
@@ -59,5 +63,5 @@ const ff = (...args: string[]) => execFileSync("ffmpeg", ["-y", "-hide_banner", 
 const input = resolve(frames, "frame-%02d.png");
 ff("-framerate", String(meta.fps), "-i", input, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", resolve(base, `wizard-dithered${suffix}.mp4`));
 ff("-framerate", String(meta.fps), "-i", input, "-filter_complex", "split[a][b];[a]palettegen[p];[b][p]paletteuse", "-loop", "0", resolve(base, `wizard-dithered${suffix}.gif`));
-await writeFile(resolve(base, `review${suffix}.json`), JSON.stringify({ frames: meta.frameCount, fps: meta.fps, palettes: PLAYER_RAMPS.map(ramp => ramp.steps), directions: directions.map(([name]) => name), validatedFrames: validated, filters: ["normalizeCharacterContrast", "ditherPixels"], integrated: false }, null, 2) + "\n");
+await writeFile(resolve(base, `review${suffix}.json`), JSON.stringify({ frames: meta.frameCount, fps: meta.fps, palettes: PLAYER_RAMPS.map(ramp => ramp.steps), directions: directions.map(([name]) => name), validatedFrames: validated, sizeFactor, storedSEFacing: "sw", swappedMirrors: ["se", "sw"], filters: ["normalizeCharacterContrast", "ditherPixels"], integrated: false }, null, 2) + "\n");
 console.log(`${action}: ${validated} dithered frames validated across ${Object.keys(meta.directions).length} directions and four palettes.`);

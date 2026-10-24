@@ -4,7 +4,118 @@ MiniMax H3 Turbo LoRA, using the same pipeline as Knight, King, Worker and
 Ranger. Source design: [`assets/wizard`](../../wizard/README.md), a faceless
 pointed hood flowing into one plain robe. No beard, hair or separate hat brim.
 
-## Casting replacement pass — 2026-10-24 (partial; provider stopped)
+## Hack and convert completion — 2026-10-24
+
+**Hack and convert are final in all five source views and eight display directions.**
+Heal stays unchanged. These exports are frozen for frontend integration; this art
+pass does not publish sprites or verify the new particle timing in gameplay.
+Frontend subsequently reported publishing hack/convert byte-identical to these
+exports and copying their castPoints/pulses; its full integration suite is pending.
+The partial pass below remains a historical record, superseded by this authorized
+resume. No source recording was deleted.
+
+| Action | Export | Crystal tracking and marked review | Engine dither |
+| --- | --- | --- | --- |
+| Hack | [manifest](hack-directions/export/manifest.json), [atlas](hack-directions/export/wizard-hack.png) | [cast-points.json](hack-directions/export/cast-points.json), [contact sheet](hack-directions/export/cast-points-contact-sheet.png) | [video](hack-directions/wizard-dithered.mp4), [GIF](hack-directions/wizard-dithered.gif) |
+| Convert | [manifest](convert-directions/export/manifest.json), [atlas](convert-directions/export/wizard-convert.png) | [cast-points.json](convert-directions/export/cast-points.json), [contact sheet](convert-directions/export/cast-points-contact-sheet.png) | [video](convert-directions/wizard-dithered.mp4), [GIF](convert-directions/wizard-dithered.gif) |
+
+Hack uses a quick forward staff thrust and angular free hand. Convert raises both
+arms and the single staff above the hood, sways, then brings it forward. Source
+sheets, directional GIFs, every marked atlas frame and the real contrast/Bayer
+dither preview were reviewed. The faceless hood, plain robe, single crystal staff,
+planted stance and unclipped boundaries remain intact. Slight robe/hem changes span
+at most two stored pixels; the ground anchor stays fixed at 101.5. The source SE
+row continues to face **SW**, matching existing Wizard art. The preview uses the
+publisher's SE/SW mirror swap and size factor 0.92; raw export GIF labels retain
+the stored-row convention. No new take is true SE.
+
+### Crystal measurements and reviewed pulses
+
+The format remains 28 frames, 12 fps, 112-pixel cells, stored scale 3, with identical
+first/last atlas frames. Every crystal point is a brightness-weighted centroid
+measured from compact bright opaque pixels in the actual atlas. Component size,
+distance and ambiguity checks reject unrelated highlights. Fast hack transitions
+use explicit reviewed search guides to reacquire the crystal; the guide never
+supplies output coordinates or interpolates a missing crystal. All 280 marked
+points were visually checked on the crystal.
+
+Pulse frames are zero-based and listed in S/SE/E/NE/N order:
+
+- Hack: `[[8],[12,25],[8],[8,20],[8]]`. Each marks a completed forward thrust;
+  SE and NE have two distinct reviewed extensions.
+- Convert: `[[6],[12],[8],[16],[8]]`. Each marks the overhead crystal crest before
+  the ceremonial hold or lowering. SE/NE reuse their earlier reviewed sources.
+
+Per-view seeds, reacquisition guides and reasons are in
+[hack review](hack-directions/casting-review.json) and
+[convert review](convert-directions/casting-review.json). They are review metadata;
+`export/cast-points.json` is the renderer synchronization contract.
+
+### Requests, retained takes and provider events
+
+The local login was verified as `emersoftware`. The private worker
+`emersoftware/aoa-minimax-animation-worker` was accessible but `SLEEPING`; one
+connection attempt failed with **`ReadTimeout: The read operation timed out`**
+before any GPU submission. The authorized public fallback completed and downloaded
+**10 submissions**, with seed 42, LoRA `larry`, upsampling off, 6 or 8 steps and
+identical first/last references recorded per request. This resume had no 401/403,
+quota or content-filter events, no automatic retries and no new hardware/deployment.
+
+Eight new sources are accepted: all five hack views and convert S/E/N. Convert
+SE/NE are reused without provider calls. Two new takes are rejected and retained:
+
+- `hack-directions/rejected-staff-gap-se-resume-20261024/se/`: staff/crystal
+  disappeared during the jab; a clean recorded frame bootstrapped its replacement.
+- `convert-directions/rejected-forked-staff-e-resume-20261024/e/`: the overhead
+  staff split into two shafts; the replacement keeps one shaft.
+
+The previous accepted hack export and review are preserved in
+`hack-directions/rejected-legacy-export-resume-20261024/`; its atlas SHA-256 remains
+`0ec0bcda1f036ab883ca000b8930d462a2cde7db0bea459bcaf7e2650001cef0`.
+The earlier convert E request/result with download 403 moved to
+`convert-directions/preserved-before-resume-e-20261024/`, and the unsubmitted N
+preparation to `convert-directions/preserved-before-resume-n-20261024/`.
+[The resume inventory](casting-resume-inventory-20261024.json) records all ten
+requests, exact settings, reference policies, source hashes and dispositions;
+[provider events](casting-resume-20261024.json) records the private fallback.
+Historical counts below are separate: the two passes together made 46 submissions
+and downloaded 43 videos, with the original two filter failures and one download403.
+
+### Local verification and reproduction
+
+[Independent validation](casting-resume-validation-20261024.json) checks all 280
+cells/points: dimensions, ground, transparency at borders, nonempty cells, exact
+loop endpoints and highlight proximity. Packaging also passed the existing source
+and output boundary guards. The preview validated 896 dithered direction/palette
+frames per action. Six local Python recovery fixtures pass, including the new
+single-attempt upstream-failure case. No provider calls occur in those fixtures.
+`pnpm check:unused`, `pnpm lint`, `pnpm check:copies` and `git diff --check`
+passed. The art agent did not run the full suite. Final copied artifacts match
+the reviewed candidates byte-for-byte; all 12 new/reused source hashes match the
+inventory, the old hack archive matches its previous hash and heal is unchanged.
+
+One earlier GIF buffer comparison exited 137 without diagnostic output at
+14:39:49.146 UTC. Its cause and impact are unestablished; it overlapped a paid
+match subsequently marked invalid after VM watchdog failures. The incident was
+reported to the coordinator. Validation resumed only after all match runners
+closed, using bounded scalar checks rather than buffer assertion formatting.
+The GIF byte comparison is excluded: palette encoding is not the runtime mirror
+contract.
+
+Candidate packaging keeps accepted exports stable while reviewing:
+
+```sh
+node assets/animations/package-units.mjs wizard hack --candidate
+node assets/animations/wizard/cast-points.mjs hack --candidate
+node --import tsx assets/animations/wizard/preview.mts hack --candidate
+# Repeat for convert. Review before copying candidate artifacts into final paths.
+```
+
+`--no-retries` gives generation one attempt per stage; the default retry behavior
+for other callers remains unchanged. No new directly run entry point was added.
+The art pass does not edit `packages/**` or `assets/sprites/**`, or commit/push.
+
+## Casting replacement pass — 2026-10-24 (historical partial pass)
 
 **Heal is final in all five source views.** The previous hack atlas was restored
 and now has measured per-frame crystal positions with no burst pulses. A new
@@ -66,7 +177,7 @@ It excludes the previous release recordings from this pass's counts.
 The two filter failures said `This prompt was flagged by a content filter and wasn't run.`
 Their requests and exact error records remain in `rejected-content-filter-*`.
 The final result for convert E is retained in
-`convert-directions/e/{request,result}.json`, without a downloaded source video.
+`convert-directions/preserved-before-resume-e-20261024/{request,result}.json`, without a downloaded source video in that preserved take.
 Convert N's latest raised-pose request is prepared but was not submitted.
 
 Previous heal/hack recordings, exports and earlier rejections remain in each

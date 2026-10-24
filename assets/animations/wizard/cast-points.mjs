@@ -7,10 +7,11 @@ const [action]=process.argv.slice(2);
 if(!['heal','hack','convert'].includes(action))throw new Error('Usage: node assets/animations/wizard/cast-points.mjs heal|hack|convert [--direction=se]');
 const direction=process.argv.find(arg=>arg.startsWith('--direction='))?.split('=')[1];
 const base=resolve(import.meta.dirname,`${action}-directions`);
-const output=resolve(base,direction?`export-${direction}`:'export');
+const suffix=`${process.argv.includes('--candidate')?'-candidate':''}${direction?`-${direction}`:''}`;
+const output=resolve(base,`export${suffix}`);
 const sharp=createRequire(resolve(import.meta.dirname,'../../../packages/web/package.json'))('sharp');
 const meta=JSON.parse(readFileSync(resolve(output,'manifest.json')));
-const review=JSON.parse(readFileSync(resolve(base,'casting-review.json')));
+const review=JSON.parse(readFileSync(resolve(base,process.argv.includes('--candidate')?'casting-review-candidate.json':'casting-review.json')));
 if(meta.fps!==12||meta.frameCount!==28||meta.frameWidth!==112||meta.frameHeight!==112||meta.anchorY*112!==101.5)throw new Error('Unexpected casting atlas contract');
 const {data,info}=await sharp(resolve(output,meta.image)).toColourspace('srgb').ensureAlpha().raw().toBuffer({resolveWithObject:true});
 
@@ -50,7 +51,9 @@ for(const [row,name] of meta.rows.entries()){
  const entry=review.views[name];
  if(!entry?.seed||!Array.isArray(entry.pulses)||!entry.reason)throw new Error(`${name}: missing visual review`);
  const points=[];
- for(let frame=0;frame<28;frame++)points.push(crystalAt(row,frame,frame===0||frame===27?entry.seed:points.at(-1)));
+ // A reviewed search guide can reacquire a fast thrust after a large jump.
+ // It seeds the local measurement; output always comes from actual atlas pixels.
+ for(let frame=0;frame<28;frame++)points.push(crystalAt(row,frame,entry.guides?.[frame]??(frame===0||frame===27?entry.seed:points.at(-1))));
  for(const frame of entry.pulses)if(!Number.isInteger(frame)||frame<0||frame>=27)throw new Error(`${name}: invalid pulse frame`);
  // Measure an already published legacy atlas without rewriting its endpoints.
  if(review.requireExactLoop!==false)for(let y=0;y<112;y++)for(let x=0;x<112;x++)for(let c=0;c<4;c++){

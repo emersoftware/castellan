@@ -1,0 +1,62 @@
+{
+  "requireExactLoop": true,
+  "frameIndexing": "zero-based exported frames",
+  "views": {
+    "s": {
+      "seed": [
+        42,
+        31.5
+      ],
+      "pulses": [
+        6
+      ],
+      "reason": "Crystal reaches its highest point during the two-arm overhead lift before the horizontal ceremonial sway.",
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
+    },
+    "se": {
+      "seed": [
+        39,
+        31
+      ],
+      "pulses": [
+        12
+      ],
+      "reason": "Retained reviewed SW-facing pilot; crystal reaches the highest overhead point at frame12.",
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
+    },
+    "e": {
+      "seed": [
+        69,
+        33.5
+      ],
+      "pulses": [
+        8
+      ],
+      "reason": "Highest crystal point on the single-shaft overhead lift, with both hands on that same staff.",
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
+    },
+    "ne": {
+      "seed": [
+        74,
+        32
+      ],
+      "pulses": [
+        16
+      ],
+      "reason": "Retained NE candidate confirmed: overhead staff crest during the two-arm hold, immediately before lowering forward.",
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
+    },
+    "n": {
+      "seed": [
+        73,
+        31.5
+      ],
+      "pulses": [
+        8
+      ],
+      "reason": "First full two-arm overhead crest; back stays facing camera while the staff begins its slow sway.",
+      "status": "source, exported 28-frame sequence and four-palette dither reviewed"
+    }
+  },
+  "sourceFacingConvention": "Stored SE faces SW; runtime preview uses the SE/SW mirror swap."
+}

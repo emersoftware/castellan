@@ -36,4 +36,5 @@ pid=$!
 set +e
 wait "$pid"; status=$?
 kill -0 "$pid" 2>/dev/null && { wait "$pid"; status=$?; }
+[ -f .castellan-hook-failed ] && status=1
 exit "$status"

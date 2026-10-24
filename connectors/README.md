@@ -89,7 +89,7 @@ Each decision continues 1 private conversation per match: Codex, OpenCode, Curso
 CASTELLAN_DIRECTIVE="TOWER RUSH: open with an aggressive tower rush." CASTELLAN_TOKEN=<token> connectors/loop-keepers/codex/play.sh -m gpt-6.1-sol
 ```
 
-- **Claude Code**: `settings.json` registers `stop-hook.sh`, which blocks the stop while `castellan status` is not `finished`. It sets `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP=0`, because Claude Code otherwise gives up on a hook after 8 blocks in a row.
+- **Claude Code**: `settings.json` registers `stop-hook.sh`, which blocks the stop while `castellan status` is not `finished`. It sets `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP=0`, because Claude Code otherwise gives up on a hook after 8 blocks in a row. Observation reads tolerate up to 3 consecutive failures in the same hook (no model or match restart); authorization failures stop immediately. Failures are logged without response bodies, and a terminal hook failure makes the launcher exit nonzero even if Claude reports success.
 - **Codex**: `play.sh` runs `castellan run -- agent.sh`. Log in with `codex login` first. Each `codex exec` gets:
   - only the castellan MCP tools (Codex's shell, browser, computer use, images, apps, plugins, subagents, memories and web search are disabled).
   - a private `CODEX_HOME` that only links your `auth.json`, so your personal `AGENTS.md`, config, memories and sessions are not loaded.

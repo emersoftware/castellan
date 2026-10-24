@@ -1,5 +1,27 @@
 # Animation status — 2026-10-01 (Chile)
 
+## Wizard hack and convert completion — 2026-10-24
+
+Hack and convert are accepted in all five source views plus mirrors. Their final
+`wizard/{action}-directions/export/` folders contain the atlas, manifest, 140
+measured crystal positions, reviewed pulses and marked contact sheet. Each action
+has a four-palette real-engine `wizard-dithered.mp4`/GIF. Stored SE still faces SW;
+preview applies the publisher mirror swap and size factor 0.92. Heal is unchanged.
+Exports remain frozen. Frontend reported publishing hack/convert byte-identical
+with their castPoints/pulses; its full suite is pending. This art pass did not
+publish sprites.
+
+This authorized resume made 10 public MiniMax submissions: eight selected new
+sources and two retained rejections. Convert SE/NE reuse earlier sources. The
+private worker was sleeping and its single connection attempt timed out before
+submission; public fallback had no auth/quota/filter error. All requests and old
+takes are preserved. See [the completion record](wizard/README.md#hack-and-convert-completion--2026-10-24),
+[resume inventory](wizard/casting-resume-inventory-20261024.json) and
+[280-cell validation](wizard/casting-resume-validation-20261024.json).
+Six local Python fixtures, check:unused, lint, check:copies and diff check pass.
+The full suite was not run by the art agent. Gameplay
+particle synchronization remains for frontend integration/review.
+
 ## Wizard casting replacement — 2026-10-24 (partial; provider stopped)
 
 Heal is accepted in all five source views and eight display directions, with

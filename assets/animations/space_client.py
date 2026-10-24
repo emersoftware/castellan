@@ -72,7 +72,7 @@ def recover(operation, stage, attempts=6):
 
 class AnimationEndpoint(Endpoint):
     def _download_file(self, file):
-        return recover(lambda: super(AnimationEndpoint, self)._download_file(file), 'download')
+        return recover(lambda: super(AnimationEndpoint, self)._download_file(file), 'download', attempts=self.client.animation_attempts)
 
     def _upload_file(self, file, data_index):
         path = Path(file['path'])
@@ -82,12 +82,13 @@ class AnimationEndpoint(Endpoint):
         key = (str(path.resolve()), stat.st_size, stat.st_mtime_ns)
         cache = self.client.animation_uploads
         if key not in cache:
-            cache[key] = recover(lambda: super(AnimationEndpoint, self)._upload_file(file, data_index), 'upload')
+            cache[key] = recover(lambda: super(AnimationEndpoint, self)._upload_file(file, data_index), 'upload', attempts=self.client.animation_attempts)
         return dict(cache[key])
 
 
 class AnimationClient(Client):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, retry_attempts=6, **kwargs):
+        self.animation_attempts = retry_attempts
         self.animation_uploads = {}
         super().__init__(*args, **kwargs)
         self.endpoints = {key: AnimationEndpoint(self, endpoint.fn_index, endpoint.dependency, endpoint.protocol)
@@ -100,7 +101,7 @@ class AnimationClient(Client):
             response.raise_for_status()
             self.cookies.update(response.cookies)
             return response.json()
-        return recover(fetch, suffix)
+        return recover(fetch, suffix, attempts=self.animation_attempts)
 
     def _get_config(self):
         return self._metadata('/config')
@@ -128,7 +129,7 @@ class AnimationClient(Client):
             except httpx.HTTPError as error:
                 record(error, 'queue-ambiguous')
                 raise RuntimeError('Queue request failed; inspect the job before resubmitting.') from error
-        return recover(retry_completed, 'completed-remote-job')
+        return recover(retry_completed, 'completed-remote-job', attempts=self.animation_attempts)
 
     def _stream_messages_once(
         self,
@@ -200,4 +201,4 @@ class AnimationClient(Client):
                             raise ValueError(f"Unexpected SSE line: '{line}'")
 
     def stream_messages(self, protocol, session_hash):
-        return recover(lambda: self._stream_messages_once(protocol, session_hash), "event-stream")
+        return recover(lambda: self._stream_messages_once(protocol, session_hash), "event-stream", attempts=self.animation_attempts)

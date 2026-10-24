@@ -1,0 +1,21 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "kind": "wizard",
+  "action": "convert",
+  "stage": "convert",
+  "direction": "n",
+  "prompt": "Seamless slow ceremonial arm movement from this raised-arm pose. Both arms remain raised, gently sways the same rigid staff from side to side, then brings it slightly forward away from camera and returns. The small faceted stone stays solid and matte. Body and feet hold their original position and orientation. Same plain robe, pointed hood and empty black hood opening. Fixed isometric camera, flat solid magenta background.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 4,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": true,
+  "source": "assets/animations/wizard/convert-directions/rejected-invalid-multiview-20261024/n/generated.mp4",
+  "source_view": 4,
+  "source_frame": 14,
+  "source_sha256": "147a7e8f02f3b42a06bd04fced05a1dfee557d3663032bfc4addce3ffc1cb486",
+  "reference_policy": "Clean raised-arm pose from retained bootstrap video; matching first and last conditioning images."
+}

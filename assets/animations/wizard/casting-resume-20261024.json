@@ -1,0 +1,32 @@
+{
+  "startedAt": "2026-10-24T14:09:23.561909+00:00",
+  "baseCommit": "3acde88",
+  "auth": "hf auth whoami: emersoftware",
+  "providerEvents": [
+    {
+      "space": "emersoftware/aoa-minimax-animation-worker",
+      "stage": "SLEEPING, authenticated space_info succeeded",
+      "attempts": 1,
+      "connectionError": "ReadTimeout: The read operation timed out",
+      "gpuSubmissions": 0
+    }
+  ],
+  "providerOrder": [
+    "emersoftware/aoa-minimax-animation-worker",
+    "MiniMaxAI/MiniMax-H3-Turbo-Lora"
+  ],
+  "retryPolicy": "--no-retries on all generation commands; no new hardware",
+  "seConvention": "Stored SE continues to face SW; publication swaps SE/SW mirrors.",
+  "status": "Hack and convert accepted and exported in all five source views; no publication by art agent.",
+  "publicSubmissions": 10,
+  "publicDownloadedVideos": 10,
+  "rejectedNewTakes": [
+    "hack-directions/rejected-staff-gap-se-resume-20261024",
+    "convert-directions/rejected-forked-staff-e-resume-20261024"
+  ],
+  "reusedViews": [
+    "convert/se",
+    "convert/ne"
+  ],
+  "newSelectedViews": 8
+}

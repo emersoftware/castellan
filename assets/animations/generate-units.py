@@ -25,7 +25,8 @@ def main(options):
     if options.anonymous and options.space != 'MiniMaxAI/MiniMax-H3-Turbo-Lora':
         raise SystemExit('--anonymous is only supported for the public MiniMax Space.')
     client=None if options.prepare_only else AnimationClient(options.space,token=token,
-                  download_files=False,headers={'Cache-Control':'no-cache'},httpx_kwargs={'timeout':60})
+                  download_files=False,headers={'Cache-Control':'no-cache'},httpx_kwargs={'timeout':60},
+                  retry_attempts=1 if options.no_retries else 6)
     kinds=[options.kind] if options.kind else ['knight','king']
     completed=0
     for kind in kinds:
@@ -42,6 +43,8 @@ def main(options):
                 if options.stage and options.stage != stage: continue
                 for direction,view in VIEWS.items():
                     if options.direction and options.direction != direction: continue
+                    # Wizard's stored SE art faces SW; publishing swaps its mirrors.
+                    facing='toward lower left' if kind=='wizard' and direction=='se' else FACING[direction]
                     directory=ROOT/f'assets/animations/{kind}/{action}-directions'/direction
                     if action=='walk': directory/=stage
                     directory.mkdir(parents=True,exist_ok=True)
@@ -53,8 +56,8 @@ def main(options):
                     elif action=='death': prompt=f'Falls onto his side, lying dead and still. Static isometric view. Preserve character and {equipment}. Solid magenta background stays unchanged.'
                     elif action=='mine': prompt='Repeated overhead pickaxe swings down into empty air. Feet planted. Fixed isometric camera. Preserve character, facing and solid magenta background.'
                     elif action=='heal': prompt=f'Seamless loop: the crystal staff slowly tilts forty-five degrees forward {FACING[direction]}, rises and gently pushes forward, then returns upright. A broad calm blessing gesture with the free palm open. Feet stay planted, body keeps original facing. Same character, plain robe, pointed hood, plain crystal staff. Fixed isometric camera and magenta background. No effects, particles, glow, arcs or new objects.'
-                    elif action=='hack': prompt=f'Seamless loop: a sharp spear-like thrust of the crystal staff {FACING[direction]}, arm fully extends, then pulls back to starting pose. Angular free-hand gesture, forceful motion. Feet stay planted, body keeps original facing. Same character, plain robe, pointed hood, plain crystal staff. Fixed isometric camera and magenta background. No effects, particles, glow, arcs or new objects.'
-                    elif action=='convert': prompt=f'Seamless loop: lifts the crystal staff vertically high above the hood, both arms raised. Staff stays upright during a slow ceremonial sway, then lowers forward {FACING[direction]} and returns to starting pose. Feet stay planted, body keeps original facing. Same character, plain robe, pointed hood, plain crystal staff. Fixed isometric camera and magenta background. No effects, particles, glow, arcs or new objects.'
+                    elif action=='hack': prompt=f'Seamless quick arm movement. One sharp forward staff jab {facing}, then retracts. Free hand makes an angular gesture. The same rigid plain staff stays in the same hand, small faceted stone stays solid and matte. Feet planted, torso and pointed hood keep the reference orientation throughout. Fixed isometric camera, same plain robe and flat magenta background.'
+                    elif action=='convert': prompt=f'Seamless slow ceremonial arm movement. Both arms lift the same plain staff across high above the pointed hood, gently sway it, bring it forward {facing}, then return. The pointed hood and head remain upright and keep the reference orientation throughout. Feet planted, same plain robe, rigid staff and small solid matte faceted stone. Fixed isometric camera, flat magenta background.'
                     elif kind=='knight': prompt=f'One sword slash {FACING[direction]}, then return to idle. Shield stays in other hand. Feet planted, fixed isometric camera. Preserve armor, facing and magenta background. No effects.'
                     elif kind=='king': prompt=('Swings his scepter overhead then down away from camera. Back stays facing camera. Feet planted. Preserve character and weapon. Fixed isometric view, plain magenta background.' if direction=='n' else f'One forceful forward jab with his staff {FACING[direction]}, then idle. Feet planted. Same character, facing, isometric view and plain magenta background.')
                     else: prompt=f'One {"pickaxe" if kind=="worker" else "scepter"} strike {FACING[direction]}, then return to idle. Feet planted, fixed isometric camera. Preserve character, facing, equipment and magenta background. No effects.'
@@ -81,6 +84,8 @@ def main(options):
                     rp=directory/'request.json'
                     if rp.exists(): request=json.loads(rp.read_text())
                     request['space']=options.space
+                    if options.no_retries: request['retry_attempts']=1
+                    if kind=='wizard' and action in ('hack','convert') and direction=='se': request['expected_source_facing']='sw (stored SE convention)'
                     rp.write_text(json.dumps(request,indent=2)+'\n')
                     if options.prepare_only:
                         print(f'{kind}/{action}/{direction}/{stage}: prepared',flush=True)
@@ -99,7 +104,8 @@ def main(options):
                     if not video.startswith('http'):
                         video=urljoin(client.src,video) if video.startswith('/gradio_api/file=') else client.src.rstrip('/')+'/gradio_api/file='+video
                     same_space=httpx.URL(video).host==httpx.URL(client.src).host
-                    for attempt in range(4):
+                    download_attempts=1 if options.no_retries else 4
+                    for attempt in range(download_attempts):
                         try:
                             response=httpx.get(video,timeout=120,follow_redirects=True,
                                                headers={'Authorization':f'Bearer {token}'} if same_space else None)
@@ -114,7 +120,7 @@ def main(options):
                             # The casting pass must stop on authorization failures,
                             # including downloads of already completed generations.
                             if kind=='wizard' and action in ('heal','hack','convert') and isinstance(error,httpx.HTTPStatusError) and error.response.status_code in (401,403): raise
-                            if attempt==3: raise
+                            if attempt==download_attempts-1: raise
                             time.sleep(3)
                     print(f'{kind}/{action}/{direction}/{stage}: saved',flush=True)
                     completed+=1
@@ -129,5 +135,6 @@ if __name__=='__main__':
     parser.add_argument('--space',default='MiniMaxAI/MiniMax-H3-Turbo-Lora')
     parser.add_argument('--anonymous',action='store_true',help='Allow the public Space without a local Hugging Face login.')
     parser.add_argument('--prepare-only',action='store_true',help='Write references and requests without contacting MiniMax.')
+    parser.add_argument('--no-retries',action='store_true',help='One attempt per provider stage; propagate errors without resubmitting.')
     options=parser.parse_args()
     main(options)
