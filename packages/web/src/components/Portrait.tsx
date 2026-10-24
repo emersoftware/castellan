@@ -1,16 +1,17 @@
 import { useEffect, useRef } from "react";
 import type { EntityKind } from "@castellan/shared";
 import { PLAYER_RAMPS } from "../render/palette";
+import { viewFor, type Turnaround } from "../render/sprites";
 import { ditherPixels } from "../render/cpuDither";
 import { isCharacter, normalizeCharacterContrast } from "../render/characterContrast";
 import { trackError } from "../analytics";
 import { sharedLoad } from "../sharedLoad";
 
 /** Still portraits: a character's south-east view; other kinds are their own file. */
-const FILES: Partial<Record<EntityKind, string>> = { king: "king_1", worker: "worker_1", knight: "knight_1", archer: "archer_1" };
+const FILES: Partial<Record<EntityKind, string>> = { king: "king_1", worker: "worker_1", knight: "knight_1", archer: "archer_1", wizard: "wizard_1" };
 /** Kinds whose atlases have an idle loop. */
-const IDLE = new Set<EntityKind>(["king", "knight", "archer", "worker", "castle", "tower"]);
-interface Idle { image: string; frameCount: number; fps: number; frameWidth: number; frameHeight: number; rows: string[] }
+const IDLE = new Set<EntityKind>(["king", "knight", "archer", "wizard", "worker", "castle", "tower"]);
+interface Idle { image: string; frameCount: number; fps: number; frameWidth: number; frameHeight: number; rows: string[]; anchorX: number; anchorY: number; sizeFactor?: number; directions?: Turnaround }
 const imageLoads = new Map<string, Promise<HTMLImageElement>>();
 const loadImage = (src: string) => sharedLoad(imageLoads, src, () => new Promise<HTMLImageElement>((resolve, reject) => {
   const img = new Image();
@@ -83,7 +84,15 @@ export function Portrait({ kind, team = 0, height = 120, idle = false, spriteBas
             let out = cache.get(key);
             if (!out) {
               ctx.clearRect(0, 0, source.width, source.height);
-              if (meta) ctx.drawImage(atlas, frame * meta.frameWidth, Math.max(0, meta.rows.indexOf("se")) * meta.frameHeight, meta.frameWidth, meta.frameHeight, 0, 0, source.width, source.height);
+              if (meta) {
+                // The south-east view, as the battlefield draws it; a size factor shrinks it about its ground point.
+                const size = meta.sizeFactor ?? 1, w = source.width * size, h = source.height * size, view = viewFor(meta.directions, 1);
+                ctx.save();
+                if (view.flip) { ctx.translate(source.width, 0); ctx.scale(-1, 1); }
+                ctx.drawImage(atlas, frame * meta.frameWidth, view.row * meta.frameHeight, meta.frameWidth, meta.frameHeight,
+                  (source.width - w) * meta.anchorX, (source.height - h) * meta.anchorY, w, h);
+                ctx.restore();
+              }
               else ctx.drawImage(img, (source.width - img.width) / 2, idle && isCharacter(kind) ? 101.5 - img.height * 0.9565543071161049 : 0);
               const ramp = PLAYER_RAMPS[color];
               out = Object.assign(document.createElement("canvas"), { width: cv.width, height });

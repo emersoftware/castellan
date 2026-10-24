@@ -65,6 +65,7 @@ export const PRELUDE = String.raw`
 
   function load(json) {
     world = parse(json);
+    for (const id of world.forget || []) delete memory[id];
     tie = Object.create(null);
     others = world.all.map(function (r) {
       tie[r[0]] = r[9];
@@ -100,6 +101,9 @@ export const PRELUDE = String.raw`
     let log;
     const act = function (a) { if (action === null) action = a; };
     const idOf = function (t) { return typeof t === "string" ? t : t && t.id; };
+    // A hacked unit fights for its owner: its enemies and allies are its owner's side, not the deciding player's.
+    const enemy = u.ownerSide ? function (o) { return u.ownerSide.indexOf(o.owner) < 0; } : hostile;
+    const ally = u.ownerSide ? function (o) { return u.ownerSide.indexOf(o.owner) >= 0; } : friendly;
     const visible = function (pred) {
       // Everything the player sees (shared vision), or under older rules only within the unit's vision; nearest first.
       const shared = world.sight === "player";
@@ -118,11 +122,11 @@ export const PRELUDE = String.raw`
       } : {}),
       memory: memory[id],
       projectiles: function () { return (world.projectiles || []).map(function (p) { return { ...p }; }); },
-      nearbyEnemies: function () { return visible(hostile); },
-      nearbyAllies: function () { return visible(friendly); },
-      nearestEnemy: function () { return visible(hostile)[0] || null; },
-      nearestAlly: function () { return visible(friendly)[0] || null; },
-      enemiesInRange: function () { return byDistance(u, others.filter(function (o) { return hostile(o) && dist(u, o) <= u.range && dist(u, o) >= (u.minRange || 0); })); },
+      nearbyEnemies: function () { return visible(enemy); },
+      nearbyAllies: function () { return visible(ally); },
+      nearestEnemy: function () { return visible(enemy)[0] || null; },
+      nearestAlly: function () { return visible(ally)[0] || null; },
+      enemiesInRange: function () { return byDistance(u, others.filter(function (o) { return o.id !== u.id && enemy(o) && dist(u, o) <= u.range && dist(u, o) >= (u.minRange || 0); })); },
       distanceTo: function (o) { return dist(u, o); },
       distanceToPos: function (x, y) { return dist(u, { x: x, y: y }); },
       enemyBase: function () { return world.enemyBase; },
@@ -148,6 +152,18 @@ export const PRELUDE = String.raw`
       self.continueOrder = function () { if (orderControl === undefined) orderControl = "continue"; };
       self.suspendOrder = function () { if (orderControl === undefined) orderControl = "suspend"; };
       self.cancelOrder = function () { if (orderControl === undefined) orderControl = "cancel"; };
+    }
+    if (u.abilities) {
+      const ab = u.abilities;
+      self.healRange = ab.healRange;
+      self.intrusionRange = ab.intrusionRange;
+      self.buildingRange = ab.buildingRange;
+      self.intrusion = freeze({ units: ab.intrusion.units, buildings: ab.intrusion.buildings });
+      self.rechargeReadyInTicks = ab.rechargeReadyInTicks;
+      self.channel = ab.channel ? freeze({ ...ab.channel }) : null;
+      self.heal = function (t) { act({ a: "heal", id: idOf(t) }); };
+      self.hack = function (t, code) { act({ a: "hack", id: idOf(t), code: typeof code === "string" ? code : "" }); };
+      self.convert = function (t) { act({ a: "convert", id: idOf(t) }); };
     }
     if (u.lastAttackedTick !== undefined) {
       self.lastAttackedTick = u.lastAttackedTick;

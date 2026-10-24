@@ -1,0 +1,12 @@
+{
+  "status": "Stopped provider requests and downloads after HTTP 403.",
+  "error": "httpx.HTTPStatusError: Client error '403 Forbidden' for url 'https://minimaxai-minimax-h3-turbo-lora.hf.space/gradio_api/file=/tmp/gradio/44cfde018a7659790134b7df97d978a814c5023936937afb230b645a6d5b5a3e/h3-1792820756878.mp4'",
+  "failedStage": "download completed convert/e generation",
+  "request": "convert-directions/e/request.json",
+  "savedResult": "convert-directions/e/result.json",
+  "regenerated": false,
+  "quotaErrorObserved": false,
+  "localAuthChecked": "hf auth whoami: emersoftware",
+  "earlierTransportError": "httpx.ConnectError: [Errno 8] nodename nor servname provided, or not known (huggingface.co metadata DNS)",
+  "downloadAttemptsByExistingPipeline": 4
+}

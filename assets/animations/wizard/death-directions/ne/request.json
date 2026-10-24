@@ -1,0 +1,18 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "kind": "wizard",
+  "action": "death",
+  "stage": "death",
+  "direction": "ne",
+  "prompt": "Falls onto his side, lying dead and still. Static isometric view. Preserve character and plain robe, pointed hood and crystal staff. Solid magenta background stays unchanged. Preserve the empty black face opening, no face, beard or hair.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 6,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": false,
+  "source": "assets/wizard/source/idle.png",
+  "source_view": 3
+}

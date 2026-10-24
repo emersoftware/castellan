@@ -118,7 +118,12 @@ export class PlayerVision {
       const visible = new Set<number>();
       const reveal = this.rules().revealAttackerMs ? this.clock.ticks(this.rules().revealAttackerMs) : -1;
       for (const e of this.world.entities.values()) {
-        if (this.hostile(p.id, e.owner) || this.world.ruined.has(e.owner)) continue;
+        if (this.world.ruined.has(e.owner)) continue;
+        if (this.hostile(p.id, e.owner)) {
+          // A hypno entity lends its controller its own sight, and nothing else of its owner's.
+          if (e.payload?.controller === p.id) for (const tile of this.visionTiles(e)) visible.add(tile);
+          continue;
+        }
         for (const tile of this.visionTiles(e)) visible.add(tile);
         // Whoever recently damaged it is revealed, wherever it stands.
         const by = e.lastAttacked && this.clock.tick - e.lastAttacked.tick <= reveal ? this.world.entities.get(e.lastAttacked.id) : undefined;
@@ -161,6 +166,8 @@ export class PlayerVision {
 
   canSeeEvent(player: PlayerId, event: GameEvent): boolean {
     if (event.type === "match_end" || event.type === "eliminated" || event.type === "chat") return true;
+    // Match widens this to the controllers involved; nobody else learns of a hack.
+    if (event.type === "hypno") return player === event.owner || player === event.controller;
     const owner = eventOwner(event);
     if (owner !== undefined && !this.hostile(player, owner)) return true;
     if (event.type === "research_started" || event.type === "upgrade_completed" || event.type === "training_queued" || event.type === "unload" || event.type === "log" || event.type === "script_error" || event.type === "order_end") return false;

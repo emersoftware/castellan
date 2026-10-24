@@ -137,6 +137,9 @@ function entityLine(e: EntityView): string {
     e.actionResult ? `result [${e.actionResult.tick}] ${e.actionResult.source}: ${e.actionResult.status}${e.actionResult.effect ? ` ${e.actionResult.effect}` : ""}${e.actionResult.reason ? ` (${e.actionResult.reason})` : ""}` : "",
     !e.doing && e.heading ? `heading ${e.heading}` : "",
     e.carrying ? `carry ${e.carrying}` : "",
+    e.casting ? `casting ${e.casting.action} ${e.casting.target}${e.casting.progressMs !== undefined ? ` ${(e.casting.progressMs / 1000).toFixed(1)}s in range` : ""}` : "",
+    e.rechargeMs ? `hack/convert recharge ${(e.rechargeMs / 1000).toFixed(1)}s` : "",
+    e.hypno ? (e.controller ? `HYPNO: controller ${e.controller} runs it with a hack script` : "HYPNO: runs a hack script; ignores your orders and uploads") : "",
   ].filter(Boolean).join(" · ");
   return `  ${e.id} ${e.kind} (${e.x},${e.y}) hp ${e.hp}/${e.maxHp}${extra ? " · " + extra : ""}`;
 }

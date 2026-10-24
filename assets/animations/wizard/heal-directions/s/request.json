@@ -1,0 +1,21 @@
+{
+  "space": "https://minimaxai-minimax-h3-turbo-lora.hf.space",
+  "kind": "wizard",
+  "action": "heal",
+  "stage": "heal",
+  "direction": "s",
+  "prompt": "Seamless slow arm movement. From this extended arm pose, gently pushes the staff forward toward camera and pulls back, in a smooth calm rhythm. The other palm remains open and raised. The small faceted stone on the plain staff stays solid and matte. Body and feet keep their original position and orientation. Same plain robe, pointed hood and empty black hood opening. Fixed isometric camera, flat solid magenta background.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 4,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": true,
+  "source": "assets/animations/wizard/heal-directions/rejected-weak-multiview-20261024/s/generated.mp4",
+  "source_view": 0,
+  "source_frame": 28,
+  "source_sha256": "8b2e9b11ee13da5ccf067d32c55fb301ce1592ba4d5e70a721938569d6fa72c4",
+  "reference_policy": "Clean mid-cast pose from retained bootstrap video, identical first and last conditioning images."
+}

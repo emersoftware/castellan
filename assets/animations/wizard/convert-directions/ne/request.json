@@ -1,0 +1,18 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "kind": "wizard",
+  "action": "convert",
+  "stage": "convert",
+  "direction": "ne",
+  "prompt": "Seamless loop: lifts the crystal staff vertically high above the hood, both arms raised. Staff stays upright during a slow ceremonial sway, then lowers forward diagonally away to the right and returns to starting pose. Feet stay planted, body keeps original facing. Same character, plain robe, pointed hood, plain crystal staff. Fixed isometric camera and magenta background. No effects, particles, glow, arcs or new objects. Preserve the empty black face opening, no face, beard or hair.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 6,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": true,
+  "source": "assets/wizard/source/idle.png",
+  "source_view": 3
+}

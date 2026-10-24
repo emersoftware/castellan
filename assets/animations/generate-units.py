@@ -1,5 +1,5 @@
 """Generate unit clips with the same authenticated MiniMax pipeline as Ranger.
-Run: uv run --with gradio_client==2.7.1 python assets/animations/generate-units.py [king|knight|ranger|worker]
+Run: uv run --with gradio_client==2.7.1 python assets/animations/generate-units.py [king|knight|ranger|worker|wizard]
 Resumes completed clips. Credentials stay in the local Hugging Face login.
 """
 import argparse
@@ -20,15 +20,22 @@ def ff(*args):
     subprocess.run(['ffmpeg','-y','-hide_banner','-loglevel','error',*map(str,args)],check=True)
 def main(options):
     token=get_token()
-    if not token: raise SystemExit('Authenticate with hf auth login first.')
-    client=AnimationClient(options.space,token=token,
+    if not options.prepare_only and not token and not options.anonymous:
+        raise SystemExit('Authenticate with hf auth login first, or use --anonymous for the public Space.')
+    if options.anonymous and options.space != 'MiniMaxAI/MiniMax-H3-Turbo-Lora':
+        raise SystemExit('--anonymous is only supported for the public MiniMax Space.')
+    client=None if options.prepare_only else AnimationClient(options.space,token=token,
                   download_files=False,headers={'Cache-Control':'no-cache'},httpx_kwargs={'timeout':60})
     kinds=[options.kind] if options.kind else ['knight','king']
     completed=0
     for kind in kinds:
-        assert kind in ('king','knight','ranger','worker')
-        equipment={'knight':'sword and shield','king':'crown, cloak and scepter','ranger':'bow and quiver','worker':'pickaxe'}[kind]
-        actions=[options.action] if options.action else (['idle','walk','mine','attack','death'] if kind=='worker' else ['death'] if kind=='ranger' else ['idle','walk']+(['attack'] if kind=='knight' else []))
+        assert kind in ('king','knight','ranger','worker','wizard')
+        equipment={'knight':'sword and shield','king':'crown, cloak and scepter','ranger':'bow and quiver','worker':'pickaxe','wizard':'plain robe, pointed hood and crystal staff'}[kind]
+        actions=[options.action] if options.action else (['idle','walk','heal','hack','convert','death'] if kind=='wizard' else ['idle','walk','mine','attack','death'] if kind=='worker' else ['death'] if kind=='ranger' else ['idle','walk']+(['attack'] if kind=='knight' else []))
+        if kind!='wizard' and any(action in ('heal','hack','convert') for action in actions):
+            raise SystemExit('Casting references are only defined for Wizard.')
+        if kind=='wizard' and any(action in ('attack','mine') for action in actions):
+            raise SystemExit('Wizard has no attack or mining animation.')
         for action in actions:
             if options.action and options.action != action: continue
             for stage in (['bootstrap','continuous'] if action=='walk' else [action]):
@@ -45,13 +52,19 @@ def main(options):
                     elif action=='walk': prompt=f'Seamless walk cycle in place, constant pace, no pauses or easing. Fixed isometric camera. Preserve character, facing, {equipment} and magenta background.'
                     elif action=='death': prompt=f'Falls onto his side, lying dead and still. Static isometric view. Preserve character and {equipment}. Solid magenta background stays unchanged.'
                     elif action=='mine': prompt='Repeated overhead pickaxe swings down into empty air. Feet planted. Fixed isometric camera. Preserve character, facing and solid magenta background.'
+                    elif action=='heal': prompt=f'Seamless loop: the crystal staff slowly tilts forty-five degrees forward {FACING[direction]}, rises and gently pushes forward, then returns upright. A broad calm blessing gesture with the free palm open. Feet stay planted, body keeps original facing. Same character, plain robe, pointed hood, plain crystal staff. Fixed isometric camera and magenta background. No effects, particles, glow, arcs or new objects.'
+                    elif action=='hack': prompt=f'Seamless loop: a sharp spear-like thrust of the crystal staff {FACING[direction]}, arm fully extends, then pulls back to starting pose. Angular free-hand gesture, forceful motion. Feet stay planted, body keeps original facing. Same character, plain robe, pointed hood, plain crystal staff. Fixed isometric camera and magenta background. No effects, particles, glow, arcs or new objects.'
+                    elif action=='convert': prompt=f'Seamless loop: lifts the crystal staff vertically high above the hood, both arms raised. Staff stays upright during a slow ceremonial sway, then lowers forward {FACING[direction]} and returns to starting pose. Feet stay planted, body keeps original facing. Same character, plain robe, pointed hood, plain crystal staff. Fixed isometric camera and magenta background. No effects, particles, glow, arcs or new objects.'
                     elif kind=='knight': prompt=f'One sword slash {FACING[direction]}, then return to idle. Shield stays in other hand. Feet planted, fixed isometric camera. Preserve armor, facing and magenta background. No effects.'
                     elif kind=='king': prompt=('Swings his scepter overhead then down away from camera. Back stays facing camera. Feet planted. Preserve character and weapon. Fixed isometric view, plain magenta background.' if direction=='n' else f'One forceful forward jab with his staff {FACING[direction]}, then idle. Feet planted. Same character, facing, isometric view and plain magenta background.')
                     else: prompt=f'One {"pickaxe" if kind=="worker" else "scepter"} strike {FACING[direction]}, then return to idle. Feet planted, fixed isometric camera. Preserve character, facing, equipment and magenta background. No effects.'
+                    if kind=='wizard': prompt+=' Preserve the empty black face opening, no face, beard or hair.'
                     reference=directory/'reference.png'
                     if not reference.exists():
                         if stage=='continuous':
                             ff('-i',directory.parent/'bootstrap/generated.mp4','-vf','select=eq(n\\,12)','-frames:v',1,reference)
+                        elif kind=='wizard':
+                            raise SystemExit('Prepare Wizard references first: node --import tsx assets/animations/wizard/prepare.mts')
                         else:
                             vf=f'crop=290:400:{45+view*290}:535,pad=400:400:55:0:color=magenta,scale=544:544'
                             if action=='attack' and kind!='king': vf+=',pad=544:574:0:30:color=magenta,crop=544:544:0:0'
@@ -63,12 +76,15 @@ def main(options):
                                 vf+=f',scale={size}:{size},pad=544:544:{pad}:{pad}:color=magenta'
                             ff('-i',ROOT/f'assets/raw/{kind}_sheet.png','-vf',vf,'-frames:v',1,reference)
                     request=dict(space='MiniMaxAI/MiniMax-H3-Turbo-Lora',kind=kind,action=action,stage=stage,direction=direction,
-                                 prompt=prompt,canvas='544x544 · 1:1 fast',duration=2,steps=8 if kind=='king' and action=='attack' and direction=='n' else 6 if action=='death' or action=='attack' and kind in ('worker','king') else 4,seed=42,upsample=False,lora='larry',
-                                 reference='reference.png',first_and_last_frame=action!='death',source=f'assets/raw/{kind}_sheet.png',source_view=view)
+                                 prompt=prompt,canvas='544x544 · 1:1 fast',duration=2,steps=8 if kind=='king' and action=='attack' and direction=='n' else 6 if action=='death' or action=='attack' and kind in ('worker','king') or kind=='wizard' and action in ('heal','hack','convert') else 4,seed=42,upsample=False,lora='larry',
+                                 reference='reference.png',first_and_last_frame=action!='death',source='assets/wizard/source/idle.png' if kind=='wizard' else f'assets/raw/{kind}_sheet.png',source_view=view)
                     rp=directory/'request.json'
                     if rp.exists(): request=json.loads(rp.read_text())
                     request['space']=options.space
                     rp.write_text(json.dumps(request,indent=2)+'\n')
+                    if options.prepare_only:
+                        print(f'{kind}/{action}/{direction}/{stage}: prepared',flush=True)
+                        continue
                     if (directory/'result.json').exists():
                         print(f'{kind}/{action}/{direction}/{stage}: downloading saved result',flush=True)
                         result=json.loads((directory/'result.json').read_text())
@@ -94,7 +110,10 @@ def main(options):
                             ff('-i',pending,'-vf',f'fps={contact_fps},scale=180:180,tile=7x2','-frames:v',1,directory/'contact-sheet.png')
                             pending.replace(target)
                             break
-                        except httpx.HTTPError:
+                        except httpx.HTTPError as error:
+                            # The casting pass must stop on authorization failures,
+                            # including downloads of already completed generations.
+                            if kind=='wizard' and action in ('heal','hack','convert') and isinstance(error,httpx.HTTPStatusError) and error.response.status_code in (401,403): raise
                             if attempt==3: raise
                             time.sleep(3)
                     print(f'{kind}/{action}/{direction}/{stage}: saved',flush=True)
@@ -102,11 +121,13 @@ def main(options):
                     if options.limit and completed>=options.limit: return
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('kind',nargs='?',choices=['king','knight','ranger','worker'])
-    parser.add_argument('--action',choices=['idle','walk','attack','death','mine'])
+    parser.add_argument('kind',nargs='?',choices=['king','knight','ranger','worker','wizard'])
+    parser.add_argument('--action',choices=['idle','walk','attack','death','mine','heal','hack','convert'])
     parser.add_argument('--direction',choices=list(VIEWS))
-    parser.add_argument('--stage',choices=['bootstrap','continuous','idle','attack','death','mine'])
+    parser.add_argument('--stage',choices=['bootstrap','continuous','idle','attack','death','mine','heal','hack','convert'])
     parser.add_argument('--limit',type=int,default=0)
     parser.add_argument('--space',default='MiniMaxAI/MiniMax-H3-Turbo-Lora')
+    parser.add_argument('--anonymous',action='store_true',help='Allow the public Space without a local Hugging Face login.')
+    parser.add_argument('--prepare-only',action='store_true',help='Write references and requests without contacting MiniMax.')
     options=parser.parse_args()
     main(options)

@@ -1,6 +1,6 @@
 import type { ActionAvailability, GameEvent, KindSpec, OrderResult, PlayerId, EntityKind, Ruleset } from "@castellan/shared";
 import type { SimulationClock } from "./clock";
-import type { Entity, Player } from "./entities";
+import { compromised, type Entity, type Player } from "./entities";
 import type { Movement } from "./movement";
 
 /**
@@ -23,7 +23,7 @@ export class Production {
     const spec = { ...base };
     for (const [id, level] of Object.entries(player.upgrades)) {
       const upgrade = this.rules().upgrades[id];
-      if (upgrade.kind !== kind || upgrade.stat === "unlock") continue;
+      if (upgrade.kind !== kind || upgrade.stat === "unlock" || upgrade.stat === "intrusion") continue;
       const bought = upgrade.levels[level - 1];
       spec[upgrade.stat] = bought.value;
       if (bought.vision !== undefined) spec.vision = bought.vision;
@@ -63,7 +63,7 @@ export class Production {
         blockedBy: [...inactive, ...this.trainBlockers(player, b, kind)], exitBlocked: !this.movement.freeNeighbor(b.x, b.y, player.id) }))),
       build: [...new Set(Object.values(rules.kinds).flatMap(k => k.builds ?? []))].map(kind => ({ kind,
         cost: rules.kinds[kind].cost, siteCheckRequired: true,
-        blockedBy: [...inactive, ...(!mine.some(e => e.spec.builds?.includes(kind)) ? ["no builder"] : []), ...this.eligibility(player, kind)] })),
+        blockedBy: [...inactive, ...(!mine.some(e => e.spec.builds?.includes(kind) && !compromised(e)) ? ["no builder"] : []), ...this.eligibility(player, kind)] })),
       research: Object.entries(rules.upgrades).map(([upgrade, spec]) => ({ upgrade,
         level: (player.upgrades[upgrade] ?? 0) + 1, cost: spec.levels[player.upgrades[upgrade] ?? 0]?.cost ?? null,
         blockedBy: [...inactive, ...this.researchBlockers(player, upgrade)] })),
@@ -77,6 +77,7 @@ export class Production {
 
   private trainBlockers(player: Player, building: Entity, kind: string): string[] {
     const rules = this.rules(), spec = rules.kinds[kind], reasons = this.eligibility(player, kind);
+    if (compromised(building)) reasons.push(`${building.id} is under hypno: it ignores your orders`);
     const { units, queued } = this.population(player.id);
     if (units + queued >= rules.popCap) reasons.push(`population cap ${rules.popCap} reached`);
     if (spec.trainMs && (building.training?.length ?? 0) >= rules.trainingQueueLimit) reasons.push("training queue full");
@@ -138,7 +139,7 @@ export class Production {
   /**
    * Delivers what is due this tick. Completed research raises the player's living units of its kind;
    * existing cooldowns are not reset. A trained unit steps out beside its building in `ordered` order,
-   * or stays paid and queued until an exit opens, when the next job's timer starts.
+   * or stays paid and queued until an exit opens and its owner is below the population cap, when the next job's timer starts.
    */
   deliver(ordered: readonly Entity[], emit: (e: GameEvent) => void) {
     const T = this.clock.tick;
@@ -155,6 +156,8 @@ export class Production {
       if (this.world.ruined.has(b.owner)) continue;
       const job = b.training?.[0];
       if (!job || job.completesAtTick === undefined || T < job.completesAtTick) continue;
+      // Conversions can exceed the cap: a paid unit then waits until there is room.
+      if (this.population(b.owner).units >= this.rules().popCap) continue;
       const tile = this.movement.freeNeighbor(b.x, b.y, b.owner);
       if (!tile) continue;
       const unit = this.spawn(job.kind, b.owner, tile[0], tile[1]);

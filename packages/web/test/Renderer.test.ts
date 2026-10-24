@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { expect, it, vi } from "vitest";
-import { Container, FilterSystem, Graphics, RenderTexture, Texture, type Filter, type TextureSource } from "pixi.js";
+import { Container, FilterSystem, Graphics, RenderTexture, Texture, TextureSource, type Filter } from "pixi.js";
 import { rules, MAPS, type EntityView } from "@castellan/shared";
 import { OcclusionPass } from "../src/render/occlusion";
 import { TILE_H, TILE_W } from "../src/render/sprites";
@@ -102,6 +102,23 @@ it.each(["shooter", "target"])("places a newly spawned or revealed %s before dra
   h.time(1110);
   h.animate();
   expect(lineTo).toHaveBeenLastCalledWith((a.x + b.x) / 2, (a.y + b.y) / 2 - Math.hypot(b.x - a.x, b.y - a.y) * 0.18);
+});
+
+it("fires a building's shot from near its top and brings it down to the usual height by its end", () => {
+  // A 60-pixel-tall building whose art is solid from the top: its visible body is 60 display pixels high.
+  const h = createField({ colors: { a: 0, b: 1 }, art: stubArt({ texture: new Texture({ source: new TextureSource({ width: 100, height: 60 }) }) }) });
+  const castle: EntityView = { id: "c", kind: "castle", owner: "a", x: 2, y: 4, hp: 1000, maxHp: 1000 };
+  const target: EntityView = { id: "w", kind: "worker", owner: "b", x: 6, y: 4, hp: 40, maxHp: 40 };
+  const p = { id: "p1", owner: "a", x: 2.5, y: 4, vx: 6, vy: 0, endX: 6, endY: 4 };
+  h.field.show(frameAt(1, [castle, target]), 100); h.animate();
+  h.field.show(frameAt(2, [castle, target], { projectiles: [p], events: [{ tick: 1, type: "attack", from: "c", to: "w", dmg: 12, projectile: "p1" }] }), 100);
+  const streak = h.layers.fx.children.at(-1) as Graphics;
+  const line = vi.spyOn(streak, "lineTo");
+  h.time(1100); h.animate();
+  expect(line).toHaveBeenLastCalledWith((2.5 - 4) * TILE_W / 2, (2.5 + 4) * TILE_H / 2 - 48);
+  h.field.show(frameAt(3, [castle, target], { projectiles: [{ ...p, x: 6 }] }), 100);
+  h.time(1200); h.animate();
+  expect(line).toHaveBeenLastCalledWith((6 - 4) * TILE_W / 2, (6 + 4) * TILE_H / 2 - 6);
 });
 
 it("renders real projectile state on seeks, interpolates it, and removes it on impact or fog loss", () => {

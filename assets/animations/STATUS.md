@@ -1,5 +1,34 @@
 # Animation status — 2026-10-01 (Chile)
 
+## Wizard casting replacement — 2026-10-24 (partial; provider stopped)
+
+Heal is accepted in all five source views and eight display directions, with
+measured per-frame crystal positions and pulses `[13,16,0,13,14]`. Hack retains
+its previous published image and now has 140 measured crystal positions with
+empty pulses; SE tracks remain on the crystal despite the generated arcs.
+Frontend integrated both and reported 716 tests in 117 files, typecheck and web
+build passing. This is local integration, not a deployment.
+
+The new hack and complete convert clips remain pending. Of 36 MiniMax submissions,
+33 videos were downloaded, two prompts were filtered and one completed convert E
+result could not be downloaded (HTTP 403). Generation/downloads stopped; no quota
+error was observed. SE convert is a reviewed pilot and NE an exported candidate,
+not a complete action. All original and rejected recordings remain available.
+See [the final record](wizard/README.md#casting-replacement-pass--2026-10-24-partial-provider-stopped)
+and [per-request inventory](wizard/casting-inventory-20261024.json) for exact paths,
+review dispositions, bursts, preserved results and remaining limits.
+
+## Wizard source animations — 2026-10-23
+
+Idle, walk, heal, hack and death are generated with MiniMax H3 Turbo LoRA in five
+source views plus three mirrors. All 700 atlas cells and 4,480 dithered display
+frames pass validation, including source boundaries, ground anchors, direction
+mapping and held death endpoints. Seven rejected takes remain with their source
+records. The atlases are registered unchanged in `assets/sprites/wizard/`, with the
+idle stills as `wizard_0..4`; rendered gameplay review is pending.
+
+See [the reviewed video and generation record](wizard/README.md).
+
 ## Building destruction — 2026-10-06 (Chile)
 
 Structures play the full 28-frame collapse at the original position.

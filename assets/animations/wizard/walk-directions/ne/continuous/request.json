@@ -1,0 +1,20 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "kind": "wizard",
+  "action": "walk",
+  "stage": "continuous",
+  "direction": "ne",
+  "prompt": "Rear three-quarter view, back and right shoulder facing camera. Seamless walking in place, alternating steps, steady staff. Maintain this exact body facing throughout. No turn, spin, fading or effects. Fixed camera, unchanged hood and robe, solid magenta background.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 6,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": true,
+  "source": "assets/wizard/source/walk.png",
+  "source_view": 3,
+  "reference_method": "accepted mid-step source pose; rejected bootstrap turned away",
+  "replaces": "rejected-initial-facing/generated.mp4"
+}

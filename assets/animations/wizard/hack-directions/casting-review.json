@@ -1,0 +1,53 @@
+{
+  "frameIndexing": "zero-based exported atlas frames",
+  "requireExactLoop": false,
+  "acceptance": "Track the restored previously accepted/published hack atlas without changing its image. No reviewed burst gesture; empty pulses preserve a steady renderer stream.",
+  "views": {
+    "s": {
+      "seed": [
+        42,
+        31.5
+      ],
+      "pulses": [],
+      "reason": "Previous accepted hack has a steady staff and no reviewed flare gesture. Measure the actual crystal each frame; do not use white arcs.",
+      "status": "verified: all 28 marked crystal points reviewed on restored published atlas"
+    },
+    "se": {
+      "seed": [
+        39.3,
+        32.3
+      ],
+      "pulses": [],
+      "reason": "Previous accepted hack has a steady staff and no reviewed flare gesture. Measure the actual crystal each frame; do not use white arcs.",
+      "status": "verified: all 28 marked crystal points reviewed on restored published atlas"
+    },
+    "e": {
+      "seed": [
+        69,
+        33.5
+      ],
+      "pulses": [],
+      "reason": "Previous accepted hack has a steady staff and no reviewed flare gesture. Measure the actual crystal each frame; do not use white arcs.",
+      "status": "verified: all 28 marked crystal points reviewed on restored published atlas"
+    },
+    "ne": {
+      "seed": [
+        73.4,
+        32
+      ],
+      "pulses": [],
+      "reason": "Previous accepted hack has a steady staff and no reviewed flare gesture. Measure the actual crystal each frame; do not use white arcs.",
+      "status": "verified: all 28 marked crystal points reviewed on restored published atlas"
+    },
+    "n": {
+      "seed": [
+        72.5,
+        31.5
+      ],
+      "pulses": [],
+      "reason": "Previous accepted hack has a steady staff and no reviewed flare gesture. Measure the actual crystal each frame; do not use white arcs.",
+      "status": "verified: all 28 marked crystal points reviewed on restored published atlas"
+    }
+  },
+  "arcReview": "SE frames 7\u20139 and 14\u201322 contain bright crescents. Every marked point remains on the staff crystal; SE x range 38.41\u201339.41, y 31.57\u201331.84, max adjacent-frame movement 0.28 stored px."
+}

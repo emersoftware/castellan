@@ -70,7 +70,8 @@ players are bots; reading only: orders and scripts are refused) → `running` �
 Each tick (`Match.step`): research and training that finish now → orders, alternating
 player priority every tick → scripts (reactive scripts run beside orders) →
 movement in player priority → combat, all hits before deaths → economy and
-construction → deaths, the vital rule and the victory check → events.
+construction → deaths → Wizards' heals and channel completions on the survivors →
+the vital rule and the victory check → events.
 The King is the vital unit: a side whose Kings all fall loses; a match with no
 winning side is a loss for everyone.
 
@@ -98,7 +99,8 @@ winning side is a loss for everyone.
 - Inside the engine, `Board` owns tile occupancy, doors and construction sites; every
   static change bumps the path version. Movement, combat, vision, order progress,
   `Production` (training, research and what each player may do now) and `UnitScripts`
-  (each player's VM, what a script sees and the events it hears) are separate collaborators.
+  (each player's VM, what a script sees and the events it hears) and `Abilities` (Wizards' heal, hack and
+  convert: eligibility, seeded channels, recharge) are separate collaborators.
   Outside code reaches a match only through its API, `stage` (staged scenarios) and `resimulate`.
 
 ## Script sandbox
@@ -114,6 +116,10 @@ winning side is a loss for everyone.
 - `Date`, `WeakRef` and `FinalizationRegistry` are removed; `Math.random` is seeded.
   `self.memory` is JSON, at most 1 KB per unit; a memory that grows past that or cannot
   be serialized is reset, and the reset is reported even when the script also threw.
+- A hack installs a payload for one entity: it is compiled once, when the channel starts, as a named script
+  in the deciding player's VM (`setScript(name, code)`, the same operation in the worker), and the entity runs
+  it there with that player's gas, sight and memory. Ownership and control changes list the entity in
+  `ScriptWorld.forget`, so every VM that ran it starts its memory over.
 - The first action call counts; none → `hold()`. The engine re-validates every action.
   `self` exposes readiness (`attackReadyInTicks`, `moveReadyInTicks`, …), `canMove(dir)`
   (`null` when it would need unseen tiles) and `lastActionResult`.

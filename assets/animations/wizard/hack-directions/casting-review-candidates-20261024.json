@@ -1,0 +1,18 @@
+{
+  "frameIndexing": "zero-based exported atlas frames",
+  "acceptance": "No full replacement hack action accepted. S/NE pilots under review; export/ is the previous published take.",
+  "views": {
+    "s": {
+      "seed": [
+        47,
+        26
+      ],
+      "pulses": [
+        9,
+        17
+      ],
+      "reason": "Provisional visible staff-thrust crests; marked sheet review pending.",
+      "status": "pilot review pending"
+    }
+  }
+}

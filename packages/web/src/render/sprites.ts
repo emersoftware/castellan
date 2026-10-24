@@ -41,7 +41,15 @@ export interface SpriteArt {
   /** The point that stands on the tile centre, 0..1 of the width/height. */
   anchorX: number;
   anchorY: number;
+  /**
+   * The highest visible pixel, 0..1 of the height like `anchorY`: for a clip, the highest of its direction in any
+   * frame, so marks placed over the body hold still while it moves. Art has transparent margins above it.
+   */
+  top: number;
 }
+
+/** Display pixels from the ground point to the top of the visible body. */
+export const bodyHeight = (art: SpriteArt) => (art.anchorY - art.top) * art.texture.height * art.scale;
 
 /** The art to draw for a kind facing a screen direction, and whether to mirror it. */
 interface Facing {
@@ -56,12 +64,24 @@ interface Facing {
 const SHEET_VIEW = [0, 1, 2, 3, 4, 3, 2, 1];
 const MIRRORED = [false, false, false, false, false, true, true, true];
 
-export interface AnimationFrame { action: "idle" | "walk" | "shoot" | "attack" | "death" | "mine" | "damaged25" | "damaged50" | "fire25" | "fire50" | "death25" | "death50" | "deathFire25" | "deathFire50"; frame: number }
+/** A clip's published directions: for each, its screen direction, the row drawn and whether it is mirrored. */
+export type Turnaround = Record<string, { screenDir: number; row: number; flip: boolean }>;
+
+/**
+ * The row to draw for screen direction `dir`, and whether to mirror it, as the clip publishes them; without a
+ * mapping, the standard S, SE, E, NE, N rows with the west half mirrored.
+ */
+export function viewFor(directions: Turnaround | undefined, dir: number): { row: number; flip: boolean } {
+  const entry = directions && Object.values(directions).find((d) => d.screenDir === dir);
+  return entry ? { row: entry.row, flip: entry.flip } : { row: SHEET_VIEW[dir], flip: MIRRORED[dir] };
+}
+
+export interface AnimationFrame { action: "idle" | "walk" | "shoot" | "attack" | "heal" | "hack" | "convert" | "death" | "mine" | "damaged25" | "damaged50" | "fire25" | "fire50" | "death25" | "death50" | "deathFire25" | "deathFire50"; frame: number }
 export type SpriteSet = (kind: string, dir?: number, animation?: AnimationFrame) => Facing;
 
 /** Atlas cells have a local ground anchor, shared by all texture passes. */
-export function animationCell(art: SpriteArt, frame: { x: number; y: number; width: number; height: number; displayWidth?: number; displayHeight?: number }): SpriteArt {
-  return { ...cropSpriteArt(art, frame), anchorX: art.anchorX, anchorY: art.anchorY };
+export function animationCell(art: SpriteArt, frame: { x: number; y: number; width: number; height: number; displayWidth?: number; displayHeight?: number }, top = art.top): SpriteArt {
+  return { ...cropSpriteArt(art, frame), anchorX: art.anchorX, anchorY: art.anchorY, top };
 }
 
 /** Select one sprite from a source image without moving its ground anchor. */
@@ -77,6 +97,7 @@ export function cropSpriteArt(art: SpriteArt, frame: { x: number; y: number; wid
     ...art,
     anchorX: (art.anchorX * art.texture.width - frame.x) / frame.width,
     anchorY: (art.anchorY * art.texture.height - frame.y) / frame.height,
+    top: Math.max(0, (art.top * art.texture.height - frame.y) / frame.height),
     texture: crop(art.texture),
     silhouette: crop(art.silhouette),
     xray: art.xray.map(crop),
@@ -100,24 +121,30 @@ async function buildSprites(base: string): Promise<SpriteSet> {
   const statics = Promise.all(
     Object.entries(manifest.sprites).map(async ([name, m]) => {
       const img = await loadImage(`${base}/${name}.${m.format ?? "png"}`);
-      let art = { ...derive(img, m.rasterWidth, m.rasterHeight, Math.round(manifest.scale), name), scale: 1 / manifest.scale, anchorX: m.anchorX ?? 0.5, anchorY: m.anchorY };
+      const { pixels, ...textures } = derive(img, m.rasterWidth, m.rasterHeight, Math.round(manifest.scale), name);
+      let art: SpriteArt = { ...textures, scale: 1 / manifest.scale, anchorX: m.anchorX ?? 0.5, anchorY: m.anchorY, top: opaqueTop(pixels, textures.texture.width, 0, textures.texture.height) / textures.texture.height };
       if (m.displayWidth !== undefined) art = animationCell(art, { x: 0, y: 0, width: art.texture.width, height: art.texture.height, displayWidth: m.displayWidth, displayHeight: m.displayHeight });
       arts.set(name, m.frame ? cropSpriteArt(art, m.frame) : art);
     }),
   );
-  const animations = new Map<string, SpriteArt[][]>();
+  const animations = new Map<string, { rows: SpriteArt[][]; directions?: Turnaround }>();
   const animated = Promise.all(CLIP_ART.map(async kind => {
     const metadata = await fetch(`${base}/${kind}/manifest.json`).then((r) => r.json()) as Partial<Record<AnimationFrame["action"], {
-      available?: boolean; image: string; frameCount: number; columns?: number; frameWidth: number; frameHeight: number; displayWidth?: number; displayHeight?: number; storedScale: number; anchorX: number; anchorY: number; rows: string[];
+      available?: boolean; image: string; frameCount: number; columns?: number; frameWidth: number; frameHeight: number; displayWidth?: number; displayHeight?: number; storedScale: number; sizeFactor?: number; anchorX: number; anchorY: number; rows: string[]; directions?: Turnaround;
     }>>;
     await Promise.all(Object.entries(metadata).map(async ([action, m]) => {
       if (m.available === false) return;
       const img = await loadImage(`${base}/${kind}/${m.image}`);
-      const atlas = { ...derive(img, undefined, undefined, Math.round(m.storedScale), kind, action as AnimationFrame["action"]), scale: 1 / m.storedScale, anchorX: m.anchorX, anchorY: m.anchorY };
-      const columns = m.columns ?? m.frameCount;
-      animations.set(`${kind}:${action}`, m.rows.map((_, row) => Array.from({ length: m.frameCount }, (_, frame) => animationCell(atlas, {
-        x: (frame % columns) * m.frameWidth, y: (row * Math.ceil(m.frameCount / columns) + Math.floor(frame / columns)) * m.frameHeight, width: m.frameWidth, height: m.frameHeight, displayWidth: m.displayWidth, displayHeight: m.displayHeight,
-      }))));
+      const { pixels, ...textures } = derive(img, undefined, undefined, Math.round(m.storedScale), kind, action as AnimationFrame["action"]);
+      const atlas: SpriteArt = { ...textures, scale: (m.sizeFactor ?? 1) / m.storedScale, anchorX: m.anchorX, anchorY: m.anchorY, top: 0 };
+      const columns = m.columns ?? m.frameCount, band = Math.ceil(m.frameCount / columns) * m.frameHeight;
+      animations.set(`${kind}:${action}`, { directions: m.directions, rows: m.rows.map((_, row) => {
+        // A direction's band holds all its frames: its highest pixel is the clip's top in that direction.
+        const top = (opaqueTop(pixels, img.naturalWidth, row * band, band) - row * band) / m.frameHeight;
+        return Array.from({ length: m.frameCount }, (_, frame) => animationCell(atlas, {
+          x: (frame % columns) * m.frameWidth, y: (row * Math.ceil(m.frameCount / columns) + Math.floor(frame / columns)) * m.frameHeight, width: m.frameWidth, height: m.frameHeight, displayWidth: m.displayWidth, displayHeight: m.displayHeight,
+        }, top));
+      }) });
     }));
   }));
   await Promise.all([statics, animated]);
@@ -125,10 +152,11 @@ async function buildSprites(base: string): Promise<SpriteSet> {
   return (kind, dir = 2, animation) => {
     if (animation) {
       // Buildings have one view, never mirrored; units a turnaround.
-      const rows = animations.get(`${kind}:${animation.action}`);
-      const single = rows?.length === 1;
-      const frames = rows?.[single ? 0 : SHEET_VIEW[dir]];
-      if (frames) return { art: frames[Math.max(0, Math.min(frames.length - 1, Math.floor(animation.frame)))], flip: single ? false : MIRRORED[dir] };
+      const clip = animations.get(`${kind}:${animation.action}`);
+      const single = clip?.rows.length === 1;
+      const view = single ? { row: 0, flip: false } : viewFor(clip?.directions, dir);
+      const frames = clip?.rows[view.row];
+      if (frames) return { art: frames[Math.max(0, Math.min(frames.length - 1, Math.floor(animation.frame)))], flip: view.flip };
     }
     const view = arts.get(`${kind}_${SHEET_VIEW[dir]}`);
     if (view) return { art: view, flip: MIRRORED[dir] };
@@ -144,6 +172,14 @@ export function screenDir(dx: number, dy: number): number {
   return [2, 1, 0, 7, 6, 5, 4, 3][((octant % 8) + 8) % 8] ?? 2;
 }
 
+/** The first row in `[from, from + rows)` with a solid pixel, or the end of the range when there is none. */
+function opaqueTop(pixels: Uint8ClampedArray, width: number, from: number, rows: number): number {
+  for (let y = from; y < from + rows; y++) {
+    for (let x = 0; x < width; x++) if (pixels[(y * width + x) * 4 + 3] >= 128) return y;
+  }
+  return from + rows;
+}
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((ok, fail) => {
     const img = new Image();
@@ -154,11 +190,12 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /**
- * Builds the sprite texture of `name` (a static sprite, or a kind's `action` clip) plus its silhouette and x-ray variants.
+ * Builds the sprite texture of `name` (a static sprite, or a kind's `action` clip) plus its silhouette and x-ray variants,
+ * and returns its rasterized pixels for measuring.
  * Characters get their contrast normalized. Collapses and fire no longer take part in the depth and x-ray passes:
  * their larger cells need only colour, avoiding unused atlas masks.
  */
-function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHeight = Math.round(img.naturalHeight * rasterWidth / img.naturalWidth), maskRadius: number, name: string, action?: AnimationFrame["action"]): Pick<SpriteArt, "texture" | "silhouette" | "xray" | "outline"> {
+function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHeight = Math.round(img.naturalHeight * rasterWidth / img.naturalWidth), maskRadius: number, name: string, action?: AnimationFrame["action"]): Pick<SpriteArt, "texture" | "silhouette" | "xray" | "outline"> & { pixels: Uint8ClampedArray } {
   const character = isCharacter(name);
   // Generated source art can be large. Rasterize once at game resolution before
   // deriving the masks, preserving alpha and a consistent on-screen footprint.
@@ -178,7 +215,7 @@ function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHei
   }
   const texture = Texture.from(base);
   texture.source.scaleMode = "linear";
-  if (!character && action && /^(death|fire)/.test(action)) return { texture, silhouette: texture, xray: [] };
+  if (!character && action && /^(death|fire)/.test(action)) return { texture, silhouette: texture, xray: [], pixels: src };
   const masks = spriteMasks(src, w, h, maskRadius);
   const make = (pixels: Uint8ClampedArray<ArrayBuffer>) => {
     const cv = document.createElement("canvas");
@@ -194,6 +231,7 @@ function derive(img: HTMLImageElement, rasterWidth = img.naturalWidth, rasterHei
     silhouette: make(masks.silhouette),
     xray: masks.xray.map(make),
     outline: masks.outline.map(make),
+    pixels: src,
   };
 }
 

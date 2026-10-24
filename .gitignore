@@ -12,6 +12,7 @@ assets/animations/**/attempt-*/
 assets/animations/**/rejected-*/
 assets/animations/downloads/
 assets/sounds/downloads/
+assets/sounds/candidates/
 assets/music/__pycache__/
 assets/animations/**/*.gif
 assets/animations/**/contact-sheet.png

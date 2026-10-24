@@ -1,0 +1,61 @@
+{
+  "image": "wizard-idle.png",
+  "fps": 12,
+  "frameCount": 28,
+  "frameWidth": 112,
+  "frameHeight": 112,
+  "storedScale": 3,
+  "anchorX": 0.5,
+  "anchorY": 0.90625,
+  "loop": true,
+  "rows": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "directions": {
+    "s": {
+      "screenDir": 0,
+      "row": 0,
+      "flip": false
+    },
+    "se": {
+      "screenDir": 1,
+      "row": 1,
+      "flip": false
+    },
+    "sw": {
+      "screenDir": 7,
+      "row": 1,
+      "flip": true
+    },
+    "e": {
+      "screenDir": 2,
+      "row": 2,
+      "flip": false
+    },
+    "w": {
+      "screenDir": 6,
+      "row": 2,
+      "flip": true
+    },
+    "ne": {
+      "screenDir": 3,
+      "row": 3,
+      "flip": false
+    },
+    "nw": {
+      "screenDir": 5,
+      "row": 3,
+      "flip": true
+    },
+    "n": {
+      "screenDir": 4,
+      "row": 4,
+      "flip": false
+    }
+  },
+  "status": "Generated; inspect previews before publishing"
+}

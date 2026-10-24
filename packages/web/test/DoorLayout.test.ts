@@ -9,7 +9,7 @@ import manifest from '../../../assets/sprites/manifest.json';
 function setup() {
  const art=(kind:'wall'|'wallpost'|'door'|'door-open'|'wall-door-left'|'wall-door-right'|'wall-door-both'):SpriteArt=>{
    const m=manifest.sprites[kind];const source=new TextureSource({width:m.width*3,height:m.height*3});
-   return {texture:new Texture({source}),silhouette:new Texture({source}),xray:[],scale:1/3,anchorX:m.anchorX,anchorY:m.anchorY};
+   return {texture:new Texture({source}),silhouette:new Texture({source}),xray:[],scale:1/3,anchorX:m.anchorX,anchorY:m.anchorY,top:0};
  };
  const arts={wall:art('wall'),wallpost:art('wallpost'),door:art('door'),'door-open':art('door-open'),'wall-door-left':art('wall-door-left'),'wall-door-right':art('wall-door-right'),'wall-door-both':art('wall-door-both')};
  const h=createField({ruleset:rules,colors:{a:0},sprites:kind=>({art:arts[kind as keyof typeof arts]??stubArt(),flip:false})});

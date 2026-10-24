@@ -7,6 +7,8 @@ only what the site serves.
 
 The renderer stores art at 3x and caps normal camera zoom at 3x, with 1 dither
 pixel per CSS pixel. So the build keeps dimensions, atlas cells, anchors and scale.
+A clip's optional `sizeFactor` corrects a character's display size without resampling
+its source (see the Wizard animation README).
 Lossless WebP cuts transfer size without losing visible pixels.
 Compare any lower resolution visually at max zoom before adopting it.
 Music uses 64 kbps MP3 at 32 kHz and keeps the padded loop and original timing.

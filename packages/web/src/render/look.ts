@@ -6,6 +6,7 @@ import worker from '../../../../assets/sprites/worker/manifest.json';
 import knight from '../../../../assets/sprites/knight/manifest.json';
 import king from '../../../../assets/sprites/king/manifest.json';
 import archer from '../../../../assets/sprites/archer/manifest.json';
+import wizard from '../../../../assets/sprites/wizard/manifest.json';
 import castle from '../../../../assets/sprites/castle/manifest.json';
 import tower from '../../../../assets/sprites/tower/manifest.json';
 import wall from '../../../../assets/sprites/wall/manifest.json';
@@ -16,15 +17,21 @@ import leftWall from '../../../../assets/sprites/wall-door-left/manifest.json';
 import rightWall from '../../../../assets/sprites/wall-door-right/manifest.json';
 import bothWall from '../../../../assets/sprites/wall-door-both/manifest.json';
 import fireSites from '../../../../assets/sprites/castle/fire-pixels.json';
-import { type KindSpec, type EntityKind } from '@castellan/shared';
-import { screenDir, type AnimationFrame } from './sprites';
+import { type Ability, type KindSpec, type EntityKind } from '@castellan/shared';
+import { screenDir, viewFor, type AnimationFrame, type Turnaround } from './sprites';
 import type { ClipArt } from './clips';
 import { corpseFade } from './corpseFade';
 
 type Action = AnimationFrame['action'];
-interface Clip { fps: number; frameCount: number; available?: boolean; impactFrames?: number[]; releaseFrames?: number[] }
+interface Clip {
+  fps: number; frameCount: number; available?: boolean; impactFrames?: number[]; releaseFrames?: number[];
+  frameWidth?: number; frameHeight?: number; anchorX?: number; anchorY?: number; storedScale?: number; sizeFactor?: number; directions?: Turnaround;
+  /** Casting clips: the staff crystal per row (S, SE, E, NE, N) and frame, in stored pixels of a cell, and per row the
+   * reviewed frames where it flares. */
+  castPoints?: { crystal: number[][][]; pulses: number[][] };
+}
 type Atlas = Partial<Record<Action, Clip>>;
-const units = new Map<ClipArt, Atlas>([['archer', archer], ['knight', knight], ['king', king], ['worker', worker]]);
+const units = new Map<ClipArt, Atlas>([['archer', archer], ['knight', knight], ['king', king], ['wizard', wizard], ['worker', worker]]);
 const buildings = new Map<ClipArt, Atlas>([
   ['castle', castle], ['tower', tower], ['wall', wall], ['wallpost', wallpost], ['door', door], ['door-open', openDoor],
   ['wall-door-left', leftWall], ['wall-door-right', rightWall], ['wall-door-both', bothWall],
@@ -41,6 +48,39 @@ const loop = (action: Action, meta: Clip, timeMs: number): AnimationFrame =>
 const once = (action: Action, meta: Clip, timeMs: number): AnimationFrame =>
   ({ action, frame: Math.min(meta.frameCount - 1, Math.floor(Math.max(0, timeMs) * meta.fps / 1000)) });
 
+/** The clip a caster plays for `action`: conversion falls back to the hack gesture until it has its own. */
+function castGesture(kind: EntityKind, action: Ability): 'heal' | 'hack' | 'convert' {
+  return action === 'heal' ? 'heal' : action === 'convert' && clip(kind, 'convert') ? 'convert' : 'hack';
+}
+
+/** A casting clip's staff crystal and flares, facing one direction. */
+export interface CastClip {
+  fps: number;
+  frameCount: number;
+  /** The crystal at a clip frame, in display pixels from the ground point. */
+  crystal(frame: number): { x: number; y: number };
+  /** Frames where the crystal flares: particles burst and the cast sounds. Empty for a clip without reviewed flares. */
+  pulses: readonly number[];
+}
+
+/** The staff crystal of `kind` casting `action` facing `dir`; undefined for art without a measured crystal. */
+export function castClip(kind: EntityKind, action: Ability, dir: number): CastClip | undefined {
+  const meta = clip(kind, castGesture(kind, action));
+  const view = viewFor(meta?.directions, dir);
+  const track = meta?.castPoints?.crystal[view.row];
+  if (!meta || !track || meta.storedScale === undefined) return undefined;
+  const scale = (meta.sizeFactor ?? 1) / meta.storedScale, mirror = view.flip ? -1 : 1;
+  const groundX = (meta.anchorX ?? 0.5) * (meta.frameWidth ?? 0), groundY = (meta.anchorY ?? 1) * (meta.frameHeight ?? 0);
+  return {
+    fps: meta.fps, frameCount: meta.frameCount, pulses: meta.castPoints!.pulses[view.row] ?? [],
+    // A mirrored view mirrors the crystal about the ground point.
+    crystal: (frame) => {
+      const [x, y] = track[Math.max(0, Math.min(track.length - 1, Math.floor(frame)))];
+      return { x: (x - groundX) * scale * mirror, y: (y - groundY) * scale };
+    },
+  };
+}
+
 /** Units drawn from clips step from tile to tile; the rest hop. */
 export const animatedUnit = (kind: EntityKind) => units.has(kind);
 
@@ -48,6 +88,8 @@ export const animatedUnit = (kind: EntityKind) => units.has(kind);
 const ROW = [0, 1, 2, 3, 4, 3, 2, 1];
 /** An attack event's moment and screen direction. */
 export interface Strike { at: number; dir: number }
+/** A Wizard's ability in use and, when drawn, the tile of its target. Convert plays the hack gesture until it has its own clip. */
+interface Cast { action: Ability; toward?: { x: number; y: number } }
 
 /**
  * Archers loose an arrow, the rest strike in melee. The engine's attack event is the release or the impact,
@@ -66,7 +108,7 @@ export function strikeMs(kind: EntityKind): number | undefined {
 }
 
 // The source clips contain different numbers of steps: the Archer loop covers
-// roughly one tile of foot travel; Knight/King/Worker cover two. Drive phase by world
+// roughly one tile of foot travel; Knight/King/Worker/Wizard cover two. Drive phase by world
 // distance so faster units and diagonal moves take proportionally more steps.
 function pose(kind: EntityKind, timeMs: number, walked: number | undefined, strike: Strike | undefined): AnimationFrame | undefined {
   const { action, ms, marks } = strikeOf(kind);
@@ -94,20 +136,28 @@ export interface UnitLook {
   pickDown?: boolean;
 }
 
+/** The screen direction from one tile toward another; `heading` when they coincide. */
+function toward(from: { x: number; y: number }, to: { x: number; y: number }, heading: number) {
+  const dx = to.x - from.x, dy = to.y - from.y;
+  return dx || dy ? screenDir(dx - dy, (dx + dy) / 2) : heading;
+}
+
 /**
- * A living unit at `timeMs`, heading `heading`: striking, else mining when it stands at its deposit, walking or idle.
- * `walked`: tiles covered in the current walk, absent while it stands.
+ * A living unit at `timeMs`, heading `heading`: striking, else casting or mining while it stands (facing its target or
+ * deposit), walking or idle. `walked`: tiles covered in the current walk, absent while it stands.
  */
 export function unitLook(unit: { kind: EntityKind; x: number; y: number; gathering?: { x: number; y: number } }, heading: number, timeMs: number,
-  motion: { walked?: number; strike?: Strike }): UnitLook {
+  motion: { walked?: number; strike?: Strike; cast?: Cast }): UnitLook {
   const { walked, strike } = motion;
-  const mining = !strike && walked === undefined ? unit.gathering : undefined;
-  if (mining) {
-    const dx = mining.x - unit.x, dy = mining.y - unit.y;
-    heading = screenDir(dx - dy, (dx + dy) / 2);
-  }
+  const standing = !strike && walked === undefined;
+  const cast = standing ? motion.cast : undefined;
+  const mining = standing && !cast ? unit.gathering : undefined;
+  const aim = cast?.toward ?? mining;
+  if (aim) heading = toward(unit, aim, heading);
+  const gesture = cast && castGesture(unit.kind, cast.action);
+  const spell = gesture && clip(unit.kind, gesture);
   const mine = mining && clip(unit.kind, 'mine');
-  const animation = mine ? loop('mine', mine, timeMs) : pose(unit.kind, timeMs, walked, strike);
+  const animation = gesture && spell ? loop(gesture, spell, timeMs) : mine ? loop('mine', mine, timeMs) : pose(unit.kind, timeMs, walked, strike);
   // Frames where the pick hits the rock, per row.
   const pickDown = animation?.action === 'mine' ? animation.frame >= [11, 11, 7, 7, 7][ROW[heading]] && animation.frame < 21 : undefined;
   return { animation, heading, footfalls: walked === undefined ? undefined : Math.floor(walked * 2), pickDown };

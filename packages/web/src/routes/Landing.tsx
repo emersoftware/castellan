@@ -61,13 +61,14 @@ export function Landing() {
     ["worker", "Worker", "Mines mineral, delivers it to Castles and builds structures.", `${k.worker.cost} mineral · ${k.worker.trainMs! / 1000}s to train`],
     ["knight", "Knight", "Armored melee. Must close the distance to deal damage.", `${k.knight.cost} mineral · ${k.knight.moveMs}ms per step`],
     ["archer", "Archer", `Shoots from ${k.archer.range} tiles. Must aim after moving; arrows can miss.`, `${k.archer.cost} mineral · ${k.archer.aimMs}ms to aim`],
+    ["wizard", "Wizard", "Heals allies. With research, hacks an enemy’s script or converts the unit.", `${k.wizard.cost} mineral · ${k.wizard.intrusion!.rechargeMs / 1000}s recharge`],
     ["tower", "Tower", `Reaches ${k.tower.range} tiles, with a blind spot inside ${k.tower.minRange}.`, `${k.tower.cost} mineral · ${k.tower.buildMs! / 1000}s to build`],
     ["wall", "Wall", "A destructible barrier. Blocks passage, not arrows.", `${k.wall.cost} mineral · ${k.wall.hp} hp`],
     ["door", "Door", "A destructible passage for you and your allies.", `${k.door.cost} mineral · ${k.door.hp} hp`],
     ["castle", "Castle", `Trains units, receives mineral and defends within ${k.castle.range} tiles.`, `${k.castle.cost} mineral · ${k.castle.buildMs! / 1000}s to build`],
   ];
   const recent = useMemo(() => featuredBattles(replays.data ?? []), [replays.data]);
-  const [teams, setTeams] = useState([0, 1, 2, 3, 0, 1, 2, 3]);
+  const [teams, setTeams] = useState([0, 1, 2, 3, 0, 1, 2, 3, 0]);
   const nextTeam = (index: number) => setTeams(current => current.map((team, i) => i === index ? (team + 1) % 4 : team));
 
   return (
@@ -117,7 +118,7 @@ export function Landing() {
 
       <section className="units">
         <h2>The armies</h2>
-        <p className="units-intro">Mine mineral, expand with Castles and train your army. Research improves units; it does not unlock them.</p>
+        <p className="units-intro">Mine mineral, expand with Castles and train your army. Research improves units and opens the Wizard’s hacks; every unit is available from the start.</p>
         <div className="unit-grid">
           {army.map(([kind, name, text, stat], index) => (
             <div key={kind} className="unit" tabIndex={0} aria-label={`${name}: preview next player color`} onPointerEnter={() => nextTeam(index)} onFocus={() => nextTeam(index)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); nextTeam(index); } }}>

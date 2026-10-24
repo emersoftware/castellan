@@ -1,5 +1,6 @@
 export * from "./ruleset.ts";
 export * from "./protocol.ts";
+export * from "./privateViews.ts";
 export * from "./outcome.ts";
 export * from "./replayMetadata.ts";
 export * from "./moment.ts";

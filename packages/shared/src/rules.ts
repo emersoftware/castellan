@@ -9,7 +9,7 @@ import { MAPS } from "./maps.ts";
 import type { Ruleset } from "./ruleset.ts";
 
 export const rules: Ruleset = {
-  version: "0.29.3",
+  version: "0.30.0",
   matchMs: 600000,
   fourSeatMatchMs: 900000,
   drawsAreLosses: true,
@@ -77,6 +77,29 @@ export const rules: Ruleset = {
       trainMs: 8000,
       aimMs: 400,
     },
+    wizard: {
+      building: false,
+      symbol: "Z",
+      enemySymbol: "z",
+      hp: 45,
+      def: 0,
+      vision: 8,
+      cost: 200,
+      moveMs: 500,
+      scriptable: true,
+      trainMs: 12000,
+      heals: { hpPerSecond: 6, range: 3 },
+      intrusion: {
+        upgrade: "intrusion",
+        unitRange: 7,
+        buildingRange: 1,
+        unitChannel: { minMs: 3000, maxMs: 7000 },
+        buildingChannel: { minMs: 6000, maxMs: 10000 },
+        rollMs: 1000,
+        chance: 0.38,
+        rechargeMs: 20000,
+      },
+    },
     tower: {
       building: true,
       symbol: "T",
@@ -102,7 +125,7 @@ export const rules: Ruleset = {
       vision: 7,
       cost: 300,
       vital: false,
-      trains: ["worker", "knight", "archer"],
+      trains: ["worker", "knight", "archer", "wizard"],
       dropoff: true,
       atk: 12,
       range: 5,
@@ -167,6 +190,12 @@ export const rules: Ruleset = {
       levels: [{ cost: 150, researchMs: 10000, value: 5 }, { cost: 250, researchMs: 15000, value: 7 }],
     },
     archer_range: { kind: "archer", stat: "range", levels: [{ cost: 200, researchMs: 15000, value: 6, vision: 8 }] },
+    // Level 1: hack and convert units; level 2: also hack adjacent buildings.
+    intrusion: {
+      kind: "wizard",
+      stat: "intrusion",
+      levels: [{ cost: 300, researchMs: 20000, value: 1 }, { cost: 400, researchMs: 30000, value: 2 }],
+    },
     tower_range: {
       kind: "tower",
       stat: "range",
@@ -202,6 +231,17 @@ else self.attack(targets.reduce((a, b) => (b.hp < a.hp ? b : a)));
 `,
     worker: `// Mine automatically; upload a script to choose combat or escape.
 self.gather();`,
+    wizard: `// Built-in: heal the most wounded friendly unit in reach; otherwise convert the nearest enemy unit in range when able.
+const hurt = self.nearbyAllies().filter((a) => !a.isBuilding && a.hp < a.maxHp && self.distanceTo(a) <= self.healRange);
+if (hurt.length) self.heal(hurt.reduce((a, b) => (b.maxHp - b.hp > a.maxHp - a.hp ? b : a)));
+else {
+  // Keep converting the channel's target while it is in sight (switching restarts the channel); otherwise the nearest in range.
+  const enemies = self.nearbyEnemies().filter((e) => !e.isBuilding && !e.vital && !e.ruin);
+  const current = self.channel && enemies.find((e) => e.id === self.channel.target);
+  const prey = current || (self.intrusion.units && self.rechargeReadyInTicks === 0 ? enemies.find((e) => self.distanceTo(e) <= self.intrusionRange) : null);
+  if (prey) self.convert(prey);
+  else self.hold();
+}`,
     king: `// Defend against a recent attacker in reach; never chase.
 const enemy = self.lastAttacker();
 if (enemy && self.distanceTo(enemy) <= self.range) self.attack(enemy);
@@ -224,6 +264,7 @@ else self.hold();`,
     C: "castle (production and resource dropoff; not vital)",
     D: "door (one tile; allied passage only)",
     V: "king (vital)",
+    Z: "wizard",
   },
   map: MAPS.open,
 };

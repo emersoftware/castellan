@@ -1,0 +1,19 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "kind": "wizard",
+  "action": "idle",
+  "stage": "idle",
+  "direction": "ne",
+  "prompt": "A still robed game character gently breathes and sways in place. Maintain the exact orientation and fixed camera of the input image. Feet planted and staff steady. Preserve the plain clothing and solid magenta background.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 6,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": true,
+  "source": "assets/wizard/source/idle.png",
+  "source_view": 3,
+  "replaces": "rejected-initial-facing/generated.mp4"
+}

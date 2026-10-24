@@ -1,6 +1,6 @@
 import type { GameEvent, PlayerId, ProjectileView, Ruleset } from "@castellan/shared";
 import type { ScriptActionResult } from "@castellan/sandbox";
-import type { Entity, Intent } from "./entities";
+import { executorOf, type Entity, type Intent } from "./entities";
 import type { SimulationClock } from "./clock";
 import { dist } from "@castellan/shared";
 import { hypot } from "./grid";
@@ -11,14 +11,25 @@ const DEFAULT_ATTACK_MS = 1000;
 /** Floating-point slack, so a shot whose remaining path equals one step ends this tick. */
 const STEP_TOLERANCE = 1e-9;
 
-interface Projectile extends ProjectileView { attack: number; launchedAt: number; source: string; aimedAt: string; fromX: number; fromY: number; minRange: number }
+/** `controller`: a hypno shooter's controller, credited with what the shot kills; absent for every other shot. */
+interface Projectile extends ProjectileView { attack: number; launchedAt: number; source: string; aimedAt: string; fromX: number; fromY: number; minRange: number; controller?: PlayerId }
 
 /** Within attack range, and not inside the attacker's blind spot (`minRange`). */
 export function inAttackRange(e: Entity, t: { x: number; y: number }): boolean {
   const d = dist(e.x, e.y, t.x, t.y);
   return d <= (e.spec.range ?? 1) && d >= (e.spec.minRange ?? 0);
 }
-/** Resolves attacks and in-flight shots; Match applies the accumulated damage simultaneously. */
+/**
+ * Who struck a fallen entity last: `by`, the striker's owner (what everyone may learn), and `credit`, the player whose
+ * script decided the blow (under hypno, its controller) and who earns the kill.
+ */
+export interface Hit { by: PlayerId; credit: PlayerId }
+
+/**
+ * Resolves attacks and in-flight shots; Match applies the accumulated damage simultaneously. A hack changes only who
+ * decides: an entity attacks what is hostile to its owner, seen by the player whose script decides for it (under hypno,
+ * its controller), and its shots hit its owner's enemies.
+ */
 export class Combat {
   private nextProjectileId = 1;
   private projectiles = new Map<string, Projectile>();
@@ -40,7 +51,7 @@ export class Combat {
   resolve(ordered: readonly Entity[], intents: ReadonlyMap<string, Intent>, emit: (event: GameEvent) => void) {
     const T = this.clock.tick;
     const damage = new Map<string, number>();
-    const lastHit = new Map<string, PlayerId>();
+    const lastHit = new Map<string, Hit>();
     for (const e of ordered) {
       const it = intents.get(e.id);
       if (it?.t !== "attack" && it?.t !== "shoot") continue;
@@ -51,19 +62,19 @@ export class Combat {
       if (e.spec.aimMs && e.lastStep && T - e.lastStep.tick < this.clock.ticks(e.spec.aimMs)) { this.feedback.result(e, "aiming"); continue; }
       if (it.t === "shoot") {
         // Like an attack, but toward a visible point in range; the shot hits the first hostile on its path.
-        if (!this.canSee(e.owner, Math.round(it.x), Math.round(it.y)) || !inAttackRange(e, it)) { this.feedback.result(e, "blocked", undefined, "point not visible or not in range"); continue; }
+        if (!this.canSee(executorOf(e), Math.round(it.x), Math.round(it.y)) || !inAttackRange(e, it)) { this.feedback.result(e, "blocked", undefined, "point not visible or not in range"); continue; }
         e.nextAttack = T + this.clock.ticks(e.spec.attackMs ?? DEFAULT_ATTACK_MS);
         this.feedback.result(e, "acted", "attack");
         const dx = it.x - e.x, dy = it.y - e.y, distance = hypot(dx, dy) || 1;
         const id = `p${this.nextProjectileId++}`;
         this.projectiles.set(id, { id, owner: e.owner, x: e.x, y: e.y,
           vx: dx / distance * this.rules().projectiles.speed, vy: dy / distance * this.rules().projectiles.speed,
-          endX: it.x, endY: it.y, attack: e.spec.atk, launchedAt: T, source: e.id, aimedAt: "", fromX: e.x, fromY: e.y, minRange: e.spec.minRange ?? 0 });
+          endX: it.x, endY: it.y, attack: e.spec.atk, launchedAt: T, source: e.id, aimedAt: "", fromX: e.x, fromY: e.y, minRange: e.spec.minRange ?? 0, ...this.hypnoShot(e) });
         emit({ tick: T, type: "attack", from: e.id, at: { x: it.x, y: it.y }, dmg: 0, projectile: id });
         continue;
       }
       const target = this.entities.get(it.id);
-      if (!target || !this.canSee(e.owner, target.x, target.y) || !this.hostile(target.owner, e.owner) || !inAttackRange(e, target)) { this.feedback.result(e, "blocked", undefined, "target no longer visible or in range"); continue; }
+      if (!target || target === e || !this.canSee(executorOf(e), target.x, target.y) || !this.hostile(target.owner, e.owner) || !inAttackRange(e, target)) { this.feedback.result(e, "blocked", undefined, "target no longer visible or in range"); continue; }
       e.nextAttack = T + this.clock.ticks(e.spec.attackMs ?? DEFAULT_ATTACK_MS);
       this.feedback.result(e, "acted", "attack");
       if ((e.spec.range ?? 1) > 1) {
@@ -72,12 +83,12 @@ export class Combat {
         const id = `p${this.nextProjectileId++}`;
         this.projectiles.set(id, { id, owner: e.owner, x: e.x, y: e.y,
           vx: dx / distance * this.rules().projectiles.speed, vy: dy / distance * this.rules().projectiles.speed,
-          endX: target.x, endY: target.y, attack: e.spec.atk, launchedAt: T, source: e.id, aimedAt: target.id, fromX: e.x, fromY: e.y, minRange: e.spec.minRange ?? 0 });
+          endX: target.x, endY: target.y, attack: e.spec.atk, launchedAt: T, source: e.id, aimedAt: target.id, fromX: e.x, fromY: e.y, minRange: e.spec.minRange ?? 0, ...this.hypnoShot(e) });
         emit({ tick: T, type: "attack", from: e.id, to: target.id, dmg: 0, projectile: id });
       } else {
         const dmg = Math.max(1, e.spec.atk - target.spec.def);
         damage.set(target.id, (damage.get(target.id) ?? 0) + dmg);
-        lastHit.set(target.id, e.owner);
+        lastHit.set(target.id, { by: e.owner, credit: executorOf(e) });
         target.lastAttacked = { id: e.id, tick: T };
         this.feedback.attacked(target, e.id, dmg);
         emit({ tick: T, type: "attack", from: e.id, to: target.id, dmg });
@@ -89,7 +100,7 @@ export class Combat {
   }
 
   /** Sweep each segment, so fast shots cannot tunnel through an occupied tile. */
-  private advanceProjectiles(damage: Map<string, number>, lastHit: Map<string, PlayerId>, emit: (e: GameEvent) => void) {
+  private advanceProjectiles(damage: Map<string, number>, lastHit: Map<string, Hit>, emit: (e: GameEvent) => void) {
     const config = this.rules().projectiles;
     const blindSpot = this.rules().projectiles.blindSpot;
     for (const p of this.projectiles.values()) {
@@ -100,7 +111,7 @@ export class Combat {
       let fraction = Infinity;
       let target: Entity | undefined;
       for (const e of this.entities.values()) {
-        if (!this.hostile(p.owner, e.owner)) continue;
+        if (!this.hostile(p.owner, e.owner) || e.id === p.source) continue;
         if (config.flyOver.includes(e.kind) && e.id !== p.aimedAt) continue;
         // The shooter's blind spot: a minimum-range shooter hits nothing closer than it (the guide promises adjacent units are safe).
         if (blindSpot && p.minRange && dist(p.fromX, p.fromY, e.x, e.y) < p.minRange) continue;
@@ -112,7 +123,7 @@ export class Combat {
         const dmg = target ? Math.max(1, p.attack - target.spec.def) : 0;
         if (target) {
           damage.set(target.id, (damage.get(target.id) ?? 0) + dmg);
-          lastHit.set(target.id, p.owner);
+          lastHit.set(target.id, { by: p.owner, credit: p.controller ?? p.owner });
           target.lastAttacked = { id: p.source, tick: this.clock.tick };
           this.feedback.attacked(target, p.source, dmg);
         }
@@ -129,6 +140,12 @@ export class Combat {
   views(player?: PlayerId): ProjectileView[] {
     return [...this.projectiles.values()]
       .filter((p) => !player || this.canSee(player, Math.round(p.x), Math.round(p.y)))
-      .map(({ attack, launchedAt, source, aimedAt, fromX, fromY, minRange, ...view }) => ({ ...view }));
+      .map(({ attack, launchedAt, source, aimedAt, fromX, fromY, minRange, controller, ...view }) => ({ ...view }));
+  }
+
+  /** A projectile shows its shooter's owner; only kill credit knows a hypno shooter's controller. */
+  private hypnoShot(e: Entity): { controller?: PlayerId } {
+    const controller = executorOf(e);
+    return controller === e.owner ? {} : { controller };
   }
 }

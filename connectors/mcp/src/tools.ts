@@ -19,12 +19,13 @@ const reply = async (f: () => Promise<string>): Promise<Result> => {
 };
 
 const order = z.object({
-  type: z.enum(["move", "attack", "gather", "build", "train", "upgrade", "stop"]),
+  type: z.enum(["move", "attack", "gather", "build", "train", "upgrade", "stop", "heal", "hack", "convert"]),
   unit: z.string().optional().describe("id of the unit (except train and upgrade)"),
   building: z.string().optional().describe("train: id of any completed castle you own"),
-  kind: z.string().optional().describe("train: worker|knight|archer; build: tower|wall|door|castle (see guide for availability and construction time)"),
+  kind: z.string().optional().describe("train: worker|knight|archer|wizard; build: tower|wall|door|castle (see guide for availability and construction time)"),
   upgrade: z.string().optional().describe("upgrade: research id from guide, e.g. knight_damage; buys its next level"),
-  target: z.string().optional().describe("attack: enemy id"),
+  target: z.string().optional().describe("attack: enemy id; heal/hack/convert (wizard): target id (see guide)"),
+  code: z.string().optional().describe("hack: the script body the target runs (see guide)"),
   deposit: z.string().optional().describe("gather: deposit id (optional, nearest if omitted)"),
   x: z.number().int().optional(),
   y: z.number().int().optional(),
@@ -67,8 +68,9 @@ export function createServer(c: castellan.Client = castellan.client({ connector 
       {
         description:
           `Send a batch of orders (max ${API_LIMITS.orders}), applied next tick;` + " only while running. Shapes: " +
-          "{type:'train',building,kind:'worker'|'knight'|'archer'} {type:'build',unit,kind:'tower'|'wall'|'door'|'castle',x,y} {type:'move',unit,x,y} " +
-          "{type:'attack',unit,target} {type:'gather',unit,deposit?} {type:'stop',unit} {type:'upgrade',upgrade:'<id from guide>'}. " +
+          "{type:'train',building,kind:'worker'|'knight'|'archer'|'wizard'} {type:'build',unit,kind:'tower'|'wall'|'door'|'castle',x,y} {type:'move',unit,x,y} " +
+          "{type:'attack',unit,target} {type:'gather',unit,deposit?} {type:'stop',unit} {type:'upgrade',upgrade:'<id from guide>'} " +
+          "{type:'heal'|'convert',unit,target} {type:'hack',unit,target,code} (wizard abilities, see guide). " +
           "Returns ok/FAILED per order, mineral spent and remaining, and your view. A queued unit gets its id when it spawns; durations and limits are in guide.",
         inputSchema: { orders: z.array(order).min(1).max(API_LIMITS.orders) },
       },
@@ -78,10 +80,10 @@ export function createServer(c: castellan.Client = castellan.client({ connector 
     script: tool(
       {
         description:
-          "Read (omit code) or replace the script every unit of `kind` (worker, king, knight, archer, tower, castle; see guide) runs each tick. " +
+          "Read (omit code) or replace the script every unit of `kind` (worker, king, knight, archer, wizard, tower, castle; see guide) runs each tick. " +
           `code = JS function body with \`self\` in scope, max ${rules.script.maxBytes / 1024} KB; callbacks and explicit order suspension are available (see guide for this match's precedence). Only while running. Uploading returns the result and your view.`,
         inputSchema: {
-          kind: z.string().describe("worker | king | knight | archer | tower | castle (availability depends on the room; see guide)"),
+          kind: z.string().describe("worker | king | knight | archer | wizard | tower | castle (availability depends on the room; see guide)"),
           code: z.string().optional(),
           lang: z.enum(["js", "ts"]).optional().describe("default js; ts types are stripped"),
         },

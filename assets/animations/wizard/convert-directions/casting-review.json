@@ -1,0 +1,27 @@
+{
+  "frameIndexing": "zero-based exported atlas frames",
+  "views": {
+    "se": {
+      "seed": [
+        39,
+        31
+      ],
+      "pulses": [
+        12
+      ],
+      "reason": "Reviewed overhead crest of the vertical staff lift, with arms raised; chosen from the exported SE frame sequence and dithered preview.",
+      "status": "provisional SE pilot; other directions pending"
+    },
+    "ne": {
+      "seed": [
+        75,
+        32
+      ],
+      "pulses": [
+        11
+      ],
+      "reason": "Provisional overhead crest with both arms lifted; marked sheet review pending.",
+      "status": "pilot review pending"
+    }
+  }
+}

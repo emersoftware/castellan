@@ -39,15 +39,17 @@ One ruleset, in `packages/shared/src/rules.ts`: dodgeable projectiles, aim time 
 
 [The generated rules](docs/CURRENT-RULES.md) list costs, timings and script APIs; `GET /guide` is the source of truth for each room. Replays embed their original rules and maps and keep their original outcomes.
 
-Workers mine by default. Each unit kind (worker, King, knight, archer, tower, Castle) runs its player's script for that kind (`castellan script worker worker.js`). Scripts keep running during explicit orders: they can react to events and suspend, resume or cancel an order; otherwise the order goes first. The guide has examples.
+Workers mine by default. Each unit kind (worker, King, knight, archer, Wizard, tower, Castle) runs its player's script for that kind (`castellan script worker worker.js`). Scripts keep running during explicit orders: they can react to events and suspend, resume or cancel an order; otherwise the order goes first. The guide has examples.
 
-Current release: **0.29.3**. Knights stand still 100 ms after moving before attacking again (200 ms in 0.29.0–0.29.2). Recent changes:
+Current release: **0.30.0**. Recent changes:
+- 0.30.0: the Wizard (200 mineral, Castle): heals friendly units; after `intrusion` research it converts enemy units or hacks an entity's script (hypno), with seeded channels and a shared recharge. See [the Wizard plan](docs/wizard-plan.md).
+- 0.29.3: Knights stand still 100 ms after moving before attacking again (200 ms in 0.29.0–0.29.2).
 - 0.29.2: the game is called Castellan: command `castellan`, packages `@castellan/*`, settings `CASTELLAN_*`, MCP server `castellan`.
 - 0.29.1: the built-in archer script again shoots the weakest enemy in range; kiting is up to player scripts.
 - 0.29.0: ranged units got `shootAt(x, y)`; Knights 100 HP; Towers and Castles deal 12 damage; Towers 240 HP; projectiles fly at 16 tiles/s.
 - 0.28.0: Archers train in 8 s; `script_test` was removed (installing a script still compiles it).
 
-The battle catalogue lists every patch of the current release (`0.29.x`), and `0.27.x` together with the exact v26 rules.
+The battle catalogue groups recordings by release (`0.30.x`, `0.29.x`, `0.27.x` together with the exact v26 rules).
 
 ## Develop
 - `pnpm web`: the web client with hot reload (http://localhost:5173, API calls go to :4400).

@@ -33,6 +33,12 @@ export type Order<Kind extends string = string> =
   | { type: "upgrade"; upgrade: string }
   /** Drop the unit's order; it goes back to its script or stays idle. */
   | { type: "stop"; unit: string }
+  /** Wizards: keep healing a friendly unit until the order ends. */
+  | { type: "heal"; unit: string; target: string }
+  /** Wizards: channel, then replace the target's script with `code` (a script body, at most the script size). */
+  | { type: "hack"; unit: string; target: string; code: string }
+  /** Wizards: channel, then take the target unit. */
+  | { type: "convert"; unit: string; target: string }
   /** JavaScript body run every tick by each unit of `kind`. `null` restores the built-in script. */
   | { type: "script"; kind: Kind; code: string | null }
   /** Chat on required. `to` implies private; otherwise omitted channel means public. */
@@ -43,7 +49,14 @@ export type UnitOrder =
   | { type: "move"; x: number; y: number }
   | { type: "attack"; target: string }
   | { type: "gather"; deposit?: string }
-  | { type: "build"; kind: EntityKind; x: number; y: number };
+  | { type: "build"; kind: EntityKind; x: number; y: number }
+  | { type: "heal"; target: string }
+  | { type: "hack"; target: string; code: string }
+  | { type: "convert"; target: string };
+
+/** A Wizard ability, as orders, actions and views name it. */
+export const ABILITIES = ["heal", "hack", "convert"] as const;
+export type Ability = (typeof ABILITIES)[number];
 
 interface MineralChange { spent: number; remaining: number; pending?: number }
 export type OrderResult = ({ ok: true; id?: string } | { ok: false; reason: string }) & { mineral?: MineralChange };
@@ -153,17 +166,28 @@ export interface EntityView {
   /** Visible mining activity, facing the resource; no private order is exposed. */
   gathering?: { x: number; y: number };
   carrying?: number;
+  /**
+   * A Wizard's ability in use, visible like any action in sight. `progressMs`, the channel time spent in range,
+   * only for the player whose script decides for it (under hypno its controller, not its owner) and observers.
+   */
+  casting?: { action: Ability; target: string; progressMs?: number };
+  /** Owner and observers: time left before hack and convert are ready again; absent when ready. */
+  rechargeMs?: number;
+  /** Runs a script installed by a hack: shown to its owner, its controller and observers, to nobody else. */
+  hypno?: true;
+  /** The player whose script it runs: shown only to that player and observers. */
+  controller?: PlayerId;
 }
 
 /** What a unit did last tick, in words. */
-export type Doing = "hold" | "build" | "unload" | `→ ${number},${number}` | `step ${string}` | `attack ${string}` | `shoot ${number},${number}` | `gather ${string}`;
+export type Doing = "hold" | "build" | "unload" | `→ ${number},${number}` | `step ${string}` | `attack ${string}` | `shoot ${number},${number}` | `gather ${string}` | `${Ability} ${string}`;
 
 export interface ActionFeedback {
   tick: number;
   source: "order" | "script";
   intent: string;
   status: "acted" | "blocked" | "cooldown" | "aiming" | "held" | "invalid" | "arrived" | "working";
-  effect?: "move" | "attack" | "gather" | "unload";
+  effect?: "move" | "attack" | "gather" | "unload" | Ability;
   reason?: string;
 }
 
@@ -279,12 +303,19 @@ export type GameEvent =
   | { tick: number; type: "chat"; owner: PlayerId; text: string; channel?: ChatChannel; to?: PlayerId }
   /** A player lost its vital entity while its team plays on: its units are gone (and its buildings, unless the rules keep ruins). */
   | { tick: number; type: "eliminated"; owner: PlayerId }
+  /**
+   * A hack replaced an entity's script (active) or its script returned to its owner (inactive). Only its owner and the
+   * controllers involved receive it; `controller` and `wizard` (the caster) reach only the controller they name.
+   */
+  | { tick: number; type: "hypno"; id: string; kind: EntityKind; owner: PlayerId; x: number; y: number; active: boolean; controller?: PlayerId; wizard?: string }
+  /** Wizard `wizard` converted a unit: `from` lost it to `owner`. */
+  | { tick: number; type: "converted"; id: string; kind: EntityKind; owner: PlayerId; from: PlayerId; x: number; y: number; wizard: string }
   | { tick: number; type: "match_end"; outcome: Outcome };
 
 /** Why a unit's order ended. */
 export type OrderEndReason = "arrived" | "completed" | "replaced" | "stopped" | "cancelled by script" | "target lost" | "unreachable" | "tile blocked"
   | "site reserved by another builder" | "not enough mineral" | "too close to an enemy building" | "doors must stay on one wall axis; no corners or junctions"
-  | "no deposits left" | "no dropoff";
+  | "no deposits left" | "no dropoff" | "hypno" | "converted" | "target not eligible";
 
 /** The player an event belongs to, if any. */
 export const eventOwner = (e: GameEvent): PlayerId | undefined => ("owner" in e ? e.owner : undefined);

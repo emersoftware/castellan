@@ -2,7 +2,7 @@ import type {
   ChatMessage, DepositView, EntityView, GameEvent, KindSpec, MatchStatus, Order, OrderResult, Outcome, PlayerId, PlayerStats,
   Doing, OrderEndReason, PlayerView, EntityKind, Ruleset, SpectatorView, UnderAttack, UnitOrder,
 } from "@castellan/shared";
-import { barrierAxes, dist, matchLengthMs, NEUTRAL_OWNER, seatToMap } from "@castellan/shared";
+import { ABILITIES, barrierAxes, dist, entityAs, hypnoEventAs, matchLengthMs, NEUTRAL_OWNER, seatToMap } from "@castellan/shared";
 import { createScriptHost, type ScriptAction, type ScriptHostFactory, type UnitRun } from "@castellan/sandbox";
 import { DIRS, inBounds } from "./grid";
 import { Board } from "./board";
@@ -13,7 +13,8 @@ import { Movement } from "./movement";
 import { Production } from "./production";
 import { UnitScripts } from "./unit-scripts";
 import { PlayerVision } from "./vision";
-import type { Entity, Intent, Deposit, Player } from "./entities";
+import { Abilities } from "./abilities";
+import { compromised, executorOf, type Entity, type Intent, type Deposit, type Player } from "./entities";
 import { validateOrder } from "./validate";
 import { fingerprint } from "./fingerprint";
 
@@ -97,6 +98,7 @@ export class Match {
   private log: GameEvent[] = [];
   private conversation: Extract<GameEvent, { type: "chat" }>[] = [];
   private movement: Movement;
+  private abilities: Abilities;
 
   constructor(cfg: MatchConfig) {
     if (cfg.players.some(p => p.id === NEUTRAL_OWNER)) throw new Error(`Player id ${NEUTRAL_OWNER} is reserved for scenario walls`);
@@ -125,10 +127,23 @@ export class Match {
     }, (a, b) => this.hostile(a, b));
     this.production = new Production(() => this.ruleset, this.clock, { players: this.players, entities: this.ents, ruined: this.ruined },
       this.movement, (kind, owner, x, y) => this.spawn(kind, owner, x, y));
+    this.abilities = new Abilities(() => this.ruleset, this.clock, { players: this.players, entities: this.ents, ruined: this.ruined }, {
+      hostile: (a, b) => this.hostile(a, b),
+      canSee: (player, x, y) => this.vision.canSee(player, x, y),
+      // UnitScripts is built after Abilities (it reads their script view), so the stage reaches it when called.
+      stage: { install: (player, name, code) => this.scripts.payloads.install(player, name, code), remove: (player, name) => this.scripts.payloads.remove(player, name) },
+      effects: {
+        hack: (target, player, caster, script, emit) => this.applyHack(target, player, caster, script, emit),
+        recover: (target, emit) => this.releasePayload(target, emit),
+        convert: (target, player, caster, emit) => this.convert(target, player, caster, emit),
+      },
+      result: (entity, status, effect, reason) => this.scripts.result(entity, status, effect, reason),
+      endOrder: (entity, reason, emit) => this.endOrder(entity, reason, emit),
+    }, cfg.seed);
     // The script VMs are allocated here; anything that fails afterwards must release them.
     this.scripts = new UnitScripts(() => this.ruleset, this.clock, {
       players: this.players, entities: this.ents, ruined: this.ruined, board: this.board,
-      vision: this.vision, movement: this.movement, combat: this.combat, hostile: (a, b) => this.hostile(a, b),
+      vision: this.vision, movement: this.movement, combat: this.combat, abilities: this.abilities, hostile: (a, b) => this.hostile(a, b),
     }, cfg.scriptHostFactory ?? createScriptHost, cfg.seed);
     try {
       this.setup();
@@ -192,9 +207,10 @@ export class Match {
     const intents = new Map<string, Intent>();
     const scripted: Entity[] = [];
     for (const e of this.ents.values()) {
-      if (!e.spec.moveMs && !e.spec.atk) continue;
+      // A hacked wall or door runs its payload too; it can only hold, log and use what its kind can do.
+      if (!e.spec.moveMs && !e.spec.atk && !e.payload) continue;
       if (this.ruined.has(e.owner)) continue; // ruins never act
-      if (this.ruleset.reactiveOrders && e.spec.scriptable) {
+      if (this.ruleset.reactiveOrders && (e.spec.scriptable || e.payload)) {
         scripted.push(e);
         continue;
       }
@@ -206,7 +222,8 @@ export class Match {
       else if (e.spec.scriptable) scripted.push(e);
     }
     for (const p of prio) {
-      const mine = scripted.filter((e) => e.owner === p.id);
+      // A hypno entity decides in its controller's VM, with that player's sight.
+      const mine = scripted.filter((e) => executorOf(e) === p.id);
       if (mine.length === 0) continue;
       this.scripts.decide(p, mine, emit, (e, r) => {
         const orderIntent = this.ruleset.reactiveOrders ? this.reactiveOrderIntent(e, r, emit) : null;
@@ -217,14 +234,16 @@ export class Match {
         }
         const intent = this.scriptIntent(e, r.action);
         const impossible = intent.t === "hold" && r.action.a !== "hold";
+        const waiting = intent.t === "hold" && intent.status === "cooldown";
         e.lastActionResult = { tick: T, action: r.action,
-          status: r.error || impossible ? "invalid" : intent.t === "hold" ? "held" : "blocked",
-          ...(r.error ? { reason: r.error } : impossible ? { reason: "action has no valid target or cannot be performed" } : {}) };
+          status: r.error ? "invalid" : waiting ? "cooldown" : impossible ? "invalid" : intent.t === "hold" ? "held" : "blocked",
+          ...(r.error ? { reason: r.error } : impossible ? { reason: (intent.t === "hold" && intent.reason) || "action has no valid target or cannot be performed" } : {}) };
         e.actionResult = { tick: T, source: "script", intent: describeIntent(intent), status: e.lastActionResult.status, ...(e.lastActionResult.reason ? { reason: e.lastActionResult.reason } : {}) };
         intents.set(e.id, intent);
       });
     }
 
+    this.abilities.cancelUnrequested();
     for (const e of this.ents.values()) {
       const it = intents.get(e.id);
       e.doing = it ? describeIntent(it) : e.spec.moveMs || e.spec.atk ? "hold" : "";
@@ -264,16 +283,19 @@ export class Match {
       const e = this.ents.get(id)!;
       e.hp -= dmg;
       if (e.hp > 0) continue;
-      const by = lastHit.get(id);
-      const killer = this.players.find((p) => p.id === by);
-      if (killer && !this.ruined.has(e.owner)) e.spec.building ? killer.buildingKills++ : killer.kills++;
+      const hit = lastHit.get(id);
+      // The kill goes to whoever decided the blow (a hypno striker's controller); the event names only the striker's owner.
+      const killer = this.players.find((p) => p.id === hit?.credit);
+      if (killer && !this.ruined.has(e.owner) && this.hostile(killer.id, e.owner)) e.spec.building ? killer.buildingKills++ : killer.kills++;
       this.remove(e);
-      emit({ tick: T, type: "death", id, kind: e.kind, owner: e.owner, x: e.x, y: e.y, by });
+      emit({ tick: T, type: "death", id, kind: e.kind, owner: e.owner, x: e.x, y: e.y, by: hit?.by });
       if (e.spec.vital) {
         const owner = this.player(e.owner);
         if (owner.alive) { owner.alive = false; fallen.push(owner); }
       }
     }
+    // Heals and channels resolve on the survivors: a dead caster or target completes nothing.
+    this.abilities.resolve(this.interleaved(prio), intents, emit);
     this.checkEnd(T, emit);
     // In team matches the game can go on without them: everything they had falls.
     if (!this._outcome) for (const p of fallen) this.eliminate(p, emit);
@@ -303,7 +325,7 @@ export class Match {
         if (e.type === "spawn" && this.hostile(e.owner, player)) {
           const { mineral, ...publicEvent } = e; return publicEvent;
         }
-        return e;
+        return e.type === "hypno" ? hypnoEventAs(e, player) : e;
       });
   }
 
@@ -524,6 +546,8 @@ export class Match {
         mix(job.completesAtTick ?? 0);
       }
     }
+    // Rules without Wizards keep their recorded hash stream.
+    if (this.abilities.enabled) for (const e of this.ents.values()) this.abilities.hash(e, mix);
     this.vision.hashKnowledge(mix);
     this.combat.hashProjectiles(mix);
     return digest();
@@ -598,6 +622,8 @@ export class Match {
 
   private remove(e: Entity) {
     this.clearConstruction(e);
+    this.abilities.cancel(e);
+    if (e.payload) this.scripts.payloads.remove(e.payload.controller, e.payload.script);
     this.ents.delete(e.id);
     this.board.remove(e);
   }
@@ -633,10 +659,12 @@ export class Match {
 
     const e = this.ents.get(o.unit);
     if (!e || e.owner !== p.id) return { ok: false, reason: `no entity ${o.unit} of yours` };
+    if (compromised(e)) return { ok: false, reason: `${e.id} is under hypno: it ignores your orders` };
     if (!e.spec.moveMs) return { ok: false, reason: `${e.kind} cannot take orders` };
     const { width, height } = this.ruleset.map;
     switch (o.type) {
       case "stop":
+        this.abilities.ordered(e, null);
         if (this.ruleset.reactiveOrders && e.order) this.endOrder(e, "stopped", emit);
         else { this.clearConstruction(e); e.order = null; e.path = null; }
         return { ok: true };
@@ -678,6 +706,16 @@ export class Match {
         this.assignOrder(e, { type: "build", kind, x: o.x, y: o.y }, emit);
         return { ok: true };
       }
+      case "heal":
+      case "hack":
+      case "convert": {
+        // Range and recharge are waited for; what can never succeed is refused now.
+        const refused = this.abilities.reason(e, o.type, o.target) ?? (o.type === "hack" && o.code !== "" ? this.abilities.payloadProblem(p.id, o.code) : undefined);
+        if (refused) return { ok: false, reason: refused };
+        this.clearConstruction(e);
+        this.assignOrder(e, o.type === "hack" ? { type: "hack", target: o.target, code: o.code } : { type: o.type, target: o.target }, emit);
+        return { ok: true };
+      }
     }
   }
 
@@ -700,6 +738,7 @@ export class Match {
   }
 
   private assignOrder(e: Entity, order: UnitOrder, emit: (e: GameEvent) => void) {
+    this.abilities.ordered(e, order);
     if (e.order?.type !== "move" || order.type !== "move" || e.order.x !== order.x || e.order.y !== order.y) delete e.moveTarget;
     if (this.ruleset.reactiveOrders) {
       if (e.order && JSON.stringify(e.order) !== JSON.stringify(order)) this.endOrder(e, "replaced", emit);
@@ -707,6 +746,75 @@ export class Match {
     }
     e.order = order;
     this.orderProgress.begin(e, order);
+  }
+
+  // ───────────────────────── hack and convert ─────────────────────────
+
+  /** A successful hack: from the next tick `target` runs `script` in `player`'s VM; its owner's order ends. */
+  private applyHack(target: Entity, player: PlayerId, caster: Entity, script: string, emit: (e: GameEvent) => void) {
+    const previous = target.payload?.controller;
+    // Under its old control first: its own staged channel leaves the VM that compiled it.
+    this.resetControl(target, player === target.owner ? null : "hypno", emit);
+    if (target.payload) this.scripts.payloads.remove(target.payload.controller, target.payload.script);
+    target.payload = { controller: player, script };
+    const hypno = player !== target.owner;
+    this.widen(this.emitNow(emit, { tick: this.clock.tick, type: "hypno", id: target.id, kind: target.kind, owner: target.owner, x: target.x, y: target.y,
+      active: hypno, ...(hypno ? { controller: player, wizard: caster.id } : {}) }), [previous]);
+  }
+
+  /** `target` returns to its owner's script for its kind: a recovery without code, or its controller is out. */
+  private releasePayload(target: Entity, emit: (e: GameEvent) => void) {
+    const previous = target.payload!.controller;
+    this.resetControl(target, null, emit);
+    this.scripts.payloads.remove(previous, target.payload!.script);
+    delete target.payload;
+    this.hypnoEnded(target, [previous], emit);
+  }
+
+  /** Tells `target`'s owner and `players` (controllers that lost it) that its script is no longer another player's. */
+  private hypnoEnded(target: Entity, players: PlayerId[], emit: (e: GameEvent) => void) {
+    this.widen(this.emitNow(emit, { tick: this.clock.tick, type: "hypno", id: target.id, kind: target.kind, owner: target.owner, x: target.x, y: target.y, active: false }), players);
+  }
+
+  /**
+   * `player` (the caster's owner) takes `target`: any payload goes, and it runs its new owner's script with that player's research.
+   * It keeps its remaining hit points (capped), what it carries and its cooldowns; the population cap may be exceeded.
+   */
+  private convert(target: Entity, player: PlayerId, caster: Entity, emit: (e: GameEvent) => void) {
+    const from = target.owner, previous = target.payload?.controller;
+    this.resetControl(target, "converted", emit);
+    if (target.payload) this.scripts.payloads.remove(target.payload.controller, target.payload.script);
+    delete target.payload;
+    target.owner = player;
+    target.spec = this.specOf(target.owner, target.kind);
+    target.hp = Math.min(target.hp, target.spec.hp);
+    const fromTeam = this.player(from).team;
+    this.widen(this.emitNow(emit, { tick: this.clock.tick, type: "converted", id: target.id, kind: target.kind, owner: target.owner, from, x: target.x, y: target.y, wizard: caster.id }),
+      this.players.filter((p) => p.team === fromTeam).map((p) => p.id));
+    if (previous && previous !== from && previous !== target.owner) this.hypnoEnded(target, [previous], emit);
+  }
+
+  /** Control changed hands: the old decision state goes, and every VM forgets the entity's memory. `orderEnd` ends its order. */
+  private resetControl(e: Entity, orderEnd: OrderEndReason | null, emit: (e: GameEvent) => void) {
+    if (orderEnd && e.order) this.endOrder(e, orderEnd, emit);
+    if (orderEnd) this.settle(e);
+    this.abilities.reset(e);
+    delete e.lastActionResult;
+    delete e.actionResult;
+    e.scriptEvents = [];
+    delete e.seenEnemies;
+    this.scripts.forget(e.id);
+  }
+
+  private emitNow(emit: (e: GameEvent) => void, e: GameEvent): GameEvent {
+    emit(e);
+    return e;
+  }
+
+  /** Also tells `players` of an event, beyond those who could see it. */
+  private widen(e: GameEvent, players: (PlayerId | undefined)[]) {
+    const audience = this.eventAudience.get(e)!;
+    for (const p of players) if (p !== undefined && p !== NEUTRAL_OWNER) audience.add(p);
   }
 
   private reactiveOrderIntent(e: Entity, run: UnitRun, emit: (e: GameEvent) => void): Intent | null {
@@ -749,24 +857,31 @@ export class Match {
       }
       case "gather": {
         const step = this.gatherIntent(e, o);
-        return "end" in step ? (this.endOrder(e, step.end, emit), null) : step;
+        return "stop" in step ? (this.endOrder(e, step.stop, emit), null) : step;
+      }
+      case "heal":
+      case "hack":
+      case "convert": {
+        const intent = this.abilities.intent(e, { action: o.type, target: o.target, ...(o.type === "hack" ? { code: o.code } : {}) });
+        if (intent.t === "hold" && intent.end) return this.endOrder(e, intent.end, emit), null;
+        return intent;
       }
     }
   }
 
   /** The next gathering step, or why gathering cannot go on. Ending an order is the caller's decision. */
-  private gatherIntent(e: Entity, o: { type: "gather"; deposit?: string }): Intent | { end: OrderEndReason } {
+  private gatherIntent(e: Entity, o: { type: "gather"; deposit?: string }): Intent | { stop: OrderEndReason } {
     let dep = o.deposit ? this.deps.get(o.deposit) : undefined;
     if (!dep) {
       dep = this.nearestDeposit(e);
       o.deposit = dep?.id;
     }
     if (e.carrying >= this.ruleset.gather.carry || (e.carrying > 0 && !dep)) {
-      const drop = this.nearestOwn(e, (x) => !!x.spec.dropoff);
-      if (!drop) return { end: "no dropoff" };
+      const drop = this.nearestDropoff(e);
+      if (!drop) return { stop: "no dropoff" };
       return dist(e.x, e.y, drop.x, drop.y) <= 1 ? { t: "unload", id: drop.id } : { t: "goto", x: drop.x, y: drop.y, range: 1 };
     }
-    if (!dep) return { end: "no deposits left" };
+    if (!dep) return { stop: "no deposits left" };
     return dist(e.x, e.y, dep.x, dep.y) <= 1 ? { t: "gather", id: dep.id } : { t: "goto", x: dep.x, y: dep.y, range: 1 };
   }
 
@@ -776,16 +891,16 @@ export class Match {
     switch (a.a) {
       case "gather": {
         if (!e.spec.gathers) return { t: "hold" };
-        if (a.id !== undefined && !this.vision.deposits(e.owner)?.has(a.id)) return { t: "hold" };
+        if (a.id !== undefined && !this.vision.deposits(executorOf(e))?.has(a.id)) return { t: "hold" };
         const step = this.gatherIntent(e, { type: "gather", deposit: a.id });
-        if (!("end" in step)) return step;
+        if (!("stop" in step)) return step;
         // The script's own action never ends the order it suspended; a unit without one stops where it is.
         if (!e.order) this.settle(e);
         return { t: "hold" };
       }
       case "unload": {
         if (!e.spec.gathers || !e.carrying) return { t: "hold" };
-        const drop = this.nearestOwn(e, x => !!x.spec.dropoff);
+        const drop = this.nearestDropoff(e);
         if (!drop) return { t: "hold" };
         return dist(e.x, e.y, drop.x, drop.y) <= 1
           ? { t: "unload", id: drop.id }
@@ -798,8 +913,9 @@ export class Match {
       case "moveTo":
         return { t: "goto", x: clamp(a.x, 0, width - 1), y: clamp(a.y, 0, height - 1), range: 0 };
       case "attack": {
+        // A hack changes who decides, not sides: a hypno entity attacks its owner's enemies, seen by its controller.
         const t = this.ents.get(a.id);
-        if (!t || !this.vision.canSee(e.owner, t.x, t.y) || !this.hostile(t.owner, e.owner) || !e.spec.atk) return { t: "hold" };
+        if (!t || t === e || !this.vision.canSee(executorOf(e), t.x, t.y) || !this.hostile(t.owner, e.owner) || !e.spec.atk) return { t: "hold" };
         const range = e.spec.range ?? 1;
         if (inAttackRange(e, t)) return { t: "attack", id: t.id };
         return e.spec.moveMs ? { t: "goto", x: t.x, y: t.y, range } : { t: "hold" };
@@ -808,7 +924,7 @@ export class Match {
         return { t: "shoot", x: clamp(a.x, 0, width - 1), y: clamp(a.y, 0, height - 1) };
       case "flee": {
         const t = this.ents.get(a.id);
-        if (!t || !this.vision.canSee(e.owner, t.x, t.y) || !e.spec.moveMs) return { t: "hold" };
+        if (!t || !this.vision.canSee(executorOf(e), t.x, t.y) || !e.spec.moveMs) return { t: "hold" };
         let best: [number, number] | null = null;
         let bestD = dist(e.x, e.y, t.x, t.y);
         for (const [dx, dy] of this.movement.directions(e.owner)) {
@@ -817,6 +933,10 @@ export class Match {
         }
         return best ? { t: "dir", dx: best[0], dy: best[1] } : { t: "hold" };
       }
+      case "heal":
+      case "hack":
+      case "convert":
+        return this.abilities.intent(e, { action: a.a, target: a.id, ...(a.a === "hack" ? { code: a.code } : {}) });
       default:
         return { t: "hold" };
     }
@@ -961,6 +1081,10 @@ export class Match {
 
   /** A player whose vital entity died in a match that goes on: its units are removed and its buildings left as ruins. */
   private eliminate(p: Player, emit: (e: GameEvent) => void) {
+    // What it controlled returns to its owners; its own buildings become inert ruins, scripts and all.
+    for (const e of [...this.ents.values()]) {
+      if (e.payload && ((e.payload.controller === p.id && e.owner !== p.id) || (e.owner === p.id && e.spec.building))) this.releasePayload(e, emit);
+    }
     this.ruined.add(p.id);
     for (const e of [...this.ents.values()]) {
       if (e.owner !== p.id) continue;
@@ -994,17 +1118,23 @@ export class Match {
     return units * s.unit + buildings * s.building + p.mineral * s.mineral + p.kills * s.kill + p.buildingKills * s.buildingKill;
   }
 
+  /** The nearest deposit known to the player deciding for `e`: under hypno its controller's knowledge, never its owner's. */
   private nearestDeposit(e: Entity): Deposit | undefined {
     let best: Deposit | undefined;
-    const known = this.vision.deposits(e.owner)?.values() ?? [];
+    const known = this.vision.deposits(executorOf(e))?.values() ?? [];
     for (const d of known) if (!best || this.movement.closer(e, d, best)) best = d;
     return best;
   }
 
-  private nearestOwn(e: Entity, pred: (x: Entity) => boolean): Entity | undefined {
+  /**
+   * The nearest dropoff of `e`'s owner, who is credited with the unload. Under hypno only one its controller sees,
+   * so the route never reveals the owner's hidden buildings.
+   */
+  private nearestDropoff(e: Entity): Entity | undefined {
+    const hidden = compromised(e) ? (x: Entity) => !this.vision.canSee(executorOf(e), x.x, x.y) : () => false;
     let best: Entity | undefined;
     for (const x of this.ents.values()) {
-      if (x.owner !== e.owner || !pred(x)) continue;
+      if (x.owner !== e.owner || !x.spec.dropoff || hidden(x)) continue;
       if (!best || this.movement.closer(e, x, best)) best = x;
     }
     return best;
@@ -1031,8 +1161,14 @@ export class Match {
     });
   }
 
-  /** `viewer` null = spectator (sees everything). Intent is private; heading is public. */
+  /** `viewer` null = spectator (sees everything); a player sees what `entityAs` lets it. Intent is private; heading is public. */
   private entityView(e: Entity, viewer: PlayerId | null = null): EntityView {
+    const full = this.observedView(e);
+    return viewer === null ? full : entityAs(full, viewer);
+  }
+
+  /** Everything about an entity, as an observer sees it. */
+  private observedView(e: Entity): EntityView {
     const v: EntityView = { id: e.id, kind: e.kind, owner: e.owner, x: e.x, y: e.y, hp: e.hp, maxHp: e.spec.hp };
     v.vital = !!e.spec.vital;
     if (this.ruined.has(e.owner)) v.ruin = true;
@@ -1045,17 +1181,20 @@ export class Match {
       moveMs: e.spec.moveMs ? this.clock.ms(this.clock.ticks(e.spec.moveMs)) : 0,
     };
     if (e.lastStep && this.clock.tick - e.lastStep.tick <= this.clock.ticks(HEADING_MS)) v.heading = arrow(e.lastStep.dx, e.lastStep.dy);
-    const own = viewer === null || viewer === e.owner;
-    if (own && e.training?.length) v.training = e.training.map((job) => ({ kind: job.kind,
+    if (e.training?.length) v.training = e.training.map((job) => ({ kind: job.kind,
       ...(job.completesAtTick !== undefined ? { completesAtMs: this.clock.ms(job.completesAtTick) } : {}),
     }));
-    if (own && e.doing) v.doing = e.doing;
-    if (own && e.actionResult) v.actionResult = { ...e.actionResult };
+    if (e.doing) v.doing = e.doing;
+    if (e.actionResult) v.actionResult = { ...e.actionResult };
+    const cast = ABILITIES.find((action) => e.doing.startsWith(`${action} `));
+    if (cast) v.casting = { action: cast, target: e.doing.slice(cast.length + 1), ...(e.channel ? { progressMs: this.clock.ms(e.channel.progress) } : {}) };
+    if (e.rechargeUntil !== undefined && e.rechargeUntil > this.clock.tick) v.rechargeMs = this.clock.ms(e.rechargeUntil - this.clock.tick);
+    if (compromised(e)) { v.hypno = true; v.controller = e.payload!.controller; }
     if (e.spec.gathers && e.doing.startsWith("gather ")) {
       const deposit = this.deps.get(e.doing.slice("gather ".length));
       if (deposit && dist(e.x, e.y, deposit.x, deposit.y) <= 1) v.gathering = { x: deposit.x, y: deposit.y };
     }
-    const o = own ? e.order : null;
+    const o = e.order;
     if (o) {
       if (e.orderSuspended) v.orderSuspended = true;
       const progress = this.orderProgress.view(e);
@@ -1064,9 +1203,10 @@ export class Match {
         o.type === "move" ? `move ${o.x},${o.y}` :
         o.type === "attack" ? `attack ${o.target}` :
         o.type === "gather" ? `gather${o.deposit ? " " + o.deposit : ""}` :
-        `build ${o.kind} ${o.x},${o.y}`;
+        o.type === "build" ? `build ${o.kind} ${o.x},${o.y}` :
+        `${o.type} ${o.target}`;
     }
-    if (own && e.carrying) v.carrying = e.carrying;
+    if (e.carrying) v.carrying = e.carrying;
     return v;
   }
 
@@ -1094,6 +1234,8 @@ function describeIntent(it: Intent): Doing {
     case "unload": return "unload";
     case "build": return "build";
     case "hold": return "hold";
+    case "heal": return `heal ${it.id}`;
+    case "channel": return `${it.action} ${it.id}`;
   }
 }
 

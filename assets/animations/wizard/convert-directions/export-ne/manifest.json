@@ -1,0 +1,27 @@
+{
+  "image": "wizard-convert.png",
+  "fps": 12,
+  "frameCount": 28,
+  "frameWidth": 112,
+  "frameHeight": 112,
+  "storedScale": 3,
+  "anchorX": 0.5,
+  "anchorY": 0.90625,
+  "loop": true,
+  "rows": [
+    "ne"
+  ],
+  "directions": {
+    "ne": {
+      "screenDir": 3,
+      "row": 0,
+      "flip": false
+    },
+    "nw": {
+      "screenDir": 5,
+      "row": 0,
+      "flip": true
+    }
+  },
+  "status": "Partial pilot; not for publishing"
+}

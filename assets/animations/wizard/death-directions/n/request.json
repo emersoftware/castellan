@@ -1,0 +1,20 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "kind": "wizard",
+  "action": "death",
+  "stage": "death",
+  "direction": "n",
+  "prompt": "The robed game character falls onto the ground and remains lying still. Keep the entire figure and staff inside the frame. Fixed isometric camera and solid magenta background.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 6,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": false,
+  "source": "assets/wizard/source/idle.png",
+  "source_view": 4,
+  "reference_scale": 0.85,
+  "replaces": "rejected-clipped-source/generated.mp4"
+}

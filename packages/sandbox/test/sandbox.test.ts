@@ -144,6 +144,37 @@ describe("sandbox", () => {
     expect(logs(8)).not.toEqual(a);
   });
 
+  it("runs an entity's named script instead of its kind's, and forgets memory only for listed entities", () => {
+    const h = createScriptHost(rules.script, 1);
+    try {
+      const two: ScriptWorld = { ...world, units: { ...world.units, e4: { id: "e4", type: "knight", x: 7, y: 7, hp: 80, maxHp: 80, atk: 12, def: 4, range: 1, vision: 4 } },
+        all: [...world.all, ["e4", "knight", "p1", 1, 7, 7, 80, 80, 0, 7 * 32 + 7]] };
+      const count = "self.memory.n = (self.memory.n || 0) + 1; self.log(self.memory.n);";
+      h.setScript("knight", `${count} self.move('N');`);
+      expect(h.setScript("hack:e9:3", `${count} self.move('S');`)).toEqual({ ok: true });
+      const payload = { ...two, units: { ...two.units, e4: { ...two.units.e4, script: "hack:e9:3" } } };
+      expect(h.run(payload, ["e1", "e4"])).toMatchObject({ e1: { action: { a: "move", dir: "N" }, log: "1" }, e4: { action: { a: "move", dir: "S" }, log: "1" } });
+      expect(h.run({ ...payload, forget: ["e4"] }, ["e1", "e4"])).toMatchObject({ e1: { log: "2" }, e4: { log: "1" } });
+      // A removed payload leaves the unit without a script: it holds.
+      expect(h.setScript("hack:e9:3", null)).toEqual({ ok: true });
+      expect(h.run(payload, ["e4"]).e4).toEqual({ action: { a: "hold" } });
+    } finally { h.dispose(); }
+  });
+
+  it("reports Wizard abilities only for units that have them, and parses their actions", () => {
+    const h = createScriptHost(rules.script, 1);
+    try {
+      const abilities = { healRange: 3, intrusionRange: 7, buildingRange: 1, intrusion: { units: true, buildings: false }, rechargeReadyInTicks: 0, channel: null };
+      const wizard: ScriptWorld = { ...world, units: { e1: { ...world.units.e1, type: "wizard", abilities } } };
+      h.setScript("wizard", "self.log([typeof self.heal, self.intrusionRange, self.intrusion.units, self.channel].join()); self.hack(self.nearestEnemy(), 'self.hold();');");
+      expect(h.run(wizard, ["e1"]).e1).toMatchObject({ log: "function,7,true,", action: { a: "hack", id: "e2", code: "self.hold();" } });
+      h.setScript("wizard", "self.convert('e2');");
+      expect(h.run(wizard, ["e1"]).e1.action).toEqual({ a: "convert", id: "e2" });
+      h.setScript("knight", "self.log(typeof self.heal); self.heal('e2');");
+      expect(h.run(world, ["e1"]).e1).toMatchObject({ log: "undefined", error: expect.stringMatching(/not a function/) });
+    } finally { h.dispose(); }
+  });
+
   it("has no host access and no clock", () => {
     const h = createScriptHost(rules.script, 1);
     h.setScript("knight", "self.log([typeof Date, typeof require, typeof process, typeof fetch, typeof setTimeout].join(','));");

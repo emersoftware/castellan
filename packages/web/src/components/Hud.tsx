@@ -15,10 +15,13 @@ import { highlightJs } from "../highlight";
  * in watch and replay), then every player in its colour with mineral,
  * population, kills and score, grouped by team in 2v2. With `onSelectPlayer`
  * a last column of eye buttons picks whose view the map shows, "all" at the bottom.
+ * Under a player, the entities its hacks control (selectable with `onSelectUnit`)
+ * and how many of its own the view shows hacked.
  */
-export function PlayerList({ view, names, colors, selectedPlayer, onSelectPlayer, subtitle }: {
+export function PlayerList({ view, names, colors, selectedPlayer, onSelectPlayer, onSelectUnit, subtitle }: {
   view: SpectatorView; names: Record<string, string>; colors: Record<string, number>;
   selectedPlayer?: string | null; onSelectPlayer?: (player: string | null) => void;
+  onSelectUnit?: (id: string) => void;
   /** A line under the title (the series). */
   subtitle?: ReactNode;
 }) {
@@ -40,7 +43,8 @@ export function PlayerList({ view, names, colors, selectedPlayer, onSelectPlayer
           <tbody key={t}>
             {grouped && <tr className="team"><td colSpan={cols}>Team {i + 1}</td></tr>}
             {view.players.filter((p) => p.team === t).map((p) => (
-              <PlayerRows key={p.id} cols={cols} p={p} selected={selectedPlayer === p.id} onSelect={onSelectPlayer ? () => onSelectPlayer(p.id) : undefined} name={names[p.id] ?? p.name} color={colors[p.id] ?? 0} />
+              <PlayerRows key={p.id} cols={cols} p={p} selected={selectedPlayer === p.id} onSelect={onSelectPlayer ? () => onSelectPlayer(p.id) : undefined} name={names[p.id] ?? p.name} color={colors[p.id] ?? 0}
+                hypno={<HypnoRow cols={cols} entities={view.entities} player={p.id} onSelectUnit={onSelectUnit} />} />
             ))}
           </tbody>
         ))}
@@ -87,6 +91,26 @@ function UpgradesRow({ upgrades = {}, cols }: { upgrades?: Record<string, number
   return <tr className="timing upgrades"><td colSpan={cols} title={text || undefined}>{text || "\u00a0"}</td></tr>;
 }
 
+/**
+ * A player's hacks as this view shows them: what it controls (a view names the controller only to that player and
+ * full observers) and how many of its own run another player's script. Absent when there are neither.
+ */
+function HypnoRow({ entities, player, cols, onSelectUnit }: { entities: EntityView[]; player: string; cols: number; onSelectUnit?: (id: string) => void }) {
+  const controls = entities.filter((e) => e.controller === player);
+  const compromised = entities.filter((e) => e.owner === player && e.hypno).length;
+  if (!controls.length && !compromised) return null;
+  return (
+    <tr className="hypno">
+      <td colSpan={cols}>
+        HYPNO{controls.length > 0 && <> · controls {controls.length}:{controls.map((e) => onSelectUnit
+          ? <button key={e.id} className="hypno-unit" title={`Select ${e.kind} ${e.id}`} onClick={() => onSelectUnit(e.id)}>{e.kind} {e.id}</button>
+          : <span key={e.id} className="hypno-unit">{e.kind} {e.id}</span>)}</>}
+        {compromised > 0 && ` · ${compromised} of its own hacked`}
+      </td>
+    </tr>
+  );
+}
+
 /** Why a player's scripts or connector are not running, when they aren't. */
 function playerNotice({ scriptRuntime, agentActivity }: PlayerStats): string | null {
   if (scriptRuntime) return `Scripts stopped at tick ${scriptRuntime.tick}: ${scriptRuntime.message}`;
@@ -98,7 +122,7 @@ function playerNotice({ scriptRuntime, agentActivity }: PlayerStats): string | n
   }
 }
 
-function PlayerRows({ p, cols, name, color, selected, onSelect }: { cols: number; selected?: boolean; onSelect?: () => void; p: PlayerStats; name: string; color: number }) {
+function PlayerRows({ p, cols, name, color, selected, onSelect, hypno }: { cols: number; selected?: boolean; onSelect?: () => void; p: PlayerStats; name: string; color: number; hypno: ReactNode }) {
   const notice = playerNotice(p);
   return (
     <>
@@ -117,6 +141,7 @@ function PlayerRows({ p, cols, name, color, selected, onSelect }: { cols: number
         {onSelect && <td className="view"><ViewButton on={!!selected} label={`View as ${name} (${p.id})`} onClick={onSelect} /></td>}
       </tr>
       {notice && <tr><td colSpan={cols}>{notice}</td></tr>}
+      {hypno}
       <UpgradesRow upgrades={p.upgrades} cols={cols} />
     </>
   );
@@ -128,7 +153,7 @@ function PlayerRows({ p, cols, name, color, selected, onSelect }: { cols: number
  */
 export function notableEvents(events: GameEvent[]): GameEvent[] {
   const out = new Set(events.filter((e) => e.type === "eliminated").map((e) => `${e.tick}:${e.owner}`));
-  return events.filter((e) => (e.type === "death" && !out.has(`${e.tick}:${e.owner}`)) || e.type === "eliminated" || (e.type === "spawn" && e.kind !== "worker") || e.type === "match_end" || e.type === "chat" || e.type === "research_started" || e.type === "upgrade_completed" || e.type === "construction_started");
+  return events.filter((e) => (e.type === "death" && !out.has(`${e.tick}:${e.owner}`)) || e.type === "eliminated" || (e.type === "spawn" && e.kind !== "worker") || e.type === "match_end" || e.type === "chat" || e.type === "research_started" || e.type === "upgrade_completed" || e.type === "construction_started" || e.type === "converted" || e.type === "hypno");
 }
 
 type Names = Record<string, string>;
@@ -153,6 +178,11 @@ function EventText({ e, names, colors }: { e: GameEvent; names: Names; colors: C
     case "construction_started": return <>{who} started building {namedKind}</>;
     case "research_started": return <>{who} researching {e.upgrade.replaceAll("_", " ")} L{e.level}</>;
     case "upgrade_completed": return <>{who} completed {e.upgrade.replaceAll("_", " ")} L{e.level}</>;
+    case "converted": return <><Who id={e.owner} names={names} colors={colors} /> converted {namedKind} {e.id} from <Who id={e.from} names={names} colors={colors} /></>;
+    // Only the hack's controller and observers receive `controller`; the owner learns that it happened, not by whom.
+    case "hypno": return e.active
+      ? <>{e.controller ? <><Who id={e.controller} names={names} colors={colors} /> hacked</> : "Hacked:"} {who}’s {kind} {e.id}</>
+      : <>{who}’s {kind} {e.id} no longer runs a hack</>;
     default: return null;
   }
 }
@@ -286,6 +316,12 @@ function LogLines({ lines, empty, names, colors, tickMs, onSeek }: { lines: Line
   );
 }
 
+/** A Wizard's ability in use; the channel time appears only where the view carries it (whoever runs its script, and observers). */
+function castingText({ action, target, progressMs }: NonNullable<EntityView["casting"]>): string {
+  const channel = progressMs === undefined ? "" : ` · ${(progressMs / 1000).toFixed(1)} s channelled`;
+  return action === "heal" ? `healing ${target}` : `channelling ${action} on ${target}${channel}`;
+}
+
 export function Tooltip({ hover, names = {}, colors = {} }: { hover: HoverInfo | null; names?: Names; colors?: Colors }) {
   if (!hover) return <div className="tooltip muted">drag to pan · scroll to zoom · hover a unit</div>;
   const e = hover.entity;
@@ -300,6 +336,8 @@ export function Tooltip({ hover, names = {}, colors = {} }: { hover: HoverInfo |
           {e.construction && ` · building ${e.construction.kind} (${e.construction.x},${e.construction.y})`}
           {e.stats && ` · atk ${e.stats.atk} · def ${e.stats.def} · range ${e.stats.range} · attack ${e.stats.attackMs}ms · move ${e.stats.moveMs}ms`}
           {e.doing ? ` · ${e.doing}` : e.heading ? ` · ${e.heading}` : ""}
+          {e.casting && ` · ${castingText(e.casting)}`}
+          {e.hypno && <> · HYPNO{e.controller && <> by <Agent id={e.controller} name={names[e.controller]} color={colors[e.controller]} /></>}</>}
         </>
       )}
       {d && (
@@ -316,14 +354,18 @@ export function Tooltip({ hover, names = {}, colors = {} }: { hover: HoverInfo |
 /**
  * The clicked entity, kept at the bottom of the map: what it is and does now, and the
  * script its kind runs for its owner. `entity` is null while it is not visible (or dead);
- * `last` is the last time it was seen.
+ * `last` is the last time it was seen. `viewer` is the player whose view the map shows: only
+ * an entity's owner and its hack's controller can tell whether a hack replaced that script.
  */
-export function UnitPanel({ entity, last, script, scriptRuntime, tickMs, names = {}, colors = {}, reactiveOrders = false, onClose }: {
+export function UnitPanel({ entity, last, script, scriptRuntime, tickMs, names = {}, colors = {}, reactiveOrders = false, viewer = null, onClose }: {
   entity: EntityView | null; last: EntityView; script: LoadedScript | null | undefined; tickMs: number;
-  scriptRuntime?: PlayerStats["scriptRuntime"];
+  scriptRuntime?: PlayerStats["scriptRuntime"]; viewer?: string | null;
   names?: Names; colors?: Colors; reactiveOrders?: boolean; onClose: () => void;
 }) {
   const e = entity ?? last;
+  // Abilities and hacks only from the current view: `last` may come from another perspective or an earlier moment.
+  const { hypno, controller, casting, rechargeMs }: Partial<EntityView> = entity ?? {};
+  const hackHidden = !!viewer && e.owner !== viewer && !hypno;
   const pct = Math.max(0, Math.min(100, (100 * e.hp) / Math.max(1, e.maxHp)));
   const details = [
     e.vital && "VITAL",
@@ -332,6 +374,8 @@ export function UnitPanel({ entity, last, script, scriptRuntime, tickMs, names =
     e.carrying ? `carrying ${e.carrying}` : "",
     e.construction && `building ${e.construction.kind} (${e.construction.x},${e.construction.y})`,
     e.training?.length ? `training ${e.training.map((t) => t.kind).join(", ")}` : "",
+    casting && castingText(casting),
+    rechargeMs !== undefined && `hack and convert ready in ${(rechargeMs / 1000).toFixed(1)} s`,
   ].filter(Boolean);
   return (
     <div className="unit-panel">
@@ -341,14 +385,16 @@ export function UnitPanel({ entity, last, script, scriptRuntime, tickMs, names =
         <span className="unit-hp"><span className={`unit-hp-bar${e.owner === NEUTRAL_OWNER ? "" : ` bg${colors[e.owner] ?? 0}`}`} style={{ width: `${pct}%`, ...(e.owner === NEUTRAL_OWNER ? { background: "var(--grey)" } : {}) }} /></span>{e.hp}/{e.maxHp} hp
       </div>
       {!entity && <div className="muted">not visible from this view</div>}
-      {entity && <div>{e.ruin ? "Inert, destructible ruin" : e.order ? <>order: <b>{e.order}</b>{e.orderSuspended ? " (suspended by script)" : ""}</> : scriptRuntime ? "script stopped" : script === null ? "no script" : "running its script"}{e.doing ? ` · now ${e.doing}` : e.heading ? ` · ${e.heading}` : ""}</div>}
+      {entity && <div>{e.ruin ? "Inert, destructible ruin" : e.order ? <>order: <b>{e.order}</b>{e.orderSuspended ? " (suspended by script)" : ""}</> : hypno ? "running a hack’s script" : hackHidden ? "script not visible from this view" : scriptRuntime ? "script stopped" : script === null ? "no script" : "running its script"}{e.doing ? ` · now ${e.doing}` : e.heading ? ` · ${e.heading}` : ""}</div>}
+      {hypno && <div><b>HYPNO</b> · {controller ? <>controlled by <Agent id={controller} name={names[controller]} color={colors[controller]} /></> : "hacked by an unknown player"}; its owner’s orders and script uploads do not apply until a Wizard hacks it back</div>}
       {!e.ruin && scriptRuntime && <div>Scripts stopped at {fmtTime(scriptRuntime.tick * tickMs)}: {scriptRuntime.message}</div>}
       {details.length > 0 && <div className="muted">{details.join(" · ")}</div>}
-      {e.ruin ? null : script === undefined ? <div className="muted">loading script…</div> : script === null ? <div className="muted">no script</div> : (
+      {e.ruin ? null : hypno ? <div className="muted">The installed code is private to the hack’s controller.</div> : script === undefined ? <div className="muted">loading script…</div> : script === null ? <div className="muted">no script</div> : (
         <div className="unit-script">
           <div className="muted">
             {e.kind} script of <Agent id={e.owner} name={names[e.owner]} color={colors[e.owner]} />: {`${scriptOrigin(script)}${script.custom && script.sinceTick !== undefined ? `, loaded at ${fmtTime(script.sinceTick * tickMs)}` : ""}`}
             {scriptRuntime ? " · inactive: VM stopped" : !e.order ? "" : reactiveOrders ? " · runs during orders" : " · paused while the order runs"}
+            {hackHidden && " · a hack could replace it without this view showing it"}
           </div>
           <pre><code>{highlightJs(script.code.trim())}</code></pre>
         </div>

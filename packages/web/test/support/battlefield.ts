@@ -7,7 +7,7 @@ import type { SpriteArt, SpriteSet } from "../../src/render/sprites";
 
 /** Art with empty textures: tests observe which art the field asks for, not pixels. */
 export const stubArt = (overrides: Partial<SpriteArt> = {}): SpriteArt => ({
-  texture: Texture.EMPTY, silhouette: Texture.EMPTY, xray: Array(4).fill(Texture.EMPTY), scale: 1, anchorX: 0.5, anchorY: 1, ...overrides,
+  texture: Texture.EMPTY, silhouette: Texture.EMPTY, xray: Array(4).fill(Texture.EMPTY), scale: 1, anchorX: 0.5, anchorY: 1, top: 0, ...overrides,
 });
 
 /** A frame holding only what the field reads; simulation time follows 100 ms ticks. */

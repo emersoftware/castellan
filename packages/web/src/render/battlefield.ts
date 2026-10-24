@@ -40,7 +40,7 @@ export class Battlefield {
     this.entities = new SceneEntities(layers, sprites, ruleset, colors, clock, this.fog, play);
     this.deposits = new SceneDeposits(layers, sprites, ruleset.map, this.fog);
     this.projectiles = new Projectiles(layers.fx, clock);
-    this.transient = new SceneEffects(layers.fx, () => clock.now());
+    this.transient = new SceneEffects(layers.fx, layers.shadows, () => clock.now());
     this.buildRocks(sprites);
   }
 
@@ -96,7 +96,7 @@ export class Battlefield {
     }
   }
 
-  /** What an event looks and sounds like: strikes and flashes on the entities, dust, arrows, texts and bubbles. */
+  /** What an event looks and sounds like: strikes and flashes on the entities, dust, arrows and bubbles; a confirmed conversion or hack rings its target. */
   private react(ev: GameEvent, events: GameEvent[]) {
     const { kinds, map } = this.ruleset;
     if (ev.type === "attack") {
@@ -114,8 +114,9 @@ export class Battlefield {
         const toward = shot ? { x: from.tile.x + shot.vx, y: from.tile.y + shot.vy } : target;
         if (!toward) return;
         const offset = this.entities.shoot(ev.from, toward);
-        // A shot drawn from a clip leaves the shooter's sprite.
+        // A shot drawn from a clip leaves the shooter's sprite; a building's leaves from near its top.
         if (shot && offset) shot.launchFrom(offset);
+        if (shot && spec?.building) shot.riseFrom(from.height * 0.8);
         if (!ev.projectile && to) this.effects.push(this.transient.arrow(from.sprite, to.sprite));
         this.play(spec?.building ? "tower" : "arrow", from.tile.x, from.tile.y, 0.35);
       } else if (target) {
@@ -133,7 +134,6 @@ export class Battlefield {
       const vital = kinds[ev.kind]?.vital;
       const building = kinds[ev.kind]?.building;
       this.play(vital ? "horn" : building ? "collapse" : "death", ev.x, ev.y, vital ? 0.8 : building ? 0.7 : 0.4);
-      if (vital) this.effects.push(this.transient.floatText(ev.kind === "king" ? "KING DOWN" : `${ev.kind.toUpperCase()} DESTROYED`, ev.x, ev.y, RAMPS.neutral.key));
     } else if (ev.type === "spawn") {
       const building = kinds[ev.kind]?.building;
       this.effects.push(this.transient.dust(ev.x, ev.y, 0xaaaaaa, building ? 14 : 6));
@@ -143,6 +143,15 @@ export class Battlefield {
       if (!king) return;
       this.effects.push(this.transient.bubble(`${ev.channel === "private" ? `[private → ${ev.to}] ` : ev.channel === "team" ? "[team] " : ""}${ev.text}`, king.sprite, king.tint));
       this.play("chat", king.tile.x, king.tile.y, 0.6);
+    } else if (ev.type === "converted" || ev.type === "hypno") {
+      // Confirmed on the target: a conversion already wears its new owner's colour and rings in it; a hack keeps its
+      // owner's, so a neutral ring marks it before the view's spiral (or its removal).
+      const target = this.entities.figures.get(ev.id);
+      if (!target) return;
+      this.entities.flash(ev.id);
+      const converted = ev.type === "converted";
+      this.effects.push(this.transient.ring(target.sprite, converted ? target.tint : RAMPS.neutral.key));
+      this.play(converted ? "converted" : "hypno", ev.x, ev.y, converted || ev.active ? 0.5 : 0.3);
     } else if (ev.type === "match_end") {
       this.play("fanfare", map.width / 2, map.height / 2, 0.6);
     }

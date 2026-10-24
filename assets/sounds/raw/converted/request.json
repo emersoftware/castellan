@@ -1,0 +1,14 @@
+{
+  "space": "OpenMOSS-Team/MOSS-SoundEffect-v2.0",
+  "prompt": "One soft strike on a large singing bowl, deep, round and mellow, long gentle decay, close-mic ASMR. Close, dry, no music, no reverb, no voices, no whispering.",
+  "seconds": 3,
+  "steps": 50,
+  "cfg_scale": 4.0,
+  "sigma_shift": 5.0,
+  "seeds": [
+    1,
+    2,
+    3,
+    4
+  ]
+}

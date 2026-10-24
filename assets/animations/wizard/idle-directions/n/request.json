@@ -1,0 +1,18 @@
+{
+  "space": "MiniMaxAI/MiniMax-H3-Turbo-Lora",
+  "kind": "wizard",
+  "action": "idle",
+  "stage": "idle",
+  "direction": "n",
+  "prompt": "Seamless idle loop, gentle breathing and subtle cloth sway. Feet planted, plain robe, pointed hood and crystal staff steady. Fixed isometric camera. Preserve character, facing and magenta background. Preserve the empty black face opening, no face, beard or hair.",
+  "canvas": "544x544 \u00b7 1:1 fast",
+  "duration": 2,
+  "steps": 4,
+  "seed": 42,
+  "upsample": false,
+  "lora": "larry",
+  "reference": "reference.png",
+  "first_and_last_frame": true,
+  "source": "assets/wizard/source/idle.png",
+  "source_view": 4
+}

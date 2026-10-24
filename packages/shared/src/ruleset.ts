@@ -1,5 +1,5 @@
 /** Every kind of entity in today's rules (see rules.ts). */
-export const ENTITY_KINDS = ["worker", "king", "knight", "archer", "castle", "tower", "wall", "door"] as const;
+export const ENTITY_KINDS = ["worker", "king", "knight", "archer", "wizard", "castle", "tower", "wall", "door"] as const;
 export type EntityKind = (typeof ENTITY_KINDS)[number];
 
 /**
@@ -61,8 +61,11 @@ export interface Ruleset {
 
 interface UpgradeSpec {
   kind: EntityKind;
-  /** "unlock" makes the kind producible (see KindSpec.requires); its level value is unused. */
-  stat: "atk" | "attackMs" | "moveMs" | "range" | "unlock";
+  /**
+   * "unlock" makes the kind producible (see KindSpec.requires); its level value is unused.
+   * "intrusion" opens the kind's intrusion targets level by level (see IntrusionSpec.upgrade); it changes no stat.
+   */
+  stat: "atk" | "attackMs" | "moveMs" | "range" | "unlock" | "intrusion";
   /**
    * Absolute resulting stat values, bought in order. One research at a time per player.
    * `vision` optionally raises sight with the same level (a longer range needs it to see targets).
@@ -117,6 +120,43 @@ export interface KindSpec {
   trains?: EntityKind[];
   /** Gatherers unload mineral next to it. */
   dropoff?: boolean;
+  /** Heals one friendly unit within `range` (never itself or a building) while it keeps healing it; healers stack. */
+  heals?: { hpPerSecond: number; range: number };
+  /** Channelled hack (replace one entity's script) and convert (take a unit); see IntrusionSpec. */
+  intrusion?: IntrusionSpec;
+}
+
+/**
+ * Hack and convert. Both channel at a target, then share one recharge after a success. Vital kinds are immune.
+ * A channel rolls `chance` once every `rollMs` from `minMs` and completes for certain at `maxMs`;
+ * the rolls come from the match seed, so a replay repeats them.
+ */
+/** What each level of an intrusion research opens, in order (see IntrusionSpec.upgrade). */
+export const INTRUSION_LEVELS = [
+  { opens: "units", text: "hack and convert units" },
+  { opens: "buildings", text: "also hack adjacent buildings" },
+] as const;
+type IntrusionTarget = (typeof INTRUSION_LEVELS)[number]["opens"];
+
+/** What intrusion research at `level` opens. */
+export const intrusionOpens = (level: number): Record<IntrusionTarget, boolean> =>
+  ({ units: level > INTRUSION_LEVELS.findIndex((l) => l.opens === "units"), buildings: level > INTRUSION_LEVELS.findIndex((l) => l.opens === "buildings") });
+
+/** The intrusion research level that opens `target`. */
+export const intrusionLevel = (target: IntrusionTarget) => INTRUSION_LEVELS.findIndex((l) => l.opens === target) + 1;
+
+export interface IntrusionSpec {
+  /** The research whose levels open intrusion targets (INTRUSION_LEVELS). */
+  upgrade: string;
+  /** Range against units, and against buildings (1: adjacent). */
+  unitRange: number;
+  buildingRange: number;
+  unitChannel: { minMs: number; maxMs: number };
+  buildingChannel: { minMs: number; maxMs: number };
+  rollMs: number;
+  chance: number;
+  /** After a successful hack or convert; healing and movement stay available. */
+  rechargeMs: number;
 }
 
 export interface MapSpec {

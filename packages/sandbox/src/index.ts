@@ -9,7 +9,7 @@
  */
 import { newQuickJSWASMModuleFromVariant, type QuickJSContext, type QuickJSHandle, type QuickJSRuntime, type QuickJSWASMModule } from "quickjs-emscripten-core";
 import variant from "@jitl/quickjs-singlefile-mjs-release-sync";
-import { RUN_LIMITS, type ProjectileView, type RunLimits, type ScriptLimits, type UnitOrder } from "@castellan/shared";
+import { RUN_LIMITS, type Ability, type ProjectileView, type RunLimits, type ScriptLimits, type UnitOrder } from "@castellan/shared";
 import { PRELUDE } from "./prelude";
 
 let quickjs: QuickJSWASMModule | null = null;
@@ -38,25 +38,41 @@ export interface ScriptWorld {
   enemyBase: { x: number; y: number } | null;
   /** What perception helpers return: everything the player sees, or (older rules) only within the unit's vision. */
   sight?: "player" | "unit";
+  /** Entities whose memory in this VM starts over before this tick's run (they changed owner or controller). */
+  forget?: string[];
 }
 
 /** Public combat information only; never includes an opponent's cooldowns or orders. */
 interface ScriptVisibleStats {
   atk: number; def: number; range: number; minRange: number; vision: number;
   attackMs: number; moveMs: number; ruin: boolean;
+  /** Rules with Wizards only: immune to hack and convert. */
+  vital?: true;
+  /** It runs a hacked script: told to its owner and to its controller; `controlled` when this player is the controller. */
+  hypno?: true;
+  controlled?: true;
 }
 
 export interface ScriptActionResult {
   tick: number;
   action: ScriptAction;
-  status: "acted" | "blocked" | "cooldown" | "aiming" | "held" | "invalid" | "arrived";
-  effect?: "move" | "attack" | "gather" | "unload";
+  status: "acted" | "blocked" | "cooldown" | "aiming" | "held" | "invalid" | "arrived" | "working";
+  effect?: "move" | "attack" | "gather" | "unload" | Ability;
   reason?: string;
 }
 
 interface ScriptUnit {
   id: string;
   type: string;
+  /** The installed script this unit runs instead of its kind's (a hack's payload). */
+  script?: string;
+  /**
+   * A unit whose owner is not the deciding player (a hack's): the players on its owner's side. Its enemies and allies are
+   * its owner's, not the decider's; absent for every other unit.
+   */
+  ownerSide?: string[];
+  /** Wizards: heal and intrusion reach, which intrusion targets research opened, the recharge and the channel under way. */
+  abilities?: ScriptAbilities;
   x: number;
   y: number;
   hp: number;
@@ -86,6 +102,15 @@ interface ScriptUnit {
   events?: ScriptEvent[];
 }
 
+interface ScriptAbilities {
+  healRange: number;
+  intrusionRange: number;
+  buildingRange: number;
+  intrusion: { units: boolean; buildings: boolean };
+  rechargeReadyInTicks: number;
+  channel: { action: "hack" | "convert"; target: string; progressMs: number } | null;
+}
+
 /** Engine-provided facts; IDs are resolved to visible entities by the sandbox. */
 export type ScriptEvent =
   | { type: "attacked"; tick: number; damage: number; attacker: string | null }
@@ -101,7 +126,10 @@ export type ScriptAction =
   | { a: "shootAt"; x: number; y: number }
   | { a: "flee"; id: string }
   | { a: "gather"; id?: string }
-  | { a: "unload" };
+  | { a: "unload" }
+  | { a: "heal"; id: string }
+  | { a: "hack"; id: string; code: string }
+  | { a: "convert"; id: string };
 
 export interface UnitRun {
   action: ScriptAction;
@@ -119,8 +147,11 @@ export interface UnitRun {
 export type ScriptResult<T extends object = Record<never, never>> = ({ ok: true } & T) | { ok: false; error: string };
 
 export interface ScriptHost {
-  /** Compiles `code` for `kind` (null removes it). Returns a readable error on failure. */
-  setScript(kind: string, code: string | null): ScriptResult;
+  /**
+   * Compiles `code` under `name` (null removes it). Units run the script named by their `script`, else their kind's.
+   * Returns a readable error on failure.
+   */
+  setScript(name: string, code: string | null): ScriptResult;
   hasScript(kind: string): boolean;
   /** Runs the script of each listed unit. Units whose kind has no script hold. */
   run(world: ScriptWorld, unitIds: string[]): Record<string, UnitRun>;
@@ -200,7 +231,7 @@ export function createScriptHost(limits: ScriptLimits, seed: number): ScriptHost
       loaded.value.dispose();
 
       for (const id of unitIds) {
-        const fn = scripts.get(world.units[id].type);
+        const fn = scripts.get(world.units[id].script ?? world.units[id].type);
         if (!fn) {
           out[id] = { action: { a: "hold" } };
           continue;
@@ -330,7 +361,7 @@ const DIRS = new Set(["N", "NE", "E", "SE", "S", "SW", "W", "NW"]);
 const ORDER_CONTROLS: NonNullable<UnitRun["orderControl"]>[] = ["continue", "suspend", "cancel"];
 
 /** A unit's result as the VM reports it: every field is checked before use. */
-type Reported = { a?: { a?: ScriptAction["a"]; dir?: unknown; x?: unknown; y?: unknown; id?: unknown }; err?: unknown; log?: unknown; orderControl?: unknown } | null;
+type Reported = { a?: { a?: ScriptAction["a"]; dir?: unknown; x?: unknown; y?: unknown; id?: unknown; code?: unknown }; err?: unknown; log?: unknown; orderControl?: unknown } | null;
 
 /** The VM is untrusted: anything malformed becomes `hold`. */
 function parseRun(raw: string): UnitRun {
@@ -354,5 +385,8 @@ function parseRun(raw: string): UnitRun {
   else if (a.a === "shootAt" && Number.isFinite(a.x) && Number.isFinite(a.y)) out.action = { a: "shootAt", x: a.x as number, y: a.y as number };
   else if (a.a === "gather" && (a.id === undefined || typeof a.id === "string")) out.action = { a: "gather", ...(a.id === undefined ? {} : { id: a.id }) };
   else if (a.a === "unload") out.action = { a: "unload" };
+  else if ((a.a === "heal" || a.a === "convert") && typeof a.id === "string") out.action = { a: a.a, id: a.id };
+  // The engine checks the payload's size and compiles it when a channel starts.
+  else if (a.a === "hack" && typeof a.id === "string" && typeof a.code === "string") out.action = { a: "hack", id: a.id, code: a.code };
   return out;
 }

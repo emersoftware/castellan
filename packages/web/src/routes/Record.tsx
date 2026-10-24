@@ -42,7 +42,7 @@ const FROM = num("from"), TO = num("to", Infinity), FADE_IN = num("fadeIn"), FAD
 const ramp = (t: number, a: number, ms: number) => (ms > 0 ? Math.min(1, Math.max(0, (t - a) / ms)) : 1);
 const ease = (t: number) => t * t * (3 - 2 * t);
 /** With nobody fighting, the camera looks at the armies. */
-const ARMY = new Set<EntityKind>(["knight", "archer"]);
+const ARMY = new Set<EntityKind>(["knight", "archer", "wizard"]);
 
 /**
  * Where the camera looks, per tick: the middle of the biggest group that hit or was hit in the last 1.5 s

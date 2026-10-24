@@ -31,6 +31,9 @@ export interface PlayerRoutesOptions {
   tickRate?: number;
 }
 
+/** The unit and production orders a one-off `run` may give; scripts, chat and the rest go through their own routes. */
+const RUN_ORDERS = new Set<Order["type"]>(["move", "attack", "gather", "build", "train", "upgrade", "stop", "heal", "hack", "convert"]);
+
 export const playerRoutes: FastifyPluginAsync<PlayerRoutesOptions> = async (app, { rooms, series, ruleset, tickRate }) => {
   const bearer = (req: FastifyRequest) => {
     const header = req.headers.authorization ?? "";
@@ -151,15 +154,14 @@ export const playerRoutes: FastifyPluginAsync<PlayerRoutesOptions> = async (app,
     const view = seat.room.view(seat.player);
     const out = await runOnceIsolated(code, { view, game: seat.room.ruleset ?? ruleset });
     if (out.operationalFailure && out.error) seat.room.experiment.operationalFailure(seat.player, out.error);
-    const allowed = new Set<Order["type"]>(["move", "attack", "gather", "build", "train", "upgrade", "stop"]);
-    const orders = out.orders.filter((o): o is Order => !!o && typeof o === "object" && allowed.has((o as Order).type));
+    const orders = out.orders.filter((o): o is Order => !!o && typeof o === "object" && RUN_ORDERS.has((o as Order).type));
     const rejected = out.orders.length - orders.length;
     const { results, tick } = orders.length ? await seat.room.act(seat.player, orders) : { results: [], tick: seat.room.tick };
     const result = { ...(out.error ? { error: out.error } : {}), tick, orders, results, ...(rejected ? { rejected } : {}), value: out.value, logs: out.logs };
     seat.call.failed = !!out.error || rejected > 0 || results.some((r) => !r.ok);
     if (!wantsText(req)) return result;
     return [
-      out.error ? `run FAILED: ${out.error} (no orders applied)` : `run ok · ${orders.length} order(s)${rejected ? ` · ${rejected} ignored (run accepts move, attack, gather, build, train, upgrade, stop)` : ""}`,
+      out.error ? `run FAILED: ${out.error} (no orders applied)` : `run ok · ${orders.length} order(s)${rejected ? ` · ${rejected} ignored (run accepts ${[...RUN_ORDERS].join(", ")})` : ""}`,
       ...results.map((r, i) => `order ${i} ${JSON.stringify(orders[i])}: ${r.ok ? "ok" + ("id" in r && r.id ? " " + r.id : "") : "FAILED " + r.reason}`),
       ...(out.value !== null ? [`returned: ${JSON.stringify(out.value)}`] : []),
       ...(out.logs.length ? ["logs:", ...out.logs.map((l) => `  ${l}`)] : []),

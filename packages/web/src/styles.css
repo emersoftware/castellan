@@ -90,6 +90,8 @@ button.on { color: var(--black); background: var(--light-grey); border-color: va
 .pillars h3 { font-size: 16px; margin: 0 0 12px; }
 .pillars p { margin: 0; line-height: 1.55; }
 .unit-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 40px 24px; }
+/* A lone last entry sits in the middle of its row. */
+.unit-grid .unit:last-child:nth-child(4n + 1) { grid-column: 2 / span 2; }
 .unit { display: flex; flex-direction: column; align-items: center; text-align: center; }
 .unit .portrait { height: 110px; width: auto; object-fit: contain; margin-bottom: 12px; }
 .unit h4 { color: var(--white); margin: 0 0 6px; font-weight: 400; text-transform: uppercase; font-size: 14px; }
@@ -207,7 +209,7 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
 .sound[aria-pressed="false"] { color: var(--grey); border-color: var(--line); }
 .sound[aria-pressed="true"] { color: var(--white); }
 .unit:focus-visible, .sound:focus-visible { outline: 1px solid var(--white); outline-offset: 5px; }
-@media (max-width: 600px) { .unit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 20px; } }
+@media (max-width: 600px) { .unit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 20px; } .unit-grid .unit:last-child:nth-child(odd) { grid-column: 1 / -1; } }
 @media (max-width: 400px) { .audio-controls { gap: 4px; } .sound { padding: 7px 8px; } }
 .page-sound { position: fixed; top: 12px; right: 12px; z-index: 20; }
 
@@ -307,8 +309,10 @@ button.on { background: linear-gradient(to bottom, #ffffff, #8c8c8c); }
 
 /* Player perspective is selected from the scoreboard in watch and replay. */
 .perspective-label { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 11px; color: var(--grey); margin: 4px 0; }
-.scores .player-perspective { font: inherit; color: inherit; background: transparent; border: 0; padding: 0; cursor: pointer; }
-.scores .player-perspective:hover, .scores .player-perspective[aria-pressed="true"] { text-decoration: underline; text-underline-offset: 3px; }
+.scores .player-perspective, .scores button.hypno-unit { font: inherit; color: inherit; background: transparent; border: 0; padding: 0; cursor: pointer; }
+.scores .player-perspective:hover, .scores .player-perspective[aria-pressed="true"], .scores button.hypno-unit:hover { text-decoration: underline; text-underline-offset: 3px; }
+.scores tr.hypno td { text-align: left; padding: 0 0 4px; font-size: 10px; color: var(--grey); white-space: normal; }
+.scores .hypno-unit { margin-left: 6px; color: var(--light-grey); }
 
 /* ─────────── watch + replay: map, controls under it, side panel on the right ─────────── */
 .viewer {

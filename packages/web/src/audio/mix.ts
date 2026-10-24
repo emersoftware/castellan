@@ -4,8 +4,8 @@
  */
 import type { SoundName } from "@castellan/shared";
 
-const MIN_GAP_MS: Partial<Record<SoundName, number>> = { sword: 90, hit: 160, arrow: 200, tower: 250, death: 90, spawn: 120, pick: 110, footstep: 180 };
-const MAX_PER_SOUND: Partial<Record<SoundName, number>> = { sword: 3, hit: 2, arrow: 2, tower: 2, death: 3, pick: 2, footstep: 2 };
+const MIN_GAP_MS: Partial<Record<SoundName, number>> = { sword: 90, hit: 160, arrow: 200, tower: 250, death: 90, spawn: 120, pick: 110, footstep: 180, heal: 300, hack: 200, convert: 400, hypno: 200, converted: 200 };
+const MAX_PER_SOUND: Partial<Record<SoundName, number>> = { sword: 3, hit: 2, arrow: 2, tower: 2, death: 3, pick: 2, footstep: 2, heal: 2, hack: 2, convert: 2 };
 const MAX_VOICES = 12;
 /** Sounds of the same tick start up to this late, so a volley isn't one blast. */
 const SPREAD_S = 0.06;
@@ -14,7 +14,7 @@ const DENSITY_WINDOW_MS = 800;
 export const AMBIENT_GAIN = 0.22;
 
 /** Sounds whose own samples are tuned to D or A: never detuned. */
-const PITCHED: ReadonlySet<string> = new Set<SoundName>(["sword", "spawn", "horn", "fanfare"]);
+const PITCHED: ReadonlySet<string> = new Set<SoundName>(["sword", "spawn", "horn", "fanfare", "heal", "convert", "converted"]);
 
 interface Layer { sample: string; gain?: number; delay?: number; rate?: number }
 /** Which samples each sound layers; by default a sound is its own sample. */

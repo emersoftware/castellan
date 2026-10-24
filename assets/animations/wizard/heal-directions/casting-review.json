@@ -1,0 +1,61 @@
+{
+  "frameIndexing": "zero-based exported atlas frames",
+  "views": {
+    "se": {
+      "seed": [
+        39,
+        31
+      ],
+      "pulses": [
+        16
+      ],
+      "reason": "Peak forward staff extension after the broad tilt; crystal reaches its furthest right position at frame 16; open palm and stable SE hood reviewed.",
+      "status": "accepted after source, exported sequence and four-palette dither review"
+    },
+    "s": {
+      "seed": [
+        39,
+        22
+      ],
+      "pulses": [
+        13
+      ],
+      "reason": "Peak of the slow forward push toward camera: staff approaches the chest centre while palm stays open; reviewed plateau frames 12\u201315.",
+      "status": "accepted after source, exported sequence and four-palette dither review"
+    },
+    "e": {
+      "seed": [
+        86,
+        37
+      ],
+      "pulses": [
+        0
+      ],
+      "reason": "Maximum forward extension is the initial/final pose; frame 0 is the single burst at the loop boundary, avoiding a duplicate at frame 27.",
+      "status": "accepted after source, exported sequence and four-palette dither review"
+    },
+    "ne": {
+      "seed": [
+        76,
+        28
+      ],
+      "pulses": [
+        13
+      ],
+      "reason": "Reviewed raised/forward crest at frames 12\u201314, staff furthest along the target direction while free palm remains open.",
+      "status": "accepted after source, exported sequence and four-palette dither review"
+    },
+    "n": {
+      "seed": [
+        75,
+        19
+      ],
+      "pulses": [
+        14
+      ],
+      "reason": "Reviewed crest of the slow forward tilt at frames 12\u201316; crystal reaches its furthest targetward/lowered position at frame 14.",
+      "status": "accepted after source, exported sequence and four-palette dither review"
+    }
+  },
+  "acceptance": "Heal accepted locally in five source views and eight display directions. Runtime integration is outside this task."
+}

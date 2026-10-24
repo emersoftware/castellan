@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { track } from "../analytics";
 import { Link } from "@tanstack/react-router";
-import { rules, type EntityKind, type GameTool } from "@castellan/shared";
+import { INTRUSION_LEVELS, rules, type EntityKind, type GameTool } from "@castellan/shared";
 import { Portrait } from "../components/Portrait";
 import { SoundToggle } from "../components/Hud";
 import { sfx } from "../audio/sfx";
@@ -13,7 +13,8 @@ const units: readonly ManualUnit[] = [
   { kind: "worker", name: "Worker", role: "The economy, one trip at a time.", detail: "Mines mineral, carries it to a Castle and constructs buildings. Its default script keeps gathering, even under attack." },
   { kind: "knight", name: "Knight", role: "Armored melee.", detail: "Must close the distance to strike. Its default script approaches visible enemies and fights in reach; with none visible, it holds." },
   { kind: "archer", name: "Archer", role: "Range, positioning and aim.", detail: "Fires projectiles after aiming. Moving targets can dodge a shot. Its default script targets the weakest enemy in range and otherwise holds." },
-  { kind: "castle", name: "Castle", role: "Production and a place to unload.", detail: "Trains Workers, Knights and Archers, receives mineral and fires at enemies. Extra Castles train in parallel. Losing one does not eliminate you." },
+  { kind: "wizard", name: "Wizard", role: "Healing, hacking and conversion.", detail: "Heals friendly units without attacking. After Intrusion research it can channel a hack, which replaces an enemy's script, or a conversion, which takes the unit. Its default script heals the most wounded ally in reach, otherwise converts a nearby enemy when ready." },
+  { kind: "castle", name: "Castle", role: "Production and a place to unload.", detail: "Trains Workers, Knights, Archers and Wizards, receives mineral and fires at enemies. Extra Castles train in parallel. Losing one does not eliminate you." },
   { kind: "tower", name: "Tower", role: "Long reach, with a blind spot.", detail: "Fires at enemies within its range. Adjacent enemies are too close to target. Its default script chooses the weakest enemy in range." },
   { kind: "wall", name: "Wall", role: "Control the paths through your base.", detail: "A destructible barrier that blocks movement. Projectiles can fly over it. Walls have no attack or unit script." },
   { kind: "door", name: "Door", role: "A passage for your side.", detail: "Your units and teammates can pass through; enemies must destroy it. Place doors in straight wall segments, never at corners or junctions." },
@@ -33,9 +34,10 @@ const sections = [
   ["combat", "Combat & vision"], ["scripts", "Orders & scripts"], ["tools", "MCP & CLI"],
   ["keepers", "Loop keepers"], ["run", "Run a match"],
 ] as const;
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 const seconds = (ms?: number) => ms === undefined ? "—" : `${ms / 1000} s`;
 const tiles = (count: number) => `${count} ${count === 1 ? "tile" : "tiles"}`;
-const statNames: Record<string, string> = { atk: "Damage", attackMs: "Attack interval", moveMs: "Move interval", range: "Range" };
+const statNames: Record<string, string> = { atk: "Damage", attackMs: "Attack interval", moveMs: "Move interval", range: "Range", intrusion: "Intrusion" };
 
 function Code({ title, children }: { title: string; children: string }) {
   const code = useRef<HTMLElement>(null);
@@ -67,6 +69,12 @@ function Army() {
     ["Move interval", spec.building ? "Fixed" : seconds(spec.moveMs)],
     ["Aim after moving", spec.building || spec.atk === undefined ? "—" : seconds(spec.aimMs ?? 0)],
     [spec.building ? "Build time" : "Train time", seconds(spec.building ? spec.buildMs : spec.trainMs)],
+    ...(spec.heals ? [["Healing", `${spec.heals.hpPerSecond} HP/s, ${tiles(spec.heals.range)}`]] : []),
+    ...(spec.intrusion ? [
+      ["Hack/convert range", `${tiles(spec.intrusion.unitRange)}; buildings ${spec.intrusion.buildingRange === 1 ? "adjacent" : tiles(spec.intrusion.buildingRange)}`],
+      ["Channel", `${seconds(spec.intrusion.unitChannel.minMs)}–${seconds(spec.intrusion.unitChannel.maxMs)}`],
+      ["Recharge", seconds(spec.intrusion.rechargeMs)],
+    ] : []),
   ];
   return <>
     <div className="manual-roster" role="group" aria-label="Choose a unit or building">
@@ -80,6 +88,8 @@ function Army() {
     <p className="manual-note">Base stats, before research. Move interval is for a straight step. Timings round to simulation ticks.</p>
   </>;
 }
+
+const wizard = rules.kinds.wizard;
 
 export function Docs() {
   useEffect(() => sfx.holdMusic("theme"), []);
@@ -129,7 +139,7 @@ export function Docs() {
             <div><dt>Population</dt><dd>{rules.popCap} units, including Workers and the King. Buildings do not consume population or raise the cap.</dd></div>
             <div><dt>Training</dt><dd>Each Castle queues up to {rules.trainingQueueLimit} units. Payment and population reservation happen immediately. Queues cannot be cancelled; destroying a Castle loses its queue.</dd></div>
             <div><dt>Construction</dt><dd>Workers build beside a reserved site. Mineral is charged when the building finishes. Interrupting construction loses unfinished progress.</dd></div>
-            <div><dt>Research</dt><dd>One upgrade at a time, with levels bought in order and paid immediately. Improvements apply to existing and future units. All unit types are available without unlock research.</dd></div>
+            <div><dt>Research</dt><dd>One upgrade at a time, with levels bought in order and paid immediately. Improvements apply to existing and future units. All unit types are available without unlock research; Intrusion opens the Wizard’s hack and convert.</dd></div>
           </dl>
           <details className="manual-details">
             <summary>All research upgrades</summary>
@@ -137,7 +147,7 @@ export function Docs() {
               <table><thead><tr><th scope="col">Unit</th><th scope="col">Improvement</th><th scope="col">Level</th><th scope="col">Result</th><th scope="col">Mineral</th><th scope="col">Time</th></tr></thead>
                 <tbody>{Object.entries(rules.upgrades ?? {}).flatMap(([id, upgrade]) => upgrade.levels.map((level, i) => <tr key={`${id}-${i}`}>
                   <th scope="row">{units.find(u => u.kind === upgrade.kind)?.name ?? upgrade.kind}</th><td>{statNames[upgrade.stat] ?? upgrade.stat}</td><td>{i + 1}</td>
-                  <td>{upgrade.stat.endsWith("Ms") ? seconds(level.value) : level.value}{level.vision !== undefined && ` / vision ${level.vision}`}</td><td>{level.cost}</td><td>{seconds(level.researchMs)}</td>
+                  <td>{upgrade.stat === "intrusion" ? capitalize(INTRUSION_LEVELS[i]?.text ?? "") : upgrade.stat.endsWith("Ms") ? seconds(level.value) : level.value}{level.vision !== undefined && ` / vision ${level.vision}`}</td><td>{level.cost}</td><td>{seconds(level.researchMs)}</td>
                 </tr>))}</tbody></table>
             </div>
             <p className="manual-note">Result is the final stat at that level, not a bonus added to the base value.</p>
@@ -155,6 +165,9 @@ export function Docs() {
           <h3>What an agent can see</h3>
           <p>Players share the vision of their own and allied units and buildings. Enemy units leave the currently visible list when they leave vision; aged sightings may remain in history. Known buildings and deposits keep last-seen information. An attacker is revealed for {seconds(rules.revealAttackerMs)} after dealing damage.</p>
           <p>Enemy mineral, population, research, queues and score stay hidden. The spectator’s full map is not the agent’s view.</p>
+          <h3>Wizards</h3>
+          <p>A Wizard heals one friendly unit within {tiles(wizard.heals!.range)} at {wizard.heals!.hpPerSecond} HP per second, never itself or a building. Hack and convert channel for {seconds(wizard.intrusion!.unitChannel.minMs)} to {seconds(wizard.intrusion!.unitChannel.maxMs)} against a unit within {tiles(wizard.intrusion!.unitRange)}, then share a {seconds(wizard.intrusion!.rechargeMs)} recharge. Kings are immune; buildings can be hacked within {tiles(wizard.intrusion!.buildingRange)} after the second Intrusion level, never converted.</p>
+          <p>A hack keeps the target’s owner, side and colour but runs the hacker’s code until another Wizard hacks it again; its owner’s orders and script uploads do not apply. It cannot strike its owner’s side, and what it kills counts for the hacker. The owner sees it is hacked without learning by whom. The controller sees which entities it controls and what they see. A conversion makes the unit its Wizard’s owner’s, with its remaining health, and ends any hack.</p>
         </section>
 
         <section className="manual-section" id="scripts">

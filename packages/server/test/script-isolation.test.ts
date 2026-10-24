@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { rules } from "@castellan/shared";
 import { RUN_LIMITS } from "@castellan/shared";
-import type { ScriptWorld } from "@castellan/sandbox";
+import { createScriptHost, initSandbox, type ScriptWorld } from "@castellan/sandbox";
 import { createMatch, type MatchConfig } from "@castellan/engine";
 import { createIsolatedScriptHost, runOnceIsolated, validateScriptIsolated, waitForStateChange } from "../src/script-isolation";
 
@@ -44,6 +44,23 @@ it("loads the bundled sandbox inside the Node worker and retains independent mem
   expect(a.hasScript("king")).toBe(false);
   a.dispose();
   expect(a.run(world, ["e1"]).e1.error).toBe("sandbox disposed");
+});
+
+it("installs, runs and removes an entity's named script in the worker as the inline host does", async () => {
+  await initSandbox();
+  const inline = createScriptHost(rules.script, 42), isolated = host();
+  try {
+    const payload = { ...world, units: { e1: { ...world.units.e1, script: "hack:e7:12" } } };
+    const outcomes = [inline, isolated].map((h) => {
+      h.setScript("king", "self.memory.n=(self.memory.n||0)+1; self.log('kind ' + self.memory.n); self.move('E');");
+      const installed = h.setScript("hack:e7:12", "self.memory.n=(self.memory.n||0)+1; self.log('payload ' + self.memory.n); self.move('W');");
+      const ran = [h.run(payload, ["e1"]).e1, h.run({ ...payload, forget: ["e1"] }, ["e1"]).e1, h.run(world, ["e1"]).e1];
+      const removed = h.setScript("hack:e7:12", null);
+      return { installed, ran: ran.map(({ action, log }) => ({ action, log })), removed, after: h.run(payload, ["e1"]).e1.action, broken: h.setScript("hack:e7:13", "self.hold(").ok };
+    });
+    // The inline host's own behaviour is the sandbox's to test; the worker must only match it.
+    expect(outcomes[1]).toEqual(outcomes[0]);
+  } finally { inline.dispose(); }
 });
 
 it("terminates finite excessive work outside the VM and keeps the other player operational", () => {

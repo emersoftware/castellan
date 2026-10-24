@@ -97,14 +97,14 @@ export function WatchPlayer({ id, initialPlayer = null, syncUrl = false, series 
   if (archived) return <ReplayPlayer key={id} id={id} initialPlaying={false} series={series} />;
 
   const shownEvents = selectedPlayer ? playerEvents[selectedPlayer] ?? notable(playerPerspective(frame ? { ...frame, events } : null, selectedPlayer)?.events ?? []) : events;
-  const players = display?.players && <PlayerList selectedPlayer={selectedPlayer} onSelectPlayer={(id) => { setSelectedPlayer(id); setHover(null); }} colors={colors} view={display} names={names} subtitle={series} />;
+  const players = display?.players && <PlayerList selectedPlayer={selectedPlayer} onSelectPlayer={(id) => { setSelectedPlayer(id); setHover(null); }} onSelectUnit={unit.setSelected} colors={colors} view={display} names={names} subtitle={series} />;
   return (
     <div className="game viewer" onPointerDown={() => !sfx.muted && sfx.unlock()}>
       <div className="stage">
         {denied && <div className="banner small"><div className="big">Private live match</div><div className="sub">Open the spectator link provided when the match was created, or watch the replay after it finishes.</div></div>}
         {ruleset && Object.keys(colors).length > 0 && <GameCanvas key={selectedPlayer ?? "all"} ruleset={ruleset} colors={colors} frame={display} tickMs={tickMs} onHover={setHover} selected={unit.selected} onSelect={unit.setSelected} sound={sfx.play} />}
         {unit.deposit ? <DepositPanel deposit={unit.deposit} onClose={() => unit.setSelected(null)} />
-          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} scriptRuntime={display?.players.find(p => p.id === unit.last?.owner)?.scriptRuntime} tickMs={tickMs} names={names} colors={colors} reactiveOrders={ruleset?.reactiveOrders} onClose={() => unit.setSelected(null)} />
+          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} scriptRuntime={display?.players.find(p => p.id === unit.last?.owner)?.scriptRuntime} tickMs={tickMs} names={names} colors={colors} reactiveOrders={ruleset?.reactiveOrders} viewer={selectedPlayer} onClose={() => unit.setSelected(null)} />
           : <Tooltip hover={hover} names={names} colors={colors} />}
         <ViewerTop view={display ?? null} />
         {!denied && status === "waiting" && (

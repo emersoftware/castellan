@@ -1,0 +1,19 @@
+{
+  "referenceScale": {
+    "n": 0.85
+  },
+  "startFrames": {
+    "s": 4,
+    "se": 4,
+    "e": 4,
+    "ne": 4,
+    "n": 4
+  },
+  "endFrames": {
+    "s": 24,
+    "se": 24,
+    "e": 24,
+    "ne": 24,
+    "n": 24
+  }
+}

@@ -15,6 +15,9 @@ const FIELDS: Record<Order["type"], Record<string, (v: unknown) => boolean>> = {
   train: { building: isStr, kind: isStr },
   upgrade: { upgrade: isStr },
   stop: { unit: isStr },
+  heal: { unit: isStr, target: isStr },
+  hack: { unit: isStr, target: isStr, code: (v) => typeof v === "string" },
+  convert: { unit: isStr, target: isStr },
   script: { kind: isStr, code: (v) => v === null || typeof v === "string" },
   chat: {
     text: (v) => typeof v === "string" && v.trim().length > 0 && v.length <= API_LIMITS.chatChars,

@@ -1,0 +1,32 @@
+{
+  "image": "wizard-animations.mp4",
+  "fps": 12,
+  "chapters": [
+    {
+      "action": "idle",
+      "from": 0,
+      "to": 56
+    },
+    {
+      "action": "walk",
+      "from": 56,
+      "to": 112
+    },
+    {
+      "action": "heal",
+      "from": 112,
+      "to": 168
+    },
+    {
+      "action": "hack",
+      "from": 168,
+      "to": 224
+    },
+    {
+      "action": "death",
+      "from": 224,
+      "to": 276
+    }
+  ],
+  "endFrame": 276
+}

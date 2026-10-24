@@ -13,6 +13,11 @@
         // Maintained art generators and diagnostics, invoked directly from Node.
         "assets/animations/package-units.mjs",
         "assets/animations/diagnostics/validate-atlases.mjs",
+        "assets/wizard/render.mts",
+        "assets/animations/wizard/prepare.mts",
+        "assets/animations/wizard/preview.mts",
+        // Directly invoked atlas crystal measurement and pulse review tool.
+        "assets/animations/wizard/cast-points.mjs",
         "assets/animations/ranger/{idle,shoot,walk}-directions/package.mjs",
         "assets/icons/{export-hero-king,render-king-fire,render-king-icon}.mts"
       ],

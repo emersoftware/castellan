@@ -10,7 +10,12 @@ interface Shot {
   to: ProjectileView;
   /** Screen offset the streak starts from, closing over one tick. */
   launchOffset?: { x: number; y: number; at: number };
+  /** A shot from a building's top: its height above the ground there, descending to the usual height at its end. */
+  rise?: { from: { x: number; y: number }; height: number };
 }
+
+/** Display pixels above the ground at which a projectile flies. */
+const FLIGHT_HEIGHT = 6;
 
 /** Projectiles in flight: the game's positions, interpolated between ticks and drawn as a streak with a bright head. */
 export class Projectiles {
@@ -50,6 +55,7 @@ export class Projectiles {
       graphic.clear();
       const x = from.x + (to.x - from.x) * moment.alpha, y = from.y + (to.y - from.y) * moment.alpha;
       const head = iso(x, y), tail = iso(x - to.vx * 0.035, y - to.vy * 0.035);
+      const lift = shot.rise ? riseAt(shot.rise, to, x, y) : FLIGHT_HEIGHT;
       // An archer can shoot before its interpolated step finishes. Start the
       // visible arrow at that sprite and join the real trajectory in one tick.
       if (shot.launchOffset) {
@@ -57,15 +63,29 @@ export class Projectiles {
         head.sx += shot.launchOffset.x * k; head.sy += shot.launchOffset.y * k;
         tail.sx += shot.launchOffset.x * k; tail.sy += shot.launchOffset.y * k;
       }
-      graphic.moveTo(tail.sx, tail.sy - 6).lineTo(head.sx, head.sy - 6).stroke({ width: 1, color: 0xaaaaaa });
-      graphic.rect(head.sx - 0.5, head.sy - 6.5, 1, 1).fill(0xffffff);
+      graphic.moveTo(tail.sx, tail.sy - lift).lineTo(head.sx, head.sy - lift).stroke({ width: 1, color: 0xaaaaaa });
+      graphic.rect(head.sx - 0.5, head.sy - lift - 0.5, 1, 1).fill(0xffffff);
     }
   }
 
-  /** A shot in the air: its flight vector, and a way to start its streak at the shooter's sprite instead of its true position. */
-  inFlight(id: string): { vx: number; vy: number; launchFrom(offset: { x: number; y: number }): void } | undefined {
+  /**
+   * A shot in the air: its flight vector, a way to start its streak at the shooter's sprite instead of its true
+   * position, and one to fire it from `height` display pixels up (a building's top), descending along its flight.
+   */
+  inFlight(id: string): { vx: number; vy: number; launchFrom(offset: { x: number; y: number }): void; riseFrom(height: number): void } | undefined {
     const shot = this.shots.get(id);
     if (!shot) return undefined;
-    return { vx: shot.to.vx, vy: shot.to.vy, launchFrom: (offset) => { shot.launchOffset = { ...offset, at: this.clock.gameMs }; } };
+    return {
+      vx: shot.to.vx, vy: shot.to.vy,
+      launchFrom: (offset) => { shot.launchOffset = { ...offset, at: this.clock.gameMs }; },
+      riseFrom: (height) => { shot.rise = { from: { ...shot.from }, height }; },
+    };
   }
+}
+
+/** The height of a rising shot at (x, y): from its launch height down to the usual one over its flight to the end. */
+function riseAt(rise: NonNullable<Shot["rise"]>, to: ProjectileView, x: number, y: number) {
+  const total = Math.hypot(to.endX - rise.from.x, to.endY - rise.from.y);
+  const flown = total > 0 ? Math.min(1, Math.hypot(x - rise.from.x, y - rise.from.y) / total) : 1;
+  return FLIGHT_HEIGHT + (rise.height - FLIGHT_HEIGHT) * (1 - flown);
 }

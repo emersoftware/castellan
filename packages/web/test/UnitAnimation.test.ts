@@ -27,7 +27,7 @@ function setup(kind:string,ruleset:typeof rules={...rules,diagonalMove:1}){
   const lastOf=(drawn:string)=>h.sprites.mock.calls.filter(c=>c[0]===drawn).at(-1)!;
   return {...h,unit,target,frame,lastOf,last:()=>lastOf(kind)};
 }
-it.each(['knight','king','worker'])('keeps %s walking between tile updates and freezes on pause',kind=>{
+it.each(['knight','king','wizard','worker'])('keeps %s walking between tile updates and freezes on pause',kind=>{
   const h=setup(kind);h.field.show(h.frame(1),100);
   const moved={...h.unit,x:5,stats:{atk:0,def:10,range:0,attackMs:1000,moveMs:500}};
   for(let tick=2;tick<=6;tick++){
@@ -39,7 +39,7 @@ it.each(['knight','king','worker'])('keeps %s walking between tile updates and f
   h.field.seek(h.frame(1),100);h.animate();expect(h.last()[2]?.action).toBe('idle');
 });
 
-it.each(['archer','knight','king','worker'])('ties %s foot motion to traveled distance rather than elapsed time',kind=>{
+it.each(['archer','knight','king','wizard','worker'])('ties %s foot motion to traveled distance rather than elapsed time',kind=>{
   const sample=(moveMs:number,ticks:number,diagonal=false)=>{
     const h=setup(kind);h.field.show(h.frame(1),100);
     const moved={...h.unit,x:5,y:diagonal?5:4,stats:{atk:0,def:0,range:0,attackMs:1000,moveMs}};
@@ -129,7 +129,7 @@ it('keeps the existing melee lunge when an attack atlas has not been published',
 
 /** Tile offsets that face screen directions 0..7 (see the mineral-facing table below). */
 const TOWARD=[[1,1],[1,0],[1,-1],[0,-1],[-1,-1],[-1,0],[-1,1],[0,1]];
-it.each(['archer','knight','king','worker'].flatMap(kind=>[0,1,2,3,4,5,6,7].map(dir=>({kind,dir}))))('plays $kind death once in direction $dir, freezes on pause and retains the corpse',({kind,dir})=>{
+it.each(['archer','knight','king','wizard','worker'].flatMap(kind=>[0,1,2,3,4,5,6,7].map(dir=>({kind,dir}))))('plays $kind death once in direction $dir, freezes on pause and retains the corpse',({kind,dir})=>{
   const h=setup(kind);
   // A unit faces the way of its last blow.
   const [dx,dy]=TOWARD[dir];const target={...h.target,x:4+dx,y:4+dy};

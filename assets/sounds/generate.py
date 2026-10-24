@@ -37,6 +37,14 @@ SOUNDS = {
     # A rustle is noise; a single warm tuned note reads as "someone is ready" and fits the harmony.
     'spawn': (f'A single soft warm note on a wooden hang drum, gentle and round, close-mic ASMR. {DRY}', 2, SEEDS),
     'chat': (f'Soft ASMR page of old paper turning, a gentle warm rustle. {DRY}', 1, SEEDS[:3]),
+    # Wizard abilities: the channel's pulses stay soft enough to repeat, the confirmed effects are single warm tones.
+    # Healing and conversion are tuned (glass and bowls hold a clear partial); a hack and its mark are muffled noise.
+    # Glass bells were all shrill (rejected-takes/heal-glass-bells); a low kalimba note keeps the warmth.
+    'heal': (f'One soft low note on a wooden kalimba, warm and round, with a gentle breathy swell, close-mic ASMR, low intensity. {DRY}', 2, SEEDS),
+    'hack': (f'A soft muffled crackle like fingertips brushing a wool sweater full of static, three tiny quick ticks, close-mic ASMR, low intensity. {DRY}', 1.5, SEEDS),
+    'convert': (f'A small singing bowl rubbed slowly, a warm soft hum rising gently, close-mic ASMR, low intensity. {DRY}', 2.5, SEEDS),
+    'converted': (f'One soft strike on a large singing bowl, deep, round and mellow, long gentle decay, close-mic ASMR. {DRY}', 3, SEEDS),
+    'hypno': (f'A soft muffled swirl of air spinning slowly once around, low and warm like a long breath, close-mic ASMR, low intensity. {DRY}', 1.5, SEEDS),
     'ambient': ('Gentle wind blowing across open grassland with distant birds chirping, calm outdoor ambience. No music, no voices.', 30, SEEDS[:2]),
 }
 

@@ -1,0 +1,14 @@
+{
+  "space": "OpenMOSS-Team/MOSS-SoundEffect-v2.0",
+  "prompt": "A soft muffled crackle like fingertips brushing a wool sweater full of static, three tiny quick ticks, close-mic ASMR, low intensity. Close, dry, no music, no reverb, no voices, no whispering.",
+  "seconds": 1.5,
+  "steps": 50,
+  "cfg_scale": 4.0,
+  "sigma_shift": 5.0,
+  "seeds": [
+    1,
+    2,
+    3,
+    4
+  ]
+}

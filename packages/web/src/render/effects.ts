@@ -8,7 +8,8 @@ export interface Effect {
 
 /** Creates short-lived visuals; the caller advances them on its presentation clock. */
 export class SceneEffects {
-  constructor(private fx: Container, private now: () => number) {}
+  /** `ground` holds effects under the field's objects, such as rings at a unit's feet. */
+  constructor(private fx: Container, private ground: Container, private now: () => number) {}
 
   dust(x: number, y: number, color: number, n: number, spread = 8): Effect {
     const { sx, sy } = iso(x, y);
@@ -65,22 +66,21 @@ export class SceneEffects {
     };
   }
 
-  /** A banner that rises from a tile and fades over 3.2 s, for a vital loss. */
-  floatText(text: string, x: number, y: number, color: number): Effect {
-    const { sx, sy } = iso(x, y);
-    const t = new Text({ text, style: { fontFamily: "Times New Roman, Times, serif", fontSize: 12, fill: color, stroke: { color: 0x000000, width: 2 } }, resolution: 2 });
-    t.anchor.set(0.5, 1);
-    t.position.set(sx, sy - 18);
-    this.fx.addChild(t);
+  /** A ring that spreads on the ground from under a body over half a second and fades: an effect confirmed on it. */
+  ring(sprite: Sprite, color: number): Effect {
+    const g = new Graphics();
+    this.ground.addChild(g);
     const start = this.now();
     return {
       update: (now) => {
-        const k = (now - start) / 3200;
-        t.y = sy - 18 - k * 12;
-        t.alpha = 1 - Math.max(0, k - 0.7) / 0.3;
-        if (k < 1) return true;
-        t.destroy();
-        return false;
+        const k = (now - start) / 500;
+        g.clear();
+        if (k >= 1 || sprite.destroyed) {
+          g.destroy();
+          return false;
+        }
+        g.ellipse(sprite.x, sprite.y + 2, 6 + k * 8, 3 + k * 4).stroke({ width: 1, color, alpha: 1 - k });
+        return true;
       },
     };
   }

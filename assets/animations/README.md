@@ -13,6 +13,8 @@ equipment. Character scale and ground position (101.5 stored pixels) stay the sa
 - King: idle, walk, melee attack and death. Players cannot train it.
 - Worker: idle, walk, mining, melee attack and death.
   STATUS.md has the integration and validation evidence.
+- Wizard: idle, walk, heal, hack and death, registered unchanged through
+  `unit-animations.mjs --kind=wizard`. See [Wizard previews](wizard/README.md).
 
 ## Generate and package units
 

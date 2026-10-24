@@ -3,6 +3,7 @@ import { dist, HOLD_SCRIPT } from "@castellan/shared";
 import { testScript, type ScriptActionResult, type ScriptHost, type ScriptHostFactory, type ScriptWorld, type UnitRun } from "@castellan/sandbox";
 import type { SimulationClock } from "./clock";
 import type { Combat } from "./combat";
+import type { Abilities, PayloadStage } from "./abilities";
 import type { Entity, Player } from "./entities";
 import { DIRS, inBounds, type Grid } from "./grid";
 import type { Movement } from "./movement";
@@ -24,13 +25,18 @@ interface Seat {
   scripts: Map<string, { code: string; custom: boolean; errors: string[] }>;
   operationalFailureReported?: true;
   runtime?: PlayerStats["scriptRuntime"];
+  /** Entities whose memory this VM drops at its next run: they changed owner or controller. */
+  forget: Set<string>;
+  /** The latest error of each payload this VM runs, so a repeating one is reported once. */
+  payloadErrors: Map<string, string>;
 }
 
 /**
  * The unit scripts players install: one VM per player, seeded from the match, running the player's
- * source per kind (the rules' default until it uploads its own). Builds what a script sees within the
- * player's sight, queues the events it hears (sightings, hits, ended orders) and delivers them once,
- * records what each decision achieved, keeps script errors for the player's view and limits logs.
+ * source per kind (the rules' default until it uploads its own), or a hack's payload for one entity in its
+ * controller's VM. Builds what a script sees within the deciding player's sight, queues the events it hears
+ * (sightings, hits, ended orders) and delivers them once, records what each decision achieved, keeps script
+ * errors for the player's view and limits logs.
  */
 export class UnitScripts {
   private seats = new Map<PlayerId, Seat>();
@@ -43,6 +49,7 @@ export class UnitScripts {
     vision: Pick<PlayerVision, "canSee" | "deposits">;
     movement: Pick<Movement, "canStep" | "readingKey">;
     combat: Pick<Combat, "views">;
+    abilities: Pick<Abilities, "scriptView" | "enabled">;
     hostile(a: PlayerId, b: PlayerId): boolean;
   }, private factory: ScriptHostFactory, matchSeed: number) {
     const allocated: ScriptHost[] = [];
@@ -51,7 +58,7 @@ export class UnitScripts {
         const seed = (matchSeed * MATCH_SEED_FACTOR + i * SEAT_SEED_FACTOR) >>> 0;
         const host = factory(rules().script, seed);
         allocated.push(host);
-        this.seats.set(player.id, { host, seed, scripts: new Map() });
+        this.seats.set(player.id, { host, seed, scripts: new Map(), forget: new Set(), payloadErrors: new Map() });
       });
       for (const seat of this.seats.values()) {
         for (const [kind, spec] of Object.entries(rules().kinds)) {
@@ -85,6 +92,17 @@ export class UnitScripts {
     return { ok: true };
   }
 
+  /** Hack payloads, compiled under their own names in a player's VM; nothing runs one until Match assigns it to an entity. */
+  readonly payloads: PayloadStage = {
+    install: (player, name, code) => this.seats.get(player)!.host.setScript(name, code),
+    remove: (player, name) => { this.seats.get(player)!.host.setScript(name, null); },
+  };
+
+  /** `id` changed owner or controller: every VM that ran it starts its memory over, without anyone reading the old one. */
+  forget(id: string) {
+    for (const seat of this.seats.values()) { seat.forget.add(id); seat.payloadErrors.delete(id); }
+  }
+
   /** Source of the script `player` runs for `kind`. */
   source(player: Player, kind: string): { code: string; custom: boolean } | null {
     const script = this.seat(player).scripts.get(kind);
@@ -112,7 +130,9 @@ export class UnitScripts {
   decide(player: Player, units: readonly Entity[], emit: (e: GameEvent) => void, choose: (unit: Entity, run: UnitRun) => void) {
     const seat = this.seat(player);
     if (this.rules().reactiveOrders) this.sight(player, units);
-    const runs = seat.host.run(this.worldOf(player, units), units.map((e) => e.id));
+    const world = this.worldOf(player, units);
+    if (seat.forget.size) { world.forget = [...seat.forget]; seat.forget.clear(); }
+    const runs = seat.host.run(world, units.map((e) => e.id));
     let logs = 0;
     for (const e of units) {
       const r = runs[e.id];
@@ -131,7 +151,7 @@ export class UnitScripts {
   test(player: Player, kind: string, code: string) {
     const seat = this.seat(player);
     if (!seat.scripts.has(kind)) return { ok: false as const, error: `${kind} is not scriptable` };
-    const units = [...this.world.entities.values()].filter(e => e.owner === player.id && e.kind === kind)
+    const units = [...this.world.entities.values()].filter(e => e.owner === player.id && e.kind === kind && !e.payload)
       .map(e => ({ ...e, scriptEvents: [...e.scriptEvents ?? []] }));
     if (this.rules().reactiveOrders) this.sight(player, units);
     return testScript(code, kind, [this.worldOf(player, units)], this.rules().script, seat.seed, this.factory);
@@ -188,19 +208,22 @@ export class UnitScripts {
 
   /** Keeps a unit's error for the view and reports it once; a trusted host failure stops the VM for good. */
   private remember(seat: Seat, player: Player, e: Entity, message: string, emit: (e: GameEvent) => void, operationalFailure?: true) {
-    const script = seat.scripts.get(e.kind);
-    if (!script) return;
-    if (script.errors.at(-1) !== message || (operationalFailure && !seat.operationalFailureReported)) {
+    // A payload's errors are its controller's events, kept per entity, never mixed into that player's per-kind script errors.
+    const script = e.payload ? undefined : seat.scripts.get(e.kind);
+    const last = script ? script.errors.at(-1) : e.payload ? seat.payloadErrors.get(e.id) : undefined;
+    if (!script && !e.payload && !operationalFailure) return;
+    if (last === message && !(operationalFailure && !seat.operationalFailureReported)) return;
+    if (script) {
       script.errors.push(message);
       if (script.errors.length > KEPT_ERRORS) script.errors.shift();
-      if (!operationalFailure || !seat.operationalFailureReported) {
-        emit({ tick: this.clock.tick, type: "script_error", owner: player.id, kind: e.kind, unit: e.id, message,
-          ...(operationalFailure ? { operationalFailure } : {}) });
-        if (operationalFailure) {
-          seat.operationalFailureReported = true;
-          seat.runtime = { status: "stopped", tick: this.clock.tick, message };
-        }
-      }
+    } else if (e.payload) seat.payloadErrors.set(e.id, message);
+    // A stopped VM is reported once, whatever kind of entity first hit it.
+    if (operationalFailure && seat.operationalFailureReported) return;
+    emit({ tick: this.clock.tick, type: "script_error", owner: player.id, kind: e.kind, unit: e.id, message,
+      ...(operationalFailure ? { operationalFailure } : {}) });
+    if (operationalFailure) {
+      seat.operationalFailureReported = true;
+      seat.runtime = { status: "stopped", tick: this.clock.tick, message };
     }
   }
 
@@ -223,8 +246,13 @@ export class UnitScripts {
     }
     const relation = (owner: PlayerId) => (owner === player.id ? 1 : hostile(owner, player.id) ? 0 : 2);
     const u: ScriptWorld["units"] = {};
+    const abilities = this.world.abilities.enabled;
     for (const e of units) {
       u[e.id] = {
+        ...(e.payload ? { script: e.payload.script } : {}),
+        // A hack changes who decides, not sides.
+        ...(e.owner !== player.id ? { ownerSide: this.world.players.filter((q) => !hostile(q.id, e.owner)).map((q) => q.id) } : {}),
+        ...(e.spec.heals || e.spec.intrusion ? { abilities: this.world.abilities.scriptView(e) } : {}),
         id: e.id, type: e.kind, x: e.x, y: e.y, hp: e.hp, maxHp: e.spec.hp, atk: e.spec.atk ?? 0,
         def: e.spec.def, range: e.spec.range ?? 0, minRange: e.spec.minRange ?? 0, vision: e.spec.vision,
         attackMs: e.spec.attackMs ? this.clock.ms(this.clock.ticks(e.spec.attackMs)) : 0,
@@ -266,7 +294,11 @@ export class UnitScripts {
         e.id, e.kind, e.owner, relation(e.owner), e.x, e.y, e.hp, e.spec.hp, e.spec.building ? 1 : 0, movement.readingKey(e.x, e.y, player.side),
         { atk: e.spec.atk ?? 0, def: e.spec.def, range: e.spec.range ?? 0, minRange: e.spec.minRange ?? 0, vision: e.spec.vision,
           attackMs: e.spec.attackMs ? this.clock.ms(this.clock.ticks(e.spec.attackMs)) : 0, moveMs: e.spec.moveMs ? this.clock.ms(this.clock.ticks(e.spec.moveMs)) : 0,
-          ruin: this.world.ruined.has(e.owner) },
+          ruin: this.world.ruined.has(e.owner),
+          ...(abilities && e.spec.vital ? { vital: true as const } : {}),
+          // Hypno is told to the owner and to the controller, who also learns it decides for it.
+          ...(e.payload && e.payload.controller !== e.owner && (e.owner === player.id || e.payload.controller === player.id) ? { hypno: true as const } : {}),
+          ...(e.payload && e.payload.controller !== e.owner && e.payload.controller === player.id ? { controlled: true as const } : {}) },
       ]),
       myBase,
       enemyBase,

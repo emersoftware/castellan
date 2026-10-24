@@ -9,8 +9,11 @@ strongest partial is moved to the nearest D or A by resampling, and re-measured 
 whose pitch is unstable (still more than 25 cents off after tuning) is left out.
 The ambient becomes a seamless loop padded on both sides with its own other end; the manifest records its
 exact length, so the game loops inside the padding whatever the MP3 decoder does at the file's ends.
-Writes packages/web/public/sounds/*.mp3 + manifest.json, and index.html here to listen to every candidate.
+Writes the samples the game uses to packages/web/public/sounds/*.mp3 + manifest.json; the rest go to candidates/ here
+(ignored by git, so neither shipped nor committed), and index.html here lets you listen to every candidate.
 Footsteps are sliced out of a longer walk, three per candidate (footstep-1-2 is seed 1, step 2).
+A candidate whose raw samples sit far off zero (a DC offset over 0.1 of full scale) is left out: normalizing it
+turns the offset into a click.
 Variants listed in rejected.json ({"sword": ["2"], "footstep": ["1-3"]}) are left out of the game.
 """
 import html
@@ -23,21 +26,24 @@ import soundfile as sf
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parents[1] / 'packages/web/public/sounds'
+CANDIDATES = HERE / 'candidates'
 # Longest part kept after the onset, in seconds.
 LENGTH = dict(sword=0.8, hit=0.6, whoosh=0.2, pick=0.7, footstep=0.35, death=0.5,
-              collapse=3.5, build=1.8, spawn=1.2, horn=4, fanfare=5, chat=0.8)
+              collapse=3.5, build=1.8, spawn=1.2, horn=4, fanfare=5, chat=0.8,
+              heal=1.4, hack=0.7, convert=2.0, converted=2.8, hypno=1.0)
 # Low-pass cutoff (Hz) and attack (s) per sound; blows get the softest treatment.
 SOFT = dict(sword=(3000, 0.012), hit=(3500, 0.01), pick=(4500, 0.008), build=(4500, 0.008),
             footstep=(4000, 0.008), whoosh=(3500, 0.02), spawn=(4000, 0.008), chat=(6500, 0.005), death=(3000, 0.02),
-            collapse=(5500, 0.02), horn=(5000, 0.04), fanfare=(5000, 0.06), ambient=(8500, 0))
+            collapse=(5500, 0.02), horn=(5000, 0.04), fanfare=(5000, 0.06), ambient=(8500, 0),
+            heal=(5000, 0.02), hack=(4000, 0.01), convert=(4500, 0.05), converted=(4500, 0.01), hypno=(3500, 0.03))
 # Pitched sounds and the band their main partial is searched in (Hz). Fanfare is tuned by its key instead.
-TUNED = dict(sword=(150, 1500), spawn=(60, 1200), horn=(50, 400))
+TUNED = dict(sword=(150, 1500), spawn=(60, 1200), horn=(50, 400), heal=(300, 2500), convert=(100, 900), converted=(80, 700))
 NOTES = (2, 9)  # pitch classes D and A
 # Most energy above 3 kHz that blows may keep (fraction); shriller candidates are left out.
-SHRILL = dict(sword=0.12, whoosh=0.15, spawn=0.15, hit=0.2, death=0.15)
+SHRILL = dict(sword=0.12, whoosh=0.15, spawn=0.15, hit=0.2, death=0.15, heal=0.25, hack=0.2, hypno=0.15)
 # Sustained sounds are levelled by RMS (dBFS) instead of by peak: a horn or fanfare peak-normalized for
 # seconds is some 20 dB louder than a blow and plays like a jump scare.
-LOUDNESS = dict(horn=-24, fanfare=-24, collapse=-24)
+LOUDNESS = dict(horn=-24, fanfare=-24, collapse=-24, convert=-26, converted=-24)
 PAD = 0.05
 CROSSFADE = 2.0
 
@@ -147,6 +153,7 @@ def ambient(samples, rate):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
+    CANDIDATES.mkdir(exist_ok=True)
     rejected = json.loads((HERE / 'rejected.json').read_text()) if (HERE / 'rejected.json').exists() else {}
     manifest, rows, loop_seconds = {}, [], None
     for directory in sorted((HERE / 'raw').iterdir()):
@@ -156,6 +163,7 @@ def main():
             samples, rate = sf.read(raw, dtype='float32')
             if samples.ndim > 1:
                 samples = samples.mean(axis=1)
+            offset = abs(float(samples.mean()))
             if name == 'ambient':
                 clips = {raw.stem: ambient(samples, rate)}
                 loop_seconds = loop_seconds or (len(samples) - int(CROSSFADE * rate)) / rate
@@ -165,7 +173,7 @@ def main():
                 clips = {raw.stem: one_shot(samples, rate, LENGTH[name], SOFT[name][1])}
             for variant, clip in clips.items():
                 file = f'{name}-{variant}.mp3'
-                notes = []
+                notes = [f'offset {offset:.2f}'] if offset > 0.1 else []
                 hf = shrill(clip, rate)
                 if name in SHRILL:
                     notes.append(f'agudos {hf:.0%}')
@@ -178,14 +186,17 @@ def main():
                 if (name in TUNED or name == 'fanfare') and shift != 'noise':
                     cents = off_key(name, OUT / file)
                     notes.append(f'afinado {shift} st, queda a {cents:+.0f} cents de Re/La')
-                keep = variant not in rejected.get(name, []) and hf <= SHRILL.get(name, 1) and abs(cents) <= 25
+                keep = variant not in rejected.get(name, []) and hf <= SHRILL.get(name, 1) and abs(cents) <= 25 and offset <= 0.1
                 if keep:
                     manifest.setdefault(name, []).append(file)
+                else:
+                    (OUT / file).replace(CANDIDATES / file)
                 rows.append((name, variant, file, request['prompt'], keep, ', '.join(notes)))
                 print(f'{file:18} {"ok " if keep else "out"} {", ".join(notes)}')
-    for stale in OUT.glob('*.mp3'):
-        if not any(stale.name == row[2] for row in rows):
-            stale.unlink()
+    for folder, keep in ((OUT, True), (CANDIDATES, False)):
+        for stale in folder.glob('*.mp3'):
+            if not any(stale.name == row[2] and row[4] == keep for row in rows):
+                stale.unlink()
     (OUT / 'manifest.json').write_text(json.dumps(dict(pad=PAD, loop=loop_seconds, files=manifest), indent=1) + '\n')
     page = ['<!doctype html><meta charset="utf-8"><title>castellan sounds</title>',
             '<style>body{font:14px system-ui;background:#111;color:#ddd;margin:2em}td{padding:4px 10px}'
@@ -193,7 +204,7 @@ def main():
     for name, seed, file, prompt, keep, notes in rows:
         loop = ' loop' if name == 'ambient' else ''
         page.append(f'<tr class="{"" if keep else "out"}"><td><b>{name}</b> {seed}</td>'
-                    f'<td><audio controls{loop} preload="none" src="../../packages/web/public/sounds/{file}"></audio></td>'
+                    f'<td><audio controls{loop} preload="none" src="{"../../packages/web/public/sounds" if keep else "candidates"}/{file}"></audio></td>'
                     f'<td>{html.escape(notes)}</td><td>{html.escape(prompt)}</td></tr>')
     page.append('</table>')
     (HERE / 'index.html').write_text('\n'.join(page) + '\n')

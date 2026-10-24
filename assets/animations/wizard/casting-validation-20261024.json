@@ -1,0 +1,100 @@
+[
+  {
+    "action": "heal",
+    "cells": 140,
+    "trackPoints": 140,
+    "rows": [
+      {
+        "direction": "s",
+        "bottomRange": [
+          100,
+          100
+        ]
+      },
+      {
+        "direction": "se",
+        "bottomRange": [
+          100,
+          100
+        ]
+      },
+      {
+        "direction": "e",
+        "bottomRange": [
+          101,
+          101
+        ]
+      },
+      {
+        "direction": "ne",
+        "bottomRange": [
+          100,
+          100
+        ]
+      },
+      {
+        "direction": "n",
+        "bottomRange": [
+          100,
+          100
+        ]
+      }
+    ],
+    "checks": [
+      "112px cell/28f/12fps/ground101.5",
+      "nonempty/transparent borders",
+      "all measured centres near actual bright opaque pixels",
+      "published atlas byte equivalence",
+      "exact loop endpoints"
+    ]
+  },
+  {
+    "action": "hack",
+    "cells": 140,
+    "trackPoints": 140,
+    "rows": [
+      {
+        "direction": "s",
+        "bottomRange": [
+          101,
+          101
+        ]
+      },
+      {
+        "direction": "se",
+        "bottomRange": [
+          101,
+          101
+        ]
+      },
+      {
+        "direction": "e",
+        "bottomRange": [
+          101,
+          101
+        ]
+      },
+      {
+        "direction": "ne",
+        "bottomRange": [
+          101,
+          101
+        ]
+      },
+      {
+        "direction": "n",
+        "bottomRange": [
+          101,
+          101
+        ]
+      }
+    ],
+    "checks": [
+      "112px cell/28f/12fps/ground101.5",
+      "nonempty/transparent borders",
+      "all measured centres near actual bright opaque pixels",
+      "published atlas byte equivalence",
+      "legacy image unchanged; no endpoint rewrite"
+    ]
+  }
+]

@@ -2,18 +2,20 @@
  * The entities on the field as Pixi objects: a body sprite with its shadow, health bar and
  * occlusion silhouette (units also carry x-ray and outline bodies for when they are hidden),
  * moved between ticks, posed from its clips, burning when a castle is damaged, and left as a
- * fading corpse when it dies. Barriers show the piece their neighbours call for.
+ * fading corpse when it dies. Barriers show the piece their neighbours call for. A conversion
+ * recolours the entity; Wizard abilities and hacks are marked from the current view.
  */
 import { Container, Graphics, Sprite } from "pixi.js";
-import { barrierAxes, NEUTRAL_OWNER, type EntityView, type Ruleset, type SoundName, type SpectatorView } from "@castellan/shared";
+import { barrierAxes, NEUTRAL_OWNER, type EntityView, type GameEvent, type Ruleset, type SoundName, type SpectatorView } from "@castellan/shared";
 import type { ClipArt } from "./clips";
 import type { Arrival, Moment, PlaybackClock } from "./clock";
 import type { FogOfWar } from "./fog";
-import { animatedUnit, buildingLook, fall, strikeMs, unitLook, type FireLook, type Strike } from "./look";
+import { AbilityMarks } from "./abilityMarks";
+import { animatedUnit, buildingLook, castClip, fall, strikeMs, unitLook, type FireLook, type Strike } from "./look";
 import { syncOccluder } from "./occlusion";
 import { PLAYER_RAMPS, RAMPS, dim } from "./palette";
 import { iso } from "./projection";
-import { screenDir, type SpriteSet } from "./sprites";
+import { bodyHeight, screenDir, type SpriteArt, type SpriteSet } from "./sprites";
 import { depthTint } from "./xray";
 
 /** A drawn entity as the rest of the scene reads it. */
@@ -25,6 +27,8 @@ export interface Figure {
   readonly sprite: Sprite;
   /** The ramp key its owner's pieces are tinted with. */
   readonly tint: number;
+  /** Display pixels from its ground point to the top of its visible body, for marks placed over it. */
+  readonly height: number;
 }
 
 /** A sound from the field: its name, the tile it comes from and its volume. */
@@ -35,6 +39,12 @@ interface Drawn {
   sprite: Sprite;
   shadow: Graphics;
   bar: Graphics;
+  /** Created when the view first shows an ability or a hack on it. */
+  marks?: AbilityMarks;
+  /** See Figure.height. */
+  height: number;
+  /** The y over its body and health bar from which marks stack upward. */
+  overhead: number;
   /** Player colour index (PLAYER_RAMPS) and the key it tints with. */
   color: number;
   tint: number;
@@ -60,6 +70,8 @@ interface Drawn {
   /** Half-tile footfalls walked so far, and whether the pick is in the rock: sound cues. */
   footfalls?: number;
   pickDown?: boolean;
+  /** The casting clip's frame last drawn: the cast sounds as its flares (or, without any, its loop start) go by. */
+  castFrame?: number;
   /** Preserve the visible barrier shape and axis when it is destroyed. */
   barrierArt?: ClipArt;
   flame?: Sprite;
@@ -85,6 +97,11 @@ function barrierPiece(view: EntityView, axes: { alongX: boolean; alongY: boolean
   if (left && right) return "wall-door-both";
   if (left) return "wall-door-left";
   return right ? "wall-door-right" : "wall";
+}
+/** Whether a looping clip going from frame `before` (absent: just started) to `now` reached `frame`. */
+function passed(before: number | undefined, now: number, frame: number) {
+  if (before === undefined) return now === frame;
+  return before <= now ? before < frame && frame <= now : frame > before || frame <= now;
 }
 /** Grid steps between two points, Chebyshev like the engine: a diagonal step is one step, so feet keep the same cadence. */
 const gridSteps = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
@@ -116,14 +133,19 @@ export class SceneEntities {
     for (const e of frame.entities) {
       seen.add(e.id);
       const d = this.drawn.get(e.id);
-      if (d) this.move(d, e, before, arrival);
-      else this.add(e);
+      if (d) {
+        if (arrival === "tick") this.endChannel(d, e, frame);
+        // A seek shows another moment: no channel ending carries over; marks rebuild from the new view.
+        if (arrival === "jump") { d.marks?.destroy(); d.marks = undefined; }
+        this.move(d, e, before, arrival);
+      } else this.add(e);
     }
     const crumbled: { x: number; y: number }[] = [];
     for (const [id, d] of this.drawn) {
       if (seen.has(id)) continue;
       this.drawn.delete(id);
       d.bar.destroy();
+      d.marks?.destroy();
       d.xray?.destroy();
       d.outline?.destroy();
       d.depth.destroy();
@@ -147,9 +169,26 @@ export class SceneEntities {
     return crumbled;
   }
 
+  /**
+   * A channel shown on `d` and gone from its new view `e` ended this tick. Only an event of its own action on its
+   * target, naming this caster, confirms its effect (a conversion, or a hack including a recovery); no such event, or
+   * one naming another caster, means it stopped short. A hack's event without its caster (the owner's view) cannot
+   * tell which channel succeeded, so the tether just goes: the target's ring and label show what changed.
+   */
+  private endChannel(d: Drawn, e: EntityView, frame: SpectatorView) {
+    const shown = d.view.casting;
+    if (!shown || shown.action === "heal" || !d.marks || (e.casting?.action === shown.action && e.casting.target === shown.target)) return;
+    const effect = shown.action === "convert" ? "converted" : "hypno";
+    const outcome = frame.events.find((ev): ev is Extract<GameEvent, { type: "converted" | "hypno" }> => ev.type === effect && ev.id === shown.target);
+    if (outcome && outcome.wizard === undefined) return;
+    d.marks.end(outcome?.wizard === d.view.id, this.clock.now());
+  }
+
   /** Pose and place every entity for this instant, and advance the corpses. */
   animate(moment: Moment) {
     for (const d of this.drawn.values()) this.draw(d, moment);
+    // After every body is placed, so motes reach where their target is drawn this instant.
+    for (const d of this.drawn.values()) this.drawMarks(d, moment);
     this.corpses = this.corpses.filter((corpse) => corpse.update(moment.now));
   }
 
@@ -250,8 +289,9 @@ export class SceneEntities {
     this.layers.objects.addChild(sprite);
     const bar = new Graphics();
     this.layers.fx.addChild(bar);
+    const height = bodyHeight(art);
     this.drawn.set(e.id, {
-      view: e, sprite, shadow, bar, color, tint: sprite.tint, from: { x: e.x, y: e.y }, tile: { x: e.x, y: e.y },
+      view: e, sprite, shadow, bar, color, tint: sprite.tint, height, overhead: Math.round(sprite.y - height), from: { x: e.x, y: e.y }, tile: { x: e.x, y: e.y },
       dir, xray, outline, depth, flashUntil: 0, lungeUntil: 0, lunge: { x: 0, y: 0 },
     });
   }
@@ -292,6 +332,11 @@ export class SceneEntities {
       const my = e.y - d.from.y;
       if (Math.abs(mx) + Math.abs(my) > 0.01) d.dir = screenDir(mx - my, (mx + my) / 2);
     }
+    // A conversion hands the entity to another player; x-ray and outline bodies follow `color` when posed.
+    if (e.owner !== d.view.owner) {
+      d.color = playerColor(this.colors, e.owner);
+      d.tint = ownerTint(this.colors, e.owner);
+    }
     d.view = e;
     if (arrival === "jump") d.shot = undefined;
   }
@@ -309,10 +354,7 @@ export class SceneEntities {
       const piece = barrierPiece(d.view, axes, (sign) => at.get(`${d.tile.x + (alongX ? sign : 0)},${d.tile.y + (alongY ? sign : 0)},${d.view.owner}`)?.view.kind === "door");
       const { art } = this.sprites(piece);
       d.barrierArt = piece;
-      d.sprite.texture = art.texture;
-      d.sprite.anchor.set(art.anchorX, art.anchorY);
-      d.sprite.scale.set(alongX && !alongY ? -art.scale : art.scale, art.scale);
-      d.depth.texture = art.silhouette;
+      this.wear(d, art, alongX && !alongY);
     }
   }
 
@@ -347,11 +389,7 @@ export class SceneEntities {
     if (!building) this.pose(d, moment, x, y);
     const standing = building ? buildingLook(d.view, animationMs) : undefined;
     if (standing) {
-      const { art } = this.sprites(d.view.kind, 1, standing.animation);
-      d.sprite.texture = art.texture;
-      d.sprite.anchor.set(art.anchorX, art.anchorY);
-      d.sprite.scale.set(art.scale);
-      d.depth.texture = art.silhouette;
+      this.wear(d, this.sprites(d.view.kind, 1, standing.animation).art, false);
       if (standing.fire && this.fog.sees(d.tile)) this.drawFire(d, standing.fire);
       else this.clearFire(d);
     }
@@ -359,6 +397,32 @@ export class SceneEntities {
     syncOccluder(d.sprite, d.depth, d.view.owner === NEUTRAL_OWNER ? undefined : d.color, this.ruleset.kinds[d.view.kind]);
     d.shadow.position.set(sx, sy + (building ? 2 : 3));
     this.drawBar(d, sx);
+  }
+
+  /** The body's art: texture, ground anchor, scale (mirrored with `flip`), its occlusion silhouette and visible height. */
+  private wear(d: Drawn, art: SpriteArt, flip: boolean) {
+    d.sprite.texture = art.texture;
+    d.sprite.anchor.set(art.anchorX, art.anchorY);
+    d.sprite.scale.set(flip ? -art.scale : art.scale, art.scale);
+    d.depth.texture = art.silhouette;
+    d.height = bodyHeight(art);
+  }
+
+  /** A Wizard's casting, timers and the spiral over a hacked entity, while the current view shows any of them or a channel just ended. */
+  private drawMarks(d: Drawn, moment: Moment) {
+    const { animationMs, now } = moment;
+    const { casting, rechargeMs, hypno, controller } = d.view;
+    if (!casting && rechargeMs === undefined && !hypno && !d.marks?.lingering(now)) {
+      d.marks?.destroy();
+      d.marks = undefined;
+      return;
+    }
+    d.marks ??= new AbilityMarks({ fx: this.layers.fx, objects: this.layers.objects, ground: this.layers.shadows });
+    const target = casting && this.drawn.get(casting.target);
+    const body = (of: Drawn) => ({ ...of, at: this.positionOf(of, moment) });
+    d.marks.draw(d.view, { ...body(d), cast: casting && castClip(d.view.kind, casting.action, d.dir) }, d.overhead,
+      target && { ...body(target), building: !!this.ruleset.kinds[target.view.kind]?.building },
+      this.ruleset.kinds[d.view.kind]?.intrusion, controller === undefined ? undefined : ownerTint(this.colors, controller), animationMs, now);
   }
 
   /** A unit's clip for this instant (striking, mining, walking or idle), with its x-ray bodies and sound cues. */
@@ -369,18 +433,23 @@ export class SceneEntities {
     // one tick's interpolation. This also avoids an idle flash just before
     // the next movement snapshot arrives at the cadence boundary.
     const walked = this.clock.gameMs < (d.walkUntil ?? 0) ? (d.walkDistance ?? 0) + gridSteps({ x, y }, d.from) : undefined;
-    const look = unitLook(d.view, d.dir, animationMs, { walked, strike: d.shot });
+    const { casting } = d.view;
+    const cast = casting && { action: casting.action, toward: this.drawn.get(casting.target)?.tile };
+    const look = unitLook(d.view, d.dir, animationMs, { walked, strike: d.shot, cast });
     d.dir = look.heading;
     // Footfalls and pick strikes follow the animation.
     if (look.footfalls !== undefined && d.footfalls !== undefined && look.footfalls > d.footfalls) this.cue("footstep", x, y, 0.2);
     d.footfalls = look.footfalls;
     if (look.pickDown !== undefined && d.pickDown !== undefined && look.pickDown !== d.pickDown) this.cue("pick", x, y, 0.4);
     d.pickDown = look.pickDown;
+    const castFrame = look.animation && /^(heal|hack|convert)$/.test(look.animation.action) ? look.animation.frame : undefined;
+    if (castFrame !== undefined && casting) {
+      const flares = castClip(d.view.kind, casting.action, look.heading)?.pulses;
+      if ((flares?.length ? flares : [0]).some((frame) => passed(d.castFrame, castFrame, frame))) this.cue(casting.action, x, y, 0.3);
+    }
+    d.castFrame = castFrame;
     const { art, flip } = this.sprites(d.view.kind, d.shot?.dir ?? d.dir, look.animation);
-    d.sprite.texture = art.texture;
-    d.sprite.anchor.set(art.anchorX, art.anchorY);
-    d.sprite.scale.set(flip ? -art.scale : art.scale, art.scale);
-    d.depth.texture = art.silhouette;
+    this.wear(d, art, flip);
     if (d.xray) {
       d.xray.texture = art.xray[d.color];
       d.xray.anchor.copyFrom(d.sprite.anchor);
@@ -400,12 +469,16 @@ export class SceneEntities {
     }
   }
 
+  /** Health under its maximum, just over the visible body; marks stack above whatever it occupies. */
   private drawBar(d: Drawn, sx: number) {
     const { hp, maxHp } = d.view;
+    const head = Math.round(d.sprite.y - d.height);
     d.bar.clear();
+    d.overhead = head - 2;
     if (hp >= maxHp) return;
     const w = this.ruleset.kinds[d.view.kind]?.building ? 22 : 12;
-    const top = Math.round(d.sprite.y - d.sprite.height - 4);
+    const top = head - 4;
+    d.overhead = top - 1;
     const left = Math.round(sx - w / 2);
     d.bar.rect(left - 0.5, top - 0.5, w + 1, 2.5).fill(0x000000);
     d.bar.rect(left, top, (w * hp) / maxHp, 1.5).fill(hp / maxHp > 0.35 ? d.tint : RAMPS.neutral.key);

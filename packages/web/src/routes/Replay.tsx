@@ -207,7 +207,7 @@ export function ReplayPlayer({ id, onEnded, initialPlaying = true, series }: {
   }, [playing, atEnd, onEnded]);
 
   const pct = (tick: number) => `${(100 * tick) / Math.max(1, total - 1)}%`;
-  const players = display && <PlayerList selectedPlayer={selectedPlayer} onSelectPlayer={(player) => { setSelectedPlayer(player); setHover(null); track("replay_perspective_changed", { replay_id: id, perspective: player ?? "all" }); }} colors={colors} view={display} names={names} subtitle={series} />;
+  const players = display && <PlayerList selectedPlayer={selectedPlayer} onSelectPlayer={(player) => { setSelectedPlayer(player); setHover(null); track("replay_perspective_changed", { replay_id: id, perspective: player ?? "all" }); }} onSelectUnit={unit.setSelected} colors={colors} view={display} names={names} subtitle={series} />;
 
   if (replay.isError || error) return <div className="page load-state" role="alert">
     <h1>Couldn’t load this battle</h1>
@@ -221,7 +221,7 @@ export function ReplayPlayer({ id, onEnded, initialPlaying = true, series }: {
         {!frame && <div className="load-state" role="status">{replay.isPending ? "Loading battle…" : "Preparing replay…"}</div>}
         {ruleset && <GameCanvas key={selectedPlayer ?? "all"} ruleset={ruleset} colors={colors} frame={display} tickMs={tickMs / speed} paused={!playing} jumpKey={jumpKey} onHover={setHover} selected={unit.selected} onSelect={unit.setSelected} sound={sound} />}
         {unit.deposit ? <DepositPanel deposit={unit.deposit} onClose={() => unit.setSelected(null)} />
-          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} scriptRuntime={unitRuntime} tickMs={tickMs} names={names} colors={colors} reactiveOrders={ruleset?.reactiveOrders} onClose={() => unit.setSelected(null)} />
+          : unit.last ? <UnitPanel entity={unit.entity} last={unit.last} script={unitScript} scriptRuntime={unitRuntime} tickMs={tickMs} names={names} colors={colors} reactiveOrders={ruleset?.reactiveOrders} viewer={selectedPlayer} onClose={() => unit.setSelected(null)} />
           : <Tooltip hover={hover} names={names} colors={colors} />}
         <ViewerTop view={display ?? null} />
         {frame && atEnd && <OutcomeBanner view={frame} names={names} colors={colors} dismissible />}

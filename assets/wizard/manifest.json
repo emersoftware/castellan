@@ -1,0 +1,419 @@
+{
+  "status": "candidate-source-poses",
+  "integrated": false,
+  "animationFrameCount": 1,
+  "directions": [
+    "s",
+    "se",
+    "e",
+    "ne",
+    "n"
+  ],
+  "mirrored": {
+    "sw": "se",
+    "w": "e",
+    "nw": "ne"
+  },
+  "assets": [
+    {
+      "action": "idle",
+      "direction": "s",
+      "image": "grayscale/idle_0.png",
+      "sourceBox": {
+        "left": 65,
+        "top": 104,
+        "width": 294,
+        "height": 641
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "idle",
+      "direction": "se",
+      "image": "grayscale/idle_1.png",
+      "sourceBox": {
+        "left": 407,
+        "top": 102,
+        "width": 323,
+        "height": 647
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "idle",
+      "direction": "e",
+      "image": "grayscale/idle_2.png",
+      "sourceBox": {
+        "left": 802,
+        "top": 99,
+        "width": 269,
+        "height": 649
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "idle",
+      "direction": "ne",
+      "image": "grayscale/idle_3.png",
+      "sourceBox": {
+        "left": 1140,
+        "top": 101,
+        "width": 313,
+        "height": 641
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "idle",
+      "direction": "n",
+      "image": "grayscale/idle_4.png",
+      "sourceBox": {
+        "left": 1518,
+        "top": 113,
+        "width": 305,
+        "height": 629
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "walk",
+      "direction": "s",
+      "image": "grayscale/walk_0.png",
+      "sourceBox": {
+        "left": 53,
+        "top": 96,
+        "width": 316,
+        "height": 629
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "walk",
+      "direction": "se",
+      "image": "grayscale/walk_1.png",
+      "sourceBox": {
+        "left": 424,
+        "top": 97,
+        "width": 346,
+        "height": 624
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "walk",
+      "direction": "e",
+      "image": "grayscale/walk_2.png",
+      "sourceBox": {
+        "left": 791,
+        "top": 96,
+        "width": 308,
+        "height": 616
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "walk",
+      "direction": "ne",
+      "image": "grayscale/walk_3.png",
+      "sourceBox": {
+        "left": 1148,
+        "top": 98,
+        "width": 311,
+        "height": 630
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "walk",
+      "direction": "n",
+      "image": "grayscale/walk_4.png",
+      "sourceBox": {
+        "left": 1534,
+        "top": 104,
+        "width": 296,
+        "height": 626
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "heal",
+      "direction": "s",
+      "image": "grayscale/heal_0.png",
+      "sourceBox": {
+        "left": 50,
+        "top": 98,
+        "width": 317,
+        "height": 639
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "heal",
+      "direction": "se",
+      "image": "grayscale/heal_1.png",
+      "sourceBox": {
+        "left": 422,
+        "top": 98,
+        "width": 316,
+        "height": 645
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "heal",
+      "direction": "e",
+      "image": "grayscale/heal_2.png",
+      "sourceBox": {
+        "left": 796,
+        "top": 98,
+        "width": 329,
+        "height": 646
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "heal",
+      "direction": "ne",
+      "image": "grayscale/heal_3.png",
+      "sourceBox": {
+        "left": 1134,
+        "top": 97,
+        "width": 347,
+        "height": 631
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "heal",
+      "direction": "n",
+      "image": "grayscale/heal_4.png",
+      "sourceBox": {
+        "left": 1522,
+        "top": 104,
+        "width": 332,
+        "height": 635
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "hack",
+      "direction": "s",
+      "image": "grayscale/hack_0.png",
+      "sourceBox": {
+        "left": 85,
+        "top": 193,
+        "width": 229,
+        "height": 487
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "hack",
+      "direction": "se",
+      "image": "grayscale/hack_1.png",
+      "sourceBox": {
+        "left": 441,
+        "top": 194,
+        "width": 260,
+        "height": 491
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "hack",
+      "direction": "e",
+      "image": "grayscale/hack_2.png",
+      "sourceBox": {
+        "left": 794,
+        "top": 188,
+        "width": 296,
+        "height": 493
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "hack",
+      "direction": "ne",
+      "image": "grayscale/hack_3.png",
+      "sourceBox": {
+        "left": 1180,
+        "top": 218,
+        "width": 291,
+        "height": 467
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "hack",
+      "direction": "n",
+      "image": "grayscale/hack_4.png",
+      "sourceBox": {
+        "left": 1563,
+        "top": 204,
+        "width": 278,
+        "height": 479
+      },
+      "width": 112,
+      "height": 112,
+      "anchorX": 0.5,
+      "anchorY": 0.90625,
+      "storedScale": 3
+    },
+    {
+      "action": "death",
+      "direction": "s",
+      "image": "grayscale/death_0.png",
+      "sourceBox": {
+        "left": 15,
+        "top": 367,
+        "width": 367,
+        "height": 133
+      },
+      "width": 112,
+      "height": 119,
+      "anchorX": 0.5,
+      "anchorY": 0.8529411764705882,
+      "storedScale": 3
+    },
+    {
+      "action": "death",
+      "direction": "se",
+      "image": "grayscale/death_1.png",
+      "sourceBox": {
+        "left": 398,
+        "top": 363,
+        "width": 344,
+        "height": 151
+      },
+      "width": 112,
+      "height": 119,
+      "anchorX": 0.5,
+      "anchorY": 0.8529411764705882,
+      "storedScale": 3
+    },
+    {
+      "action": "death",
+      "direction": "e",
+      "image": "grayscale/death_2.png",
+      "sourceBox": {
+        "left": 759,
+        "top": 373,
+        "width": 371,
+        "height": 138
+      },
+      "width": 112,
+      "height": 119,
+      "anchorX": 0.5,
+      "anchorY": 0.8529411764705882,
+      "storedScale": 3
+    },
+    {
+      "action": "death",
+      "direction": "ne",
+      "image": "grayscale/death_3.png",
+      "sourceBox": {
+        "left": 1148,
+        "top": 363,
+        "width": 347,
+        "height": 142
+      },
+      "width": 112,
+      "height": 119,
+      "anchorX": 0.5,
+      "anchorY": 0.8529411764705882,
+      "storedScale": 3
+    },
+    {
+      "action": "death",
+      "direction": "n",
+      "image": "grayscale/death_4.png",
+      "sourceBox": {
+        "left": 1512,
+        "top": 370,
+        "width": 356,
+        "height": 117
+      },
+      "width": 112,
+      "height": 119,
+      "anchorX": 0.5,
+      "anchorY": 0.8529411764705882,
+      "storedScale": 3
+    }
+  ]
+}

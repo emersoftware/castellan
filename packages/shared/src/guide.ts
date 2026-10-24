@@ -1,4 +1,4 @@
-import { matchLengthMs, type Ruleset } from "./ruleset.ts";
+import { INTRUSION_LEVELS, matchLengthMs, type KindSpec, type Ruleset } from "./ruleset.ts";
 import { VISIBILITY, type SeriesProgress } from "./protocol.ts";
 import { API_LIMITS } from "./http.ts";
 
@@ -31,9 +31,12 @@ export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean;
     s.builds ? `builds ${s.builds.join("/")}` : "",
     s.buildMs ? `construction ${secs(s.buildMs)}` : "",
     s.trainMs ? `training ${secs(s.trainMs)}` : "",
+    s.heals ? `heals ${s.heals.hpPerSecond} hp/s range ${s.heals.range}` : "",
+    s.intrusion ? `hack/convert range ${s.intrusion.unitRange} (buildings ${s.intrusion.buildingRange}) after ${s.intrusion.upgrade} research` : "",
   ].filter(Boolean).join(", ")}`).join("\n");
-  const research = Object.entries(r.upgrades).map(([id, u]) => `- ${id}: ${u.stat === "unlock" ? `unlocks ${u.kind}` : `${u.kind} ${u.stat}`}; ${u.levels.map((l, i) =>
-    `L${i + 1}: ${u.stat === "unlock" ? "unlocked" : u.stat === "atk" ? `${l.value} damage` : u.stat === "range" ? `range ${l.value}` : `${effectiveMs(l.value)}ms`}${l.vision !== undefined ? `, vision ${l.vision}` : ""}, cost ${l.cost}, research ${secs(l.researchMs)}`).join("; ")}`).join("\n");
+  const research = Object.entries(r.upgrades).map(([id, u]) => `- ${id}: ${u.stat === "unlock" ? `unlocks ${u.kind}` : u.stat === "intrusion" ? `${u.kind} hack and convert` : `${u.kind} ${u.stat}`}; ${u.levels.map((l, i) =>
+    `L${i + 1}: ${u.stat === "unlock" ? "unlocked" : u.stat === "intrusion" ? INTRUSION_LEVELS[i]?.text ?? "" : u.stat === "atk" ? `${l.value} damage` : u.stat === "range" ? `range ${l.value}` : `${effectiveMs(l.value)}ms`}${l.vision !== undefined ? `, vision ${l.vision}` : ""}, cost ${l.cost}, research ${secs(l.researchMs)}`).join("; ")}`).join("\n");
+  const caster = Object.entries(k).find(([, s]) => s.heals || s.intrusion);
   const built = Object.entries(k).filter(([, s]) => s.buildMs).map(([name, s]) => `${name} ${s.cost} mineral, ${secs(s.buildMs!)}`).join("; ");
   const ruins = "An eliminated player's buildings stay as RUINS: inert and blind, still blocking, their doors passing only the owner's teammates; anyone can destroy them, for no kills or score.";
 
@@ -73,7 +76,7 @@ Values are absolute and levels go in order. A finished level applies to all your
 Allies see your research, enemies don't (they see effective stats of entities in sight). Completion appears in subsequent observations.
 ${research}
 
-## Combat
+${caster ? wizards(caster[0], caster[1], secs, r.script.maxBytes, r.defaultScripts[caster[0]]) : ""}## Combat
 Damage per hit = max(1, atk - target def). Melee (range 1) hits in the attack tick.
 Ranged attacks fire projectiles at ${r.projectiles.speed} tiles/s toward the target's position at launch; they don't home. A shot hits the first hostile entity on its path, so targets can dodge and others can intercept; a shooter with a minimum range hits nothing closer than it.
 Shots fly over rock and over hostile ${flyOver}, which take damage only from shots aimed at them; castles and towers stop shots. No friendly fire; allies and deposits don't block.
@@ -118,7 +121,8 @@ Every call, as an MCP tool of the same name or HTTP with your player token; play
 - {"type":"attack","unit":"<id>","target":"<enemy id>"} (chases until the target dies)
 - {"type":"gather","unit":"<worker id>","deposit":"<d id, optional>"}
 - {"type":"stop","unit":"<id>"}
-${r.reactiveOrders ? "Unit scripts run during orders. An active order supplies the action unless the script explicitly suspends or cancels it; a new manual order replaces the previous one and clears suspension." : "An order overrides the unit's script until it ends."} Each order returns {"ok":true} or {"ok":false,"reason":"…"}; the response also has mineral spent and remaining, and your state.
+${caster ? `- {"type":"heal","unit":"<${caster[0]} id>","target":"<id>"} · {"type":"convert","unit":"<${caster[0]} id>","target":"<id>"} · {"type":"hack","unit":"<${caster[0]} id>","target":"<id>","code":"<script body>"} (${caster[0]}s; see ${caster[0][0].toUpperCase()}${caster[0].slice(1)}s)
+` : ""}${r.reactiveOrders ? "Unit scripts run during orders. An active order supplies the action unless the script explicitly suspends or cancels it; a new manual order replaces the previous one and clears suspension." : "An order overrides the unit's script until it ends."} Each order returns {"ok":true} or {"ok":false,"reason":"…"}; the response also has mineral spent and remaining, and your state.
 A build's cost is pending until completion; its spawn event reports the actual charge.
 
 ## Unit scripts
@@ -129,8 +133,8 @@ readiness: attackReadyInTicks moveReadyInTicks aimReadyInTicks gatherReadyInTick
 feedback: lastActionResult is null initially, then {tick,action,status,effect?,reason?} for your previous script decision. status: acted, blocked, cooldown, aiming, held, invalid, arrived. effect: move, attack, gather, unload. An attack can first produce a move while chasing; acted attack means a strike/launch, not a guaranteed projectile hit.
 movement: canMove(direction) is local passability at decision time, ignoring cooldown: true/false, or null for a tile outside current vision. Other units can move before you, so true is not a reservation.
 perception: nearbyEnemies() nearbyAllies() nearestEnemy() nearestAlly() enemiesInRange() (within range and minRange; check readiness separately) distanceTo(u) distanceToPos(x,y) enemyBase() myBase()
-  (each seen unit: {id,type,owner,mine,${teams ? "ally," : ""}x,y,hp,maxHp,isBuilding,atk,def,range,minRange,vision,attackMs,moveMs,ruin}; everything you can see, not only within this unit's vision${teams ? "; allies = yours and your ally's" : ""})
-actions: move("N"|"NE"|"E"|"SE"|"S"|"SW"|"W"|"NW") moveTo(x,y) attack(u) shootAt(x,y) flee(u) hold(). shootAt (ranged kinds) launches a shot toward a visible point within range, decimals allowed; it hits the first hostile entity on its path, with attack's cooldown and aim.
+  (each seen unit: {id,type,owner,mine,${teams ? "ally," : ""}x,y,hp,maxHp,isBuilding,atk,def,range,minRange,vision,attackMs,moveMs,ruin${caster ? ",vital?,hypno?,controlled?" : ""}}; everything you can see, not only within this unit's vision${teams ? "; allies = yours and your ally's" : ""})
+actions: move("N"|"NE"|"E"|"SE"|"S"|"SW"|"W"|"NW") moveTo(x,y) attack(u) shootAt(x,y) flee(u) hold()${caster ? ` heal(u) hack(u, code) convert(u) (${caster[0]}s)` : ""}. shootAt (ranged kinds) launches a shot toward a visible point within range, decimals allowed; it hits the first hostile entity on its path, with attack's cooldown and aim.
 reaction: lastAttackedTick (null until hit), lastAttacker() (a visible hostile that hit this unit in the last ${r.lastAttackerMs / 1000} s, or null). Damage shows on the next tick; a launch alone is not damage.
 workers: carrying carryCapacity deposits() nearestDeposit() gather(deposit?) unload(). gather() runs the whole cycle: walks to a known deposit, mines a full load (${r.gather.carry}), carries it to the nearest Castle and goes back; gather(deposit) picks the deposit. unload() delivers what the worker carries before the load is full. Deposits are the known ones, {id,x,y,amount}, nearest first; hidden amounts may be stale.
 Defaults: workers gather, also under attack; the King hits a recent attacker in reach and never chases. stop clears an order and resumes the script.
@@ -185,8 +189,32 @@ State shows the last ${API_LIMITS.chatShown} messages you can see; GET /chat (ch
 waiting and prep: the clock is stopped and nothing can be sent. running: the clock runs, and orders can be sent at any time; no state call is required between them. The match is over at status finished.
 The connector returns control automatically after each decision. End your response when your current decision is complete; issuing no orders is valid. Scripts and orders keep running during inference. There is no wait tool.
 State includes actual action results, current costs and blockers, and two minutes of fog-safe combat history.
-Each of your units shows doing (what it does now: hold, → x,y while moving toward a point, or the action under way), heading (direction of its last step) and result [tick] source: status (its last action's outcome, with the statuses listed for scripts). The idle line lists your workers, knights and archers that hold with no order. Availability is a snapshot, not a reservation. Enemy unit sightings are historical and carry their age.
+Each of your units shows doing (what it does now: hold, → x,y while moving toward a point, or the action under way), heading (direction of its last step) and result [tick] source: status (its last action's outcome, with the statuses listed for scripts). The idle line lists your mobile units except the King that hold with no order. Availability is a snapshot, not a reservation. Enemy unit sightings are historical and carry their age.
 Your units' orderProgress summarizes the current manual order: ageMs, cumulative suspendedMs, currentSuspensionMs, number of suspensions, movement, successful scriptActions while suspended, and blockedMs. Counters reset on every accepted manual unit order (including reissuing the same order), persist through script changes and resume, and disappear when the order ends. Rejected orders do not reset them; reading state does not consume them.
 Movement reports successful tile steps, net Chebyshev displacement from the starting position, and stationaryMs since the last step (or the order's start). For move orders, towardDestination is initial minus current Chebyshev distance to the commanded point: positive means closer, negative farther; it is not path length. Script attack counts are launches/strikes, not hits. Cooldown and aiming ticks count neither as successful actions nor as blocked time. These counters are private state context, not self fields or automatic reactions.
+`;
+}
+
+/** The Wizard section: its abilities, channels, hypno control and conversion, from the caster kind's capabilities. */
+function wizards(kind: string, s: KindSpec, secs: (ms: number) => string, maxBytes: number, script: string | undefined): string {
+  const Kind = `${kind[0].toUpperCase()}${kind.slice(1)}`;
+  const i = s.intrusion;
+  return `## ${Kind}s
+${s.heals ? `Heal: a ${kind} heals one of your or your allies' units (Kings included; never itself or a building) within range ${s.heals.range}, ${s.heals.hpPerSecond} hp per second while it keeps healing it, up to its max. Healers stack. heal() out of range walks toward the target.
+` : ""}${i ? `Hack and convert need ${i.upgrade} research: ${INTRUSION_LEVELS.map((level, n) => `L${n + 1} ${level.text}`).join(", ")}. Vital units (the King) are immune; ${kind}s are not.
+Both channel at a visible target within range ${i.unitRange} (buildings: ${i.buildingRange}). A unit channel lasts ${secs(i.unitChannel.minMs)} to ${secs(i.unitChannel.maxMs)}, a building channel ${secs(i.buildingChannel.minMs)} to ${secs(i.buildingChannel.maxMs)}: from the minimum, a seeded roll each ${secs(i.rollMs)} ends it with chance ${i.chance}; the maximum always ends it. Only time in range counts: out of range the ${kind} follows a visible target and keeps its progress.
+Repeat the same action at the same target every tick to continue; anything else (another action, hold, a new order, the target leaving sight, death) cancels and the progress is lost. Damage does not cancel. A hack's code is fixed when its channel starts.
+After a success, hack and convert share a ${secs(i.rechargeMs)} recharge; moving and healing stay available. At completion the target is checked again; one effect per target per tick.
+- convert(u): an enemy unit (never a building) becomes the ${kind}'s owner's (yours, unless you control a hacked ${kind}) with its current hp (capped at your max for its kind), your research and your script for its kind. Conversion can exceed the population cap; training waits until you are below it.
+- hack(u, code): the target keeps its owner, team and colour but runs \`code\` (a script body, max ${maxBytes} bytes, \`self\` in scope like any script) in your script engine, with your gas, sight and memory. A hack changes who decides, not sides: its enemies and allies stay its owner's (in its script too), so it cannot strike its owner's side, and its healing, hacks and conversions serve its owner with its owner's research. What it kills counts for you. It lends you its own sight, nothing else of its owner's. You alone see who controls it (controlled:true, state controller); its owner sees only HYPNO. Owner orders and script uploads do not reach it. A hacked worker mines deposits you know and unloads at its owner's Castles you see; the mineral is its owner's.
+  It stays until another hack: anyone may hack it again; its owner recovers it by hacking it — empty code returns it to the owner's script for its kind, other code installs that code under the owner's control. Your own entities can be hacked only while they run an installed script.
+  Hacked buildings (L2: Castles, towers, walls, doors) run the code too, with only what their kind can do. A hacked Castle keeps delivering its owner's paid queue and taking its owner's drop-offs, but its owner can't order training there.
+self (${kind}s): healRange intrusionRange buildingRange intrusion {units,buildings} rechargeReadyInTicks channel ({action,target,progressMs} or null).
+State: casting {action,target} on ${kind}s in sight, with progressMs for whoever runs the caster's script (under hypno its controller, not its owner); rechargeMs on your own ${kind}s; hypno on your compromised entities and on those you control (plus controller). Events: converted {id,from,owner,wizard}; hypno {id,active} to the owner and the controllers involved (controller and wizard only to that controller).
+` : ""}${script ? `Default ${kind} script:
+\`\`\`js
+${script.trim()}
+\`\`\`
+` : ""}
 `;
 }
