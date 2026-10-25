@@ -15,8 +15,8 @@ import { BattleCard } from "../components/BattleCard";
 import { LoadState } from "../components/LoadState";
 import { SoundToggle } from "../components/Hud";
 
-/** Selected recordings: the hero free-for-all and the Opus/Sol duel under the current rules, and the Claude/Codex 2v2 (0.29.2). */
-const FEATURED = [SHOWCASE_REPLAY, "77e5b88e", "e241e67d"];
+/** Selected recordings under the current rules: the hero free-for-all, the Opus/Sol duel and the Claude/Codex 2v2. */
+const FEATURED = [SHOWCASE_REPLAY, "77e5b88e", "b470c159"];
 
 /** Missing selections stay absent instead of being replaced by unrelated matches. */
 export function featuredBattles<T extends { id: string }>(entries: readonly T[]): T[] {
