@@ -14,11 +14,7 @@ const onlyAt = args.indexOf("--only"), only = onlyAt >= 0 ? new Set(args.splice(
 if (onlyAt >= 0 && !only?.size) throw new Error("--only needs comma-separated replay ids");
 if (args.some((arg) => !["--local", "--dry-run"].includes(arg))) throw new Error("Usage: pnpm publish:replays [--local] [--dry-run] [--version <prefix>] [--only <id,...>]");
 const root = resolve(import.meta.dirname, "..");
-const publication = await collectPublication(root, localReplays());
-if (only) {
-  const missing = [...only].filter((id) => !publication.replays.some((r) => r.replay.id === id));
-  if (missing.length) throw new Error(`Not publishable or not found: ${missing.join(", ")}`);
-}
+const publication = await collectPublication(root, localReplays(), only);
 if (version || only) {
   if (version) publication.replays = publication.replays.filter((r) => r.replay.ruleset.version === version || r.replay.ruleset.version.startsWith(`${version}-`));
   if (only) publication.replays = publication.replays.filter((r) => only.has(r.replay.id));

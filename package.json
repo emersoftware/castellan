@@ -24,6 +24,7 @@
     "cloud:dev": "pnpm build:cloudflare && wrangler dev",
     "cloud:migrate": "wrangler d1 migrations apply DB --remote",
     "publish:replays": "tsx cloudflare/publish.ts",
+    "landing:update": "tsx cloudflare/landing.ts",
     "cloud:verify": "tsx cloudflare/verify.ts",
     "cloud:deploy": "pnpm build:cloudflare && pnpm cloud:typecheck && wrangler deploy",
     "castellan-bot": "pnpm --filter @castellan/castellan-bot play",

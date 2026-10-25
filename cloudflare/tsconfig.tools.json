@@ -1,5 +1,5 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": { "noEmit": true },
-  "include": ["catalog.ts", "publish.ts", "verify.ts", "test"]
+  "include": ["catalog.ts", "publish.ts", "verify.ts", "landing.ts", "landing-release.ts", "test"]
 }

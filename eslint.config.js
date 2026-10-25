@@ -22,6 +22,8 @@ const processEnv = { object: "process", property: "env", message: "Read the envi
 export default defineConfig([
   globalIgnores([
     "**/node_modules/", "**/dist/", "**/*.tmp.*", ".agents/", ".claude/", ".wrangler/", "work/", "research_notes/",
+    // The public-site build is separate from the local server's dist.
+    "packages/web/dist-cloudflare/",
     "assets/raw/", "assets/sounds/", "assets/music/", "assets/animations/**/*frames*/", "assets/animations/**/attempt-*/",
     "assets/animations/**/rejected-*/", "assets/animations/downloads/", "connectors/*/evidence/", "packages/web/public/",
     "cloudflare/worker-configuration.d.ts",

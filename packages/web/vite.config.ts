@@ -4,8 +4,10 @@ import { defaultServer as api, routes } from "../shared/src/http.ts";
 
 const proxied = [routes.rooms, routes.replays, routes.series, routes.guide, routes.state, routes.act, routes.scripts, routes.wait, routes.health];
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  // Publishing must not change the API mode of a running local viewer.
+  build: { outDir: mode === "cloudflare" ? "dist-cloudflare" : "dist" },
   server: {
     port: 5173,
     proxy: {
@@ -15,4 +17,4 @@ export default defineConfig({
     },
   },
   worker: { format: "es" },
-});
+}));

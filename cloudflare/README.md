@@ -4,6 +4,47 @@ The Cloudflare Worker `castellan` serves the React build at
 https://rts.emersoftware.cl. D1 stores the catalogue and the complete replay
 JSON. Games and agents still run on the local Fastify server.
 
+## Update the landing in one command
+
+`packages/web/src/featured.json` selects the hero FFA, duel and 2v2. Both the
+hero builder and the battle cards read it. Omitted options retain their current IDs.
+
+```sh
+# Verify all three recordings without writing files or contacting Cloudflare.
+pnpm landing:update --teams NEW_ID --replay-dir /path/to/replays --dry-run
+
+# Prepare the selection and hero locally for review.
+pnpm landing:update --teams NEW_ID --replay-dir /path/to/replays
+
+# Build, publish the three selected recordings, deploy and verify the public result.
+pnpm landing:update --teams NEW_ID --replay-dir /path/to/replays --deploy
+```
+
+Use `--hero ID` and `--duel ID` to replace those slots too. The default archive
+is `REPLAY_DIR` or `~/.local/share/castellan/replays`. Editorial titles remain in
+`cloudflare/titles.json`; without one, publication generates a player/map title.
+
+Before any writes, the command checks current rules, the slot's player/team
+counts, harness metadata and running decisions for every seat, absence of
+recorded operational failures or premature harness stops, and strict replay
+hashes and outcomes. It re-simulates the three games sequentially; verification
+still takes time. Unrelated archive files are not parsed.
+
+Local preparation installs the public projection of the hero (no private
+experiment metadata), switches the selection, then builds the hero frames.
+Unchanged files and cached hero frames are reused. Old hero files remain available.
+Deployment builds and typechecks before remote writes, publishes only the selected
+IDs, compares their public payloads and summaries, deploys, then checks the public
+entry bundle and hero manifest against the local build. It does not launch games,
+commit or push. Review and commit the resulting selection and generated assets
+through the normal repository workflow.
+
+Any failure stops the command without automatic retries. Prepared files remain
+for inspection; a failure after data publication can leave the new replays in the
+catalogue while the previous landing remains deployed. Publication is additive
+and repeatable. If public verification sees a stale API cache, wait for its
+60-second expiry and rerun explicitly.
+
 ## Publish from this computer
 
 ```sh
@@ -12,6 +53,7 @@ pnpm publish:replays           # publish finished agent games and complete serie
 pnpm publish:replays --only 02eb6795 --version v26 # publish just this selected battle
 pnpm cloud:deploy                   # rebuild and deploy the website/Worker
 pnpm cloud:verify https://rts.emersoftware.cl  # compare every public replay with local data
+pnpm cloud:verify https://rts.emersoftware.cl --only ID1,ID2 # verify a curated release
 ```
 
 Publishing data needs no website rebuild. The commands use the current
@@ -59,8 +101,11 @@ pnpm cloud:typecheck
 pnpm exec vitest run cloudflare/test packages/web/test
 ```
 
-`pnpm build:cloudflare` selects `.env.cloudflare` and the `/api/*` read API.
-The ordinary `pnpm build`, `pnpm server` and `pnpm web` keep local match hosting.
+`pnpm build:cloudflare` selects `.env.cloudflare` and the `/api/*` read API,
+writing `packages/web/dist-cloudflare`, which Wrangler serves and deploys.
+The ordinary `pnpm build` writes `packages/web/dist`. Cloudflare builds therefore
+leave an existing local server (including a tunnel) on its local API configuration.
+`pnpm server` and `pnpm web` keep local match hosting.
 `.assetsignore` keeps the asset build's signature file out of Cloudflare uploads.
 The public site reads its catalogue and replays only from D1. Static Assets serves
 SPA deep links. Missing API records return JSON 404s.

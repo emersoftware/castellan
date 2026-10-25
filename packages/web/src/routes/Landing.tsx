@@ -9,6 +9,7 @@ import { Portrait } from "../components/Portrait";
 import { useShowcase } from "../useShowcase";
 import { followUnits, shotAt } from "../showcaseCamera";
 import { SHOWCASE_REPLAY } from "../showcase";
+import featured from "../featured.json";
 import { HERO_SPRITE_BASE, loadSprites } from "../render/sprites";
 import { sfx } from "../audio/sfx";
 import { BattleCard } from "../components/BattleCard";
@@ -16,7 +17,7 @@ import { LoadState } from "../components/LoadState";
 import { SoundToggle } from "../components/Hud";
 
 /** Selected recordings under the current rules: the hero free-for-all, the Opus/Sol duel and the Claude/Codex 2v2. */
-const FEATURED = [SHOWCASE_REPLAY, "77e5b88e", "b470c159"];
+const FEATURED = [featured.hero, featured.duel, featured.teams];
 
 /** Missing selections stay absent instead of being replaced by unrelated matches. */
 export function featuredBattles<T extends { id: string }>(entries: readonly T[]): T[] {

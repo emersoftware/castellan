@@ -76,7 +76,7 @@ export function completeSeries(entries: Publication["replays"], titles: Record<s
 }
 
 /** The `local` archive's agent matches, titled from the repository's `cloudflare/titles.json` under `root`. */
-export async function collectPublication(root: string, local: string): Promise<Publication> {
+export async function collectPublication(root: string, local: string, only?: ReadonlySet<string>): Promise<Publication> {
   let titles: { replays: Record<string, string>; series: Record<string, string> } = { replays: {}, series: {} };
   try { titles = JSON.parse(await readFile(join(root, "cloudflare/titles.json"), "utf8")); }
   catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; }
@@ -89,6 +89,7 @@ export async function collectPublication(root: string, local: string): Promise<P
   const replays: Publication["replays"] = [];
   let excluded = 0;
   for (const [id, path] of files) {
+    if (only && !only.has(id)) continue;
     const raw: ReplayFile = JSON.parse(gunzipSync(await readFile(path)).toString("utf8"));
     if (raw.id !== id) throw new Error(`Replay ID does not match filename: ${path}`);
     if (hasScriptedBot(raw.players) || hasScriptedBot(localIndex.get(id)?.players ?? []) || raw.players.some((p) => /^demo:/i.test(p.name))) { excluded++; continue; }
@@ -102,6 +103,8 @@ export async function collectPublication(root: string, local: string): Promise<P
     } });
   }
   replays.sort((a, b) => b.summary.savedAt.localeCompare(a.summary.savedAt) || a.replay.id.localeCompare(b.replay.id));
+  const missing = [...only ?? []].filter(id => !replays.some(entry => entry.replay.id === id));
+  if (missing.length) throw new Error(`Not publishable or not found: ${missing.join(", ")}`);
   return { replays, series: completeSeries(replays, titles.series), excluded };
 }
 

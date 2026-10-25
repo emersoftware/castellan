@@ -1,5 +1,6 @@
 node_modules
 dist
+dist-cloudflare
 *.log
 .DS_Store
 assets/raw/v1/

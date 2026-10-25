@@ -1,7 +1,8 @@
 import type { SpectatorView } from '@castellan/shared';
+import featured from './featured.json';
 
-/** The landing hero's recording: the current rules' fortress free-for-all of Opus, Sol, Fable and Astra. */
-export const SHOWCASE_REPLAY = '451548b0';
+/** The hero and battle cards share the release selection. */
+export const SHOWCASE_REPLAY = featured.hero;
 
 /** Begin eight seconds before the first casualty, using the recording's own tick rate. */
 export function showcaseStart(frames: readonly SpectatorView[], tickRate: number): number | null {

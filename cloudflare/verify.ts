@@ -4,8 +4,13 @@ import { collectPublication } from "./catalog";
 import { localReplays } from "../packages/shared/src/localData";
 import { pagePath, pages, publishedApi, publishedRoutes } from "../packages/shared/src/http";
 
-const base = process.argv[2] ?? "http://localhost:8787";
-const publication = await collectPublication(resolve(import.meta.dirname, ".."), localReplays());
+const args = process.argv.slice(2);
+const onlyAt = args.indexOf("--only");
+const only = onlyAt >= 0 ? new Set(args.splice(onlyAt, 2)[1]?.split(",").filter(Boolean)) : undefined;
+if ((only && !only.size) || args.length > 1 || args.some(arg => arg.startsWith("--"))) throw new Error("Usage: pnpm cloud:verify [url] [--only id,...]");
+const base = args[0] ?? "http://localhost:8787";
+const publication = await collectPublication(resolve(import.meta.dirname, ".."), localReplays(), only);
+assert.ok(publication.replays.length, "No replays selected for verification");
 async function get(path: string) {
   const response = await fetch(new URL(path, base), { headers: { "cache-control": "no-cache" }, signal: AbortSignal.timeout(30_000) });
   assert.equal(response.status, 200, path);
@@ -13,7 +18,8 @@ async function get(path: string) {
   return response;
 }
 const replays = await (await get(publishedRoutes.replays)).json();
-assert.deepEqual(replays, publication.replays.map((entry) => JSON.parse(JSON.stringify(entry.summary))));
+assert.deepEqual(only ? replays.filter((entry: { id: string }) => only.has(entry.id)) : replays,
+  publication.replays.map((entry) => JSON.parse(JSON.stringify(entry.summary))));
 for (let i = 0; i < publication.replays.length; i += 4) {
   await Promise.all(publication.replays.slice(i, i + 4).map(async ({ replay }) => {
     const response = await get(`${publishedRoutes.replays}/${replay.id}`);
@@ -21,7 +27,7 @@ for (let i = 0; i < publication.replays.length; i += 4) {
   }));
 }
 const series = await (await get(publishedRoutes.series)).json();
-assert.equal(series.length, publication.series.length);
+if (!only) assert.equal(series.length, publication.series.length);
 for (const { summary } of publication.series) {
   assert.deepEqual(await (await get(`${publishedRoutes.series}/${summary.id}`)).json(), summary);
   const full = await (await get(`${publishedRoutes.series}/${summary.id}/replay.json`)).json();
