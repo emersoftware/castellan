@@ -86,7 +86,8 @@ export function Portrait({ kind, team = 0, height = 120, idle = false, spriteBas
               ctx.clearRect(0, 0, source.width, source.height);
               if (meta) {
                 // The south-east view, as the battlefield draws it; a size factor shrinks it about its ground point.
-                const size = meta.sizeFactor ?? 1, w = source.width * size, h = source.height * size, view = viewFor(meta.directions, 1);
+                const size = meta.sizeFactor ?? 1, w = source.width * size, h = source.height * size;
+                const view = meta.rows.length === 1 ? { row: 0, flip: false } : viewFor(meta.directions, 1);
                 ctx.save();
                 if (view.flip) { ctx.translate(source.width, 0); ctx.scale(-1, 1); }
                 ctx.drawImage(atlas, frame * meta.frameWidth, view.row * meta.frameHeight, meta.frameWidth, meta.frameHeight,
