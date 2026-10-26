@@ -1,60 +1,70 @@
 # Six-player map
 
-`hex` is a square 85×85 open map for six independent players. Each starts with a
-Castle, a King and three Workers. There are no prebuilt fortifications. Base
-centers, clockwise, are (10,42), (26,18), (58,18), (74,42), (58,66), (26,66).
-The ring is centered on the map's center tile (42,42). The square boundary adds
-space north and south without stretching the ring or its travel distances.
-The host shuffles seats using the match seed.
+`hex` is a square 64×64 map for six independent players, exclusively FFA.
+Two bases touch the north boundary, two the south, and one each the east and
+west. Every camp occupies 13×13 tiles with a Castle, a King and three Workers.
+Three owned, destructible wall lines (34 walls and three doors, one centered on
+each line) enclose it; the map boundary closes the fourth side. No door faces
+off the map. The host shuffles seats using the match seed.
+
+| Seat | Castle center | Boundary | Clockwise quarter-turns |
+| --- | --- | --- | ---: |
+| 1 | (6,32) | west | 3 |
+| 2 | (16,6) | north | 0 |
+| 3 | (47,6) | north | 0 |
+| 4 | (57,31) | east | 1 |
+| 5 | (47,57) | south | 2 |
+| 6 | (16,57) | south | 2 |
 
 ## Distances
 
-Scaling the four-player map's area by 6/4 would give about 54×54, but area alone
-does not preserve travel time. A two-row grid gives middle players three close
-neighbours and corner players two. The ring gives everyone two close neighbours.
-
-The ring is adjusted for the engine's grid instead of using a regular Euclidean
-hexagon. At 10 ticks/s, an unupgraded Knight takes four ticks straight and six
-diagonally, after rounding. Both neighbour offsets (32,0) and (16,24) cost 128
-ticks on unobstructed ground. Every base has one of these offsets to the center
-as well. The four-player fortress's adjacent Castle centers are 35 tiles apart,
-or 140 ticks in an unobstructed straight line.
+The 64×64 requirement describes the whole map, not a travel distance.
+Neighbouring Castle centers are 26.9–31 tiles apart. The farthest pair is
+59.7 tiles apart. Opposite pairs range from 51.0 to 59.7. The camp centers and
+shared mines have 180-degree symmetry, but six camps along four edges cannot
+have identical distances in every direction. Seats on the left and right have
+a shorter approach to the center than the four on the top and bottom.
 
 Measured with the real pathfinder and all initial buildings/mines as obstacles,
-ignoring mobile units and combat:
+ignoring mobile units and combat. An unupgraded Knight at 10 ticks/s takes four
+ticks straight and six diagonally, after rounding:
 
-| Starting seat | Adjacent to next Castle | Adjacent to previous Castle | Exact center tile |
+| Starting seat | Adjacent to next fortress's nearest door | Adjacent to previous fortress's nearest door | Central 2×2 tiles |
 | --- | ---: | ---: | ---: |
-| 1 | 12.2 s | 12.2 s | 13.2 s |
-| 2 | 12.6 s | 12.2 s | 12.8 s |
-| 3 | 12.2 s | 12.6 s | 12.8 s |
-| 4 | 12.2 s | 12.2 s | 13.2 s |
-| 5 | 12.6 s | 12.2 s | 12.8 s |
-| 6 | 12.2 s | 12.6 s | 12.8 s |
+| 1 | 9.6 s | 9.2 s | 10.0 s |
+| 2 | 10.0 s | 9.4 s | 13.0 s |
+| 3 | 9.0 s | 10.0 s | 13.0 s |
+| 4 | 9.6 s | 9.2 s | 10.0 s |
+| 5 | 10.0 s | 9.4 s | 13.0 s |
+| 6 | 9.0 s | 10.0 s | 13.0 s |
 
 These costs start at the Castle center as a geometric reference; units spawn
-beside it. Castle destinations use the engine's rounded range 1, so the arrival
-tile can be diagonal. They are path costs, not predictions of battle arrival.
-Other speeds, research, congestion and enemy movement can change travel times.
-A square grid cannot have exact 60-degree rotational symmetry; this layout is
-not a claim of measured strategic balance. The largest measured difference
-between the corresponding initial routes above is 0.4 seconds.
+beside it. Only the starting owner's doors are passable. Enemy door destinations
+use the engine's rounded range 1, so the arrival tile can be diagonal. Intact
+enemy fortresses cannot be entered; breaching time is excluded. These are path
+costs, not predictions of battle arrival. Other speeds, research, congestion and
+enemy movement can change travel times. Strategic balance has not been measured.
+Walls do not block sight or archer shots flying over them.
 
 ## Economy and map contract
 
-Every seat gets the identical translated camp and personal mines: eight home
-deposits of 150 (1,200) and four expansions of 700 (2,800). Six shared deposits
-of 600 sit between neighbours; six of 800 surround the center. Total mineral:
-32,400, or 5,400 per seat including the shared pool, matching fortress-quad's
-per-seat total. Personal mining paths have identical costs; all expansions and
-shared mines remain reachable by every opponent.
+Every seat gets the same rotated camp and personal mining layout: four home
+mines of 100 (400 total, down from 1,200) inside and four expansions of 900
+(3,600) outside. Two expansions sit beyond the side gates; two flank the front
+gate's approach. The omitted back expansion would fall outside the map.
+All three exits have room to move beside the mines. Six shared deposits of 600
+sit between neighbours; six of 800 surround the center. Total mineral stays
+32,400, or 5,400 per seat including the shared pool. Personal mining path costs
+are identical; all expansions and shared mines are reachable by every opponent.
 
-`MapSpec.origins` translates the common local `start` and `deposits` layout
-without rotation. Six seats require six integer origins. The engine rejects
-invalid seats, out-of-bounds tiles and overlaps before allocating script VMs.
-Movement direction and reading-order tie breaks use the common local orientation.
-Maps without origins retain their historical corner transformations and ordering.
-Replays embed origins and mine coordinates; they do not look up today's map by name.
+`MapSpec.origins` rotates the local `start` and `deposits` by each origin's
+clockwise `rotation` (0–3 quarter-turns), then translates them. Omitted rotation
+means zero, preserving older translated layouts. Six seats require six integer
+origins. The engine validates rotations, seats, tile bounds and overlaps before
+allocating script VMs. Movement direction and reading-order tie breaks use the
+same local orientation. Maps without origins retain historical corner transforms.
+Replays embed all map data, including starts, mines and origin rotations; they
+never look up today's map by name. Earlier open-map recordings stay unchanged.
 
 The six-seat lobby supports FFA only, with six distinct randomized or fixed seats.
 Each seat owns its own script engine and fog. The last surviving King wins; the

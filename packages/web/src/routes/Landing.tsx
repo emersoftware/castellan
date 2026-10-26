@@ -11,6 +11,7 @@ import { followUnits, shotAt } from "../showcaseCamera";
 import { SHOWCASE_REPLAY } from "../showcase";
 import featured from "../featured.json";
 import { HERO_SPRITE_BASE, loadSprites } from "../render/sprites";
+import { PLAYER_RAMPS } from "../render/palette";
 import { sfx } from "../audio/sfx";
 import { BattleCard } from "../components/BattleCard";
 import { LoadState } from "../components/LoadState";
@@ -70,7 +71,7 @@ export function Landing() {
   ];
   const recent = useMemo(() => featuredBattles(replays.data ?? []), [replays.data]);
   const [teams, setTeams] = useState([0, 1, 2, 3, 0, 1, 2, 3, 0]);
-  const nextTeam = (index: number) => setTeams(current => current.map((team, i) => i === index ? (team + 1) % 4 : team));
+  const nextTeam = (index: number) => setTeams(current => current.map((team, i) => i === index ? (team + 1) % PLAYER_RAMPS.length : team));
 
   return (
     <div className="landing">

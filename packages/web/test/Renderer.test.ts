@@ -1,11 +1,30 @@
 // @vitest-environment jsdom
 import { expect, it, vi } from "vitest";
 import { Container, FilterSystem, Graphics, RenderTexture, Texture, TextureSource, type Filter } from "pixi.js";
-import { rules, MAPS, type EntityView } from "@castellan/shared";
+import { rules, MAPS, seatToMap, type EntityView } from "@castellan/shared";
 import { OcclusionPass } from "../src/render/occlusion";
 import { TILE_H, TILE_W } from "../src/render/sprites";
 import { initialDepositAmount } from "../src/render/deposits";
 import { createField, frameAt, stubArt } from "./support/battlefield";
+import { playerColors } from "../src/api";
+import { PLAYER_RAMPS, RAMPS } from "../src/render/palette";
+
+it("gives six players distinct body colours and recolours a conversion to the sixth player", () => {
+  const players = Array.from({ length: 6 }, (_, i) => ({ id: `p${i + 1}` }));
+  const colors = playerColors(players);
+  const h = createField({ colors });
+  const entities = players.map(({ id }, i) => ({ id, owner: id, kind: "knight", x: 4 + i, y: 4, hp: 40, maxHp: 40 }));
+  h.field.show(frameAt(1, entities), 100);
+  h.animate();
+  const tints = players.map(p => h.sprite(p.id).tint);
+  expect(new Set(tints).size).toBe(6);
+  expect(tints).toEqual(PLAYER_RAMPS.map(ramp => ramp.key));
+  expect(tints.every(tint => ![RAMPS.fire.key, RAMPS.terrain.key, RAMPS.mineral.key, RAMPS.neutral.key].includes(tint))).toBe(true);
+  h.field.show(frameAt(2, entities.map(e => e.id === "p1" ? { ...e, owner: "p6" } : e)), 100);
+  h.animate();
+  expect(h.sprite("p1").tint).toBe(tints[5]);
+  for (const layer of Object.values(h.layers)) layer.destroy({ children: true });
+});
 
 it("falls back to the screen resolution after a pooled filter texture is pruned", () => {
   const texture = RenderTexture.create({ width: 800, height: 600 });
@@ -83,10 +102,11 @@ it("uses each deposit's capacity across every rotated quad seat and shared depos
   for (const d of map.sharedDeposits) expect(initialDepositAmount(map, { ...d, id: "shared", amount: 1 })).toBe(d.amount);
 });
 
-it("retains mineral capacities at all six translated origins after mining", () => {
+it("retains mineral capacities at all six rotated origins after mining", () => {
   const map = MAPS.hex;
-  for (const origin of map.origins!) for (const deposit of map.deposits) {
-    expect(initialDepositAmount(map, { id: "mined", x: origin.x + deposit.x, y: origin.y + deposit.y, amount: 1 })).toBe(deposit.amount);
+  for (const [seat] of map.origins!.entries()) for (const deposit of map.deposits) {
+    const [x, y] = seatToMap(deposit.x, deposit.y, seat, map.width, map.height, map.origins);
+    expect(initialDepositAmount(map, { id: "mined", x, y, amount: 1 })).toBe(deposit.amount);
   }
 });
 

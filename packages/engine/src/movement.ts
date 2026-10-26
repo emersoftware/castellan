@@ -8,6 +8,7 @@ import { DIR_LIST, SEAT_DIRS, STRAIGHT_STEP_COST, canStep, findPath, inBounds, t
 
 /** Consecutive blocked steps before a unit plans around the units next to it. */
 const BLOCKED_STEPS_BEFORE_DETOUR = 3;
+const QUARTER_TURN_DIRECTIONS = [SEAT_DIRS[0], SEAT_DIRS[2], SEAT_DIRS[1], SEAT_DIRS[3]];
 
 /** Owns routes, arrival and its allocation, and seat-relative spatial choices; commits moves to the board. */
 export class Movement {
@@ -234,8 +235,9 @@ export class Movement {
   }
 
   directions(owner: PlayerId): [number, number][] {
-    if (this.rules().map.origins) return DIR_LIST;
-    return SEAT_DIRS[this.sideOf(owner)] ?? DIR_LIST;
+    const side = this.sideOf(owner), origins = this.rules().map.origins;
+    if (origins) return QUARTER_TURN_DIRECTIONS[origins[side].rotation ?? 0];
+    return SEAT_DIRS[side] ?? DIR_LIST;
   }
 
   /** Is `a` closer to `e` than `b`? Ties go to the tile first in `e`'s owner's reading order. */

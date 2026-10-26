@@ -43,8 +43,8 @@ for (const [name, map] of Object.entries(MAPS)) {
       expect(new Set(occupied.map(p => `${p.x},${p.y}`)).size).toBe(occupied.length);
       expect(sum(frame.deposits)).toBe(totalByMap[name]);
       const atHome = (d: { x: number; y: number }) => map.origins ? Math.max(Math.abs(d.x), Math.abs(d.y)) < 8 : home(d.x, d.y);
-      expect(sum(map.deposits.filter(atHome))).toBe(1200);
-      expect(sum(map.deposits.filter(d => !atHome(d)))).toBe(name.startsWith("quad") ? 4000 : 2800);
+      expect(sum(map.deposits.filter(atHome))).toBe(name === "hex" ? 400 : 1200);
+      expect(sum(map.deposits.filter(d => !atHome(d)))).toBe(name === "hex" ? 3600 : name.startsWith("quad") ? 4000 : 2800);
       let reference: number[] | undefined;
       for (const player of players) {
         const grid = movementGrid(frame, map, player.id);

@@ -1,11 +1,11 @@
 /**
  * Every group on screen is monochrome: a ramp from black to a light tone.
- * Art is drawn in grayscale and tinted with the group's pure channel color
+ * Art is drawn in grayscale and tinted with the group's channel mix
  * (its "key"); the dither pass reads the key back and maps brightness onto
  * the group's ramp with ordered dithering.
  */
 export interface Ramp {
-  /** Pure color the renderer tints with; identifies the ramp. */
+  /** Internal color the renderer tints with; identifies the ramp. */
   key: number;
   /** Dark, middle, light; intermediate brightness is spatial dithering. */
   steps: [string, string, string];
@@ -20,6 +20,10 @@ export const RAMPS = {
   teamC: { key: 0x00ffff, steps: ["#000000", "#23a19a", "#b0fff4"] },
   /** Player 4: amethyst. */
   teamD: { key: 0xff00ff, steps: ["#000000", "#8e3fc4", "#eec4ff"] },
+  /** Player 5: bright leaf green; the half-red key separates it from terrain. */
+  teamE: { key: 0x80ff00, steps: ["#000000", "#429e50", "#b6ffac"] },
+  /** Player 6: lemon yellow; the half-blue key separates it from mineral and fire. */
+  teamF: { key: 0xff0080, steps: ["#000000", "#b4a322", "#fff59a"] },
   /** Grass barely lit, the black shows through. */
   terrain: { key: 0x00ff00, steps: ["#000000", "#3f8a33", "#8fcf5a"] },
   mineral: { key: 0xffff00, steps: ["#000000", "#b88a12", "#ffe98a"] },
@@ -30,7 +34,7 @@ export const RAMPS = {
 } satisfies Record<string, Ramp>;
 
 /** One ramp per player, in list order (like AoE's player colours). */
-export const PLAYER_RAMPS: Ramp[] = [RAMPS.teamA, RAMPS.teamB, RAMPS.teamC, RAMPS.teamD];
+export const PLAYER_RAMPS: Ramp[] = [RAMPS.teamA, RAMPS.teamB, RAMPS.teamC, RAMPS.teamD, RAMPS.teamE, RAMPS.teamF];
 
 /** A key color darkened (e.g. corpses): same ramp, lower on it. */
 export function dim(key: number, k: number): number {

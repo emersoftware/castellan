@@ -23,7 +23,7 @@ export interface MatchConfig {
   /**
    * `side` is the seat: 0 starts at the map's listed layout, 1 at its 180°
    * rotation, 2 and 3 (4-seat maps) at 90° and 270°. Maps with origins use
-   * the corresponding translated layout. Default: list order on origin maps;
+   * the corresponding local transform. Default: list order on origin maps;
    * historical corner maps retain 0, 1, 0, 1…
    * Players with the same `team` are allies. Default: each player alone.
    */
@@ -66,20 +66,24 @@ export interface PlayerOrder {
   order: Order;
 }
 
-/** New translated layouts fail before allocating any player's script engine. */
+/** Explicit layouts fail before allocating any player's script engine. */
 const MAX_ROTATED_SEATS = 4;
 function validateOrigins(map: Ruleset["map"], sides: number[]) {
   if ((map.seats ?? 2) > MAX_ROTATED_SEATS && !map.origins) throw new Error("Maps with more than four seats require origins");
   if (!map.origins) return;
-  if (map.origins.length !== (map.seats ?? 2) || map.origins.some(p => !Number.isInteger(p.x) || !Number.isInteger(p.y))) {
-    throw new Error("Map origins must contain one integer position per seat");
+  if (map.origins.length !== (map.seats ?? 2) || map.origins.some(p => !Number.isInteger(p.x) || !Number.isInteger(p.y)
+    || !Number.isInteger(p.rotation ?? 0) || (p.rotation ?? 0) < 0 || (p.rotation ?? 0) >= MAX_ROTATED_SEATS)) {
+    throw new Error("Map origins need one integer position and a valid quarter-turn rotation per seat");
   }
   if (new Set(sides).size !== sides.length || sides.some(s => !Number.isInteger(s) || s < 0 || s >= map.origins!.length)) {
     throw new Error("Players need distinct valid map seats");
   }
   const occupied = new Set<string>();
   const tiles = [...map.walls, ...(map.neutralWalls ?? []), ...map.sharedDeposits,
-    ...map.origins.flatMap(origin => [...map.start, ...map.deposits].map(p => ({ x: p.x + origin.x, y: p.y + origin.y })))];
+    ...map.origins.flatMap((_, seat) => [...map.start, ...map.deposits].map(p => {
+      const [x, y] = seatToMap(p.x, p.y, seat, map.width, map.height, map.origins);
+      return { x, y };
+    }))];
   for (const p of tiles) {
     const key = `${p.x},${p.y}`;
     if (!Number.isInteger(p.x) || !Number.isInteger(p.y) || p.x < 0 || p.y < 0 || p.x >= map.width || p.y >= map.height || occupied.has(key)) {

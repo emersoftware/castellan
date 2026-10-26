@@ -58,12 +58,15 @@ it.each(["fixed", "random"] as const)("serves six independent %s seats, runs all
   const { guide } = (await app.inject({ url: "/guide", headers: headers(lobby.players[0].token) })).json();
   expect(guide).toContain("Six-player free-for-all");
   expect(guide).toContain("last player standing wins");
+  expect(guide).toContain("three doors, one centered on each wall");
   expect(guide).not.toContain("one base per corner");
   for (const player of lobby.players) {
     const state = (await app.inject({ url: "/state", headers: headers(player.token) })).json<PlayerView>();
     expect(state.players).toHaveLength(6);
     expect(state.allies).toEqual([]);
-    expect(state.mine.find(e => e.kind === "castle")).toMatchObject(MAPS.hex.origins![player.side]);
+    const { x, y } = MAPS.hex.origins![player.side];
+    expect(state.mine.find(e => e.kind === "castle")).toMatchObject({ x, y });
+    expect(state.mine.filter(e => e.kind === "door")).toHaveLength(3);
   }
   await waitForStatus(app, lobby.players[0].token, "finished");
   await waitForReplay(app, lobby.id);

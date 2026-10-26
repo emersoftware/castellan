@@ -28,6 +28,8 @@ void main(void) {
   float level = min(2.0, floor(scaled) + step(bayer4(gl_FragCoord.xy) + 0.5 / 16.0, fract(scaled)));
   vec3 col;
   if (n.r > 0.9 && n.g > 0.32 && n.g < 0.6 && n.b < 0.15) col = ${pick(RAMPS.fire.steps)};
+  else if (n.g > 0.9 && n.r > 0.32 && n.r < 0.6 && n.b < 0.15) col = ${pick(RAMPS.teamE.steps)};
+  else if (n.r > 0.9 && n.b > 0.32 && n.b < 0.6 && n.g < 0.15) col = ${pick(RAMPS.teamF.steps)};
   else if (n.r > 0.6 && n.g > 0.6 && n.b > 0.6) col = ${pick(RAMPS.neutral.steps)};
   else if (n.r > 0.6 && n.g > 0.6) col = ${pick(RAMPS.mineral.steps)};
   else if (n.g > 0.6 && n.b > 0.6) col = ${pick(RAMPS.teamC.steps)};

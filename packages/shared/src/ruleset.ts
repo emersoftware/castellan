@@ -159,6 +159,13 @@ export interface IntrusionSpec {
   rechargeMs: number;
 }
 
+export interface MapOrigin {
+  x: number;
+  y: number;
+  /** Clockwise quarter-turns of the local layout, before translation. Defaults to zero. */
+  rotation?: 0 | 1 | 2 | 3;
+}
+
 export interface MapSpec {
   name: string;
   description: string;
@@ -170,16 +177,15 @@ export interface MapSpec {
    * one of the four corners empty. Six-seat maps provide explicit origins.
    */
   seats?: 2 | 4 | 6;
-  /** Optional per-seat translations of the same local start/deposit layout, without rotation.
-   * One integer origin per seat; absent on historical corner maps. */
-  origins?: { x: number; y: number }[];
+  /** One local layout transform per seat; absent on historical corner maps. */
+  origins?: MapOrigin[];
   /** Impassable terrain (rock walls). Full list; keep it symmetric under every seat's rotation. */
   walls: { x: number; y: number }[];
   /** Visual skin only; these terrain tiles are always impassable and cannot be attacked. */
   wallStyle?: "rock" | "wall";
   /** Destructible wall ruins owned by the scenario, never a competing player. Absolute coordinates, placed once. */
   neutralWalls?: { x: number; y: number }[];
-  /** Local layout: translated by origins when present, otherwise rotated into each corner. */
+  /** Local layout: rotated then translated by origins, otherwise rotated into each corner. */
   start: { kind: EntityKind; x: number; y: number }[];
   deposits: { x: number; y: number; amount: number }[];
   /** Deposits placed once (they should be symmetric by themselves). */

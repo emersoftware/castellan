@@ -3,7 +3,7 @@
  * rotations (180° for 2 seats, every 90° for 4);
  * `symmetric` adds the mirror of every wall tile so a map only lists one half.
  */
-import type { MapSpec } from "./ruleset.ts";
+import type { MapOrigin, MapSpec } from "./ruleset.ts";
 
 const W = 32;
 const H = 32;
@@ -155,35 +155,35 @@ MAPS["quad-crossroads"] = {
   sharedDeposits: [...quarters({ x: C4, y: C4, amount: 800 }), ...quarters({ x: C4, y: 17, amount: 600 })],
 };
 
-// Six equal local camps around the center. A 400 ms unit takes 4 ticks straight
-// and 6 diagonally at 10 Hz: (16,24) and (32,0) both cost 128 ticks. This keeps
-// neighbour and center travel equal before obstacles; a Euclidean hexagon would not.
-const sixOrigins = [
-  { x: 10, y: 42 }, { x: 26, y: 18 }, { x: 58, y: 18 },
-  { x: 74, y: 42 }, { x: 58, y: 66 }, { x: 26, y: 66 },
+// The local enclosure opens north, against the map edge. Rotations keep every
+// camp's three walls, gates, opening units and mining layout identical.
+const sixOrigins: MapOrigin[] = [
+  { x: 6, y: 32, rotation: 3 }, { x: 16, y: 6, rotation: 0 }, { x: 47, y: 6, rotation: 0 },
+  { x: 57, y: 31, rotation: 1 }, { x: 47, y: 57, rotation: 2 }, { x: 16, y: 57, rotation: 2 },
 ];
+const sixFortress: Placed[] = [
+  ...[-6, 6].flatMap(edge => line(-6, 6, y => ({ x: edge, y }))),
+  ...line(-5, 5, x => ({ x, y: 6 })),
+].map(p => ({ ...p, kind: p.x === 0 || p.y === 0 ? "door" : "wall" }));
 MAPS.hex = {
   name: "hex",
-  description: "Six open camps in a hexagonal ring, with the same translated starting layout and no prebuilt walls. Each has 1,200 home mineral and 2,800 at four expansions. Neighbouring bases are 29–32 tiles apart; ideal unupgraded Knight travel is 12.8 seconds to either neighbour or the center at 10 ticks/s. Shared mines lie between neighbours and around the center. Grid directions and obstacles prevent exact six-way rotational symmetry.",
-  width: 85,
-  height: 85,
+  description: "Six edge fortresses for FFA only: two along the top, two along the bottom and one on each side. Each 13x13 camp has three owned, destructible wall lines with three doors, one centered on each wall; the map boundary closes the fourth side. Only the owner's units can pass intact doors. Each base has 400 mineral inside and 3,600 at four expansions outside, encouraging early exploration. Shared mines lie between neighbours and around the center. The layout has 180-degree symmetry, but distances between all six seats are not identical.",
+  width: 64,
+  height: 64,
   seats: 6,
   origins: sixOrigins,
   walls: [],
-  start: base.start.map(s => ({ ...s, x: s.x - 4, y: s.y - 4 })),
+  start: [...base.start.map(s => ({ ...s, x: s.x - 4, y: s.y - 4 })), ...sixFortress],
   deposits: [
-    ...[-5, 5].flatMap(x => [-3, 3].map(y => ({ x, y, amount: 150 }))),
-    ...[-3, 3].flatMap(x => [-5, 5].map(y => ({ x, y, amount: 150 }))),
-    { x: -9, y: 0, amount: 700 }, { x: 9, y: 0, amount: 700 },
-    { x: 0, y: -9, amount: 700 }, { x: 0, y: 9, amount: 700 },
+    ...[-3, 3].flatMap(x => [-3, 3].map(y => ({ x, y, amount: 100 }))),
+    { x: -8, y: 0, amount: 900 }, { x: 8, y: 0, amount: 900 },
+    { x: -2, y: 8, amount: 900 }, { x: 2, y: 8, amount: 900 },
   ],
   sharedDeposits: [
-    ...sixOrigins.map((p, i) => ({
-      x: (p.x + sixOrigins[(i + 1) % sixOrigins.length].x) / 2,
-      y: (p.y + sixOrigins[(i + 1) % sixOrigins.length].y) / 2,
-      amount: 600,
-    })),
-    ...[{ x: 38, y: 42 }, { x: 40, y: 39 }, { x: 44, y: 39 },
-      { x: 46, y: 42 }, { x: 44, y: 45 }, { x: 40, y: 45 }].map(p => ({ ...p, amount: 800 })),
+    // Midpoints rounded in opposite pairs to preserve 180-degree symmetry.
+    ...[{ x: 11, y: 19 }, { x: 31, y: 6 }, { x: 52, y: 18 },
+      { x: 52, y: 44 }, { x: 32, y: 57 }, { x: 11, y: 45 }].map(p => ({ ...p, amount: 600 })),
+    ...[{ x: 27, y: 31 }, { x: 29, y: 27 }, { x: 34, y: 27 },
+      { x: 36, y: 32 }, { x: 34, y: 36 }, { x: 29, y: 36 }].map(p => ({ ...p, amount: 800 })),
   ],
 };

@@ -164,6 +164,8 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
 .pc1, .scores td.pc1 { color: #ff5555; } .bg1 { background: #ff5555; }
 .pc2, .scores td.pc2 { color: #55ffff; } .bg2 { background: #55ffff; }
 .pc3, .scores td.pc3 { color: #ff55ff; } .bg3 { background: #ff55ff; }
+.pc4, .scores td.pc4 { color: #55ff55; } .bg4 { background: #55ff55; }
+.pc5, .scores td.pc5 { color: #ffff55; } .bg5 { background: #ffff55; }
 
 .feed { position: absolute; left: 14px; top: 56px; width: 300px; z-index: 3; font-size: 15px; pointer-events: none; }
 .feed .line { background: rgba(0,0,0,0.72); margin-bottom: 2px; padding: 3px 10px; border-left: 1px solid var(--dark-grey); }

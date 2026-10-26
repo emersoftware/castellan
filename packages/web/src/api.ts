@@ -1,6 +1,7 @@
 import { publishedRoutes, routes, type MatchStatus, type Outcome, type PlayerTiming, type ReplayFile, type ReplayPlayerSummary, type RoomMode, type SeriesReplay, type SeriesSummary } from "@castellan/shared";
 import { analyticsHeaders } from "./analytics";
 import { catalogBattles } from "./replayCatalog";
+import { PLAYER_RAMPS } from "./render/palette";
 
 /** Only send browser identity to our API, never to third-party/static URLs. */
 function apiFetch(path: string, init?: RequestInit) {
@@ -91,7 +92,7 @@ export const fmtTime = (ms: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
-/** Each player's colour index (0 blue, 1 red, 2 verdigris, 3 amethyst): its place in the list, as in AoE. */
+/** Each player's colour index follows its place in the list, as in AoE. */
 export function playerColors(players: { id: string }[]): Record<string, number> {
-  return Object.fromEntries(players.map((p, i) => [p.id, i % 4]));
+  return Object.fromEntries(players.map((p, i) => [p.id, i % PLAYER_RAMPS.length]));
 }
