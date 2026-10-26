@@ -167,13 +167,13 @@ const sixFortress: Placed[] = [
 ].map(p => ({ ...p, kind: p.x === 0 || p.y === 0 ? "door" : "wall" }));
 MAPS.hex = {
   name: "hex",
-  description: "Six edge fortresses for FFA only: two along the top, two along the bottom and one on each side. Each 13x13 camp has three owned, destructible wall lines with three doors, one centered on each wall; the map boundary closes the fourth side. Only the owner's units can pass intact doors. Each base has 400 mineral inside and 3,600 at four expansions outside, encouraging early exploration. Shared mines lie between neighbours and around the center. The layout has 180-degree symmetry, but distances between all six seats are not identical.",
+  description: "Six open camps for FFA only, with no prebuilt walls or doors: two along the top edge, two along the bottom and one on each side. Each base has 400 home mineral and 3,600 at four expansions, encouraging early exploration. Shared mines lie between neighbours and around the center. The layout has 180-degree symmetry, but distances between all six seats are not identical.",
   width: 64,
   height: 64,
   seats: 6,
   origins: sixOrigins,
   walls: [],
-  start: [...base.start.map(s => ({ ...s, x: s.x - 4, y: s.y - 4 })), ...sixFortress],
+  start: base.start.map(s => ({ ...s, x: s.x - 4, y: s.y - 4 })),
   deposits: [
     ...[-3, 3].flatMap(x => [-3, 3].map(y => ({ x, y, amount: 100 }))),
     { x: -8, y: 0, amount: 900 }, { x: 8, y: 0, amount: 900 },
@@ -186,4 +186,11 @@ MAPS.hex = {
     ...[{ x: 27, y: 31 }, { x: 29, y: 27 }, { x: 34, y: 27 },
       { x: 36, y: 32 }, { x: 34, y: 36 }, { x: 29, y: 36 }].map(p => ({ ...p, amount: 800 })),
   ],
+};
+
+MAPS["fortress-hex"] = {
+  ...MAPS.hex,
+  name: "fortress-hex",
+  description: "Six edge fortresses for FFA only: two along the top, two along the bottom and one on each side. Each 13x13 camp has three owned, destructible wall lines with three doors, one centered on each wall; the map boundary closes the fourth side. Only the owner's units can pass intact doors. Each base has 400 mineral inside and 3,600 at four expansions outside, encouraging early exploration. Shared mines lie between neighbours and around the center. The layout has 180-degree symmetry, but distances between all six seats are not identical.",
+  start: [...MAPS.hex.start, ...sixFortress],
 };

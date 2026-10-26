@@ -80,7 +80,7 @@ winning side is a loss for everyone.
 Corner maps rotate a common layout as before. Maps with explicit `origins`
 rotate their local starts and deposits by optional clockwise quarter-turns,
 then translate them to each seat. Omitted rotation remains zero for historical
-translated maps. This supports the six-seat `hex` FFA with camps facing inward
+translated maps. This supports the six-seat `hex` and `fortress-hex` FFA maps with camps facing inward
 from each edge. The engine validates those transforms and occupied
 tiles before allocating VMs. [Map design and measured routes](maps.md) document
 the geometry and its limits; lobby, guide and mineral rendering consume the same

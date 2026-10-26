@@ -2,10 +2,13 @@ import { expect, it } from "vitest";
 import { MAPS, mapToSeat, matchLengthMs, rules, seatToMap, type SpectatorView, type ReplayFile } from "@castellan/shared";
 import { createMatch, findPath, runReplay, type PlayerOrder } from "../src";
 
-const map = MAPS.hex;
+const map = MAPS["fortress-hex"];
 const players = Array.from({ length: 6 }, (_, i) => ({ id: `p${i + 1}`, name: `Player ${i + 1}` }));
 
-it("gives six independent players identical rotated openings and waits for the sixth survivor", async () => {
+it.each(["hex", "fortress-hex"])("%s gives six independent players identical rotated openings and waits for the sixth survivor", async name => {
+  const map = MAPS[name];
+  expect([map.width, map.height]).toEqual([64, 64]);
+  expect(map.start.filter(e => e.kind === "wall" || e.kind === "door")).toHaveLength(name === "hex" ? 0 : 37);
   const match = await createMatch({ ruleset: { ...rules, map }, players, seed: 31, tickRate: 10 });
   try {
     const frame = match.spectate();
@@ -110,7 +113,8 @@ it("seals three-wall camps against the boundary and lets workers leave through e
   } finally { match.dispose(); }
 });
 
-it("runs and strictly replays all six script engines, including production and movement in the last seats", async () => {
+it.each(["hex", "fortress-hex"])("%s runs and strictly replays all six script engines, including production and movement in the last seats", async name => {
+  const map = MAPS[name];
   const ruleset = { ...rules, map, fourSeatMatchMs: 15_000 };
   const match = await createMatch({ ruleset, players, seed: 31, tickRate: 10 });
   try {

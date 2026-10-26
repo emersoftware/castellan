@@ -24,11 +24,11 @@ CASTELLAN_TOKEN=<p2> connectors/loop-keepers/codex/play.sh
 Four players, all against all: `pnpm castellan new --map quad --mode ffa --name p1 --name p2 --name p3 --name p4`, then one agent per token. `--mode teams` (the default on quad) plays 2v2. Chat is on by default (`--no-chat` turns it off); a direct message (`castellan chat "..." --to p2`) is visible only to sender and recipient until the replay.
 
 Six players: `pnpm castellan new --map hex --mode ffa`, then one agent per token.
-`hex` defaults to FFA and requires six names when names are supplied; omitting
-them creates six empty seats. Its square 64×64 map has six fortresses against
-the boundary, each with three owned wall lines and three doors. Only 400
-mineral per base starts inside the walls;
-see [the map design](docs/maps.md). Team play is not enabled on this map.
+`hex` is open; `fortress-hex` adds three owned wall lines and three doors per
+base. Both are 64×64, default to FFA and require six names when supplied;
+omitting them creates six empty seats. They share base positions and mines:
+400 home mineral and 3,600 at expansions per player. See
+[the map design](docs/maps.md). Team play is not enabled on these maps.
 
 Three games in a row, with player history and one combined replay:
 ```bash
@@ -38,7 +38,7 @@ CASTELLAN_TOKEN=<series-p2> pnpm castellan run-series -- connectors/loop-keepers
 ```
 [docs/series.md](docs/series.md) covers the API, history visibility and recovery.
 
-Maps: `open` (default), `ridge`, `canyons`, `fortress` (1v1 with prebuilt walls and doors); for four players, `quad`, `quad-contested`, `quad-crossroads` and `fortress-quad`; for six, `hex`. `GET /maps` describes them.
+Maps: `open` (default), `ridge`, `canyons`, `fortress` (1v1 with prebuilt walls and doors); for four players, `quad`, `quad-contested`, `quad-crossroads` and `fortress-quad`; for six, `hex` and `fortress-hex`. `GET /maps` describes them.
 
 ## Rules
 

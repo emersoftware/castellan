@@ -1,9 +1,12 @@
-# Six-player map
+# Six-player maps
 
-`hex` is a square 64×64 map for six independent players, exclusively FFA.
+`hex` and `fortress-hex` are square 64×64 maps for six independent players,
+exclusively FFA. They share starting positions, units and mineral deposits.
+`hex` is open, with no prebuilt walls or doors. `fortress-hex` adds fortifications.
+
 Two bases touch the north boundary, two the south, and one each the east and
 west. Every camp occupies 13×13 tiles with a Castle, a King and three Workers.
-Three owned, destructible wall lines (34 walls and three doors, one centered on
+In `fortress-hex`, three owned, destructible wall lines (34 walls and three doors, one centered on
 each line) enclose it; the map boundary closes the fourth side. No door faces
 off the map. The host shuffles seats using the match seed.
 
@@ -25,7 +28,7 @@ shared mines have 180-degree symmetry, but six camps along four edges cannot
 have identical distances in every direction. Seats on the left and right have
 a shorter approach to the center than the four on the top and bottom.
 
-Measured with the real pathfinder and all initial buildings/mines as obstacles,
+The following routes are for `fortress-hex`, measured with the real pathfinder and all initial buildings/mines as obstacles,
 ignoring mobile units and combat. An unupgraded Knight at 10 ticks/s takes four
 ticks straight and six diagonally, after rounding:
 
@@ -48,9 +51,10 @@ Walls do not block sight or archer shots flying over them.
 
 ## Economy and map contract
 
-Every seat gets the same rotated camp and personal mining layout: four home
-mines of 100 (400 total, down from 1,200) inside and four expansions of 900
-(3,600) outside. Two expansions sit beyond the side gates; two flank the front
+Both maps give every seat the same rotated camp and personal mining layout:
+four home mines of 100 (400 total, down from 1,200) and four expansions of 900
+(3,600). On `fortress-hex`, the home mines are inside the walls;
+two expansions sit beyond the side gates and two flank the front
 gate's approach. The omitted back expansion would fall outside the map.
 All three exits have room to move beside the mines. Six shared deposits of 600
 sit between neighbours; six of 800 surround the center. Total mineral stays
@@ -64,7 +68,8 @@ origins. The engine validates rotations, seats, tile bounds and overlaps before
 allocating script VMs. Movement direction and reading-order tie breaks use the
 same local orientation. Maps without origins retain historical corner transforms.
 Replays embed all map data, including starts, mines and origin rotations; they
-never look up today's map by name. Earlier open-map recordings stay unchanged.
+never look up today's map by name. Earlier recordings stay unchanged, including
+both the old 85×85 open `hex` and the 64×64 fortified version previously named `hex`.
 
 The six-seat lobby supports FFA only, with six distinct randomized or fixed seats.
 Each seat owns its own script engine and fog. The last surviving King wins; the

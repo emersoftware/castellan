@@ -1,7 +1,7 @@
 /** `castellan`: argv → one command function → stdout. */
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { isChatChannel, isRoomMode } from "@castellan/shared";
+import { MAPS, isChatChannel, isRoomMode } from "@castellan/shared";
 import { client } from "./client.ts";
 import * as cmd from "./commands.ts";
 
@@ -20,8 +20,9 @@ const USAGE = `castellan — Castellan client (env CASTELLAN_SERVER, CASTELLAN_T
   castellan status                         waiting | prep | running | finished
   castellan watch [--since T]              one line per event until the match ends; reads as this player
                                            (advances its observations like state; supervisors use status)
-  castellan new [--name a --name b | --bot eco ...] [--map open|fortress|fortress-quad|ridge|canyons|quad] [--sides random|fixed] [--no-chat] [--prep ms] [--seed n]
+  castellan new [--name a --name b | --bot eco ...] [--map ${Object.keys(MAPS).join("|")}] [--sides random|fixed] [--no-chat] [--prep ms] [--seed n]
           [--mode teams|ffa] (four-seat maps default to 2v2; --mode ffa is 1v1v1v1)
+          (hex and fortress-hex require six players and support FFA only)
           (chat is on by default; --no-chat disables it)
   castellan rooms
   castellan new --series                   create a three-game series (same options as new)

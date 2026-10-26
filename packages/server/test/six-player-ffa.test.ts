@@ -41,11 +41,14 @@ it("restores all six identities, placements and pending production from a runnin
   expect(room.view("p6").mine.find(e => e.id === castle.id)).toMatchObject({ x: before.x, y: before.y, training: before.training });
 });
 
-it.each(["fixed", "random"] as const)("serves six independent %s seats, runs all workers and saves a strict replay", async sides => {
+it.each([
+  { map: "hex", sides: "fixed" }, { map: "hex", sides: "random" },
+  { map: "fortress-hex", sides: "fixed" }, { map: "fortress-hex", sides: "random" },
+] as const)("$map serves six independent $sides seats, runs all workers and saves a strict replay", async ({ map, sides }) => {
   directory = await mkdtemp(join(tmpdir(), "castellan-six-"));
   app = await buildServer({ replayDir: directory, prepMs: 0, ruleset: { ...rules, fourSeatMatchMs: 800 } });
-  // Omitted mode on hex defaults to FFA; it must never silently become 2v2.
-  const created = await app.inject({ method: "POST", url: "/rooms", payload: { map: "hex", sides, seed: 71,
+  // Omitted mode on six-seat maps defaults to FFA; it must never silently become 2v2.
+  const created = await app.inject({ method: "POST", url: "/rooms", payload: { map, sides, seed: 71,
     players: Array.from({ length: 6 }, (_, i) => ({ name: `Seat ${i + 1}` })),
   } });
   expect(created.statusCode).toBe(200);
@@ -58,34 +61,36 @@ it.each(["fixed", "random"] as const)("serves six independent %s seats, runs all
   const { guide } = (await app.inject({ url: "/guide", headers: headers(lobby.players[0].token) })).json();
   expect(guide).toContain("Six-player free-for-all");
   expect(guide).toContain("last player standing wins");
-  expect(guide).toContain("three doors, one centered on each wall");
+  expect(guide).toContain(map === "hex" ? "no prebuilt walls or doors" : "three doors, one centered on each wall");
   expect(guide).not.toContain("one base per corner");
   for (const player of lobby.players) {
     const state = (await app.inject({ url: "/state", headers: headers(player.token) })).json<PlayerView>();
     expect(state.players).toHaveLength(6);
     expect(state.allies).toEqual([]);
-    const { x, y } = MAPS.hex.origins![player.side];
+    const { x, y } = MAPS[map].origins![player.side];
     expect(state.mine.find(e => e.kind === "castle")).toMatchObject({ x, y });
-    expect(state.mine.filter(e => e.kind === "door")).toHaveLength(3);
+    expect(state.mine.filter(e => e.kind === "door")).toHaveLength(map === "hex" ? 0 : 3);
+    expect(state.mine.filter(e => e.kind === "wall")).toHaveLength(map === "hex" ? 0 : 34);
   }
   await waitForStatus(app, lobby.players[0].token, "finished");
   await waitForReplay(app, lobby.id);
   const replay = (await app.inject(`/replays/${lobby.id}`)).json<ReplayFile>();
+  expect(replay.ruleset.map).toEqual(MAPS[map]);
   expect(replay.players.map(p => p.side)).toEqual(lobby.players.map(p => p.side));
   expect(Object.keys(replay.experiment!.players)).toHaveLength(6);
   expect(replay.experiment!.operationalFailures ?? []).toEqual([]);
   expect((await runReplay(replay, () => {})).verified).toBe(true);
 });
 
-it("rejects team play and incomplete or overflowing six-player lobbies instead of silently truncating them", async () => {
+it.each(["hex", "fortress-hex"])("%s rejects team play and incomplete or overflowing six-player lobbies instead of silently truncating them", async map => {
   directory = await mkdtemp(join(tmpdir(), "castellan-six-lobby-"));
   app = await buildServer({ replayDir: directory });
   for (const payload of [
     { mode: "teams" }, { players: [{ name: "A", team: 0 }] },
     { players: Array.from({ length: 5 }, () => ({ name: "A" })) },
     { players: Array.from({ length: 7 }, () => ({ name: "A" })) },
-  ]) expect((await app.inject({ method: "POST", url: "/rooms", payload: { map: "hex", ...payload } })).statusCode).toBe(400);
-  const empty = (await app.inject({ method: "POST", url: "/rooms", payload: { map: "hex" } })).json();
+  ]) expect((await app.inject({ method: "POST", url: "/rooms", payload: { map, ...payload } })).statusCode).toBe(400);
+  const empty = (await app.inject({ method: "POST", url: "/rooms", payload: { map } })).json();
   expect(empty.players).toHaveLength(6);
   expect(empty.status).toBe("waiting");
 });

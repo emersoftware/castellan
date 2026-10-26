@@ -278,6 +278,9 @@ pnpm server`}</Code><p>Leave this terminal running. The server and built website
             <Code title="Two teams">{`pnpm castellan new --map fortress-quad --mode teams \\
   --name P1 --name P2 --name P3 --name P4`}</Code>
             <p>P1 and P2 are allies against P3 and P4. Connect one agent per returned token.</p>
+            <Code title="Six-player FFA">{`pnpm castellan new --map hex --mode ffa \\
+  --name P1 --name P2 --name P3 --name P4 --name P5 --name P6`}</Code>
+            <p><code>hex</code> is open; <code>fortress-hex</code> adds three wall lines and three doors per base. Both are 64×64 and share base positions and mineral deposits. Six-player maps support FFA only.</p>
           </details>
           <p className="manual-source"><a href="https://github.com/emersoftware/castellan">Source code on GitHub</a></p>
         </section>

@@ -8,7 +8,7 @@ const home = (x: number, y: number) => x < 13 && y < 13;
 const sum = (mines: { amount: number }[]) => mines.reduce((n, d) => n + d.amount, 0);
 const totalByMap: Record<string, number> = {
   open: 9600, fortress: 9600, ridge: 9600, canyons: 9600,
-  quad: 26400, "quad-contested": 26400, "quad-crossroads": 26400, "fortress-quad": 21600, hex: 32400,
+  quad: 26400, "quad-contested": 26400, "quad-crossroads": 26400, "fortress-quad": 21600, hex: 32400, "fortress-hex": 32400,
 };
 
 function movementGrid(frame: SpectatorView, map: MapSpec, owner: string): Grid {
@@ -43,8 +43,8 @@ for (const [name, map] of Object.entries(MAPS)) {
       expect(new Set(occupied.map(p => `${p.x},${p.y}`)).size).toBe(occupied.length);
       expect(sum(frame.deposits)).toBe(totalByMap[name]);
       const atHome = (d: { x: number; y: number }) => map.origins ? Math.max(Math.abs(d.x), Math.abs(d.y)) < 8 : home(d.x, d.y);
-      expect(sum(map.deposits.filter(atHome))).toBe(name === "hex" ? 400 : 1200);
-      expect(sum(map.deposits.filter(d => !atHome(d)))).toBe(name === "hex" ? 3600 : name.startsWith("quad") ? 4000 : 2800);
+      expect(sum(map.deposits.filter(atHome))).toBe(map.seats === 6 ? 400 : 1200);
+      expect(sum(map.deposits.filter(d => !atHome(d)))).toBe(map.seats === 6 ? 3600 : name.startsWith("quad") ? 4000 : 2800);
       let reference: number[] | undefined;
       for (const player of players) {
         const grid = movementGrid(frame, map, player.id);
