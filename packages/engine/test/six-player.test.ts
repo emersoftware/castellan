@@ -29,7 +29,12 @@ it("gives six independent players identical translated openings and waits for th
   } finally { match.dispose(); }
 });
 
-it("keeps actual neighbour and center paths close after mineral obstacles are placed", async () => {
+it("centers the six camps on a square map and keeps obstacle-aware routes close", async () => {
+  expect(map.width).toBe(map.height);
+  const midpoint = { x: (map.width - 1) / 2, y: (map.height - 1) / 2 };
+  const origins = map.origins!;
+  expect(origins.reduce((sum, p) => sum + p.x, 0) / origins.length).toBe(midpoint.x);
+  expect(origins.reduce((sum, p) => sum + p.y, 0) / origins.length).toBe(midpoint.y);
   const match = await createMatch({ ruleset: { ...rules, map }, players, seed: 31, tickRate: 10 });
   try {
     const frame = match.spectate();
@@ -47,9 +52,8 @@ it("keeps actual neighbour and center paths close after mineral obstacles are pl
       }
       return cost;
     };
-    const origins = map.origins!;
     const neighbours = origins.flatMap((p, i) => [ticks(p, origins[(i + 1) % 6], 1), ticks(p, origins[(i + 5) % 6], 1)]);
-    const center = origins.map(p => ticks(p, { x: 42, y: 34 }, 0));
+    const center = origins.map(p => ticks(p, midpoint, 0));
     // Bounds are on the real obstacle-aware path, not a Euclidean drawing.
     expect(Math.max(...neighbours)).toBeLessThanOrEqual(140);
     expect(Math.max(...neighbours) - Math.min(...neighbours)).toBeLessThanOrEqual(12);

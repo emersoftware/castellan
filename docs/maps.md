@@ -1,9 +1,11 @@
 # Six-player map
 
-`hex` is an 85×69 open map for six independent players. Each starts with a
+`hex` is a square 85×85 open map for six independent players. Each starts with a
 Castle, a King and three Workers. There are no prebuilt fortifications. Base
-centers, clockwise, are (10,34), (26,10), (58,10), (74,34), (58,58), (26,58).
-The center is (42,34). The host shuffles seats using the match seed.
+centers, clockwise, are (10,42), (26,18), (58,18), (74,42), (58,66), (26,66).
+The ring is centered on the map's center tile (42,42). The square boundary adds
+space north and south without stretching the ring or its travel distances.
+The host shuffles seats using the match seed.
 
 ## Distances
 

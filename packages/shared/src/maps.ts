@@ -159,14 +159,14 @@ MAPS["quad-crossroads"] = {
 // and 6 diagonally at 10 Hz: (16,24) and (32,0) both cost 128 ticks. This keeps
 // neighbour and center travel equal before obstacles; a Euclidean hexagon would not.
 const sixOrigins = [
-  { x: 10, y: 34 }, { x: 26, y: 10 }, { x: 58, y: 10 },
-  { x: 74, y: 34 }, { x: 58, y: 58 }, { x: 26, y: 58 },
+  { x: 10, y: 42 }, { x: 26, y: 18 }, { x: 58, y: 18 },
+  { x: 74, y: 42 }, { x: 58, y: 66 }, { x: 26, y: 66 },
 ];
 MAPS.hex = {
   name: "hex",
   description: "Six open camps in a hexagonal ring, with the same translated starting layout and no prebuilt walls. Each has 1,200 home mineral and 2,800 at four expansions. Neighbouring bases are 29–32 tiles apart; ideal unupgraded Knight travel is 12.8 seconds to either neighbour or the center at 10 ticks/s. Shared mines lie between neighbours and around the center. Grid directions and obstacles prevent exact six-way rotational symmetry.",
   width: 85,
-  height: 69,
+  height: 85,
   seats: 6,
   origins: sixOrigins,
   walls: [],
@@ -183,7 +183,7 @@ MAPS.hex = {
       y: (p.y + sixOrigins[(i + 1) % sixOrigins.length].y) / 2,
       amount: 600,
     })),
-    ...[{ x: 38, y: 34 }, { x: 40, y: 31 }, { x: 44, y: 31 },
-      { x: 46, y: 34 }, { x: 44, y: 37 }, { x: 40, y: 37 }].map(p => ({ ...p, amount: 800 })),
+    ...[{ x: 38, y: 42 }, { x: 40, y: 39 }, { x: 44, y: 39 },
+      { x: 46, y: 42 }, { x: 44, y: 45 }, { x: 40, y: 45 }].map(p => ({ ...p, amount: 800 })),
   ],
 };

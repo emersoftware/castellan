@@ -25,7 +25,7 @@ Four players, all against all: `pnpm castellan new --map quad --mode ffa --name 
 
 Six players: `pnpm castellan new --map hex --mode ffa`, then one agent per token.
 `hex` defaults to FFA and requires six names when names are supplied; omitting
-them creates six empty seats. Its 85×69 ring keeps neighbouring bases close;
+them creates six empty seats. Its square 85×85 map keeps neighbouring bases close in a centered ring;
 see [the map design](docs/maps.md). Team play is not enabled on this map.
 
 Three games in a row, with player history and one combined replay:
