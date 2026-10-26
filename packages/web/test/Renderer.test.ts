@@ -83,6 +83,13 @@ it("uses each deposit's capacity across every rotated quad seat and shared depos
   for (const d of map.sharedDeposits) expect(initialDepositAmount(map, { ...d, id: "shared", amount: 1 })).toBe(d.amount);
 });
 
+it("retains mineral capacities at all six translated origins after mining", () => {
+  const map = MAPS.hex;
+  for (const origin of map.origins!) for (const deposit of map.deposits) {
+    expect(initialDepositAmount(map, { id: "mined", x: origin.x + deposit.x, y: origin.y + deposit.y, amount: 1 })).toBe(deposit.amount);
+  }
+});
+
 it.each(["shooter", "target"])("places a newly spawned or revealed %s before drawing its first arrow", (newEntity) => {
   // Replay aca7a69c, tick 669: A1's archer spawns and attacks four tiles away.
   const h = createField({ colors: { p1: 0, p4: 3 } });

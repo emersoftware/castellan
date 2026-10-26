@@ -9,7 +9,7 @@ export type EntityKind = (typeof ENTITY_KINDS)[number];
  */
 export interface Ruleset {
   version: string;
-  /** Match length before the time limit; four-seat maps use `fourSeatMatchMs` (see `matchLengthMs`). */
+  /** Match length before the time limit; maps with more than two seats use `fourSeatMatchMs` (historical field name; see `matchLengthMs`). */
   matchMs: number;
   fourSeatMatchMs: number;
   /** Everyone loses when a match ends without a winner; false makes it a draw. */
@@ -167,16 +167,19 @@ export interface MapSpec {
   /**
    * Available starting corners: 2 (default; the layout and its 180° rotation)
    * or 4 (a square map; also rotated 90° and 270°). A three-player FFA leaves
-   * one of the four corners empty.
+   * one of the four corners empty. Six-seat maps provide explicit origins.
    */
-  seats?: 2 | 4;
+  seats?: 2 | 4 | 6;
+  /** Optional per-seat translations of the same local start/deposit layout, without rotation.
+   * One integer origin per seat; absent on historical corner maps. */
+  origins?: { x: number; y: number }[];
   /** Impassable terrain (rock walls). Full list; keep it symmetric under every seat's rotation. */
   walls: { x: number; y: number }[];
   /** Visual skin only; these terrain tiles are always impassable and cannot be attacked. */
   wallStyle?: "rock" | "wall";
   /** Destructible wall ruins owned by the scenario, never a competing player. Absolute coordinates, placed once. */
   neutralWalls?: { x: number; y: number }[];
-  /** The first seat's corner. Every other seat gets the same layout, rotated. */
+  /** Local layout: translated by origins when present, otherwise rotated into each corner. */
   start: { kind: EntityKind; x: number; y: number }[];
   deposits: { x: number; y: number; amount: number }[];
   /** Deposits placed once (they should be symmetric by themselves). */
@@ -200,4 +203,4 @@ export interface ScriptLimits {
 export const HOLD_SCRIPT = "self.hold();";
 
 /** How long this ruleset's match lasts on its map. */
-export const matchLengthMs = (r: Ruleset): number => (r.map.seats === 4 ? r.fourSeatMatchMs : r.matchMs);
+export const matchLengthMs = (r: Ruleset): number => ((r.map.seats ?? 2) > 2 ? r.fourSeatMatchMs : r.matchMs);

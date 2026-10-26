@@ -8,7 +8,7 @@ const home = (x: number, y: number) => x < 13 && y < 13;
 const sum = (mines: { amount: number }[]) => mines.reduce((n, d) => n + d.amount, 0);
 const totalByMap: Record<string, number> = {
   open: 9600, fortress: 9600, ridge: 9600, canyons: 9600,
-  quad: 26400, "quad-contested": 26400, "quad-crossroads": 26400, "fortress-quad": 21600,
+  quad: 26400, "quad-contested": 26400, "quad-crossroads": 26400, "fortress-quad": 21600, hex: 32400,
 };
 
 function movementGrid(frame: SpectatorView, map: MapSpec, owner: string): Grid {
@@ -42,26 +42,29 @@ for (const [name, map] of Object.entries(MAPS)) {
       expect(occupied.every(p => p.x >= 0 && p.y >= 0 && p.x < map.width && p.y < map.height)).toBe(true);
       expect(new Set(occupied.map(p => `${p.x},${p.y}`)).size).toBe(occupied.length);
       expect(sum(frame.deposits)).toBe(totalByMap[name]);
-      expect(sum(map.deposits.filter(d => home(d.x, d.y)))).toBe(1200);
-      expect(sum(map.deposits.filter(d => !home(d.x, d.y)))).toBe(name.startsWith("quad") ? 4000 : 2800);
+      const atHome = (d: { x: number; y: number }) => map.origins ? Math.max(Math.abs(d.x), Math.abs(d.y)) < 8 : home(d.x, d.y);
+      expect(sum(map.deposits.filter(atHome))).toBe(1200);
+      expect(sum(map.deposits.filter(d => !atHome(d)))).toBe(name.startsWith("quad") ? 4000 : 2800);
       let reference: number[] | undefined;
       for (const player of players) {
         const grid = movementGrid(frame, map, player.id);
         const castle = frame.entities.find(e => e.owner === player.id && e.kind === "castle")!;
         const mines = map.deposits.map(d => {
-          const [x, y] = seatToMap(d.x, d.y, player.side, map.width, map.height);
+          const [x, y] = seatToMap(d.x, d.y, player.side, map.width, map.height, map.origins);
           expect(frame.deposits).toContainEqual(expect.objectContaining({ x, y, amount: d.amount }));
           return { x, y, amount: d.amount };
         });
         const costs = mines.map(d => routeCost(grid, castle, d, player.side));
         // Shared mines are unordered under rotation; compare the distance multiset.
-        costs.push(...map.sharedDeposits.map(d => routeCost(grid, castle, d, player.side)).sort((a, b) => a - b));
+        // A square grid has no 60-degree rotational symmetry. Hex shared access
+        // and travel bounds are measured separately in six-player.test.ts.
+        if (!map.origins) costs.push(...map.sharedDeposits.map(d => routeCost(grid, castle, d, player.side)).sort((a, b) => a - b));
         if (reference) expect(costs).toEqual(reference);
         else reference = costs;
         // Every exposed mine is reachable by every opponent without breaching a
         // wall. A mine outside the home box but sealed behind rocks is not an expansion.
-        for (const d of map.deposits.filter(d => !home(d.x, d.y))) {
-          const [x, y] = seatToMap(d.x, d.y, player.side, map.width, map.height);
+        for (const d of map.deposits.filter(d => !atHome(d))) {
+          const [x, y] = seatToMap(d.x, d.y, player.side, map.width, map.height, map.origins);
           for (const enemy of players.filter(p => p.id !== player.id)) {
             const enemyCastle = frame.entities.find(e => e.owner === enemy.id && e.kind === "castle")!;
             routeCost(movementGrid(frame, map, enemy.id), enemyCastle, { x, y }, enemy.side);

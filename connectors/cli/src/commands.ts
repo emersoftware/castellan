@@ -129,7 +129,7 @@ export async function newRoom(
   return [
     `room ${r.id} (${r.status})${r.map ? ` · map ${r.map}` : ""}${r.players.length > 2 && r.mode === "ffa" ? " · free-for-all" : ""}${r.chat ? " · chat on" : ""}`,
     ...r.players.map((p) => {
-      const corner = p.side === undefined ? "" : ` [${CORNERS[p.side]} corner]`;
+      const corner = p.side === undefined ? "" : r.players.length > 4 ? ` [seat ${p.side + 1}]` : ` [${CORNERS[p.side]} corner]`;
       const team = r.players.length > 2 && r.mode !== "ffa" && p.team !== undefined ? ` team ${p.team}` : "";
       return `${p.id} ${p.name}${corner}${team}  ${p.bot ? `(bot ${p.bot})` : `CASTELLAN_TOKEN=${p.token}`}`;
     }),

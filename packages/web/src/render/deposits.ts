@@ -16,9 +16,9 @@ export function initialDepositAmount(map: MapSpec, deposit: DepositView): number
   const shared = map.sharedDeposits.find((d) => d.x === deposit.x && d.y === deposit.y);
   if (shared) return shared.amount;
   // Each seat gets the listed deposits turned to its corner.
-  const seats = map.seats === 4 ? 4 : 2;
+  const seats = map.seats ?? 2;
   for (const d of map.deposits) {
-    const positions = Array.from({ length: seats }, (_, seat) => seatToMap(d.x, d.y, seat, map.width, map.height));
+    const positions = Array.from({ length: seats }, (_, seat) => seatToMap(d.x, d.y, seat, map.width, map.height, map.origins));
     if (positions.some(([x, y]) => x === deposit.x && y === deposit.y)) return d.amount;
   }
   return Math.max(1, deposit.amount);

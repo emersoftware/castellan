@@ -146,8 +146,9 @@ export class Room {
         team: opts.mode === "ffa" ? i : p.team ?? (opts.players.length === 4 ? Math.floor(i / 2) : i),
       };
     });
-    if (opts.players.length === 4 || (opts.ruleset.map.seats === 4 && opts.mode === "ffa" && opts.players.length === 3)) {
-      const seats = opts.sides === "random" ? seededShuffle([0, 1, 2, 3], opts.seed) : [0, 1, 2, 3];
+    if (opts.players.length === 4 || opts.ruleset.map.seats === 6 || (opts.ruleset.map.seats === 4 && opts.mode === "ffa" && opts.players.length === 3)) {
+      const available = Array.from({ length: opts.ruleset.map.seats === 6 ? 6 : 4 }, (_, i) => i);
+      const seats = opts.sides === "random" ? seededShuffle(available, opts.seed) : available;
       this.players.forEach((p, i) => (p.side = seats[i]));
     } else if (opts.sides === "random" && seededCoin(opts.seed)) {
       for (const p of this.players) p.side = 1 - p.side;

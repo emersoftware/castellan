@@ -38,6 +38,13 @@ export const lobbyRoutes: FastifyPluginAsync<LobbyOptions> = async (app, { rooms
     // Four-seat maps support 2v2 (default), four-player FFA, or an explicit
     // three-player FFA with one empty corner. Other lobby defaults stay full.
     const seats = map.seats ?? 2;
+    if (seats === 6 && (body.mode === "teams" || body.players?.some(p => p.team !== undefined))) {
+      return reply.code(400).send({ error: "6-seat maps support free-for-all only" });
+    }
+    if (seats === 6 && body.players && body.players.length !== seats) {
+      return reply.code(400).send({ error: "6-seat maps need exactly six players (or omit players for six empty seats)" });
+    }
+    const mode = body.mode ?? (seats === 6 ? "ffa" : undefined);
     const playerCount = seats === 4 && body.mode === "ffa" && body.players?.length === 3 ? 3 : seats;
     let players;
     try { players = (body.players ?? []).slice(0, seats).map((p, i) => ({
@@ -53,7 +60,7 @@ export const lobbyRoutes: FastifyPluginAsync<LobbyOptions> = async (app, { rooms
     const config: Omit<RoomOptions, "onFinish"> = {
       ruleset: { ...(body.stats ? withStats(ruleset, body.stats) : ruleset), map },
       players,
-      mode: body.mode,
+      mode,
       sides: body.sides === "fixed" ? "fixed" : "random",
       chat: body.chat !== false,
       seed: int(body.seed, Math.floor(Math.random() * 2 ** 31)),
@@ -61,7 +68,7 @@ export const lobbyRoutes: FastifyPluginAsync<LobbyOptions> = async (app, { rooms
       prepMs: int(body.prepMs, prepMs ?? ruleset.prepMs),
       botLatencyMs: int(body.botLatencyMs, 3000),
     };
-    const properties = { map: map.name, mode: body.mode ?? (seats === 4 ? "teams" : "duel"), player_count: players.length, rules_version: config.ruleset.version };
+    const properties = { map: map.name, mode: mode ?? (seats === 4 ? "teams" : "duel"), player_count: players.length, rules_version: config.ruleset.version };
     if (req.routeOptions.url === routes.series) {
       const created = await series.create(config);
       analytics.capture(req, "series_created", `series:${created.id}`, { ...properties, series_id: created.id });

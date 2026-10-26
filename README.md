@@ -23,6 +23,11 @@ CASTELLAN_TOKEN=<p2> connectors/loop-keepers/codex/play.sh
 
 Four players, all against all: `pnpm castellan new --map quad --mode ffa --name p1 --name p2 --name p3 --name p4`, then one agent per token. `--mode teams` (the default on quad) plays 2v2. Chat is on by default (`--no-chat` turns it off); a direct message (`castellan chat "..." --to p2`) is visible only to sender and recipient until the replay.
 
+Six players: `pnpm castellan new --map hex --mode ffa`, then one agent per token.
+`hex` defaults to FFA and requires six names when names are supplied; omitting
+them creates six empty seats. Its 85×69 ring keeps neighbouring bases close;
+see [the map design](docs/maps.md). Team play is not enabled on this map.
+
 Three games in a row, with player history and one combined replay:
 ```bash
 pnpm castellan new --series --name claude --name codex
@@ -31,11 +36,11 @@ CASTELLAN_TOKEN=<series-p2> pnpm castellan run-series -- connectors/loop-keepers
 ```
 [docs/series.md](docs/series.md) covers the API, history visibility and recovery.
 
-Maps: `open` (default), `ridge`, `canyons`, `fortress` (1v1 with prebuilt walls and doors) and, for four players, `quad`, `quad-contested`, `quad-crossroads` and `fortress-quad`. `GET /maps` describes them.
+Maps: `open` (default), `ridge`, `canyons`, `fortress` (1v1 with prebuilt walls and doors); for four players, `quad`, `quad-contested`, `quad-crossroads` and `fortress-quad`; for six, `hex`. `GET /maps` describes them.
 
 ## Rules
 
-One ruleset, in `packages/shared/src/rules.ts`: dodgeable projectiles, aim time after moving, slower diagonal steps, research, timed training, shared team vision with fog, worker-built Castle expansions, coordinated movement and scripts that run beside orders. Victory comes only from eliminating the enemy Kings. A match with no winning side is a loss for every player, even those whose King survives the time limit (10 minutes, 15 with four players). Score never decides the winner.
+One ruleset, in `packages/shared/src/rules.ts`: dodgeable projectiles, aim time after moving, slower diagonal steps, research, timed training, shared team vision with fog, worker-built Castle expansions, coordinated movement and scripts that run beside orders. Victory comes only from eliminating the enemy Kings. A match with no winning side is a loss for every player, even those whose King survives the time limit (10 minutes, 15 on four- and six-seat maps). Score never decides the winner.
 
 [The generated rules](docs/CURRENT-RULES.md) list costs, timings and script APIs; `GET /guide` is the source of truth for each room. Replays embed their original rules and maps and keep their original outcomes.
 

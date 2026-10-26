@@ -1,6 +1,6 @@
 /**
- * Maps are data: layout only, no rules. Each is symmetric under its seats'
- * rotations (180° for 2 seats, every 90° for 4) so no corner has an advantage;
+ * Maps are data: layout only, no rules. Corner maps are symmetric under their seats'
+ * rotations (180° for 2 seats, every 90° for 4);
  * `symmetric` adds the mirror of every wall tile so a map only lists one half.
  */
 import type { MapSpec } from "./ruleset.ts";
@@ -153,4 +153,37 @@ MAPS["quad-crossroads"] = {
   wallStyle: "wall",
   deposits: MAPS["quad-contested"].deposits.map(d => ({ ...d, ...approachMines[`${d.x},${d.y}`] })),
   sharedDeposits: [...quarters({ x: C4, y: C4, amount: 800 }), ...quarters({ x: C4, y: 17, amount: 600 })],
+};
+
+// Six equal local camps around the center. A 400 ms unit takes 4 ticks straight
+// and 6 diagonally at 10 Hz: (16,24) and (32,0) both cost 128 ticks. This keeps
+// neighbour and center travel equal before obstacles; a Euclidean hexagon would not.
+const sixOrigins = [
+  { x: 10, y: 34 }, { x: 26, y: 10 }, { x: 58, y: 10 },
+  { x: 74, y: 34 }, { x: 58, y: 58 }, { x: 26, y: 58 },
+];
+MAPS.hex = {
+  name: "hex",
+  description: "Six open camps in a hexagonal ring, with the same translated starting layout and no prebuilt walls. Each has 1,200 home mineral and 2,800 at four expansions. Neighbouring bases are 29–32 tiles apart; ideal unupgraded Knight travel is 12.8 seconds to either neighbour or the center at 10 ticks/s. Shared mines lie between neighbours and around the center. Grid directions and obstacles prevent exact six-way rotational symmetry.",
+  width: 85,
+  height: 69,
+  seats: 6,
+  origins: sixOrigins,
+  walls: [],
+  start: base.start.map(s => ({ ...s, x: s.x - 4, y: s.y - 4 })),
+  deposits: [
+    ...[-5, 5].flatMap(x => [-3, 3].map(y => ({ x, y, amount: 150 }))),
+    ...[-3, 3].flatMap(x => [-5, 5].map(y => ({ x, y, amount: 150 }))),
+    { x: -9, y: 0, amount: 700 }, { x: 9, y: 0, amount: 700 },
+    { x: 0, y: -9, amount: 700 }, { x: 0, y: 9, amount: 700 },
+  ],
+  sharedDeposits: [
+    ...sixOrigins.map((p, i) => ({
+      x: (p.x + sixOrigins[(i + 1) % sixOrigins.length].x) / 2,
+      y: (p.y + sixOrigins[(i + 1) % sixOrigins.length].y) / 2,
+      amount: 600,
+    })),
+    ...[{ x: 38, y: 34 }, { x: 40, y: 31 }, { x: 44, y: 31 },
+      { x: 46, y: 34 }, { x: 44, y: 37 }, { x: 40, y: 37 }].map(p => ({ ...p, amount: 800 })),
+  ],
 };

@@ -22,7 +22,9 @@ export interface MatchConfig {
   ruleset: Ruleset;
   /**
    * `side` is the seat: 0 starts at the map's listed layout, 1 at its 180°
-   * rotation, 2 and 3 (4-seat maps) at 90° and 270°. Default: 0, 1, 0, 1…
+   * rotation, 2 and 3 (4-seat maps) at 90° and 270°. Maps with origins use
+   * the corresponding translated layout. Default: list order on origin maps;
+   * historical corner maps retain 0, 1, 0, 1…
    * Players with the same `team` are allies. Default: each player alone.
    */
   players: { id: PlayerId; name: string; side?: number; team?: number }[];
@@ -64,6 +66,29 @@ export interface PlayerOrder {
   order: Order;
 }
 
+/** New translated layouts fail before allocating any player's script engine. */
+const MAX_ROTATED_SEATS = 4;
+function validateOrigins(map: Ruleset["map"], sides: number[]) {
+  if ((map.seats ?? 2) > MAX_ROTATED_SEATS && !map.origins) throw new Error("Maps with more than four seats require origins");
+  if (!map.origins) return;
+  if (map.origins.length !== (map.seats ?? 2) || map.origins.some(p => !Number.isInteger(p.x) || !Number.isInteger(p.y))) {
+    throw new Error("Map origins must contain one integer position per seat");
+  }
+  if (new Set(sides).size !== sides.length || sides.some(s => !Number.isInteger(s) || s < 0 || s >= map.origins!.length)) {
+    throw new Error("Players need distinct valid map seats");
+  }
+  const occupied = new Set<string>();
+  const tiles = [...map.walls, ...(map.neutralWalls ?? []), ...map.sharedDeposits,
+    ...map.origins.flatMap(origin => [...map.start, ...map.deposits].map(p => ({ x: p.x + origin.x, y: p.y + origin.y })))];
+  for (const p of tiles) {
+    const key = `${p.x},${p.y}`;
+    if (!Number.isInteger(p.x) || !Number.isInteger(p.y) || p.x < 0 || p.y < 0 || p.x >= map.width || p.y >= map.height || occupied.has(key)) {
+      throw new Error(`Invalid or overlapping map tile ${key}`);
+    }
+    occupied.add(key);
+  }
+}
+
 /** Events kept for `view(player, since)`. */
 const EVENT_WINDOW_TICKS = 600;
 /** What `view(player)` reports without `since`: events, combat and attacks of this last stretch. */
@@ -102,6 +127,7 @@ export class Match {
 
   constructor(cfg: MatchConfig) {
     if (cfg.players.some(p => p.id === NEUTRAL_OWNER)) throw new Error(`Player id ${NEUTRAL_OWNER} is reserved for scenario walls`);
+    validateOrigins(cfg.ruleset.map, cfg.players.map((p, i) => p.side ?? i));
     this.rules = cfg.ruleset;
     this.tickRate = cfg.tickRate;
     this.clock = new SimulationClock(cfg.tickRate);
@@ -119,7 +145,7 @@ export class Match {
     this.movement = new Movement(() => this.ruleset, this.clock, this.board, this.ents,
       owner => this.player(owner).side, (a, b) => this.hostile(a, b));
     this.players = cfg.players.map((p, i) => ({
-      id: p.id, side: p.side ?? i % 2, team: p.team ?? i, name: p.name, mineral: this.ruleset.startMineral, kills: 0, buildingKills: 0, alive: true,
+      id: p.id, side: p.side ?? (this.ruleset.map.origins ? i : i % 2), team: p.team ?? i, name: p.name, mineral: this.ruleset.startMineral, kills: 0, buildingKills: 0, alive: true,
       upgrades: {}, research: null,
     }));
     this.vision = new PlayerVision(() => this.ruleset, this.clock, {
@@ -561,7 +587,7 @@ export class Match {
 
   private setup() {
     const { map } = this.ruleset;
-    const mirror = (x: number, y: number, side: number) => seatToMap(x, y, side, map.width, map.height);
+    const mirror = (x: number, y: number, side: number) => seatToMap(x, y, side, map.width, map.height, map.origins);
     for (const w of map.walls ?? []) this.board.placeRock(w.x, w.y);
     for (const p of this.players) {
       for (const d of map.deposits) {

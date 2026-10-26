@@ -234,6 +234,7 @@ export class Movement {
   }
 
   directions(owner: PlayerId): [number, number][] {
+    if (this.rules().map.origins) return DIR_LIST;
     return SEAT_DIRS[this.sideOf(owner)] ?? DIR_LIST;
   }
 
@@ -249,7 +250,7 @@ export class Movement {
   /** Position of a tile in a seat's own reading order (row by row from its corner). */
   readingKey(x: number, y: number, side: number): number {
     const { width: W, height: H } = this.rules().map;
-    const [lx, ly] = mapToSeat(x, y, side, W, H);
+    const [lx, ly] = mapToSeat(x, y, side, W, H, this.rules().map.origins);
     return ly * W + lx;
   }
 

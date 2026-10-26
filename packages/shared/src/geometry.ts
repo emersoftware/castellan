@@ -14,8 +14,10 @@ export function dist(ax: number, ay: number, bx: number, by: number): number {
 /**
  * Where a tile of the map's layout lands for seat 0..3: as listed, rotated
  * 180°, 90° clockwise, 270°. Seats 2 and 3 need a square map.
+ * Explicit origins instead translate the common layout without rotation.
  */
-export function seatToMap(x: number, y: number, seat: number, w: number, h: number): [x: number, y: number] {
+export function seatToMap(x: number, y: number, seat: number, w: number, h: number, origins?: readonly { x: number; y: number }[]): [x: number, y: number] {
+  if (origins) return [x + origins[seat].x, y + origins[seat].y];
   switch (seat) {
     case 1: return [w - 1 - x, h - 1 - y];
     case 2: return [w - 1 - y, x];
@@ -25,7 +27,8 @@ export function seatToMap(x: number, y: number, seat: number, w: number, h: numb
 }
 
 /** The inverse of `seatToMap`: a map tile in the seat's own layout coordinates. */
-export function mapToSeat(x: number, y: number, seat: number, w: number, h: number): [x: number, y: number] {
+export function mapToSeat(x: number, y: number, seat: number, w: number, h: number, origins?: readonly { x: number; y: number }[]): [x: number, y: number] {
+  if (origins) return [x - origins[seat].x, y - origins[seat].y];
   switch (seat) {
     case 1: return [w - 1 - x, h - 1 - y];
     case 2: return [y, w - 1 - x];

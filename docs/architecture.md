@@ -77,6 +77,13 @@ winning side is a loss for everyone.
 
 ## Determinism and replays
 
+Corner maps rotate a common layout as before. Maps with explicit `origins`
+translate their local starts and deposits to each seat without rotation; this
+supports the six-seat `hex` FFA. The engine validates those origins and occupied
+tiles before allocating VMs. [Map design and measured routes](maps.md) document
+the geometry and its limits; lobby, guide and mineral rendering consume the same
+embedded map data.
+
 - No `Date` or unseeded randomness in the engine or scripts; `self.random()` is seeded.
   Iteration follows creation order and seats, so mirrored play stays mirrored.
 - Script budgets count QuickJS interrupt cycles, not milliseconds.

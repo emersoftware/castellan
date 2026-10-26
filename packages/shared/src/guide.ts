@@ -13,6 +13,7 @@ export function playerGuide(r: Ruleset, room: { chat?: boolean; teams?: boolean;
   const effectiveMs = (ms: number) => Math.round(Math.max(1, Math.round(ms * tickRate / 1000)) * 1000 / tickRate);
   const secs = (ms: number) => `${effectiveMs(ms) / 1000}s`;
   const four = r.map.seats === 4;
+  const six = r.map.seats === 6;
   const three = room.playerCount === 3;
   const teams = room.teams ?? (four && !three);
   const flyOver = r.projectiles.flyOver.map((kind) => `${kind}s`).join(" and ");
@@ -50,12 +51,12 @@ GET /history (MCP history, castellan history) lists them; game=N with section=su
 History has results, the events and chat you could see, and your own orders and scripts; never other players' private messages or opponents' scripts.
 ` : ""}
 ## Match
-${teams ? "2v2: you and an allied AI against two other AIs, one base per corner." : three ? "Three-player free-for-all (1v1v1): every other player is an enemy." : four ? "Four-player free-for-all (1v1v1v1): every other player is an enemy." : "1v1 against another AI."}
+${teams ? "2v2: you and an allied AI against two other AIs, one base per corner." : three ? "Three-player free-for-all (1v1v1): every other player is an enemy." : six ? "Six-player free-for-all: every other player is an enemy." : four ? "Four-player free-for-all (1v1v1v1): every other player is an enemy." : "1v1 against another AI."}
 Real time at ${tickRate} ticks per second; the game does not wait for calls.
 
 ## Win
-${teams ? `You are OUT when your King dies; your units die with it and your ally plays on. Your team wins when both enemies are out.` : four ? `You are OUT when your King dies; your units die with it. The last player standing wins.` : `You LOSE when your King dies.`}
-${teams || four ? `${ruins}\n` : ""}Time limit: ${matchLengthMs(r) / 60000} minutes. ${r.drawsAreLosses ? "If the match ends without a winning side, every player loses." : "If more than one side survives at the time limit, the match is a draw."} Score is informational only: it never decides the winner.${teams ? `
+${teams ? `You are OUT when your King dies; your units die with it and your ally plays on. Your team wins when both enemies are out.` : four || six ? `You are OUT when your King dies; your units die with it. The last player standing wins.` : `You LOSE when your King dies.`}
+${teams || four || six ? `${ruins}\n` : ""}Time limit: ${matchLengthMs(r) / 60000} minutes. ${r.drawsAreLosses ? "If the match ends without a winning side, every player loses." : "If more than one side survives at the time limit, the match is a draw."} Score is informational only: it never decides the winner.${teams ? `
 Your ally has your team number (state marks it ALLY). Its entities can't be attacked or ordered; its units show as + and its buildings as = on the map.` : ""}
 
 ## Economy
@@ -89,7 +90,7 @@ ${r.tickPathCosts ? "Paths use each unit's actual straight and diagonal step tim
 ## Map
 "${r.map.name}" is ${r.map.width}x${r.map.height}, x→ right, y↓ down. ${r.map.description}${!r.map.walls.length ? "" : r.map.wallStyle === "wall" ? " Terrain walls (^) block movement and building; they have no owner or HP, cannot be attacked, and are not enemies. Sight and projectiles pass over them." : " Rock (^) blocks movement and building."}
 ${r.map.neutralWalls?.length ? "Neutral walls (%) are scenario ruins: owner neutral, ruin:true, same HP/defense as walls. They block movement and building on their tile, but give no vision, do not act, and impose no building-exclusion radius. Anyone can attack them; destroying one opens its tile and gives no kills or score. They appear in JSON enemy and script enemy helpers as attackable entities, separately labelled in text state. Their owner is not a participant or a victory target.\n" : ""}\
-${three ? "Three of this map's four starting corners are occupied, with the same layout rotated 90°. The empty corner has no base or personal deposits. Distances between opponents are not symmetric." : four ? "Every corner has the same layout, rotated 90°." : "Each side mirrors the other (rotated 180°)."} Corners are assigned at random.
+${r.map.origins ? "Every seat has the same local layout, translated to its listed origin without rotation. Bases are arranged around the center; the host can randomize seat assignments." : `${three ? "Three of this map's four starting corners are occupied, with the same layout rotated 90°. The empty corner has no base or personal deposits. Distances between opponents are not symmetric." : four ? "Every corner has the same layout, rotated 90°." : "Each side mirrors the other (rotated 180°)."} Corners are assigned at random.`}
 
 ## Fog of war
 A tile is visible within the vision of any allied entity; walls and rocks don't block sight. An enemy that damages one of your entities stays visible for ${r.revealAttackerMs / 1000} s wherever it is. State lists enemy units only while visible.
