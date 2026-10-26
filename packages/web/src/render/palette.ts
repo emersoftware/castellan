@@ -20,8 +20,8 @@ export const RAMPS = {
   teamC: { key: 0x00ffff, steps: ["#000000", "#23a19a", "#b0fff4"] },
   /** Player 4: amethyst. */
   teamD: { key: 0xff00ff, steps: ["#000000", "#8e3fc4", "#eec4ff"] },
-  /** Player 5: vivid rose pink; its internal half-red key remains separate from terrain. */
-  teamE: { key: 0x80ff00, steps: ["#000000", "#e02c83", "#ff8fc5"] },
+  /** Player 5: warm rose pink; its internal half-red key remains separate from terrain. */
+  teamE: { key: 0x80ff00, steps: ["#000000", "#df5975", "#ffb1c1"] },
   /** Player 6: warm golden yellow; the half-blue key separates it from mineral and fire. */
   teamF: { key: 0xff0080, steps: ["#000000", "#d59618", "#ffd36a"] },
   /** Grass barely lit, the black shows through. */
