@@ -10,6 +10,18 @@ export type ReplayPlayerSummary = ReplayFile["players"][number] & {
   effort?: Effort | null;
 };
 
+/** Players grouped by team, in seat order; a player without a team is alone. */
+export function teamsOf<P extends { team?: number }>(players: readonly P[]): P[][] {
+  const teams = new Map<number, P[]>();
+  players.forEach((p, i) => teams.set(p.team ?? -1 - i, [...(teams.get(p.team ?? -1 - i) ?? []), p]));
+  return [...teams.values()];
+}
+
+/** "a & b vs. c & d". */
+export function matchupTitle(players: readonly { name: string; team?: number }[]): string {
+  return teamsOf(players).map((team) => team.map((p) => p.name).join(" & ")).join(" vs. ");
+}
+
 /** How a declared effort reads in the catalogue. */
 export function effortText(effort: string | null | undefined): string {
   return !effort ? "Effort not recorded" : OFF.some((off) => off === effort) ? "Reasoning off" : `${effort[0].toUpperCase()}${effort.slice(1)} effort`;

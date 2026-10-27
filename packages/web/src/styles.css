@@ -181,6 +181,20 @@ footer { text-align: center; padding: 40px 24px 60px; color: var(--dark-grey); f
 .corner .live { color: var(--b-light); margin: 0 10px; }
 .corner.right { left: auto; right: 14px; top: auto; bottom: 70px; }
 .corner.brandmark { top: auto; bottom: 18px; color: var(--grey); text-transform: uppercase; letter-spacing: 0.2em; }
+.perspective-badge { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--white); }
+.video-top { display: flex; align-items: center; gap: 14px; }
+/* A replay's link preview (1200×630 at device scale 2): the brand on top, the matchup over the board. */
+.link-preview canvas { image-rendering: pixelated; }
+.link-preview .brand-head { font-family: var(--title); font-size: 22px; color: var(--white); text-shadow: 0 1px 3px #000; }
+.link-preview-title { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; padding: 40px 18px 14px; text-align: center;
+  background: linear-gradient(to top, rgba(0,0,0,0.94) 55%, rgba(0,0,0,0)); font-family: var(--serif); }
+.link-preview-title .matchup { font-size: 19px; line-height: 1.3; }
+/* A team stays on one line; lines break between teams. */
+.link-preview-title .team { white-space: nowrap; }
+.link-preview-title .matchup .pid { font-size: 0.6em; }
+.link-preview-title .vs, .link-preview-title .sub { color: var(--light-grey); }
+.link-preview-title .sub { margin-top: 4px; font-family: var(--sans); font-size: 12px; letter-spacing: 0.06em; }
+.video-top .speeds button { padding: 4px 8px; font-size: 13px; }
 
 .banner {
   position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 4; text-align: center;
@@ -322,6 +336,8 @@ button.on { background: linear-gradient(to bottom, #ffffff, #8c8c8c); }
   grid-template-areas: "stage side" "controls controls";
 }
 .viewer .stage { grid-area: stage; position: relative; overflow: hidden; min-width: 0; min-height: 0; }
+/* Recordings at device scale 2: each board pixel a 2×2 block, so the dither survives video compression. */
+.video canvas { image-rendering: pixelated; }
 .viewer .zoom { bottom: 14px; }
 .viewer .tooltip { bottom: 14px; max-width: calc(100% - 90px); }
 .unit-panel {

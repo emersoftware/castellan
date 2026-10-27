@@ -2,19 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { track, trackError } from "../analytics";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import type { ChatMessage, GameEvent, MomentChange, SoundName, SpectatorView } from "@castellan/shared";
-import { NEUTRAL_OWNER, pagePath, pages, readMoment, writeMoment } from "@castellan/shared";
+import type { MomentChange, SoundName } from "@castellan/shared";
+import { pagePath, pages, readMoment, writeMoment } from "@castellan/shared";
 import { api, playerColors, fmtTime } from "../api";
 import { playerPerspective } from "../perspective";
 import { sfx } from "../audio/sfx";
 import { GameCanvas } from "../components/GameCanvas";
-import { ViewerTop, DepositPanel, OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, UnitPanel, notableEvents } from "../components/Hud";
+import { ViewerTop, DepositPanel, OutcomeBanner, SidePanel, SoundToggle, Tooltip, PlayerList, UnitPanel } from "../components/Hud";
+import { Timeline, marksOf } from "../components/Timeline";
+import { upTo, useEventIndex } from "../replayEvents";
 import { useUnitSelection } from "../useSelection";
 import { scriptAt } from "../scripts";
 import type { HoverInfo, SoundSink } from "../render/renderer";
 import { useReplayFrames } from "../useReplay";
 import { ShareMoment } from "../components/ShareMoment";
-import { agentText } from "../components/Agent";
 
 const SPEEDS = [0.5, 1, 2, 4, 8, 16];
 /** The viewer's chosen speed, kept for the tab: the next game of a series plays on at it. */
@@ -33,51 +34,6 @@ export function writeUrl(moment: MomentChange) {
   const url = new URL(location.href);
   writeMoment(url.searchParams, moment);
   if (url.href !== location.href) history.replaceState(history.state, "", url);
-}
-
-/** Notable events of every frame for one perspective, built once as frames stream in. */
-function useEventIndex(frames: { current: SpectatorView[] }, loaded: number, player: string | null) {
-  const cache = useRef(new Map<string, { upTo: number; events: GameEvent[] }>());
-  return useMemo(() => {
-    const key = player ?? "";
-    let c = cache.current.get(key);
-    if (!c || c.upTo > frames.current.length) cache.current.set(key, (c = { upTo: 0, events: [] }));
-    for (; c.upTo < frames.current.length; c.upTo++) {
-      const events = playerPerspective(frames.current[c.upTo], player)?.events ?? [];
-      if (events.length) c.events.push(...notableEvents(events).filter((e) => e.type !== "chat"));
-    }
-    return c.events.slice();
-  }, [frames, loaded, player]);
-}
-
-/** Events up to `tick` (the list is in tick order). */
-function upTo<T extends { tick: number }>(list: T[], tick: number): T[] {
-  let lo = 0, hi = list.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (list[mid].tick <= tick) lo = mid + 1; else hi = mid;
-  }
-  return list.slice(0, lo);
-}
-
-type Mark = { tick: number; kind: "death" | "eliminated" | "chat" | "end"; color?: number; count: number; label: string };
-
-/** Timeline marks, grouped in half-percent buckets so a battle is one mark, not a hundred. */
-function marksOf(events: GameEvent[], chat: ChatMessage[], total: number, colors: Record<string, number>, names: Record<string, string>): Mark[] {
-  const buckets = new Map<string, Mark>();
-  const add = (tick: number, kind: Mark["kind"], owner: string | undefined, what: string) => {
-    const key = `${kind}:${owner ?? ""}:${Math.round((tick / Math.max(1, total - 1)) * 200)}`;
-    const m = buckets.get(key);
-    if (m) { m.count++; return; }
-    buckets.set(key, { tick, kind, color: owner === NEUTRAL_OWNER ? undefined : colors[owner ?? ""] ?? 0, count: 1, label: `${owner ? `${agentText(owner, names[owner])} ` : ""}${what}` });
-  };
-  for (const e of events) {
-    if (e.type === "death") add(e.tick, "death", e.owner, e.owner === NEUTRAL_OWNER ? "wall destroyed" : "lost units");
-    else if (e.type === "eliminated") add(e.tick, "eliminated", e.owner, "is out");
-    else if (e.type === "match_end") add(e.tick, "end", undefined, "the battle is over");
-  }
-  for (const m of chat) add(m.tick, "chat", m.from, "chat");
-  return [...buckets.values()];
 }
 
 export function ReplayPlayer({ id, onEnded, initialPlaying = true, series }: {
@@ -206,7 +162,6 @@ export function ReplayPlayer({ id, onEnded, initialPlaying = true, series }: {
     return () => clearTimeout(timer);
   }, [playing, atEnd, onEnded]);
 
-  const pct = (tick: number) => `${(100 * tick) / Math.max(1, total - 1)}%`;
   const players = display && <PlayerList selectedPlayer={selectedPlayer} onSelectPlayer={(player) => { setSelectedPlayer(player); setHover(null); track("replay_perspective_changed", { replay_id: id, perspective: player ?? "all" }); }} onSelectUnit={unit.setSelected} colors={colors} view={display} names={names} subtitle={series} />;
 
   if (replay.isError || error) return <div className="page load-state" role="alert">
@@ -231,19 +186,7 @@ export function ReplayPlayer({ id, onEnded, initialPlaying = true, series }: {
         <button className="play" onClick={togglePlayback} title="play / pause (space)">{playing ? "Pause" : "Play"}</button>
         <button onClick={() => seekTo((i) => i - tickRate)} title="back 1 s (←, shift for 10 s)">−1s</button>
         <button onClick={() => seekTo((i) => i + tickRate)} title="forward 1 s (→, shift for 10 s)">+1s</button>
-        <div className="timeline">
-          <div className="marks">
-            {marks.map((m) => (
-              <button key={`${m.kind}-${m.tick}-${m.color}`} className={`mark ${m.kind}${m.color === undefined ? "" : ` bg${m.color}`}`} style={{ left: pct(m.tick), ...(m.color === undefined ? { background: "var(--grey)" } : {}) }}
-                title={`${fmtTime(m.tick * tickMs)} ${m.label}${m.count > 1 ? ` ×${m.count}` : ""}`} onClick={() => seekTo(m.tick)} />
-            ))}
-          </div>
-          <input
-            type="range" min={0} max={Math.max(0, total - 1)} value={index} aria-label="match time"
-            onChange={(e) => seekTo(Number(e.target.value))}
-            style={{ ["--loaded" as string]: `${(100 * loaded) / Math.max(1, total)}%` }}
-          />
-        </div>
+        <Timeline marks={marks} total={total} index={index} loaded={loaded} tickMs={tickMs} onSeek={seekTo} />
         <span className="time">{fmtTime(index * tickMs)} / {fmtTime((total - 1) * tickMs)}</span>
         <span className="speeds">
           {SPEEDS.map((s, i) => (

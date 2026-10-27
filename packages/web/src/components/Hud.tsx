@@ -74,14 +74,29 @@ export function ViewerTop({ view }: { view: SpectatorView | null }) {
 }
 
 /** A bordered square with an eye: whose view the map shows. */
+function Eye({ size = 12 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true">
+      <path d="M1 8s2.6-4.6 7-4.6S15 8 15 8s-2.6 4.6-7 4.6S1 8 1 8z" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="8" cy="8" r="2.2" fill="currentColor" />
+    </svg>
+  );
+}
+
 function ViewButton({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
   return (
     <button className={`view-eye${on ? " on" : ""}`} aria-pressed={on} aria-label={label} title={label} onClick={onClick}>
-      <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
-        <path d="M1 8s2.6-4.6 7-4.6S15 8 15 8s-2.6 4.6-7 4.6S1 8 1 8z" fill="none" stroke="currentColor" strokeWidth="1.6" />
-        <circle cx="8" cy="8" r="2.2" fill="currentColor" />
-      </svg>
+      <Eye />
     </button>
+  );
+}
+
+/** Over the map: whose view (and fog of war) it shows. */
+export function PerspectiveBadge({ player, names, colors }: { player: string; names: Record<string, string>; colors: Record<string, number> }) {
+  return (
+    <div className="perspective-badge">
+      <Eye size={14} /> <Agent id={player} name={names[player]} color={colors[player]} />
+    </div>
   );
 }
 

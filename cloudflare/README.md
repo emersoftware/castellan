@@ -62,6 +62,11 @@ Publication reads what D1 holds, then uploads only new or changed battles.
 It never rewrites unchanged rows or deletes published games.
 Public API caches expire within 60 seconds.
 
+A replay's link preview goes with it when `~/.local/share/castellan/og/<id>.png` exists: draw it with
+`node packages/web/scripts/record.mjs <id> --og` (its biggest battle, the players by team, no winner; needs `pnpm web`
+and `--server http://localhost:5173` while `dist` is stale). The page's `og:image` then points to `/og/<id>.png?v=<hash>`;
+a replay without one keeps the site's picture, and republishing without the local file keeps the published one.
+
 Use `--only <id,...>` for curated releases. Without it, publication includes every
 eligible local recording, even old games removed from the public catalog.
 The selected IDs must exist and be publishable. A series goes in only when

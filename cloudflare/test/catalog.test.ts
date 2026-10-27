@@ -31,12 +31,12 @@ const entry = (replay: ReplayFile): Publication["replays"][number] => ({ replay,
 
 const migrated = async () => {
   const db = new DatabaseSync(":memory:");
-  for (const file of ["0001_catalog.sql", "0002_replay_chunks.sql"]) db.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8"));
+  for (const file of ["0001_catalog.sql", "0002_replay_chunks.sql", "0003_replay_images.sql"]) db.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8"));
   return db;
 };
 const stored = (db: DatabaseSync, id: string) => (db.prepare("SELECT chunk FROM replay_chunks WHERE id = ? ORDER BY n").all(id) as { chunk: string }[]).map((r) => r.chunk).join("");
-const publishedIn = (db: DatabaseSync): Published => new Map((db.prepare("SELECT id, content_hash, summary_json FROM replays").all() as { id: string; content_hash: string; summary_json: string }[])
-  .map((r) => [r.id, { contentHash: r.content_hash, summaryJson: r.summary_json }]));
+const publishedIn = (db: DatabaseSync): Published => new Map((db.prepare("SELECT id, content_hash, summary_json, image_hash FROM replays").all() as { id: string; content_hash: string; summary_json: string; image_hash: string | null }[])
+  .map((r) => [r.id, { contentHash: r.content_hash, summaryJson: r.summary_json, imageHash: r.image_hash }]));
 
 it("imports exact JSON into SQLite, safely quotes scripts, and writes nothing on a repeat publication", async () => {
   const db = await migrated();
@@ -63,6 +63,23 @@ it("stores a replay larger than one D1 statement in pieces and reassembles it ex
     expect(db.exec(sql)).toBeUndefined();
     expect((db.prepare("SELECT count(*) AS n FROM replay_chunks").get()!.n as number)).toBeGreaterThan(2);
     expect(JSON.parse(stored(db, replay.id))).toEqual(replay);
+  } finally { db.close(); }
+});
+
+it("publishes a replay's picture once, keeps it when republished without one, and replaces it when it changes", async () => {
+  const db = await migrated();
+  try {
+    const picture = (bytes: number[]) => Buffer.from([0x89, 0x50, 0x4e, 0x47, ...bytes]);
+    const image = () => Buffer.from((db.prepare("SELECT chunk FROM replay_images WHERE id = ? ORDER BY n").all(fixture.id) as { chunk: string }[]).map((r) => r.chunk).join(""), "base64");
+    db.exec(publicationSQL({ replays: [{ ...entry(fixture), image: picture([1, 2, 3]) }], series: [], excluded: 0 }));
+    expect(image()).toEqual(picture([1, 2, 3]));
+    expect(publicationSQL({ replays: [{ ...entry(fixture), image: picture([1, 2, 3]) }], series: [], excluded: 0 }, publishedIn(db))).toBe("");
+    // A summary change without a local picture leaves the published one in place.
+    db.exec(publicationSQL({ replays: [{ ...entry(fixture), summary: { ...entry(fixture).summary, title: "Renamed" } }], series: [], excluded: 0 }, publishedIn(db)));
+    expect(image()).toEqual(picture([1, 2, 3]));
+    expect(publishedIn(db).get(fixture.id)!.imageHash).toMatch(/^[0-9a-f]{64}$/);
+    db.exec(publicationSQL({ replays: [{ ...entry(fixture), summary: { ...entry(fixture).summary, title: "Renamed" }, image: picture([9]) }], series: [], excluded: 0 }, publishedIn(db)));
+    expect(image()).toEqual(picture([9]));
   } finally { db.close(); }
 });
 

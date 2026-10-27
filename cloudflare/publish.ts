@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { collectPublication, publicationSQL, type Published } from "./catalog";
-import { localReplays } from "../packages/shared/src/localData";
+import { localData, localReplays } from "../packages/shared/src/localData";
 
 const args = process.argv.slice(2);
 // `--version v21b`: only games under that set of rules (the engine replays no other), and series made of them.
@@ -14,7 +14,8 @@ const onlyAt = args.indexOf("--only"), only = onlyAt >= 0 ? new Set(args.splice(
 if (onlyAt >= 0 && !only?.size) throw new Error("--only needs comma-separated replay ids");
 if (args.some((arg) => !["--local", "--dry-run"].includes(arg))) throw new Error("Usage: pnpm publish:replays [--local] [--dry-run] [--version <prefix>] [--only <id,...>]");
 const root = resolve(import.meta.dirname, "..");
-const publication = await collectPublication(root, localReplays(), only);
+// Link previews drawn with `node packages/web/scripts/record.mjs <id> --og` go with their replays.
+const publication = await collectPublication(root, localReplays(), only, localData("og"));
 if (version || only) {
   if (version) publication.replays = publication.replays.filter((r) => r.replay.ruleset.version === version || r.replay.ruleset.version.startsWith(`${version}-`));
   if (only) publication.replays = publication.replays.filter((r) => only.has(r.replay.id));
@@ -27,10 +28,10 @@ const wrangler = (extra: string[]) => {
   return result;
 };
 // Unchanged rows are not rewritten: compare with what D1 already holds.
-const state = wrangler(["--command", "SELECT id, content_hash, summary_json FROM replays"]);
+const state = wrangler(["--command", "SELECT id, content_hash, summary_json, image_hash FROM replays"]);
 if (state.status !== 0) throw new Error(`Could not read the published catalogue (exit ${state.status}); apply migrations with pnpm cloud:migrate.`);
-const rows: { id: string; content_hash: string; summary_json: string }[] = JSON.parse(state.stdout)[0].results;
-const published: Published = new Map(rows.map((r) => [r.id, { contentHash: r.content_hash, summaryJson: r.summary_json }]));
+const rows: { id: string; content_hash: string; summary_json: string; image_hash: string | null }[] = JSON.parse(state.stdout)[0].results;
+const published: Published = new Map(rows.map((r) => [r.id, { contentHash: r.content_hash, summaryJson: r.summary_json, imageHash: r.image_hash }]));
 const sql = publicationSQL(publication, published);
 const changed = publication.replays.filter(({ replay }) => sql.includes(`VALUES('${replay.id}',`)).length;
 console.log(`${publication.replays.length} agent battles (${changed} new or changed), ${publication.series.length} complete series; ${publication.excluded} bot/demo recordings excluded.`);

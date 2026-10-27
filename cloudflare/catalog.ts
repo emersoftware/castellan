@@ -21,7 +21,8 @@ interface Entry {
   rulesVersion?: string;
 }
 export interface Publication {
-  replays: { replay: ReplayFile; summary: Entry }[];
+  /** `image`: the replay's link preview (PNG), when one was drawn locally. */
+  replays: { replay: ReplayFile; summary: Entry; image?: Buffer }[];
   series: { summary: SeriesSummary; savedAt: string }[];
   excluded: number;
 }
@@ -75,8 +76,11 @@ export function completeSeries(entries: Publication["replays"], titles: Record<s
   return series;
 }
 
-/** The `local` archive's agent matches, titled from the repository's `cloudflare/titles.json` under `root`. */
-export async function collectPublication(root: string, local: string, only?: ReadonlySet<string>): Promise<Publication> {
+/**
+ * The `local` archive's agent matches, titled from the repository's `cloudflare/titles.json` under `root`,
+ * with the link previews found in `images` as `<id>.png`.
+ */
+export async function collectPublication(root: string, local: string, only?: ReadonlySet<string>, images?: string): Promise<Publication> {
   let titles: { replays: Record<string, string>; series: Record<string, string> } = { replays: {}, series: {} };
   try { titles = JSON.parse(await readFile(join(root, "cloudflare/titles.json"), "utf8")); }
   catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; }
@@ -96,7 +100,12 @@ export async function collectPublication(root: string, local: string, only?: Rea
     const replay = publicReplay(raw);
     // When the match ended: file times move when recordings are copied or rewritten.
     const savedAt = new Date(Date.parse(replay.createdAt) + replay.finalTick * 1000 / replay.tickRate).toISOString();
-    replays.push({ replay, summary: {
+    let image: Buffer | undefined;
+    if (images) {
+      try { image = await readFile(join(images, `${id}.png`)); }
+      catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; }
+    }
+    replays.push({ replay, ...(image ? { image } : {}), summary: {
       id, title: titles.replays[id] ?? `${replay.players.map((p) => p.name).join(" vs. ")} — ${replay.ruleset.map.name ?? "Open field"}`,
       createdAt: replay.createdAt, savedAt, players: replayPlayerSummaries(raw), outcome: replay.outcome,
       finalTick: replay.finalTick, tickRate: replay.tickRate, rulesVersion: replay.ruleset.version, map: replay.ruleset.map.name,
@@ -124,21 +133,27 @@ function chunks(payload: string): string[] {
 }
 
 /** What D1 already holds for a replay, to skip unchanged rows. */
-export type Published = Map<string, { contentHash: string; summaryJson: string }>;
+export type Published = Map<string, { contentHash: string; summaryJson: string; imageHash?: string | null }>;
 
-const contentHash = (payload: string) => createHash("sha256").update(payload).digest("hex");
+const contentHash = (payload: string | Buffer) => createHash("sha256").update(payload).digest("hex");
 
 export function publicationSQL(publication: Publication, published: Published = new Map()): string {
   const statements: string[] = [];
-  for (const { replay, summary } of publication.replays) {
+  for (const { replay, summary, image } of publication.replays) {
     const payload = JSON.stringify(replay), hash = contentHash(payload), summaryJson = JSON.stringify(summary);
-    const before = published.get(replay.id);
-    if (before?.contentHash === hash && before.summaryJson === summaryJson) continue;
+    const before = published.get(replay.id), imageHash = image && contentHash(image);
+    const newImage = !!imageHash && before?.imageHash !== imageHash;
+    if (before?.contentHash === hash && before.summaryJson === summaryJson && !newImage) continue;
     if (before?.contentHash !== hash) {
       statements.push(`DELETE FROM replay_chunks WHERE id=${quote(replay.id)};`);
       chunks(payload).forEach((chunk, n) => statements.push(`INSERT INTO replay_chunks(id,n,chunk) VALUES(${quote(replay.id)},${n},${quote(chunk)});`));
     }
-    statements.push(`INSERT INTO replays(id,saved_at,summary_json,content_hash) VALUES(${[replay.id, summary.savedAt, summaryJson, hash].map(quote).join(",")}) ON CONFLICT(id) DO UPDATE SET saved_at=excluded.saved_at,summary_json=excluded.summary_json,content_hash=excluded.content_hash;`);
+    if (newImage) {
+      statements.push(`DELETE FROM replay_images WHERE id=${quote(replay.id)};`);
+      chunks(image.toString("base64")).forEach((chunk, n) => statements.push(`INSERT INTO replay_images(id,n,chunk) VALUES(${quote(replay.id)},${n},${quote(chunk)});`));
+    }
+    // A publication without a local picture keeps the one already published.
+    statements.push(`INSERT INTO replays(id,saved_at,summary_json,content_hash,image_hash) VALUES(${[replay.id, summary.savedAt, summaryJson, hash].map(quote).join(",")},${imageHash ? quote(imageHash) : "NULL"}) ON CONFLICT(id) DO UPDATE SET saved_at=excluded.saved_at,summary_json=excluded.summary_json,content_hash=excluded.content_hash,image_hash=COALESCE(excluded.image_hash,replays.image_hash);`);
   }
   for (const { summary, savedAt } of publication.series) statements.push(`INSERT INTO series(id,saved_at,summary_json) VALUES(${[summary.id, savedAt, JSON.stringify(summary)].map(quote).join(",")}) ON CONFLICT(id) DO UPDATE SET saved_at=excluded.saved_at,summary_json=excluded.summary_json WHERE series.summary_json != excluded.summary_json OR series.saved_at != excluded.saved_at;`);
   for (const statement of statements) if (Buffer.byteLength(statement) >= STATEMENT_LIMIT) throw new Error("A catalogue statement exceeds D1's 100 KB SQL import limit. Nothing was uploaded.");

@@ -8,7 +8,7 @@
     "directory": "packages/web/dist-cloudflare",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/replay/*"]
+    "run_worker_first": ["/api/*", "/replay/*", "/og/*"]
   },
   "d1_databases": [{
     "binding": "DB",

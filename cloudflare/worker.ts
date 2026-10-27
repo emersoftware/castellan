@@ -43,18 +43,33 @@ async function readAPI(path: string, db: D1Database): Promise<Response> {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const preview = /^\/og\/([a-zA-Z0-9_-]+)\.png$/.exec(url.pathname);
+    if (preview && (request.method === "GET" || request.method === "HEAD")) {
+      let results: { chunk: string }[];
+      try { ({ results } = await env.DB.prepare("SELECT chunk FROM replay_images WHERE id = ? ORDER BY n").bind(preview[1]).all<{ chunk: string }>()); }
+      catch {
+        console.error(JSON.stringify({ event: "preview_read_failed", id: preview[1] }));
+        return error("Preview temporarily unavailable", 503);
+      }
+      if (!results.length) return new Response("Not found", { status: 404, headers: { "cache-control": "public, max-age=300" } });
+      const png = Uint8Array.from(atob(results.map((r) => r.chunk).join("")), (c) => c.charCodeAt(0));
+      // Pages link the picture with its hash, so each address always shows the same one.
+      const headers = { "content-type": "image/png", "cache-control": "public, max-age=31536000, immutable", "x-content-type-options": "nosniff" };
+      return new Response(request.method === "HEAD" ? null : png, { headers });
+    }
     const replayPage = /^\/replay\/([a-zA-Z0-9_-]+)$/.exec(url.pathname);
     if (replayPage && request.method === "GET") {
       const page = await env.ASSETS.fetch(request);
       try {
-        const row = await env.DB.prepare("SELECT summary_json FROM replays WHERE id = ?").bind(replayPage[1]).first<{ summary_json: string }>();
+        const row = await env.DB.prepare("SELECT summary_json, image_hash FROM replays WHERE id = ?").bind(replayPage[1]).first<{ summary_json: string; image_hash: string | null }>();
         if (!row || !page.headers.get("content-type")?.includes("text/html")) return page;
-        const meta = replayMeta(JSON.parse(row.summary_json), request.url);
+        const meta = replayMeta(JSON.parse(row.summary_json), request.url, row.image_hash);
         return new HTMLRewriter()
           .on("title", { element: el => { el.setInnerContent(meta.title); } })
           .on('meta[property="og:title"], meta[name="twitter:title"]', { element: el => { el.setAttribute("content", meta.title); } })
           .on('meta[name="description"], meta[property="og:description"], meta[name="twitter:description"]', { element: el => { el.setAttribute("content", meta.description); } })
           .on('meta[property="og:url"]', { element: el => { el.setAttribute("content", meta.url); } })
+          .on('meta[property="og:image"], meta[name="twitter:image"]', { element: el => { if (meta.image) el.setAttribute("content", meta.image); } })
           .transform(page);
       } catch {
         console.error(JSON.stringify({ event: "replay_preview_failed", id: replayPage[1] }));

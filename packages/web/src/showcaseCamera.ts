@@ -61,7 +61,7 @@ export function planShowcaseCamera(activity: CameraActivity[], startTick: number
     const held = points.filter(p => p.tick >= t && p.tick < t + maxClose && near(centre, p));
     const end = Math.min(t + maxClose, Math.max(t + minClose, Math.max(...held.map(p => p.tick)) + linger));
     const inShot = held.filter(p => p.tick < end);
-    return { end, centre, box: frame(inShot) };
+    return { end, centre, box: fightBox(inShot) };
   };
 
   const shots: CameraShot[] = [{ tick: startTick, box: null }];
@@ -115,7 +115,7 @@ function push(shots: CameraShot[], shot: CameraShot) {
 }
 
 /** Bounds of the fighters with some ground around them, never tighter than MIN_SIDE tiles. */
-function frame(points: { x: number; y: number }[]): CameraBox {
+export function fightBox(points: { x: number; y: number }[]): CameraBox {
   const xs = points.map(p => p.x), ys = points.map(p => p.y);
   const grow = (lo: number, hi: number) => {
     const extra = Math.max(0, MIN_SIDE - (hi - lo + 2 * PADDING)) / 2;

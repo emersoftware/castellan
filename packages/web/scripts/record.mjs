@@ -6,6 +6,9 @@
 // at high quality. A screen recording (QuickTime) gets neither and looks smeared.
 //   node scripts/record.mjs <replayId> [--speed 2] [--fps 30] [--scale 2] [--out file.mp4] [--clean]
 //     [--camera auto|x,y] [--zoom k] [--pov p1] [--from s] [--to s] [--fade-in s] [--fade-out s] [--world-in s] [--world-out s]
+//   --ui records the replay viewer (side panel, timeline, battle camera, opened scripts) in Full HD:
+//     a 960×540 layout at device scale 2, so text stays sharp and each board pixel is a 2×2 block.
+//   --og draws the replay's link preview instead: a 1200×630 PNG of its biggest battle (default ~/.local/share/castellan/og/<id>.png).
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -21,11 +24,13 @@ const { values: o, positionals } = parseArgs({
     fps: { type: "string", default: "30" },
     out: { type: "string" },
     server: { type: "string", default: process.env.CASTELLAN_SERVER ?? defaultServer },
-    width: { type: "string", default: "1280" },
-    height: { type: "string", default: "720" },
-    scale: { type: "string", default: "2" },
+    width: { type: "string" },
+    height: { type: "string" },
+    scale: { type: "string" },
     // Map only, without HUD (overlays come later in the video edit), and a camera that follows the fights.
     clean: { type: "boolean", default: false },
+    ui: { type: "boolean", default: false },
+    og: { type: "boolean", default: false },
     // "auto" (pans after the fighting) or a fixed "x,y" tile; zoom: the game's zoom steps (×1.25) from the whole map.
     camera: { type: "string" },
     zoom: { type: "string" },
@@ -44,14 +49,17 @@ const id = positionals[0];
 if (!id) throw new Error("usage: node scripts/record.mjs <replayId> [--speed 2] [--fps 30] [--out file.mp4]");
 const speed = Number(o.speed);
 const fps = Number(o.fps);
-const out = resolve(o.out ?? localData("videos", `${id}-${o.speed}x.mp4`));
+const [width, height] = [Number(o.width ?? (o.og ? 600 : o.ui ? 960 : 1280)), Number(o.height ?? (o.og ? 315 : o.ui ? 540 : 720))];
+// The viewer and the preview scale in the browser (sharp text); a bare board is enlarged by ffmpeg.
+const deviceScale = o.ui || o.og ? 2 : 1, scale = deviceScale > 1 ? 1 : Math.max(1, Math.round(Number(o.scale ?? 2)));
+const out = resolve(o.out ?? (o.og ? localData("og", `${id}.png`) : localData("videos", `${id}-${o.speed}x.mp4`)));
 mkdirSync(dirname(out), { recursive: true });
 
 const browser = await puppeteer.launch({
   executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   headless: true,
   args: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"],
-  defaultViewport: { width: Number(o.width), height: Number(o.height) },
+  defaultViewport: { width, height, deviceScaleFactor: deviceScale },
 });
 try {
   const page = await browser.newPage();
@@ -59,7 +67,7 @@ try {
   // Shot bounds and dissolves go to the page in game milliseconds.
   const gms = (s) => String(Math.round(Number(s) * 1000 * Number(o.speed)));
   const query = new URLSearchParams({
-    ...(o.clean ? { clean: "" } : {}), ...(o.camera ? { camera: o.camera } : {}), ...(o.zoom ? { zoom: o.zoom } : {}), ...(o.dy ? { dy: o.dy } : {}), ...(o.pov ? { pov: o.pov } : {}),
+    ...(o.clean ? { clean: "" } : {}), ...(o.ui ? { ui: "", speed: o.speed } : {}), ...(o.og ? { og: "" } : {}), ...(o.camera ? { camera: o.camera } : {}), ...(o.zoom ? { zoom: o.zoom } : {}), ...(o.dy ? { dy: o.dy } : {}), ...(o.pov ? { pov: o.pov } : {}),
     ...(o.from ? { from: String(Number(o.from) * 1000) } : {}), ...(o.to ? { to: String(Number(o.to) * 1000) } : {}),
     ...(o["fade-in"] ? { fadeIn: gms(o["fade-in"]) } : {}), ...(o["fade-out"] ? { fadeOut: gms(o["fade-out"]) } : {}),
     ...(o["world-in"] ? { worldIn: gms(o["world-in"]) } : {}), ...(o["world-out"] ? { worldOut: gms(o["world-out"]) } : {}),
@@ -69,30 +77,38 @@ try {
   const clock = await page.evaluate(() => window.__record);
   if (!clock.ready) throw new Error(`replay ${id} cannot be recorded: ${clock.error}`);
   const { ticks, tickMs, verified } = clock;
-  const endMs = (ticks - 1) * tickMs;
-  const fromMs = o.from ? Number(o.from) * 1000 : 0, gameMs = o.to ? Math.min(endMs, Number(o.to) * 1000) : endMs;
-  const step = (1000 / fps) * speed;
-  // The last frame lands on `to` (where fades end); at the end of the game, the final screen holds 4 s.
-  const frames = Math.ceil((gameMs - fromMs) / step) + 1 + (gameMs === endMs ? fps * 4 : 0);
-  console.log(`replay ${id}: ${ticks} ticks, verified ${verified}; ${frames} frames → ${out}`);
-
-  const scale = Math.max(1, Math.round(Number(o.scale)));
-  const ffmpeg = encodeMp4(["-loglevel", "error", "-f", "image2pipe", "-framerate", String(fps), "-i", "-",
-    "-vf", `scale=iw*${scale}:ih*${scale}:flags=neighbor`], out);
+  // The clip's scale captures at the device scale (the default capture is in CSS pixels).
   const cdp = await page.createCDPSession();
-  const started = Date.now();
-  for (let k = 0; k < frames; k++) {
-    await page.evaluate((ms) => window.__record.frame(ms), Math.min(fromMs + k * step, gameMs));
-    const { data } = await cdp.send("Page.captureScreenshot", { format: "png" });
-    if (!ffmpeg.stdin.write(Buffer.from(data, "base64"))) await new Promise((r) => ffmpeg.stdin.once("drain", r));
-    if (k % 300 === 0) console.log(`  frame ${k}/${frames} (${((Date.now() - started) / 1000).toFixed(0)}s)`);
+  const capture = async () => Buffer.from((await cdp.send("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, width, height, scale: deviceScale } })).data, "base64");
+  if (o.og) {
+    await page.evaluate((ms) => window.__record.frame(ms), clock.stillMs);
+    await page.evaluate(() => document.fonts.ready);
+    writeFileSync(out, await capture());
+    console.log(`replay ${id}: preview at ${(clock.stillMs / 1000).toFixed(0)} s, verified ${verified} → ${out}`);
+  } else {
+    const endMs = (ticks - 1) * tickMs;
+    // The viewer recording starts 5 s of video before its story (the first march or fight), unless told otherwise.
+    const fromMs = o.from ? Number(o.from) * 1000 : o.ui && clock.storyMs !== undefined ? Math.max(0, clock.storyMs - 5000 * speed) : 0, gameMs = o.to ? Math.min(endMs, Number(o.to) * 1000) : endMs;
+    const step = (1000 / fps) * speed;
+    // The last frame lands on `to` (where fades end); at the end of the game, the final screen holds 4 s.
+    const frames = Math.ceil((gameMs - fromMs) / step) + 1 + (gameMs === endMs ? fps * 4 : 0);
+    console.log(`replay ${id}: ${ticks} ticks, verified ${verified}; from ${(fromMs / 1000).toFixed(1)} s, ${frames} frames → ${out}`);
+
+    const ffmpeg = encodeMp4(["-loglevel", "error", "-f", "image2pipe", "-framerate", String(fps), "-i", "-",
+      "-vf", `scale=iw*${scale}:ih*${scale}:flags=neighbor`], out);
+    const started = Date.now();
+    for (let k = 0; k < frames; k++) {
+      await page.evaluate((ms) => window.__record.frame(ms), Math.min(fromMs + k * step, gameMs));
+      if (!ffmpeg.stdin.write(await capture())) await new Promise((r) => ffmpeg.stdin.once("drain", r));
+      if (k % 300 === 0) console.log(`  frame ${k}/${frames} (${((Date.now() - started) / 1000).toFixed(0)}s)`);
+    }
+    ffmpeg.stdin.end();
+    // The board's sounds, in seconds of this video, for mixing its soundtrack.
+    const sounds = await page.evaluate(() => window.__record.sounds);
+    writeFileSync(out.replace(/\.mp4$/, ".sounds.json"), JSON.stringify(sounds.map((x) => ({ ...x, t: +((x.ms - fromMs) / 1000 / speed).toFixed(3) }))));
+    await new Promise((r, j) => ffmpeg.on("close", (c) => (c === 0 ? r() : j(new Error(`ffmpeg exit ${c}`)))));
+    console.log(`done: ${out}`);
   }
-  ffmpeg.stdin.end();
-  // The board's sounds, in seconds of this video, for mixing its soundtrack.
-  const sounds = await page.evaluate(() => window.__record.sounds);
-  writeFileSync(out.replace(/\.mp4$/, ".sounds.json"), JSON.stringify(sounds.map((x) => ({ ...x, t: +((x.ms - fromMs) / 1000 / speed).toFixed(3) }))));
-  await new Promise((r, j) => ffmpeg.on("close", (c) => (c === 0 ? r() : j(new Error(`ffmpeg exit ${c}`)))));
-  console.log(`done: ${out}`);
 } finally {
   await browser.close();
 }
