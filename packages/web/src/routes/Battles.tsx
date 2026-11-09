@@ -20,9 +20,10 @@ const PAGE_SIZE = 24;
 /**
  * The view lives in the address (`/battles?mode=duel&rules=v26&page=2`), so going back from a replay
  * returns to the same page and filters, and a view can be shared. Defaults stay out of the URL. `rules`
- * holds the family's label ("v0.29"), which, unlike "0.29", is not read back as a number.
+ * holds the family's label ("v0.29"), which, unlike "0.29", is not read back as a number. `model` is a
+ * recorded model ID (`?model=claude-fable-5-2`): only battles where a player declared it, for sharing.
  */
-export interface BattlesSearch { mode?: BattleMode; rules?: string; page?: number }
+export interface BattlesSearch { mode?: BattleMode; rules?: string; model?: string; page?: number }
 
 export function battlesSearch(search: Record<string, unknown>): BattlesSearch {
   const mode = filters.find((value): value is BattleMode => value !== "all" && value === search.mode);
@@ -30,6 +31,7 @@ export function battlesSearch(search: Record<string, unknown>): BattlesSearch {
   return {
     ...(mode ? { mode } : {}),
     ...(typeof search.rules === "string" && search.rules ? { rules: search.rules } : {}),
+    ...(typeof search.model === "string" && search.model ? { model: search.model } : {}),
     ...(Number.isInteger(page) && page > 1 ? { page } : {}),
   };
 }
@@ -63,7 +65,9 @@ export function Battles() {
     if (value !== filter) track("battle_filter_changed", { mode: value });
     refine({ mode: value === "all" ? undefined : value });
   };
-  const onVersion = battles.filter(battle => version === "all" || battle.family === version);
+  // Series summaries carry no models, so a model view lists single battles only.
+  const ofModel = (battle: (typeof battles)[number]) => !search.model || (battle.kind === "replay" && battle.replay.players.some(player => player.model === search.model));
+  const onVersion = battles.filter(battle => (version === "all" || battle.family === version) && ofModel(battle));
   const visible = onVersion.filter(battle => filter === "all" || modeOf(battle) === filter);
   const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const page = Math.min(search.page ?? 1, pageCount);
@@ -90,12 +94,13 @@ export function Battles() {
             {families.map(family => <option key={family} value={family}>{familyLabel(family)}</option>)}
           </select>
         </label>
+        {search.model && <button className="battles-model on" onClick={() => refine({ model: undefined })} aria-label={`Show battles of every model, not only ${search.model}`}>{search.model} ×</button>}
         <span className="battles-order">Newest first</span>
       </div>
       <LoadState loading={replays.isPending} error={replays.isError} empty={replays.isSuccess && !battles.length} onRetry={() => { void replays.refetch(); void series.refetch(); }} />
       {replays.isSuccess && battles.length > 0 && visible.length === 0 && <div className="battles-empty" role="status">
         <p>No {filter === "all" ? "matching" : MODE_LABEL[filter]} battles yet.</p>
-        <button onClick={() => changeFilter("all")}>Show all battles</button>
+        <button onClick={() => refine({ mode: undefined, model: undefined })}>Show all battles</button>
       </div>}
       <div className="battle-list">
         {visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((battle) => {

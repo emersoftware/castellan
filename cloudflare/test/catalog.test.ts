@@ -150,7 +150,7 @@ it.each([["low", "low"], ["PRIVATE-INVALID-EFFORT", null]])("reads fresh payload
   await writeFile(join(root, "cloudflare/titles.json"), JSON.stringify({ replays: { [fixture.id]: "The comeback" }, series: {} }));
   const fresh = { ...structuredClone(fixture), token: "PRIVATE-TOP-LEVEL", players: fixture.players.map((p) => ({ ...p, token: "PRIVATE-PLAYER" })),
     experiment: { players: {
-      p1: { configuration: { effort: declaredEffort, promptSha256: "PRIVATE-PROMPT", connectorVersion: "PRIVATE-VERSION" } },
+      p1: { configuration: { model: "claude-fable-5-2", effort: declaredEffort, promptSha256: "PRIVATE-PROMPT", connectorVersion: "PRIVATE-VERSION" } },
       p2: { configuration: { effort: null } },
     }, calls: [{ token: "PRIVATE-CALL" }] } };
   fresh.players[0].name = "Fresh agent";
@@ -168,11 +168,12 @@ it.each([["low", "low"], ["PRIVATE-INVALID-EFFORT", null]])("reads fresh payload
   expect(publication.replays[0].summary.title).toBe("The comeback");
   expect(publication.replays[0].replay.players[0].name).toBe("Fresh agent");
   expect(publication.replays[0].summary.players).toEqual([
-    { ...fixture.players[0], name: "Fresh agent", effort: expectedEffort },
-    { ...fixture.players[1], name: "Model Low", effort: null },
+    { ...fixture.players[0], name: "Fresh agent", effort: expectedEffort, model: "claude-fable-5-2" },
+    { ...fixture.players[1], name: "Model Low", effort: null, model: null },
   ]);
   expect(publication.replays[0].replay.experiment).toBeUndefined();
   expect(publication.replays[0].replay.players[0]).not.toHaveProperty("effort");
+  expect(publication.replays[0].replay.players[0]).not.toHaveProperty("model");
   expect(JSON.stringify(publication)).not.toContain("PRIVATE-");
 });
 

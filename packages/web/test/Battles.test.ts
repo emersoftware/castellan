@@ -19,10 +19,10 @@ vi.mock("../src/audio/sfx", () => ({ sfx: { holdMusic: () => () => {} } }));
 vi.mock("../src/components/Hud", () => ({ ViewerTop: () => null, SoundToggle: () => null }));
 
 let root: Root, host: HTMLDivElement, client: QueryClient, router: ReturnType<typeof createRouter>;
-const battle = (id: string, teams: number[], efforts: (string | null)[], createdAt = "2026-10-14T00:00:00Z"): ReplaySummary => ({
+const battle = (id: string, teams: number[], efforts: (string | null)[], createdAt = "2026-10-14T00:00:00Z", models: (string | null)[] = []): ReplaySummary => ({
   id, createdAt, rulesVersion: rules.version, map: "fortress-quad", source: "local",
   finalTick: 1200, tickRate: 10, outcome: { winner: "p1", reason: "vital_lost", scores: {} },
-  players: teams.map((team, i) => ({ id: `p${i + 1}`, name: `Model ${i + 1}`, team, effort: efforts[i] })),
+  players: teams.map((team, i) => ({ id: `p${i + 1}`, name: `Model ${i + 1}`, team, effort: efforts[i], model: models[i] ?? null })),
 });
 /** Opens `url` with the app's battles route and an empty query cache, and waits for the catalogue to load. */
 const open = async (url = "/battles") => {
@@ -89,6 +89,21 @@ it("filters by rules version, counting formats within the chosen version", async
   expect(links()).toEqual(["/replay/then"]);
   expect(router.state.location.search).toEqual({ rules: "v26" });
   expect(host.querySelector(".battles-filters button")?.textContent).toBe("All battles 1");
+});
+
+it("shares one model's battles by its recorded ID, not its display name, and clears that view", async () => {
+  replays = [
+    battle("duel", [0, 1], ["low", "low"], undefined, ["claude-fable-5-2", "gpt-6.1-sol"]),
+    battle("teams", [0, 0, 1, 1], ["low", "low", "low", "low"], undefined, ["claude-opus-5-5", "claude-fable-5-2", null, null]),
+    { ...battle("named", [0, 1], ["low", "low"]), players: [{ id: "p1", name: "claude-fable-5-2", team: 0, effort: null, model: null }, { id: "p2", name: "Sol", team: 1, effort: null, model: "gpt-6.1-sol" }] },
+  ];
+  await close(); await open("/battles?model=claude-fable-5-2");
+  const links = () => [...host.querySelectorAll<HTMLAnchorElement>(".battle-open")].map(a => a.getAttribute("href"));
+  expect(links()).toEqual(["/replay/duel", "/replay/teams"]);
+  expect(host.querySelector(".battles-filters button")?.textContent).toBe("All battles 2");
+  await act(async () => host.querySelector<HTMLButtonElement>(".battles-model")!.click()); await settle();
+  expect(links()).toHaveLength(3);
+  expect(router.state.location.search).toEqual({});
 });
 
 it("refreshes a local server's catalogue while you watch and fetches the published one once", async () => {
