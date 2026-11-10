@@ -38,6 +38,12 @@ export function newerFamily(a: string, b: string): number {
 /** A rules family as a reader sees it: "v0.29", "v26". */
 export const familyLabel = (family: string) => /^\d/.test(family) ? `v${family}` : family;
 
+/**
+ * A recorded model ID as the catalogue filters it: without the provider route some harnesses put in front
+ * ("anthropic/claude-opus-5-5" and "claude-opus-5-5" are one model). A harness combination ("a+b") stays whole.
+ */
+export const modelKey = (model: string) => model.includes("+") ? model : model.slice(model.lastIndexOf("/") + 1);
+
 /** The battles a catalog lists: agents only, on known rules, the newest recording first. */
 export function catalogBattles<T extends Listed>(entries: readonly T[]): T[] {
   return entries.filter((entry) => !hasScriptedBot(entry.players) && rulesFamily(entry.rulesVersion) !== null)

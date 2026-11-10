@@ -91,17 +91,20 @@ it("filters by rules version, counting formats within the chosen version", async
   expect(host.querySelector(".battles-filters button")?.textContent).toBe("All battles 1");
 });
 
-it("shares one model's battles by its recorded ID, not its display name, and clears that view", async () => {
+it("shares one model's battles by its recorded ID, not its display name or provider route, and clears that view", async () => {
   replays = [
     battle("duel", [0, 1], ["low", "low"], undefined, ["claude-fable-5-2", "gpt-6.1-sol"]),
-    battle("teams", [0, 0, 1, 1], ["low", "low", "low", "low"], undefined, ["claude-opus-5-5", "claude-fable-5-2", null, null]),
+    battle("teams", [0, 0, 1, 1], ["low", "low", "low", "low"], undefined, ["claude-opus-5-5", "anthropic/claude-fable-5-2", null, "openai/gpt-6-luna+typesafe/jev-1.14"]),
     { ...battle("named", [0, 1], ["low", "low"]), players: [{ id: "p1", name: "claude-fable-5-2", team: 0, effort: null, model: null }, { id: "p2", name: "Sol", team: 1, effort: null, model: "gpt-6.1-sol" }] },
   ];
   await close(); await open("/battles?model=claude-fable-5-2");
   const links = () => [...host.querySelectorAll<HTMLAnchorElement>(".battle-open")].map(a => a.getAttribute("href"));
+  const select = host.querySelector<HTMLSelectElement>(".battles-model select")!;
   expect(links()).toEqual(["/replay/duel", "/replay/teams"]);
+  expect([...select.options].map(o => o.value)).toEqual(["all", "claude-fable-5-2", "claude-opus-5-5", "gpt-6.1-sol", "openai/gpt-6-luna+typesafe/jev-1.14"]);
+  expect(select.value).toBe("claude-fable-5-2");
   expect(host.querySelector(".battles-filters button")?.textContent).toBe("All battles 2");
-  await act(async () => host.querySelector<HTMLButtonElement>(".battles-model")!.click()); await settle();
+  await act(async () => { select.value = "all"; select.dispatchEvent(new Event("change", { bubbles: true })); }); await settle();
   expect(links()).toHaveLength(3);
   expect(router.state.location.search).toEqual({});
 });

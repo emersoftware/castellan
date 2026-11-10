@@ -7,7 +7,7 @@ import { api } from "../api";
 import { Versus } from "../components/Versus";
 import { BattleCard, MODE_LABEL, battleMode, type BattleMode } from "../components/BattleCard";
 import { LoadState } from "../components/LoadState";
-import { battleList, familyLabel, newerFamily } from "../replayCatalog";
+import { battleList, familyLabel, modelKey, newerFamily } from "../replayCatalog";
 import { sfx } from "../audio/sfx";
 import { SoundToggle } from "../components/Hud";
 import "./battles.css";
@@ -21,7 +21,7 @@ const PAGE_SIZE = 24;
  * The view lives in the address (`/battles?mode=duel&rules=v26&page=2`), so going back from a replay
  * returns to the same page and filters, and a view can be shared. Defaults stay out of the URL. `rules`
  * holds the family's label ("v0.29"), which, unlike "0.29", is not read back as a number. `model` is a
- * recorded model ID (`?model=claude-fable-5-2`): only battles where a player declared it, for sharing.
+ * recorded model ID without its provider route (`?model=claude-fable-5-2`): only battles where a player declared it.
  */
 export interface BattlesSearch { mode?: BattleMode; rules?: string; model?: string; page?: number }
 
@@ -66,7 +66,9 @@ export function Battles() {
     refine({ mode: value === "all" ? undefined : value });
   };
   // Series summaries carry no models, so a model view lists single battles only.
-  const ofModel = (battle: (typeof battles)[number]) => !search.model || (battle.kind === "replay" && battle.replay.players.some(player => player.model === search.model));
+  const modelsOf = (battle: (typeof battles)[number]) => battle.kind === "replay" ? battle.replay.players.flatMap(player => player.model ? modelKey(player.model) : []) : [];
+  const models = [...new Set([...battles.flatMap(modelsOf), ...(search.model ? [search.model] : [])])].sort();
+  const ofModel = (battle: (typeof battles)[number]) => !search.model || modelsOf(battle).includes(search.model);
   const onVersion = battles.filter(battle => (version === "all" || battle.family === version) && ofModel(battle));
   const visible = onVersion.filter(battle => filter === "all" || modeOf(battle) === filter);
   const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
@@ -94,7 +96,12 @@ export function Battles() {
             {families.map(family => <option key={family} value={family}>{familyLabel(family)}</option>)}
           </select>
         </label>
-        {search.model && <button className="battles-model on" onClick={() => refine({ model: undefined })} aria-label={`Show battles of every model, not only ${search.model}`}>{search.model} ×</button>}
+        <label className="battles-version battles-model">Model
+          <select value={search.model ?? "all"} onChange={event => { track("battle_model_changed", { model: event.target.value }); refine({ model: event.target.value === "all" ? undefined : event.target.value }); }}>
+            <option value="all">All models</option>
+            {models.map(model => <option key={model} value={model}>{model}</option>)}
+          </select>
+        </label>
         <span className="battles-order">Newest first</span>
       </div>
       <LoadState loading={replays.isPending} error={replays.isError} empty={replays.isSuccess && !battles.length} onRetry={() => { void replays.refetch(); void series.refetch(); }} />
