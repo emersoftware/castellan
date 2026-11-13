@@ -3,7 +3,7 @@
 This player runs Google's Antigravity CLI (`agy`), not Gemini CLI or the desktop
 editor's command launcher.
 
-1. Install `agy` and run it interactively once to sign in.
+1. Install `agy`, or run `agy update` for an existing installation. Sign in with `agy` once.
 2. Use the model identifiers printed by `agy models`.
 3. Create a room and give this player its token:
 
@@ -33,6 +33,29 @@ authentication unchanged.
 selects another executable. Model and effort arguments go to `agy`.
 The driver owns the project, conversation, prompt and stream-json protocol, and
 rejects external overrides of them.
+An explicit `--model` must appear in `agy models` for the current authentication;
+otherwise the launcher stops before creating a workspace or connecting the seat.
+For Vertex, list models with `AGY_ADC_AUTH=true agy models` too.
+
+## Native MCP transport
+
+`mcp` is the default transport. The player receives the game's MCP tools directly;
+terminal commands, file writes and web access are denied. Only the game MCP and
+this conversation's saved tool outputs are pre-approved. Global Antigravity
+customizations may still be discovered: this is a tool permission boundary, not
+an OS sandbox. No global settings are edited.
+
+With `AGY_ADC_AUTH=true`, these passed the native MCP diagnostic: one real `guide`
+call and one real `state` call, with both response nonces confirmed.
+
+- 2026-10-28: `agy 1.4.9`, `gemini-4-argon-low`.
+- 2026-11-13: `agy 1.5.8`, `gemini-4-hydrogen-low`.
+
+The earlier `agy 1.3.4` failure to call discovered MCP tools was not reproduced.
+Since 1.5.7, headless runs start in Auto mode where it is available; deny rules
+still take precedence. In the 1.5.8 ADC run, the CLI log reported Auto as
+unavailable and fell back to Default. Check other versions and models with the
+diagnostic below; transports never switch automatically.
 
 ## Decisions and recovery
 
@@ -48,6 +71,9 @@ conversation. Only 1 decision runs at a time. The driver supplies no
 strategy or gameplay decisions. Observation cursors advance only after
 a successful decision, so tool calls cannot hide events from the next.
 
+`agy` owns provider retries and their delays. A terminal unsuccessful model
+result stops the player with the reported reason, including quota or credit
+exhaustion; the connector does not restart the CLI's retry policy.
 Real process failures get bounded retries, with the same
 conversation ID and observation cursor. The recovery prompt says earlier actions
 may already have applied; the driver never repeats them. 3 consecutive failures stop the connector. Match end, elimination and signals
@@ -60,8 +86,8 @@ instead of summing every decision's value.
 
 ## Persistent command transport
 
-`cli` is the default transport. 1 MCP process stays connected for the whole
-player session. A private Unix socket connects the temporary `bin/castellan-tool`
+Set `CASTELLAN_AGY_TRANSPORT=cli` to use the command bridge instead. 1 MCP process
+stays connected for the whole player session. A private Unix socket connects the temporary `bin/castellan-tool`
 wrapper to that process. The wrapper takes exactly a tool name and 1 JSON
 object, and exposes the same 7 tools, schemas, validation and responses:
 `guide`, `state`, `act`, `script`, `run`, `chat` and `history`.
@@ -96,7 +122,7 @@ tools. Run this diagnostic before a match:
 
 ```sh
 AGY_ADC_AUTH=true node connectors/loop-keepers/antigravity/preflight.mjs \
-  --model gemini-4-argon-low --effort low --transport cli
+  --model gemini-4-argon-low --effort low --transport mcp
 ```
 
 It spends 1 model prompt on a disposable local server, never a game. To
@@ -106,11 +132,7 @@ host deadline stops the process and its children, and temporary resources are
 removed. Regression tests use fake model
 processes and never call paid models.
 
-Native MCP stays available with `CASTELLAN_AGY_TRANSPORT=mcp`. In the tested
-`agy 1.3.4`, MCP discovery worked but the model could not call the tools, even
-with configuration from `agy mcp add`. The cause is unknown. Before using it in a
-match, check the CLI version with the diagnostic and `--transport mcp`. Native mode pre-approves only
-`mcp(castellan/*)` and permitted output/schema reads. It denies terminal commands.
+To check the command bridge instead, run the diagnostic with `--transport cli`.
 
 References: [headless mode](https://antigravity.google/docs/cli/headless/),
 [MCP configuration](https://antigravity.google/docs/mcp?tab=cli),

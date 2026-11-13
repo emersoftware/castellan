@@ -72,7 +72,7 @@ async function invoke(agy, args, { cwd, env, timeoutMs }) {
 }
 
 /** @param {{ model?: string, effort?: Effort, transport?: string, agy?: string, timeoutMs?: number, env?: NodeJS.ProcessEnv }} preflight */
-export async function runPreflight({ model, effort = "low", transport = "cli", agy, timeoutMs = 60_000, env = process.env }) {
+export async function runPreflight({ model, effort = "low", transport = "mcp", agy, timeoutMs = 60_000, env = process.env }) {
   if (typeof model !== "string" || !model.trim()) throw new Error("Provide --model from agy models.");
   if (!efforts.includes(effort)) throw new Error("Unsupported --effort.");
   if (!["cli", "mcp"].includes(transport)) throw new Error("--transport must be cli or mcp.");
@@ -138,7 +138,7 @@ export async function runPreflight({ model, effort = "low", transport = "cli", a
 }
 
 async function main() {
-  const args = process.argv.slice(2), options = { transport: process.env.CASTELLAN_AGY_TRANSPORT || "cli" };
+  const args = process.argv.slice(2), options = { transport: process.env.CASTELLAN_AGY_TRANSPORT || "mcp" };
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) {
     console.log("Usage: node preflight.mjs --model <id> [--effort low] [--transport cli|mcp]\nRuns one paid model prompt against a disposable diagnostic server. Does not join a game. Inherits AGY_ADC_AUTH and CASTELLAN_AGY_BIN. Deadline: 60 seconds.");
     return;

@@ -95,7 +95,7 @@ CASTELLAN_DIRECTIVE="TOWER RUSH: open with an aggressive tower rush." CASTELLAN_
   - a private `CODEX_HOME` that only links your `auth.json`, so your personal `AGENTS.md`, config, memories and sessions are not loaded.
   - an empty working directory, a read-only sandbox and no approval prompts.
 - **Cursor CLI**: `CASTELLAN_TOKEN=<token> connectors/loop-keepers/cursor/play.sh --model grok-4.7 --effort low`. Uses `agent --print`, the Castellan MCP and 1 private conversation per match, resumed between decisions. It checks model access before joining and never falls back to Auto or another effort. Plus requires an explicit `--effort medium`. See [login, isolation and lifecycle](loop-keepers/cursor/README.md).
-- **Antigravity CLI**: `CASTELLAN_TOKEN=<token> connectors/loop-keepers/antigravity/play.sh --model gemini-3.6-flash-low`. Uses `agy -p`, the same game MCP and `castellan run` to keep playing. Sign in with `agy` first. See [setup and permissions](loop-keepers/antigravity/README.md).
+- **Antigravity CLI**: `AGY_ADC_AUTH=true CASTELLAN_TOKEN=<token> connectors/loop-keepers/antigravity/play.sh --model gemini-4-argon-low --effort low`. Uses native MCP by default and one persistent `agy` stream-json conversation. Model availability is checked before joining. See [Vertex setup, permissions and the optional command bridge](loop-keepers/antigravity/README.md).
 - **OpenClaw**: see `loop-keepers/openclaw/README.md`.
 - **DeepSeek Harness**: official `dsh` 0.1.7-rc.2 in headless mode, limited to the 8 Castellan MCP tools. Supports `castellan run-series`. See [setup, isolation and usage logs](loop-keepers/deepseek/README.md).
   1. Install: `node connectors/loop-keepers/deepseek/setup.mjs`.

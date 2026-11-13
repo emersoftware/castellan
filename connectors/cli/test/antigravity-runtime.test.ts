@@ -40,6 +40,7 @@ process.on('SIGTERM', () => { record({kind:'terminated',pid:process.pid}); if(mo
 readline.createInterface({input:process.stdin}).on('line', line => {
   const input=JSON.parse(line); record({kind:'prompt',pid:process.pid,conversation,prompt:input.message.content,overlap:busy}); busy=true;
   if(mode==='blocked') return;
+  if(mode==='quota') { busy=false; emit({event:'result',result:{status:'ERROR',conversation_id:conversation,error:'Your AI credits balance is too low to continue.'}}); return; }
   if(mode==='always-crash' || (mode==='crash' && !fs.existsSync(process.env.FAKE_FAILED))) { fs.writeFileSync(process.env.FAKE_FAILED,'1'); process.exit(3); }
   setTimeout(() => { busy=false; record({kind:'result',pid:process.pid}); emit({event:'result',result:{status:'SUCCESS',conversation_id:conversation,num_turns:++turns,usage:{input_tokens:turns*10,output_tokens:turns}}}); },10);
 }).on('close', () => { record({kind:'eof',pid:process.pid}); if(!busy && mode!=='stubborn') setTimeout(() => process.exit(0), 50); });
@@ -144,6 +145,17 @@ it("stops after three process failures instead of endlessly restarting a paid mo
   expect(new Set(calls.filter(c => c.kind === "start").map(c => c.conversation)).size).toBe(1);
   expect(f.output()).toContain("stopped after 3 failures");
 }, 15_000);
+
+it("preserves a terminal model error and stops without restarting agy's exhausted retry policy", async () => {
+  const f = await fixture("quota");
+  f.phase("running");
+  expect(await f.exit).toBe(1);
+  const calls = await f.calls();
+  expect(calls.filter(c => c.kind === "start")).toHaveLength(1);
+  expect(calls.filter(c => c.kind === "prompt")).toHaveLength(1);
+  expect(f.output()).toContain("Your AI credits balance is too low to continue.");
+  expect(f.output()).not.toContain("retrying");
+});
 
 
 it("bounds idle shutdown when a process ignores EOF and SIGTERM", async () => {

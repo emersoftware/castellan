@@ -25,7 +25,7 @@ async function play({ env = process.env, args = process.argv.slice(2), cwd = pro
     throw new Error("Player conversations, prompts and projects are managed by play.sh.");
   }
   const agy = env.CASTELLAN_AGY_BIN || "agy";
-  const transport = env.CASTELLAN_AGY_TRANSPORT || "cli";
+  const transport = env.CASTELLAN_AGY_TRANSPORT || "mcp";
   if (transport !== "mcp" && transport !== "cli") throw new Error("CASTELLAN_AGY_TRANSPORT must be mcp or cli.");
   const projectPath = join(homedir(), ".gemini/config/projects", `${env.CASTELLAN_AGY_PROJECT}.json`);
   const onConversation = async conversation => {

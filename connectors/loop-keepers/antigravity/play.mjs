@@ -10,7 +10,7 @@ import { serverUrl } from "../game.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-export async function preparePlayer({ workspace, projectId, server, token, transport = "cli", bridge }) {
+export async function preparePlayer({ workspace, projectId, server, token, transport = "mcp", bridge }) {
   if (transport !== "mcp" && transport !== "cli") throw new Error("CASTELLAN_AGY_TRANSPORT must be mcp or cli.");
   await mkdir(join(workspace, ".agents"), { recursive: true });
   const mcp = { mcpServers: { castellan: {
@@ -52,6 +52,12 @@ export async function preparePlayer({ workspace, projectId, server, token, trans
 async function main() {
   if (!process.env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN (see castellan new)");
   const agy = process.env.CASTELLAN_AGY_BIN || "agy";
+  const args = process.argv.slice(2);
+  let model;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--model") model = args[++i];
+    else if (args[i].startsWith("--model=")) model = args[i].slice("--model=".length);
+  }
   // Check the executable before creating a project or consuming a player's seat.
   await new Promise((resolveCheck, reject) => {
     const check = spawn(agy, ["--help"], { stdio: "ignore" });
@@ -59,11 +65,17 @@ async function main() {
     check.on("exit", (code) => code === 0 ? resolveCheck() : reject(new Error(`agy --help exited ${code}`)));
   });
   await new Promise((resolveCheck, reject) => {
-    const check = spawn(agy, ["models"], { stdio: ["ignore", "ignore", "pipe"] });
-    let diagnostic = "";
+    const check = spawn(agy, ["models"], { stdio: ["ignore", "pipe", "pipe"] });
+    let diagnostic = "", catalog = "";
+    check.stdout.on("data", (chunk) => { catalog += chunk; });
     check.stderr.on("data", (chunk) => { diagnostic = (diagnostic + chunk).slice(-2000); });
     check.on("error", reject);
-    check.on("exit", (code) => code === 0 ? resolveCheck() : reject(new Error(`Antigravity cannot list models. Run agy interactively and sign in before joining a match.\n${diagnostic.trim()}`)));
+    check.on("close", (code) => {
+      if (code !== 0) { reject(new Error(`Antigravity cannot list models. Run agy interactively and sign in before joining a match.\n${diagnostic.trim()}`)); return; }
+      const available = new Set(catalog.split("\n").map(line => line.trim().split(/\s+/)[0]));
+      if (model && !available.has(model)) { reject(new Error(`Requested model ${model} is not available in agy models for the current authentication. No player was connected.`)); return; }
+      resolveCheck();
+    });
   });
   const workspace = await realpath(await mkdtemp(join(tmpdir(), "castellan-antigravity-")));
   const projectId = `castellan-${randomUUID()}`;
@@ -79,7 +91,7 @@ async function main() {
   const onTerm = () => forward("SIGTERM");
   try {
     const server = serverUrl(process.env.CASTELLAN_SERVER);
-    const transport = process.env.CASTELLAN_AGY_TRANSPORT || "cli";
+    const transport = process.env.CASTELLAN_AGY_TRANSPORT || "mcp";
     if (transport === "cli") bridge = await startToolBridge({
       socketPath: join(workspace, "tools.sock"), server, token: process.env.CASTELLAN_TOKEN,
       outputDir: join(workspace, "tool-output"),
@@ -93,7 +105,7 @@ async function main() {
     process.on("SIGINT", onInt);
     process.on("SIGTERM", onTerm);
     process.exitCode = await new Promise((resolveExit, reject) => {
-      child = spawn(process.execPath, [join(here, "agent.mjs"), ...process.argv.slice(2)], {
+      child = spawn(process.execPath, [join(here, "agent.mjs"), ...args], {
         cwd: workspace, env, stdio: "inherit", detached: true,
       });
       child.on("error", reject);

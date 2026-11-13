@@ -30,7 +30,7 @@ describe("Antigravity connector", () => {
     const root = await temp();
     for (const id of ["p1", "p2"]) {
       const workspace = join(root, id);
-      const project = await preparePlayer({ workspace, projectId: id, server: "http://localhost:4400", token: `token-${id}`, transport: "mcp" });
+      const project = await preparePlayer({ workspace, projectId: id, server: "http://localhost:4400", token: `token-${id}` });
       const mcp = JSON.parse(await readFile(join(workspace, ".agents/mcp_config.json"), "utf8"));
       expect(Object.keys(mcp.mcpServers)).toEqual(["castellan"]);
       expect(mcp.mcpServers.castellan.env).toEqual({ CASTELLAN_SERVER: "http://localhost:4400", CASTELLAN_TOKEN: `token-${id}` });
@@ -45,7 +45,7 @@ describe("Antigravity connector", () => {
     }
   });
 
-  it.each(["mcp", "cli"])("%s: the real launcher preserves model, effort and Vertex auth, grants only its outputs, and cleans the project", async transport => {
+  it.each(["default", "mcp", "cli"])("%s: the real launcher preserves model, effort and Vertex auth, grants only its outputs, and cleans the project", async transport => {
     const root = await temp(), bin = join(root, "fake agy"), capture = join(root, "capture.json");
     const conversation = randomUUID();
     let finished = false;
@@ -65,7 +65,8 @@ describe("Antigravity connector", () => {
     await writeFile(bin, `#!${process.execPath}
 const fs=require('node:fs'), path=require('node:path'), os=require('node:os'), readline=require('node:readline');
 const args=process.argv.slice(2);
-if(args.includes('--help') || args[0]==='models') process.exit(0);
+if(args.includes('--help')) process.exit(0);
+if(args[0]==='models') { console.log('gemini-4-argon-low\\tGemini 4 Argon (Low)'); process.exit(0); }
 if(args.includes('--version')) { console.log('1.3.4'); process.exit(0); }
 if(!args.includes('--input-format')) { console.error('Expected the persistent streaming protocol'); process.exit(2); }
 const projectFile=path.join(os.homedir(),'.gemini/config/projects',args[args.indexOf('--project')+1]+'.json');
@@ -79,7 +80,7 @@ readline.createInterface({input:process.stdin}).on('line',async line=>{
 `, { mode: 0o700 });
     try {
       await exec(process.execPath, [play, "--model", "gemini-4-argon-low", "--effort", "low", "--output-format", "stream-json"], {
-        cwd: root, env: { ...process.env, CASTELLAN_AGY_BIN: bin, CASTELLAN_AGY_TRANSPORT: transport, CASTELLAN_SERVER: server,
+        cwd: root, env: { ...process.env, CASTELLAN_AGY_BIN: bin, CASTELLAN_AGY_TRANSPORT: transport === "default" ? "" : transport, CASTELLAN_SERVER: server,
           CASTELLAN_TOKEN: "player-only", AGY_ADC_AUTH: "true", CAPTURE: capture }, timeout: 12_000,
       });
       const called = JSON.parse(await readFile(capture, "utf8"));
@@ -158,5 +159,22 @@ readline.createInterface({input:process.stdin}).on('line',async line=>{
     const env = { ...process.env, CASTELLAN_TOKEN: "" };
     await expect(exec(process.execPath, [play], { env })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("set CASTELLAN_TOKEN") });
     await expect(exec(process.execPath, [play], { env: { ...env, CASTELLAN_TOKEN: "test", CASTELLAN_AGY_BIN: "/does-not-exist/agy" } })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("Antigravity CLI not found") });
+  });
+
+  it.each([["--model", "gemini-4-carbon-low"], ["--model=gemini-4-carbon-low"]])("rejects an unavailable model before touching the game server: %s", async (...args) => {
+    const root = await temp(), bin = join(root, "fake-agy");
+    await writeFile(bin, `#!${process.execPath}
+if(process.argv[2]==='models') console.log('gemini-4-argon-low\\tGemini 4 Argon (Low)');
+`, { mode: 0o700 });
+    const requests: string[] = [];
+    const http = createServer((req, res) => { requests.push(req.url!); res.writeHead(503); res.end(); });
+    await new Promise<void>(resolve => http.listen(0, "127.0.0.1", resolve));
+    try {
+      await expect(exec(process.execPath, [play, ...args], {
+        env: { ...process.env, CASTELLAN_TOKEN: "test-player", CASTELLAN_AGY_BIN: bin,
+          CASTELLAN_SERVER: `http://127.0.0.1:${(http.address() as { port: number }).port}` }, timeout: 8000,
+      })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("not available in agy models") });
+      expect(requests).toEqual([]);
+    } finally { await new Promise<void>(resolve => http.close(() => resolve())); }
   });
 });
