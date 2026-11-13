@@ -49,7 +49,8 @@ With `AGY_ADC_AUTH=true`, these passed the native MCP diagnostic: one real `guid
 call and one real `state` call, with both response nonces confirmed.
 
 - 2026-10-28: `agy 1.4.9`, `gemini-4-argon-low`.
-- 2026-11-13: `agy 1.5.8`, `gemini-4-hydrogen-low`.
+- 2026-11-13: `agy 1.5.8`, `gemini-4-hydrogen-low`, `gemini-3.8-flash-low` and
+  `gemini-4-carbon-low`.
 
 The earlier `agy 1.3.4` failure to call discovered MCP tools was not reproduced.
 Since 1.5.7, headless runs start in Auto mode where it is available; deny rules
