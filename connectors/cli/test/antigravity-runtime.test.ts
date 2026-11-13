@@ -40,7 +40,7 @@ process.on('SIGTERM', () => { record({kind:'terminated',pid:process.pid}); if(mo
 readline.createInterface({input:process.stdin}).on('line', line => {
   const input=JSON.parse(line); record({kind:'prompt',pid:process.pid,conversation,prompt:input.message.content,overlap:busy}); busy=true;
   if(mode==='blocked') return;
-  if(mode==='quota') { busy=false; emit({event:'result',result:{status:'ERROR',conversation_id:conversation,error:'Your AI credits balance is too low to continue.'}}); return; }
+  if(mode==='turn-error' && !fs.existsSync(process.env.FAKE_FAILED)) { fs.writeFileSync(process.env.FAKE_FAILED,'1'); busy=false; emit({event:'result',result:{status:'ERROR',finished_reason:'error',conversation_id:conversation,error:'Your previous response contained an improperly formatted function call\\nPlease retry with a properly formatted function call\\nRetries remaining: 3'}}); return; }
   if(mode==='always-crash' || (mode==='crash' && !fs.existsSync(process.env.FAKE_FAILED))) { fs.writeFileSync(process.env.FAKE_FAILED,'1'); process.exit(3); }
   setTimeout(() => { busy=false; record({kind:'result',pid:process.pid}); emit({event:'result',result:{status:'SUCCESS',conversation_id:conversation,num_turns:++turns,usage:{input_tokens:turns*10,output_tokens:turns}}}); },10);
 }).on('close', () => { record({kind:'eof',pid:process.pid}); if(!busy && mode!=='stubborn') setTimeout(() => process.exit(0), 50); });
@@ -146,15 +146,18 @@ it("stops after three process failures instead of endlessly restarting a paid mo
   expect(f.output()).toContain("stopped after 3 failures");
 }, 15_000);
 
-it("preserves a terminal model error and stops without restarting agy's exhausted retry policy", async () => {
-  const f = await fixture("quota");
+it("retries a turn that agy reports as ERROR after recovering within it, in the same conversation and with its reason", async () => {
+  // Game 759c5c1a: agy recovered from a malformed tool call, played on, then ended the turn as ERROR.
+  const f = await fixture("turn-error");
   f.phase("running");
-  expect(await f.exit).toBe(1);
-  const calls = await f.calls();
-  expect(calls.filter(c => c.kind === "start")).toHaveLength(1);
-  expect(calls.filter(c => c.kind === "prompt")).toHaveLength(1);
-  expect(f.output()).toContain("Your AI credits balance is too low to continue.");
-  expect(f.output()).not.toContain("retrying");
+  await vi.waitFor(async () => expect((await f.calls()).filter(c => c.kind === "result")).toHaveLength(1), { timeout: 8000 });
+  f.phase("finished");
+  expect(await f.exit).toBe(0);
+  const starts = (await f.calls()).filter(c => c.kind === "start");
+  expect(starts).toHaveLength(2);
+  expect(starts[1].conversation).toBe(starts[0].conversation);
+  expect(f.output()).toContain("improperly formatted function call");
+  expect(f.output()).toContain("retrying with the same conversation");
 });
 
 

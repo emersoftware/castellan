@@ -85,10 +85,11 @@ function openSession({ binary, args, env, cwd, conversation, onConversation, sig
       if (event.result?.conversation_id !== conversation) {
         turn.reject(new Error("Antigravity returned a result for an unexpected conversation"));
       } else if (event.result.status !== "SUCCESS") {
-        // agy owns provider retries. A terminal model result must not restart
-        // that policy (or retry actions that already ran before the failure).
+        // agy reports ERROR even for a turn it recovered within (a malformed tool
+        // call, then normal play), so the status cannot identify a definitive
+        // quota stop. The bounded failure budget handles both.
         const reason = typeof event.result.error === "string" ? `: ${event.result.error}` : "";
-        turn.reject(Object.assign(new Error(`Antigravity decision failed (${event.result.status || "invalid result"})${reason}`), { fatal: true }));
+        turn.reject(new Error(`Antigravity decision failed (${event.result.status || "invalid result"})${reason}`));
       } else turn.resolve(event.result);
     }
   };
@@ -170,7 +171,6 @@ export async function drivePlayer({ env = process.env, args = [], prompt, onConv
       } catch (error) {
         await session?.stop(); session = undefined;
         if (stopped) break;
-        if (/** @type {Error & { fatal?: boolean }} */ (error).fatal) throw error;
         if (++failures >= maxFailures) throw new Error(`Antigravity stopped after ${failures} failures: ${/** @type {Error} */ (error).message}`, { cause: error });
         console.error(`castellan antigravity: ${/** @type {Error} */ (error).message}; retrying with the same conversation and observation cursor`);
         const wait = retryMs * failures;

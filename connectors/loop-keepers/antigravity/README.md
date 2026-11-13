@@ -71,10 +71,11 @@ conversation. Only 1 decision runs at a time. The driver supplies no
 strategy or gameplay decisions. Observation cursors advance only after
 a successful decision, so tool calls cannot hide events from the next.
 
-`agy` owns provider retries and their delays. A terminal unsuccessful model
-result stops the player with the reported reason, including quota or credit
-exhaustion; the connector does not restart the CLI's retry policy.
-Real process failures get bounded retries, with the same
+`agy` owns provider retries and their delays. It can report a turn as `ERROR`
+after recovering within it, for example from a malformed tool call, so an
+unsuccessful result counts as a failure with its reported reason, like a process
+failure. A persistent quota or credit stop ends the player after 3 attempts.
+Failures get bounded retries, with the same
 conversation ID and observation cursor. The recovery prompt says earlier actions
 may already have applied; the driver never repeats them. 3 consecutive failures stop the connector. Match end, elimination and signals
 end the model. The CLI print timeout defaults to 15 minutes; change it
