@@ -38,18 +38,24 @@ function codexArgs({ workspace, session, args, prompt }) {
     "-c", "mcp_servers.castellan.tool_timeout_sec=60", "-c", 'mcp_servers.castellan.default_tools_approval_mode="approve"', ...args, prompt];
 }
 
+/** A turn that prints no JSON event for this long is stalled: game tools time out after 60 s, so a live
+ * turn reports sooner. On 2026-11-17 gpt-6.2-astra turns went silent for 6 and 9 minutes mid-match. */
+const STALLED_TURN_MS = 180_000;
+
 /** Supplies observations, never strategy. One decision in flight per seat;
  * every later decision resumes this match's conversation. */
 export async function play({ env = process.env, args = process.argv.slice(2), fetchImpl = fetch, spawnImpl = spawn,
-  minIntervalMs = MIN_INTERVAL_MS, pollMs = 2000 } = {}) {
+  minIntervalMs = MIN_INTERVAL_MS, pollMs = 2000, idleMs = STALLED_TURN_MS } = {}) {
   if (env.CASTELLAN_OPEN === "1") { const { playOpen } = await import("../../open-arena/src/agent.mjs"); await playOpen(env.CASTELLAN_ARENA_SEAT); return 0; }
   if (!env.CASTELLAN_TOKEN) throw new Error("set CASTELLAN_TOKEN");
   const root = await mkdtemp(join(tmpdir(), "castellan-codex-"));
   try {
     const { home, workspace } = await isolatedHome(root, env);
     const prompt = promptOf(env);
-    await reportConfiguration(launchConfiguration({ connector: "codex", args, prompt, env,
-      connectorVersion: env.CASTELLAN_CONNECTOR_VERSION || await connectorVersion(codexBin(env)) }), { env, fetchImpl });
+    const configuration = launchConfiguration({ connector: "codex", args, prompt, env,
+      connectorVersion: env.CASTELLAN_CONNECTOR_VERSION || await connectorVersion(codexBin(env)) });
+    configuration.contextPolicy += `; stalled-turn-retry-after-${idleMs / 1000}s-silence`;
+    await reportConfiguration(configuration, { env, fetchImpl });
     return await playSeat({ name: "codex", prompt, env, fetchImpl, minIntervalMs, pollMs, decide: async (turn, { session, signal }) => {
       const child = spawnImpl(codexBin(env), codexArgs({ workspace, session, args, prompt: turn }), {
         cwd: workspace, env: { ...env, CASTELLAN_SERVER: serverUrl(env.CASTELLAN_SERVER), CODEX_HOME: home }, stdio: ["ignore", "pipe", "inherit"],
@@ -61,7 +67,7 @@ export async function play({ env = process.env, args = process.argv.slice(2), fe
           if (event.type === "thread.started" && typeof event.thread_id === "string") thread = event.thread_id;
           if (event.type === "turn.completed") turnComplete = true;
         } catch { /* plain CLI diagnostics */ }
-      });
+      }, { idleMs }).catch(error => { throw Object.assign(error, { session: thread }); });
       if (code !== 0 || !turnComplete || !thread) throw Object.assign(new Error(`Codex decision incomplete (exit ${code})`), { session: thread });
       return { session: thread };
     } });

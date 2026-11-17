@@ -120,18 +120,38 @@ export function lineReader(onLine) {
 
 /**
  * A harness process's exit code. Its stdout is echoed and split into `onLine`; aborting `signal` terminates it.
+ * With `idleMs`, a process that prints nothing for that long is stopped and this rejects, so a stalled
+ * turn fails like any other decision instead of holding the seat for the rest of the match.
  * @param {import("node:child_process").ChildProcess} child @param {AbortSignal} signal @param {(line: string) => void} onLine
+ * @param {{ idleMs?: number }} [options]
  * @returns {Promise<number | null>}
  */
-export async function exitOf(child, signal, onLine) {
+export async function exitOf(child, signal, onLine, { idleMs } = {}) {
   const lines = lineReader(onLine);
-  child.stdout?.on("data", chunk => { process.stdout.write(chunk); lines.push(chunk); });
+  /** @type {NodeJS.Timeout | undefined} */
+  let idle;
+  let stalled = false;
   const terminate = () => child.kill("SIGTERM");
+  const watchIdle = () => {
+    if (!idleMs) return;
+    clearTimeout(idle);
+    idle = setTimeout(() => {
+      stalled = true;
+      terminate();
+      // A process that ignores SIGTERM must not keep the seat waiting either.
+      setTimeout(() => child.kill("SIGKILL"), 5000).unref();
+    }, idleMs);
+  };
+  child.stdout?.on("data", chunk => { watchIdle(); process.stdout.write(chunk); lines.push(chunk); });
   signal.addEventListener("abort", terminate, { once: true });
   if (signal.aborted) terminate();
+  watchIdle();
   try {
-    return await new Promise((resolveCode, reject) => { child.on("error", reject); child.on("close", resolveCode); });
+    const code = await new Promise((resolveCode, reject) => { child.on("error", reject); child.on("close", resolveCode); });
+    if (stalled) throw new Error(`no output for ${/** @type {number} */ (idleMs) / 1000} s; the stalled turn was stopped`);
+    return code;
   } finally {
+    clearTimeout(idle);
     signal.removeEventListener("abort", terminate);
     lines.end();
   }

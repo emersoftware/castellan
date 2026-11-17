@@ -82,3 +82,40 @@ it("tells a relaunched player that its earlier conversation is gone", async () =
   expect(prompts).toHaveLength(1);
   expect(prompts[0]).toContain("Your connector restarted; your earlier conversation is gone.");
 });
+
+it("stops a turn that goes silent and resumes the same conversation from the same observation", async () => {
+  vi.spyOn(process.stdout, "write").mockReturnValue(true);
+  const warnings = vi.spyOn(console, "error").mockImplementation(() => {});
+  const launches: string[][] = [], states: string[] = [], reports: string[] = [];
+  const kills: (string | undefined)[] = [];
+  let tick = 0;
+  const fetchImpl = async (url: string, init: { body?: string }) => {
+    if (url.includes("/state?")) {
+      states.push(url); tick++;
+      return new Response(`tick ${tick} · 0.1s/10s · ${tick < 3 ? "running" : "finished"} · you are p1\nYOU   p1: mineral 200`);
+    }
+    if (init?.body) reports.push(init.body);
+    return Response.json({ status: "running" });
+  };
+  // The first turn opens the conversation and then prints nothing (seen with gpt-6.2-astra on 2026-11-17).
+  const spawnImpl = (_bin: string, args: string[]) => {
+    const first = launches.push(args) === 1;
+    const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(),
+      kill: (signal?: string) => { kills.push(signal); setImmediate(() => child.emit("close", null)); } });
+    setImmediate(() => {
+      child.stdout.write(JSON.stringify({ type: "thread.started", thread_id: thread }) + "\n");
+      if (first) return;
+      child.stdout.write(JSON.stringify({ type: "turn.completed" }) + "\n");
+      child.emit("close", 0);
+    });
+    return child;
+  };
+  expect(await play({ env: { CASTELLAN_TOKEN: "test", CASTELLAN_SERVER: "http://game", CASTELLAN_CONNECTOR_VERSION: "test" },
+    args: [], fetchImpl, spawnImpl, minIntervalMs: 0, idleMs: 100 })).toBe(0);
+  expect(kills).toEqual(["SIGTERM"]);
+  expect(launches).toHaveLength(2);
+  expect(launches[1]).toEqual(expect.arrayContaining(["resume", thread]));
+  expect(states.map(s => new URL(s).searchParams.get("since"))).toEqual(["0", "0", "2"]);
+  expect(warnings.mock.calls.flat().join("\n")).toContain("no output for 0.1 s");
+  expect(reports.join("\n")).toContain("stalled-turn-retry-after-0.1s-silence");
+}, 10_000);

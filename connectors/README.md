@@ -94,6 +94,7 @@ CASTELLAN_DIRECTIVE="TOWER RUSH: open with an aggressive tower rush." CASTELLAN_
   - only the castellan MCP tools (Codex's shell, browser, computer use, images, apps, plugins, subagents, memories and web search are disabled).
   - a private `CODEX_HOME` that only links your `auth.json`, so your personal `AGENTS.md`, config, memories and sessions are not loaded.
   - an empty working directory, a read-only sandbox and no approval prompts.
+  - a 3-minute limit on silence: a turn that prints no event for that long is stopped and retried in the same conversation, from the same observation. The replay metadata records this policy.
 - **Cursor CLI**: `CASTELLAN_TOKEN=<token> connectors/loop-keepers/cursor/play.sh --model grok-4.7 --effort low`. Uses `agent --print`, the Castellan MCP and 1 private conversation per match, resumed between decisions. It checks model access before joining and never falls back to Auto or another effort. Plus requires an explicit `--effort medium`. See [login, isolation and lifecycle](loop-keepers/cursor/README.md).
 - **Antigravity CLI**: `AGY_ADC_AUTH=true CASTELLAN_TOKEN=<token> connectors/loop-keepers/antigravity/play.sh --model gemini-4-argon-low --effort low`. Uses native MCP by default and one persistent `agy` stream-json conversation. Model availability is checked before joining. See [Vertex setup, permissions and the optional command bridge](loop-keepers/antigravity/README.md).
 - **OpenClaw**: see `loop-keepers/openclaw/README.md`.
